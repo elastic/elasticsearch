@@ -14,7 +14,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -1412,30 +1411,19 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
               }
             }
             """, null, DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
-        // Remove try-catch after https://github.com/elastic/elasticsearch/issues/143884
-        try {
-            ESRestTestCase.createIndex("metrics-long", settings, """
-                "properties": {
-                  "@timestamp": { "type": "date" },
-                  "metric.name": {
-                    "type": "keyword",
-                    "time_series_dimension": true
-                  },
-                  "metric.value": {
-                    "type": "long",
-                    "time_series_metric": "gauge"
-                  }
-                }
-                """);
-        } catch (WarningFailureException warningException) {
-            List<String> warnings = warningException.getResponse().getWarnings();
-            if (warnings.stream()
-                .anyMatch(warning -> warning.equals("Parameter [default_metric] is deprecated and will be removed in a future version"))) {
-                Map<String, Object> indexMapping = ESRestTestCase.getIndexMapping("metrics-long");
-                logger.error("Received warning when creating index [metrics-long] with mapping [{}]", indexMapping);
+        ESRestTestCase.createIndex("metrics-long", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "long",
+                "time_series_metric": "gauge"
+              }
             }
-            throw warningException;
-        }
+            """);
         ESRestTestCase.createIndex("metrics-long_dimension", settings, """
             "properties": {
               "@timestamp": { "type": "date" },

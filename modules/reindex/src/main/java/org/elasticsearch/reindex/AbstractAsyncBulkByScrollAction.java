@@ -36,9 +36,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
-import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -318,7 +316,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     protected BulkByScrollResponse buildResponse(
         TimeValue took,
         List<BulkItemResponse.Failure> indexingFailures,
-        List<SearchFailure> searchFailures,
+        List<PaginatedSearchFailure> searchFailures,
         boolean timedOut
     ) {
         return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
@@ -570,7 +568,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     worker.getStatus(),
                     remoteVersion
                 );
-                final ResumeInfo resumeInfo = new ResumeInfo(workerResumeInfo, null);
+                final ResumeInfo resumeInfo = new ResumeInfo(task.relocationOrigin(), workerResumeInfo, null);
                 // This response is a local carrier for resumeInfo — for higher-level code to handle relocation and then discard.
                 // However, status must be accurate for sliced tasks only, the leader state stores this response and derives
                 // its own combined status from it to serialize to .tasks index.
@@ -611,7 +609,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Start terminating a request that finished non-catastrophically by refreshing the modified indices and then proceeding to
      * {@link #finishHim(Exception, List, List, boolean)}.
      */
-    void refreshAndFinish(List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
+    void refreshAndFinish(List<Failure> indexingFailures, List<PaginatedSearchFailure> searchFailures, boolean timedOut) {
         if (task.isCancelled() || false == mainRequest.isRefresh() || destinationIndices.isEmpty()) {
             finishHim(null, indexingFailures, searchFailures, timedOut);
             return;
@@ -649,7 +647,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * @param searchFailures any search failures accumulated during the request
      * @param timedOut have any of the sub-requests timed out?
      */
-    protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
+    protected void finishHim(
+        Exception failure,
+        List<Failure> indexingFailures,
+        List<PaginatedSearchFailure> searchFailures,
+        boolean timedOut
+    ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (failure == null) {

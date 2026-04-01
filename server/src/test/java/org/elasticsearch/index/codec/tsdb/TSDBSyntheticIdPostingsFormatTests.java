@@ -67,7 +67,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
-import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticIdBytesRef;
+import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -163,7 +163,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                         if (previous != null) {
                             assertThat(current.compareTo(previous), greaterThan(0));
                         }
-                        previous = termsEnum.term();
+                        // Deep copy since term() may return a reused BytesRef (scratch buffer)
+                        previous = BytesRef.deepCopyOf(termsEnum.term());
 
                         if (randomBoolean()) {
                             var postings = termsEnum.postings(reuse);
@@ -424,7 +425,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 var doc = randomlyOrderedDocs.get(i);
                 writer.addDocument(parser.parse(doc));
 
-                var uid = createSyntheticIdBytesRef(buildTsId(doc), doc.timestamp(), doc.routing());
+                var uid = uidEncodedSyntheticId(doc);
                 assertThat(finalDocs.put(uid, doc), nullValue());
 
                 if (i > 0 && rarely()) {
@@ -667,7 +668,15 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     private static BytesRef buildTsId(Doc doc) {
         return new TsidBuilder().addStringDimension("hostname", doc.hostName())
             .addStringDimension("metric.field", doc.metricField())
-            .buildTsid();
+            .buildTsid(IndexVersion.current());
+    }
+
+    /**
+     * Returns the Uid-encoded synthetic ID for a document, matching what term() returns.
+     */
+    private static BytesRef uidEncodedSyntheticId(Doc doc) {
+        String base64Id = createSyntheticId(buildTsId(doc), doc.timestamp(), doc.routing());
+        return Uid.encodeId(base64Id);
     }
 
     /**

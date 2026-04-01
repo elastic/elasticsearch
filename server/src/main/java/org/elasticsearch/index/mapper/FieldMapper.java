@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
@@ -109,6 +108,8 @@ public abstract class FieldMapper extends Mapper {
     protected final MappedFieldType mappedFieldType;
     protected final BuilderParams builderParams;
 
+    private SyntheticSourceMode syntheticSourceMode;
+
     /**
      * @param simpleName        the leaf name of the mapper
      * @param params            initialization params for this field mapper
@@ -117,6 +118,7 @@ public abstract class FieldMapper extends Mapper {
         super(simpleName);
         this.mappedFieldType = mappedFieldType;
         this.builderParams = params;
+        this.syntheticSourceMode = null;
 
         // could be blank but not empty on indices created < 8.6.0
         assert mappedFieldType.name().isEmpty() == false;
@@ -455,7 +457,7 @@ public abstract class FieldMapper extends Mapper {
      * </p>
      * @return {@link SyntheticSourceMode}
      */
-    final SyntheticSourceMode syntheticSourceMode() {
+    private SyntheticSourceMode calculateSyntheticSourceMode() {
         if (hasScript()) {
             return SyntheticSourceMode.NATIVE;
         }
@@ -468,6 +470,13 @@ public abstract class FieldMapper extends Mapper {
         }
 
         return syntheticSourceSupport().mode();
+    }
+
+    final SyntheticSourceMode syntheticSourceMode() {
+        if (syntheticSourceMode == null) {
+            this.syntheticSourceMode = calculateSyntheticSourceMode();
+        }
+        return syntheticSourceMode;
     }
 
     /**
@@ -626,24 +635,6 @@ public abstract class FieldMapper extends Mapper {
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
-                    }
-                }
-            }
-
-            private void update(FieldMapper toMerge, MapperMergeContext context) {
-                if (fieldBuilders.containsKey(toMerge.leafName()) == false) {
-                    if (context.decrementFieldBudgetIfPossible(toMerge.getTotalFieldsCount())) {
-                        add(toMerge);
-                    }
-                } else {
-                    FieldMapper.Builder existingBuilder = fieldBuilders.get(toMerge.leafName());
-                    FieldMapper.Builder incomingBuilder = toMerge.getMergeBuilder();
-                    if (incomingBuilder != null) {
-                        MapperMergeContext childContext = MapperMergeContext.from(context.getMapperBuilderContext(), Long.MAX_VALUE);
-                        Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
-                        fieldBuilders.put(toMerge.leafName(), (FieldMapper.Builder) merged);
-                    } else {
-                        add(toMerge);
                     }
                 }
             }
@@ -1940,13 +1931,6 @@ public abstract class FieldMapper extends Mapper {
                     );
                 }
                 if (parameter.deprecated) {
-                    // Remove the stack track trace logging after https://github.com/elastic/elasticsearch/issues/143884
-                    if (logger.isDebugEnabled() && "default_metric".equals(propName)) {
-                        logger.debug(
-                            "Parsing [" + contentType() + "] with deprecated [default_metric] config",
-                            new ElasticsearchException("Stack trace retrieval")
-                        );
-                    }
                     deprecationLogger.warn(
                         DeprecationCategory.API,
                         propName,

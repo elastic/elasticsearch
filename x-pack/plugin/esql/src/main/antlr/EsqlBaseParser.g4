@@ -45,7 +45,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
-    | {this.isDevVersion()}? externalCommand
+    | {this.isExternalDataSourcesEnabled()}? externalCommand
     ;
 
 processingCommand
@@ -73,6 +73,7 @@ processingCommand
     | metricsInfoCommand
     | registeredDomainCommand
     | tsInfoCommand
+    | userAgentCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
@@ -117,7 +118,7 @@ indexPatternAndMetadataFields
 
 indexPatternOrSubquery
     : indexPattern
-    | {this.isDevVersion()}? subquery
+    | subquery
     ;
 
 subquery
@@ -221,7 +222,11 @@ stringOrParameter
     ;
 
 limitCommand
-    : LIMIT constant
+    : LIMIT constant limitByGroupKey?
+    ;
+
+limitByGroupKey:
+    {this.isDevVersion()}? BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand
@@ -304,7 +309,12 @@ sampleCommand
     ;
 
 changePointCommand
-    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    : CHANGE_POINT value=qualifiedName (changePointConfiguration)*
+    ;
+
+changePointConfiguration
+    : ON key=qualifiedName
+    | AS targetType=qualifiedName COMMA targetPvalue=qualifiedName
     ;
 
 forkCommand
@@ -382,6 +392,10 @@ uriPartsCommand
 
 registeredDomainCommand
     : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
+    ;
+
+userAgentCommand
+    : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
     ;
 
 setCommand

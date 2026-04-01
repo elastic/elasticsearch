@@ -22,22 +22,24 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.xpack.esql.CsvTests;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -61,15 +63,17 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.CsvTests.loadIndexResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 /** See GoldenTestsReadme.md for more information about these tests. */
@@ -77,6 +81,12 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // ExtrasFS can create extraneous files in the output directory.
 public abstract class GoldenTestCase extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(GoldenTestCase.class);
+
+    /**
+     * RandomizedRunner appends {@code {seed=[...]}} to {@link #getTestName()} for {@code -Dtests.iters} / {@code @Repeat} (See #144763).
+     */
+    private static final Pattern RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END = Pattern.compile("(?:\\s+\\{seed=\\[[^\\]]+\\]\\})+$");
+
     private final Path baseFile;
 
     public GoldenTestCase() {
@@ -105,7 +115,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         TransportVersion transportVersion,
         String... nestedPath
     ) {
-        String testName = extractTestName();
+        String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
         new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion).doTest();
     }
 
@@ -177,6 +187,15 @@ public abstract class GoldenTestCase extends ESTestCase {
         public void run() {
             runGoldenTest(esqlQuery, stages, searchStats, transportVersion, nestedPath);
         }
+
+        public Optional<Throwable> tryRun() {
+            try {
+                run();
+                return Optional.empty();
+            } catch (Throwable e) {
+                return Optional.of(e);
+            }
+        }
     }
 
     private record Test(
@@ -202,7 +221,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
-            EsqlStatement statement = EsqlParser.INSTANCE.createStatement(esqlQuery);
+            EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
             LogicalPlan parsedPlan = statement.plan();
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
@@ -211,19 +230,16 @@ public abstract class GoldenTestCase extends ESTestCase {
             Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
-            var analyzer = new Analyzer(
-                new AnalyzerContext(
-                    EsqlTestUtils.TEST_CFG,
-                    new EsqlFunctionRegistry(),
-                    CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedPlan)),
-                    defaultLookupResolution(),
-                    new EnrichResolution(),
-                    InferenceResolution.EMPTY,
-                    transportVersion,
-                    statement.setting(UNMAPPED_FIELDS)
-                ),
-                TEST_VERIFIER
+            TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
+                .addTestLookup()
+                .addAnalysisTestsEnrichResolution()
+                .addAnalysisTestsInferenceResolution()
+                .minimumTransportVersion(transportVersion)
+                .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
+            loadIndexResolution(CsvTests.testDatasets(parsedPlan)).forEach(
+                (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
             );
+            Analyzer analyzer = testAnalyzer.buildAnalyzer();
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
             var analyzed = analyzer.analyze(parsedPlan);
             if (stages.contains(Stage.ANALYSIS)) {
@@ -239,6 +255,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
             if (stages.contains(Stage.PHYSICAL_OPTIMIZATION)
                 || stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)
+                || stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)
+                || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)
                 || stages.contains(Stage.NODE_REDUCE)
                 || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                 var physicalPlanOptimizer = new PhysicalPlanOptimizer(
@@ -251,9 +269,32 @@ public abstract class GoldenTestCase extends ESTestCase {
                     result.add(Tuple.tuple(Stage.PHYSICAL_OPTIMIZATION, verifyOrWrite(physicalPlan, Stage.PHYSICAL_OPTIMIZATION)));
                 }
                 Configuration conf = analyzer.context().configuration();
+                PhysicalPlan localPhysicalPlan = null;
+                boolean needsLocalPlan = stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)
+                    || stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)
+                    || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION);
+                if (needsLocalPlan) {
+                    localPhysicalPlan = localOptimize(physicalPlan, conf);
+                }
                 if (stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)) {
-                    TestResult localPhysicalResult = verifyOrWrite(localOptimize(physicalPlan, conf), Stage.LOCAL_PHYSICAL_OPTIMIZATION);
+                    TestResult localPhysicalResult = verifyOrWrite(localPhysicalPlan, Stage.LOCAL_PHYSICAL_OPTIMIZATION);
                     result.add(Tuple.tuple(Stage.LOCAL_PHYSICAL_OPTIMIZATION, localPhysicalResult));
+                }
+                if (stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION) || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)) {
+                    List<LookupJoinExec> joins = findLookupJoins(localPhysicalPlan);
+                    for (int i = 0; i < joins.size(); i++) {
+                        String suffix = joins.size() > 1 ? "_" + i : "";
+                        LogicalPlan lookupLogical = buildLookupLogicalPlan(joins.get(i), conf, searchStats);
+                        if (stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)) {
+                            TestResult r = verifyOrWrite(lookupLogical, outputPath("lookup_logical_optimization" + suffix));
+                            result.add(Tuple.tuple(Stage.LOOKUP_LOGICAL_OPTIMIZATION, r));
+                        }
+                        if (stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)) {
+                            PhysicalPlan lookupPhysical = optimizeLookupPhysicalPlan(lookupLogical, conf, searchStats);
+                            TestResult r = verifyOrWrite(lookupPhysical, outputPath("lookup_physical_optimization" + suffix));
+                            result.add(Tuple.tuple(Stage.LOOKUP_PHYSICAL_OPTIMIZATION, r));
+                        }
+                    }
                 }
                 if (stages.contains(Stage.NODE_REDUCE) || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                     ExchangeExec exec = EsqlTestUtils.singleValue(physicalPlan.collect(ExchangeExec.class));
@@ -389,6 +430,44 @@ public abstract class GoldenTestCase extends ESTestCase {
                 new PlanTimeProfile()
             );
         }
+
+        private static List<LookupJoinExec> findLookupJoins(PhysicalPlan plan) {
+            List<LookupJoinExec> joins = new ArrayList<>();
+            plan.forEachDown(p -> {
+                if (p instanceof LookupJoinExec join) {
+                    joins.add(join);
+                }
+            });
+            return joins;
+        }
+
+        private static LogicalPlan buildLookupLogicalPlan(LookupJoinExec join, Configuration conf, SearchStats stats) {
+            List<MatchConfig> matchFields = new ArrayList<>(join.leftFields().size());
+            for (int i = 0; i < join.leftFields().size(); i++) {
+                FieldAttribute right = (FieldAttribute) join.rightFields().get(i);
+                String fieldName = right.exactAttribute().fieldName().string();
+                if (join.isOnJoinExpression()) {
+                    fieldName = join.leftFields().get(i).name();
+                }
+                matchFields.add(new MatchConfig(fieldName, i, join.leftFields().get(i).dataType()));
+            }
+            LogicalPlan logicalPlan = LookupFromIndexService.buildLocalLogicalPlan(
+                join.source(),
+                matchFields,
+                join.joinOnConditions(),
+                join.right(),
+                join.addedFields().stream().map(f -> (NamedExpression) f).toList()
+            );
+            FoldContext foldCtx = conf.newFoldContext();
+            return new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(conf, foldCtx, stats)).localOptimize(logicalPlan);
+        }
+
+        private static PhysicalPlan optimizeLookupPhysicalPlan(LogicalPlan logicalPlan, Configuration conf, SearchStats stats) {
+            FoldContext foldCtx = conf.newFoldContext();
+            PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(logicalPlan);
+            var context = new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), conf, foldCtx, stats);
+            return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
+        }
     }
 
     private static Test.TestResult createNewOutput(Path output, QueryPlan<?> plan) throws IOException {
@@ -396,8 +475,13 @@ public abstract class GoldenTestCase extends ESTestCase {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
         String full = plan.toString(Node.NodeStringFormat.FULL);
-        Files.writeString(output, normalizeNameIds(normalizeSyntheticNames(full)), StandardCharsets.UTF_8);
+        Files.writeString(output, normalizeString(full), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
+    }
+
+    // Visible for testing.
+    static String normalizeString(String input) {
+        return normalizeNameIds(normalizeSyntheticNames(input));
     }
 
     /**
@@ -413,13 +497,39 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     /**
      * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
-     * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
+     * Digit-only segments (generated at run time) are replaced with a stable running integer; text segments are kept as-is.
+     * Digits may appear anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
      */
     private static String normalizeSyntheticNames(String full) {
         return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
-            String firstSegment = matcher.group(1);
-            return "$$" + firstSegment + "$" + idMap.getId(firstSegment);
+            StringBuilder result = new StringBuilder("$$");
+            StringBuilder numericSegments = new StringBuilder();
+            boolean hasNormalized = false;
+            for (String seg : matcher.group(1).split("\\$")) {
+                if (NUMERIC_SEGMENT_PATTERN.matcher(seg).matches()) {
+                    appendSegment(numericSegments, seg);
+                } else {
+                    if (numericSegments.isEmpty() == false) {
+                        appendSegment(result, idMap.getId(numericSegments.toString()));
+                        numericSegments.setLength(0);
+                        hasNormalized = true;
+                    }
+                    appendSegment(result, seg);
+                }
+            }
+            if (numericSegments.isEmpty() == false) {
+                appendSegment(result, idMap.getId(numericSegments.toString()));
+                hasNormalized = true;
+            }
+            return hasNormalized ? result.toString() : matcher.group();
         });
+    }
+
+    private static StringBuilder appendSegment(StringBuilder sb, Object o) {
+        if (sb.isEmpty() || sb.charAt(sb.length() - 1) != '$') {
+            sb.append('$');
+        }
+        return sb.append(o);
     }
 
     private static <K> String replaceMatches(String input, Pattern pattern, BiFunction<Matcher, IdMap<K>, String> replacer) {
@@ -436,10 +546,15 @@ public abstract class GoldenTestCase extends ESTestCase {
         return sb.toString();
     }
 
-    // Matches synthetic names like $$alias$1$2#3, since those $digits are generated during the test run and may differ each time. The
-    // #digit are removed by the next pattern.
-    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)+(?=[{#])");
+    /**
+     * Matches synthetic names like {@code $$alias$1$2#3}, {@code $$last_name$LENGTH$241149320{f$}#6}, or
+     * {@code $$SUM$field$0$sum#7}. Digit-only segments are generated during the test run and may differ
+     * each time; text segments are kept. The {@code #digit} suffixes are normalized by
+     * {@link #IDENTIFIER_PATTERN}.
+     */
+    private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s{#]+(?:\\$[^$\\s{#]+)*)(?=[{#])");
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
+    private static final Pattern NUMERIC_SEGMENT_PATTERN = Pattern.compile("-?\\d+");
 
     private static class IdMap<K> {
         private final Map<K, Integer> map = new HashMap<>();
@@ -452,7 +567,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
         String full = plan.toString(Node.NodeStringFormat.FULL);
-        String testString = normalize(normalizeNameIds(normalizeSyntheticNames(full)));
+        String testString = normalize(normalizeString(full));
         if (testString.equals(normalize(Files.readString(output)))) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);
@@ -467,10 +582,9 @@ public abstract class GoldenTestCase extends ESTestCase {
         if (System.getProperty("golden.noactual") != null) {
             logger.debug("Skipping actual file creation because golden.noactual property is set");
         } else {
-            List<String> actualLines = testString.lines().map(GoldenTestCase::normalize).toList();
             Path actualPath = actualPath(output);
             logger.info("Creating actual file at " + actualPath.toAbsolutePath());
-            Files.write(actualPath, actualLines);
+            Files.writeString(actualPath, normalizeString(full), StandardCharsets.UTF_8);
         }
         return Test.TestResult.FAILURE;
     }
@@ -503,6 +617,16 @@ public abstract class GoldenTestCase extends ESTestCase {
          */
         LOCAL_PHYSICAL_OPTIMIZATION(new SingleFileOutput("local_physical_optimization")),
         /**
+         * Lookup-node logical optimization: builds a logical plan from each {@link LookupJoinExec} and runs
+         * {@link LookupLogicalOptimizer}. When a query contains multiple LOOKUP JOINs, each produces a separate output file.
+         */
+        LOOKUP_LOGICAL_OPTIMIZATION(new SingleFileOutput("lookup_logical_optimization")),
+        /**
+         * Lookup-node physical optimization: runs {@link LookupPhysicalPlanOptimizer} on each lookup plan.
+         * When a query contains multiple LOOKUP JOINs, each produces a separate output file.
+         */
+        LOOKUP_PHYSICAL_OPTIMIZATION(new SingleFileOutput("lookup_physical_optimization")),
+        /**
          * See {@link ComputeService#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
          * data nodes.
          */
@@ -531,10 +655,6 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private static String normalize(String s) {
         return s.lines().map(String::strip).collect(Collectors.joining("\n"));
-    }
-
-    private String extractTestName() {
-        return getTestName();
     }
 
     /**

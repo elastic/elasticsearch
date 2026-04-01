@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.test.ESTestCase;
@@ -240,6 +241,10 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
     }
 
     public void testRegisteredFunctionHaveTests() {
+        assumeTrue("""
+            Some functions are missing when outside of snapshot and we really
+            only care about the superset of all functions. Just skip this test
+            on release builds.""", Build.current().isSnapshot());
         EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
         Set<String> errors = new TreeSet<>();
         for (FunctionDefinition def : registry.listFunctions()) {
@@ -278,6 +283,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.RateErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SparklineErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtentErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevErrorTests is missing")
@@ -288,10 +294,11 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvgErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhraseErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatchErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.BucketErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.TBucketErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithoutErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithoutTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.ClampErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.ClampTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMaxErrorTests is missing")
@@ -302,14 +309,12 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRangeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRangeTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVectorErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohexErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSortErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nulls.CoalesceErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPointsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ChunkErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ContainsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippetsErrorTests is missing")
@@ -355,6 +360,9 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 continue;
             }
             if (Expression.class.isAssignableFrom(p.getType())) {
+                return true;
+            }
+            if (List.class.isAssignableFrom(p.getType())) {
                 return true;
             }
             throw new IllegalStateException("unknown argument type " + p);

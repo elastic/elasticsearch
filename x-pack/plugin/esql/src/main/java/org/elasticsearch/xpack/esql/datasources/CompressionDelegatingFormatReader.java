@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -43,88 +45,13 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        return inner.read(new DecompressingStorageObject(object, codec), context);
+    }
+
+    @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize);
-    }
-
-    @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
-        throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, errorPolicy);
-    }
-
-    @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
-        throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, rowLimit);
-    }
-
-    @Override
-    public CloseableIterator<Page> read(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        int rowLimit,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, rowLimit, errorPolicy);
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return inner.readSplit(
-            new DecompressingStorageObject(object, codec),
-            projectedColumns,
-            batchSize,
-            skipFirstLine,
-            resolvedAttributes
-        );
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return inner.readSplit(
-            new DecompressingStorageObject(object, codec),
-            projectedColumns,
-            batchSize,
-            skipFirstLine,
-            lastSplit,
-            resolvedAttributes
-        );
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        return inner.readSplit(
-            new DecompressingStorageObject(object, codec),
-            projectedColumns,
-            batchSize,
-            skipFirstLine,
-            lastSplit,
-            resolvedAttributes,
-            errorPolicy
-        );
+        return read(object, FormatReadContext.of(projectedColumns, batchSize));
     }
 
     @Override
@@ -145,6 +72,18 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     @Override
     public FormatReader withConfig(Map<String, Object> config) {
         FormatReader configured = inner.withConfig(config);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
+    public FormatReader withPushedFilter(Object pushedFilter) {
+        FormatReader filtered = inner.withPushedFilter(pushedFilter);
+        return filtered == inner ? this : new CompressionDelegatingFormatReader(filtered, codec);
+    }
+
+    @Override
+    public FormatReader withSchema(List<Attribute> schema) {
+        FormatReader configured = inner.withSchema(schema);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
     }
 

@@ -52,11 +52,15 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS = new NodeFeature(
         "search.exponential_histogram_querydsl_percentile_ranks"
     );
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED = new NodeFeature(
+        "search.exponential_histogram_upscaling_removed"
+    );
     public static final NodeFeature CLOSING_INVALID_PIT_ID = new NodeFeature("closing_invalid_pit_id");
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT = new NodeFeature(
         "search.exponential_histogram_querydsl_boxplot"
     );
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature("search.exponential_histogram_querydsl_range");
+    public static final NodeFeature DEFAULT_DISK_BBQ = new NodeFeature("search.default_disk_bbq");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -83,7 +87,9 @@ public final class SearchFeatures implements FeatureSpecification {
             FUNCTION_SCORE_NAMED_QUERIES,
             LUCENE_10_4_0_UPGRADE_TEST,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
-            EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
+            EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED,
+            DEFAULT_DISK_BBQ
         );
     }
 }

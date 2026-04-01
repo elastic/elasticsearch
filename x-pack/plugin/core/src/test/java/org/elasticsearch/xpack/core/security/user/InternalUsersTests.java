@@ -31,6 +31,8 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -344,6 +346,8 @@ public class InternalUsersTests extends ESTestCase {
             TransportUpdateSettingsAction.TYPE.name(),
             RefreshAction.NAME,
             ReindexAction.NAME,
+            TransportClosePointInTimeAction.TYPE.name(),
+            TransportOpenPointInTimeAction.TYPE.name(),
             TransportSearchAction.NAME,
             TransportBulkAction.NAME,
             TransportIndexAction.NAME,

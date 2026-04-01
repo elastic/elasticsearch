@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
@@ -15,6 +18,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -108,16 +112,22 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 attributes,
                 batchSize,
                 rowLimit,
-                sliceQueue
+                sliceQueue,
+                driverContext.blockFactory()
             );
         }
 
         StorageObject storageObject = storageProvider.newObject(path);
         try {
-            CloseableIterator<Page> pages = formatReader.read(storageObject, projectedColumns, batchSize, rowLimit);
-            return new ExternalSourceOperator(pages, driverContext);
+            FormatReadContext ctx = FormatReadContext.builder()
+                .projectedColumns(projectedColumns)
+                .batchSize(batchSize)
+                .rowLimit(rowLimit)
+                .build();
+            CloseableIterator<Page> pages = formatReader.read(storageObject, ctx);
+            return new ExternalSourceOperator(pages, path);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to create external source operator for: " + path, e);
+            throw new ElasticsearchException("Failed to create external source operator for [" + path + "]", e);
         }
     }
 
@@ -139,10 +149,12 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private static final Logger logger = LogManager.getLogger(ExternalSourceOperator.class);
 
         private final CloseableIterator<Page> pages;
+        private final StoragePath path;
         private boolean finished = false;
 
-        ExternalSourceOperator(CloseableIterator<Page> pages, DriverContext driverContext) {
+        ExternalSourceOperator(CloseableIterator<Page> pages, StoragePath path) {
             this.pages = pages;
+            this.path = path;
         }
 
         @Override
@@ -155,7 +167,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 return pages.next();
             } catch (Exception e) {
                 finished = true;
-                throw new RuntimeException("Error reading from external source", e);
+                throw new ElasticsearchException("Error reading from external source [" + path + "]", e);
             }
         }
 
@@ -207,8 +219,10 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final int batchSize;
         private final int rowLimit;
         private final ExternalSliceQueue sliceQueue;
+        private final BlockFactory blockFactory;
         private final ArrayDeque<ExternalSplit> pendingChildren = new ArrayDeque<>();
         private CloseableIterator<Page> currentPages;
+        private StoragePath currentSplitPath;
         private boolean finished = false;
 
         SliceQueueSourceOperator(
@@ -218,7 +232,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             List<Attribute> attributes,
             int batchSize,
             int rowLimit,
-            ExternalSliceQueue sliceQueue
+            ExternalSliceQueue sliceQueue,
+            BlockFactory blockFactory
         ) {
             this.storageProvider = storageProvider;
             this.formatReader = formatReader;
@@ -227,6 +242,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             this.batchSize = batchSize;
             this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
+            this.blockFactory = blockFactory;
         }
 
         @Override
@@ -240,6 +256,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                         return currentPages.next();
                     }
                     closeCurrentPages();
+                    currentSplitPath = null;
                     ExternalSplit next = nextLeafSplit();
                     if (next == null) {
                         finished = true;
@@ -249,7 +266,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 }
             } catch (Exception e) {
                 finished = true;
-                throw new RuntimeException("Error reading from external source split", e);
+                String loc = currentSplitPath != null ? currentSplitPath.toString() : "unknown";
+                throw new ElasticsearchException("Error reading from external source split [" + loc + "]", e);
             }
         }
 
@@ -272,15 +290,42 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
 
         private CloseableIterator<Page> openFileSplit(ExternalSplit split) throws IOException {
             if (split instanceof FileSplit fileSplit) {
+                currentSplitPath = fileSplit.path();
                 StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                boolean skipFirstLine = false;
+                boolean firstSplit = true;
                 boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                 if (fileSplit.offset() > 0) {
                     obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
-                    boolean isFirstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                    skipFirstLine = isFirstSplit == false;
+                    firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                 }
-                return formatReader.readSplit(obj, projectedColumns, batchSize, skipFirstLine, lastSplit, attributes);
+
+                SchemaReconciliation.ColumnMapping columnMapping = fileSplit.columnMapping();
+                List<String> effectiveProjection = projectedColumns;
+                List<Attribute> dataColumns = null;
+                if (columnMapping != null && columnMapping.columnCount() < attributes.size()) {
+                    dataColumns = attributes.subList(0, columnMapping.columnCount());
+                    effectiveProjection = new ArrayList<>(dataColumns.size());
+                    for (Attribute attr : dataColumns) {
+                        effectiveProjection.add(attr.name());
+                    }
+                }
+
+                FormatReadContext ctx = FormatReadContext.builder()
+                    .projectedColumns(effectiveProjection)
+                    .batchSize(batchSize)
+                    .rowLimit(FormatReader.NO_LIMIT)
+                    .firstSplit(firstSplit)
+                    .lastSplit(lastSplit)
+                    .build();
+                CloseableIterator<Page> pages = formatReader.read(obj, ctx);
+
+                if (columnMapping != null && columnMapping.isIdentity() == false) {
+                    if (dataColumns == null) {
+                        dataColumns = attributes.subList(0, columnMapping.columnCount());
+                    }
+                    pages = new SchemaAdaptingIterator(pages, dataColumns, columnMapping, blockFactory);
+                }
+                return pages;
             }
             throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
         }

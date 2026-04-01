@@ -23,7 +23,9 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
     @Override
     public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
-        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery()).field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
+        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery())
+            .field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
+        msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         context.getQueryProfile().ifPresent(profile -> {
             for (TimeSpanMarker timeSpanMarker : profile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();
@@ -33,9 +35,15 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 }
             }
         });
-        if (context.isCrossClusterSearch()) {
-            msg.field(QueryLogging.QUERY_FIELD_IS_CCS, true);
-            msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, context.remoteClusterCount());
+        var clusters = context.getClusters();
+        var remotes = context.getRemoteClusterAliases(clusters);
+        if (remotes.isEmpty() == false) {
+            msg.field(QueryLogging.QUERY_FIELD_REMOTES, remotes);
+            msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, remotes.size());
+            // Count statuses
+            msg.field(QueryLogging.QUERY_FIELD_REMOTE_STATUS + "total", clusters.size());
+            context.getCountsByStatus(clusters)
+                .forEach((status, count) -> msg.field(QueryLogging.QUERY_FIELD_REMOTE_STATUS + status, count));
         }
         return Optional.of(msg);
     }

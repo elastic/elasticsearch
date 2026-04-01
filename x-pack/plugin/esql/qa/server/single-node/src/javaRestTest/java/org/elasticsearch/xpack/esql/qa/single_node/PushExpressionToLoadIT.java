@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -84,7 +85,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.field("test", value),
             "| EVAL test = LENGTH(test)",
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:BlockDocValuesReader.BytesCustom", 1)
+            matchesMap().entry("test:column_at_a_time:BlockDocValuesReader.BytesCustom", 1),
+            // No ProjectOperator: when the push doesn't apply, no temporary attribute is
+            // introduced, so the plan has no ProjectExec to drop it.
+            sig -> assertMap(sig, checkRuleNotApplied())
         );
     }
 
@@ -103,8 +107,19 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(value.length()),
             matchesMap().entry("test:column_at_a_time:null", 1)
                 .entry("stored_fields[requires_source:true, fields:0, sequential: false]", 1)
-                .entry("test:row_stride:BlockSourceReader.Bytes", 1)
+                .entry("test:row_stride:BlockSourceReader.Bytes", 1),
+            // No ProjectOperator: when the push doesn't apply, no temporary attribute is
+            // introduced, so the plan has no ProjectExec to drop it.
+            sig -> assertMap(sig, checkRuleNotApplied())
         );
+    }
+
+    private static ListMatcher checkRuleNotApplied() {
+        return matchesList().item("LuceneSourceOperator")
+            .item("ValuesSourceReaderOperator")
+            .item("EvalOperator")
+            .item("AggregationOperator")
+            .item("ExchangeSinkOperator");
     }
 
     public void testMvMinToKeyword() throws IOException {
@@ -442,21 +457,14 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
             Map.of(
                 "data",
-                Build.current().isSnapshot()
-                    ? List.of(matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1))
-                    : List.of(
-                        matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)
-                            .entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
-                    ),
+                List.of(matchesMap().entry("ordering:column_at_a_time:IntsFromDocValues.Singleton", 1)),
                 "node_reduce",
-                Build.current().isSnapshot()
-                    ? List.of(
-                        // Pushed down function
-                        matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
-                        // Field
-                        matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
-                    )
-                    : List.of(matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1))
+                List.of(
+                    // Pushed down function
+                    matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+                    // Field
+                    matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
+                )
             ),
             sig -> assertMap(
                 sig,
@@ -514,25 +522,20 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
      */
     public void testLengthNotPushedToLookupJoinKeyword() throws IOException {
         initLookupIndex();
-        test(
-            b -> b.startObject("main_matching").field("type", "keyword").endObject(),
-            b -> b.field("main_matching", "lookup"),
-            """
-                | LOOKUP JOIN lookup ON matching == main_matching
-                | EVAL test = LENGTH(test)
-                """,
-            matchesList().item(1),
-            matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
-            sig -> assertMap(
+        test(b -> b.startObject("main_matching").field("type", "keyword").endObject(), b -> b.field("main_matching", "lookup"), """
+            | LOOKUP JOIN lookup ON matching == main_matching
+            | EVAL test = LENGTH(test)
+            """, matchesList().item(1), matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1), sig -> {
+            assertMap(
                 sig,
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                    .item("StreamingLookupOperator")
+                    .item(lookupOperatorName())
                     .item("EvalOperator") // this one just renames the field
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
-            )
-        );
+            );
+        });
     }
 
     /**
@@ -546,25 +549,21 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         test(b -> {
             b.startObject("test").field("type", "keyword").endObject();
             b.startObject("main_matching").field("type", "keyword").endObject();
-        },
-            b -> b.field("test", value).field("main_matching", "lookup"),
-            """
-                | DROP test
-                | LOOKUP JOIN lookup ON matching == main_matching
-                | EVAL test = LENGTH(test)
-                """,
-            matchesList().item(1),
-            matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1),
-            sig -> assertMap(
+        }, b -> b.field("test", value).field("main_matching", "lookup"), """
+            | DROP test
+            | LOOKUP JOIN lookup ON matching == main_matching
+            | EVAL test = LENGTH(test)
+            """, matchesList().item(1), matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1), sig -> {
+            assertMap(
                 sig,
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                    .item("StreamingLookupOperator")
+                    .item(lookupOperatorName())
                     .item("EvalOperator") // this one just renames the field
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
-            )
-        );
+            );
+        });
     }
 
     /**
@@ -584,13 +583,17 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
             sig -> {
                 // There are two data node plans, one for each phase.
+                // Both phases push LENGTH into field loading, so the ProjectOperator
+                // is present to drop the temporary pushed attribute after use.
                 if (sig.contains("FilterOperator")) {
+                    // The eval and project come before the filter because the push now
+                    // happens at the physical level, preserving the original operator order.
                     assertMap(
                         sig,
                         matchesList().item("LuceneSourceOperator")
                             .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                            .item("FilterOperator")
                             .item("EvalOperator") // this one just renames the field
+                            .item("FilterOperator")
                             .item("AggregationOperator")
                             .item("ExchangeSinkOperator")
                     );
@@ -946,6 +949,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             """);
         Response bulkResponse = client().performRequest(bulk);
         assertThat(entityToMap(bulkResponse.getEntity(), XContentType.JSON), matchesMap().entry("errors", false).extraOk());
+    }
+
+    private static String lookupOperatorName() {
+        return Build.current().isSnapshot() ? "StreamingLookupOperator" : "LookupOperator";
     }
 
     private CheckedConsumer<XContentBuilder, IOException> justType(String type) {

@@ -340,6 +340,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestIntercept
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.ViewDlsFlsRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -766,6 +767,7 @@ public class Security extends Plugin
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
                 services.linkedProjectConfigService(),
                 services.projectResolver(),
+                services.crossProjectModeDecider(),
                 services.projectRoutingResolver()
             );
         } catch (final Exception e) {
@@ -789,6 +791,7 @@ public class Security extends Plugin
         PersistentTasksService persistentTasksService,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
+        CrossProjectModeDecider crossProjectModeDecider,
         ProjectRoutingResolver projectRoutingResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
@@ -1144,7 +1147,11 @@ public class Security extends Plugin
                     new BulkShardRequestInterceptor(threadPool, getLicenseState()),
                     new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
                     new SearchRequestCacheDisablingInterceptor(threadPool, getLicenseState()),
-                    new ValidateRequestInterceptor(threadPool, getLicenseState())
+                    new ValidateRequestInterceptor(threadPool, getLicenseState()),
+                    new ViewDlsFlsRequestInterceptor(
+                        threadPool.getThreadContext(),
+                        () -> projectResolver.getProjectMetadata(clusterService.state())
+                    )
                 )
             );
         }
@@ -1173,7 +1180,7 @@ public class Security extends Plugin
             linkedProjectConfigService,
             projectResolver,
             authorizedProjectsResolver,
-            new CrossProjectModeDecider(settings),
+            crossProjectModeDecider,
             projectRoutingResolver
         );
 
@@ -1884,7 +1891,12 @@ public class Security extends Plugin
             new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
             new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
             new RestOpenIdConnectLogoutAction(settings, getLicenseState()),
-            new RestGetBuiltinPrivilegesAction(settings, getLicenseState(), getBuiltinPrivilegesResponseTranslator.get()),
+            new RestGetBuiltinPrivilegesAction(
+                settings,
+                getLicenseState(),
+                getBuiltinPrivilegesResponseTranslator.get(),
+                restHandlersServices.crossProjectModeDecider()
+            ),
             new RestGetPrivilegesAction(settings, getLicenseState()),
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),

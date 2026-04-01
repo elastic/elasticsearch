@@ -80,6 +80,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
@@ -98,9 +99,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ESTestCase.EntitledTestPackages({ "sun.font", "sun.awt" }) // For renderDocs
 public abstract class AbstractFunctionTestCase extends ESTestCase {
-
-    private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
-
     protected TestCaseSupplier.TestCase testCase;
 
     /**
@@ -322,6 +320,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // Object and nested fields aren't supported by any functions yet
                 return false;
             }
+
+            if (t == DataType.PARTIAL_AGG) {
+                /*
+                 * PARTIAL_AGG is an internal type used only for partial aggregation
+                 * state (ToPartial/FromPartial). It is not supported by any functions yet.
+                 */
+                return false;
+            }
+
             if (t == DataType.SOURCE || t == DataType.TSID_DATA_TYPE) {
                 // No functions take source or tsid fields yet. We'll make some eventually and remove this.
                 return false;
@@ -919,12 +926,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     static boolean functionRegistered(String name) {
-        return functionRegistry.functionExists(name);
+        return TEST_FUNCTION_REGISTRY.snapshotRegistry().functionExists(name);
     }
 
     static FunctionDefinition definition(String name) {
-        if (functionRegistry.functionExists(name)) {
-            return functionRegistry.resolveFunction(name);
+        if (functionRegistered(name)) {
+            return TEST_FUNCTION_REGISTRY.snapshotRegistry().resolveFunction(name);
         }
         return null;
     }

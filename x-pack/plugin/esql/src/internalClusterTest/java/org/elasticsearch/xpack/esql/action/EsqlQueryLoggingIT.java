@@ -27,6 +27,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_QUERY;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
@@ -34,6 +36,7 @@ import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest.PREPARED_QUERY_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.assertTrue;
@@ -87,7 +90,11 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     private void assertQuery(String query, long hits) {
         try (var resp = run(query)) {
             var message = getMessageData(appender.getLastEventAndReset());
-            assertMessageSuccess(message, EsqlLogContext.TYPE, query);
+            // When the request was randomly promoted to a PreparedEsqlQueryRequest the logged
+            // query will be the plan representation rather than the original query string.
+            var loggedQuery = message.get(QUERY_FIELD_QUERY);
+            var queryForAssert = loggedQuery != null && loggedQuery.startsWith(PREPARED_QUERY_PREFIX) ? PREPARED_QUERY_PREFIX : query;
+            assertMessageSuccess(message, EsqlLogContext.TYPE, queryForAssert);
             assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
             assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), greaterThanOrEqualTo(0));
             assertThat(message.getOrDefault(QUERY_FIELD_SHARDS + "failed", "0"), equalTo("0"));
@@ -100,13 +107,16 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                 assertTrue("Expected profile field present: " + tookKey, message.containsKey(tookKey));
             }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo("index-*"));
         }
     }
 
     private void assertFailedQuery(String query, String expectedMessage, Class<? extends Throwable> expectedException) {
         expectThrows(VerificationException.class, () -> run(query));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageFailure(message, EsqlLogContext.TYPE, query, expectedException, expectedMessage);
+        var loggedQuery = message.get(QUERY_FIELD_QUERY);
+        var queryForAssert = loggedQuery != null && loggedQuery.startsWith(PREPARED_QUERY_PREFIX) ? PREPARED_QUERY_PREFIX : query;
+        assertMessageFailure(message, EsqlLogContext.TYPE, queryForAssert, expectedException, expectedMessage);
     }
 
     private int setupIndex(String name, String prefix) {
@@ -149,10 +159,15 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull(event);
         var message = getMessageData(event);
-        assertMessageSuccess(message, EsqlLogContext.TYPE, "FROM esql_partial_test | LIMIT 100");
+        var loggedQuery = message.get(QUERY_FIELD_QUERY);
+        var queryForAssert = loggedQuery != null && loggedQuery.startsWith(PREPARED_QUERY_PREFIX)
+            ? PREPARED_QUERY_PREFIX
+            : "FROM esql_partial_test | LIMIT 100";
+        assertMessageSuccess(message, EsqlLogContext.TYPE, queryForAssert);
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
         assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("esql_partial_test"));
     }
 
 }

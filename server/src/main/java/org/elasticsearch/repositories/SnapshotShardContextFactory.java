@@ -48,10 +48,13 @@ public interface SnapshotShardContextFactory {
     ) throws IOException;
 
     /**
-     * Indicates whether this factory wants to ignore shard close events while a shard snapshot is running.
-     * Defaults to false. It should return false unless the shard snapshot allows the shard to relocate.
+     * Indicates whether the factory supports relocating a shard while its snapshot is in progress. When {@code true},
+     * lifecycle of the local shard is not tied to its shard snapshot. For example, when the shard closes, it does
+     * not automatically abort the snapshot {@link org.elasticsearch.snapshots.SnapshotShardsService#beforeIndexShardClosed}.
+     * Note this value indicates whether the feature is supported, but whether relocation will actually happen still depends
+     * on other factors {@link org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider}
      */
-    default boolean ignoreShardCloseEvent() {
+    default boolean supportsRelocationDuringSnapshot() {
         return false;
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -43,6 +42,8 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -53,6 +54,8 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.useragent.UserAgentPlugin;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -91,7 +94,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -104,7 +106,6 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -123,6 +124,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.planner.ConstantShardContextIndexedByShardId;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
@@ -142,17 +144,14 @@ import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
-import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -161,23 +160,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.csvFileTemplateResolver;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.substituteTemplates;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.getResourceStream;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -185,10 +185,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -229,16 +227,12 @@ import static org.mockito.Mockito.mock;
  *         index emits documents a fairly random order. Multi-shard and multi-node tests doubly so.</li>
  * </ul>
  */
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
 
-    private static final EsqlFunctionRegistry FUNCTION_REGISTRY = new EsqlFunctionRegistry();
-    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(FUNCTION_REGISTRY, false);
-    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(FUNCTION_REGISTRY, true);
-
-    private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
 
     private final String fileName;
     private final String groupName;
@@ -333,6 +327,14 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
             );
             assumeFalseLogging(
+                "can't load flattened field values in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.LOAD_FLATTENED_FIELD.capabilityName())
+            );
+            assumeFalseLogging(
+                "Can't simulate _source loading for unmapped fields in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName())
+            );
+            assumeFalseLogging(
                 "can't use rereank in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.RERANK.capabilityName())
             );
@@ -363,6 +365,11 @@ public class CsvTests extends ESTestCase {
             assumeFalseLogging(
                 "TS_INFO requires real shard contexts and _timeseries_metadata which are unavailable in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_INFO_COMMAND.capabilityName())
+            );
+            assumeFalseLogging(
+                "WITHOUT grouping emit _timeseries which is unavailable in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.capabilityName())
+                    || testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_WITHOUT_GROUPING.capabilityName())
             );
             assumeFalseLogging(
                 "can't use QSTR function in csv tests",
@@ -409,10 +416,6 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.capabilityName())
             );
             assumeFalseLogging(
-                "CSV tests cannot currently handle multi_match function that depends on Lucene",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
-            );
-            assumeFalseLogging(
                 "CSV tests cannot currently handle subqueries",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
             );
@@ -426,43 +429,11 @@ public class CsvTests extends ESTestCase {
                     && Set.of("Exact count with where on single-valued data", "Exact total single-valued field count").contains(testName)
             );
 
-            if (Build.current().isSnapshot()) {
-                assertThat(
-                    "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
-                    testCase.requiredCapabilities,
-                    everyItem(in(ALL_CAPS.capabilities()))
-                );
-                assumeTrueLogging(
-                    "Capability not supported in this build",
-                    ENABLED_CAPS.capabilities().containsAll(testCase.requiredCapabilities)
-                );
-            } else {
-                for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
-                    if (false == c.isEnabled()) {
-                        assumeFalseLogging(
-                            c.capabilityName() + " is not supported in non-snapshot releases",
-                            testCase.requiredCapabilities.contains(c.capabilityName())
-                        );
-                    }
-                }
-            }
+            CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
 
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
-        }
-    }
-
-    private static void assumeTrueLogging(String message, boolean condition) {
-        assumeFalseLogging(message, condition == false);
-    }
-
-    private static void assumeFalseLogging(String message, boolean condition) {
-        try {
-            assumeFalse(message, condition);
-        } catch (AssumptionViolatedException ave) {
-            LOGGER.info("skipping test: " + ave.getMessage());
-            throw ave;
         }
     }
 
@@ -540,7 +511,7 @@ public class CsvTests extends ESTestCase {
                 indexModes,
                 Map.of(),
                 Map.of(),
-                mergedMappings.partiallyUnmappedFields
+                mergedMappings.fieldToUnmappedIndices
             )
         );
     }
@@ -578,10 +549,11 @@ public class CsvTests extends ESTestCase {
 
     record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    record MergedResult(Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {}
+    record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
 
     private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
         int numberOfIndices = mappingsPerIndex.size();
+        Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());
         Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
@@ -591,15 +563,19 @@ public class CsvTests extends ESTestCase {
             }
         }
 
-        var partiallyUnmappedFields = columnNamesToFieldByIndices.entrySet()
-            .stream()
-            .filter(e -> e.getValue().size() < numberOfIndices)
-            .map(Map.Entry::getKey)
-            .collect(toSet());
+        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
+        for (var e : columnNamesToFieldByIndices.entrySet()) {
+            if (e.getValue().size() < numberOfIndices) {
+                Set<String> unmappedIndices = allIndices.stream().filter(i -> e.getValue().containsKey(i) == false).collect(toSet());
+                if (unmappedIndices.isEmpty() == false) {
+                    fieldToUnmappedIndices.put(e.getKey(), unmappedIndices);
+                }
+            }
+        }
         var mappings = columnNamesToFieldByIndices.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
-        return new MergedResult(mappings, partiallyUnmappedFields);
+        return new MergedResult(mappings, fieldToUnmappedIndices);
     }
 
     private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
@@ -664,7 +640,7 @@ public class CsvTests extends ESTestCase {
         var analyzer = new Analyzer(
             new AnalyzerContext(
                 configuration,
-                FUNCTION_REGISTRY,
+                TEST_FUNCTION_REGISTRY,
                 null,
                 indexResolution,
                 Map.of(),
@@ -713,11 +689,10 @@ public class CsvTests extends ESTestCase {
     }
 
     private LogicalPlan parseView(String query, String viewName) {
-        return EsqlParser.INSTANCE.parseView(
+        return TEST_PARSER.parseView(
             query,
             new QueryParams(),
             new SettingsValidationContext(false, false),
-            new PlanTelemetry(FUNCTION_REGISTRY),
             new InferenceSettings(Settings.EMPTY),
             viewName
         ).plan();
@@ -771,7 +746,8 @@ public class CsvTests extends ESTestCase {
 
     private static TestPhysicalOperationProviders testOperationProviders(
         FoldContext foldCtx,
-        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets,
+        UnmappedResolution unmappedResolution
     ) throws Exception {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.MultiIndexTestDataset datasets : allDatasets.values()) {
@@ -783,14 +759,14 @@ public class CsvTests extends ESTestCase {
                 );
             }
         }
-        return TestPhysicalOperationProviders.create(foldCtx, indexPages);
+        return TestPhysicalOperationProviders.create(foldCtx, indexPages, unmappedResolution);
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        String query = substituteTemplates(testCase.query, csvFileTemplateResolver());
+        String templatedQuery = substituteTemplates(testCase.query, csvFileTemplateResolver());
         EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(randomBoolean());
         esqlExecutionInfo.queryProfile().planning().start();
-        EsqlStatement statement = EsqlParser.INSTANCE.createStatement(query);
+        EsqlStatement statement = TEST_PARSER.createStatement(templatedQuery);
         LogicalPlan plan = resolveViews(statement.plan());
         this.configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
@@ -800,6 +776,7 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(plan);
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
+        var unmappedResolution = statement.setting(UNMAPPED_FIELDS);
 
         boolean hasExternalSources = plan.anyMatch(UnresolvedExternalRelation.class::isInstance);
         ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
@@ -836,7 +813,7 @@ public class CsvTests extends ESTestCase {
 
         LogicalPlan analyzed = analyzedPlan(
             plan,
-            statement.setting(UNMAPPED_FIELDS),
+            unmappedResolution,
             configuration,
             testDatasets,
             minimumVersion,
@@ -852,18 +829,19 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            TEST_PARSER,
             new PreAnalyzer(),
-            FUNCTION_REGISTRY,
+            TEST_FUNCTION_REGISTRY,
             mapper,
             TEST_VERIFIER,
             null,
-            new PlanTelemetry(FUNCTION_REGISTRY),
+            new PlanTelemetry(TEST_FUNCTION_REGISTRY),
             null,
             null,
             PlannerSettings.DEFAULTS,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
-        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
+        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets, unmappedResolution);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
         var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
@@ -880,9 +858,7 @@ public class CsvTests extends ESTestCase {
                 optimizedPlan,
                 configuration,
                 foldCtx,
-                configuration.approximationSettings() != null
-                    ? new Approximation(optimizedPlan, configuration.approximationSettings())
-                    : null,
+                Approximation.create(optimizedPlan, configuration.approximationSettings()),
                 minimumVersion,
                 planTimeProfile,
                 listener.delegateFailureAndWrap(
@@ -936,6 +912,7 @@ public class CsvTests extends ESTestCase {
                 || p instanceof HashJoinExec
                 || p instanceof ChangePointExec
                 || p instanceof MergeExec
+                || p instanceof SparklineGenerateEmptyBucketsExec
                 || p instanceof MMRExec
                 || p instanceof ExternalSourceExec
                 || p instanceof ExchangeExec
@@ -990,6 +967,13 @@ public class CsvTests extends ESTestCase {
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
 
+        UserAgentParserRegistry userAgentRegistry;
+        try {
+            userAgentRegistry = createUserAgentRegistry();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create UserAgentParserRegistry", e);
+        }
+
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             getTestName(),
             "",
@@ -1003,6 +987,7 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
+            userAgentRegistry,
             physicalOperationProviders,
             operatorFactoryRegistry
         );
@@ -1117,86 +1102,20 @@ public class CsvTests extends ESTestCase {
     }
 
     /**
-     * Returns a template resolver that maps CSV dataset names (e.g. "employees") to file:// URLs
-     * for datasets in CSV_DATASET that have a data file. Unknown template names return null.
-     * <p>
-     * Paths are resolved lazily on first use per template and cached. For jar resources, temp files
-     * use a file-specific prefix; if a file matching that prefix already exists, it is reused.
+     * Creates a {@link UserAgentParserRegistry} with a config directory
+     * containing the custom-regexes.yml test resource, so csv-spec tests can exercise the {@code regex_file} option.
      */
-    public static Function<String, String> csvFileTemplateResolver() {
-        ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
-        return templateName -> {
-            CsvTestsDataLoader.TestDataset dataset = CSV_DATASET.get(templateName);
-            if (dataset == null || dataset.dataFileName() == null) {
-                throw new IllegalArgumentException("Failed to resolve CSV path for dataset [" + templateName + "]");
-            }
-            return cache.computeIfAbsent(templateName, k -> {
-                try {
-                    return resolveCsvFilePathLazy("/data/" + dataset.dataFileName());
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Failed to resolve CSV path for dataset [" + templateName + "]", e);
-                }
-            });
-        };
-    }
-
-    private static String resolveCsvFilePathLazy(String resourcePath) throws IOException {
-        URL resource = CsvTestsDataLoader.class.getResource(resourcePath);
-        if (resource == null) {
-            throw new IllegalStateException("Cannot find resource " + resourcePath);
+    private static UserAgentParserRegistry createUserAgentRegistry() throws IOException {
+        Path homeDir = createTempDir();
+        Path userAgentConfigDir = homeDir.resolve("config").resolve("user-agent");
+        Files.createDirectories(userAgentConfigDir);
+        try (InputStream is = CsvTests.class.getResourceAsStream("/custom-regexes.yml")) {
+            assert is != null : "custom-regexes.yml not found on classpath";
+            Files.copy(is, userAgentConfigDir.resolve("custom-regexes.yml"));
         }
-        String protocol = resource.getProtocol();
-        if ("file".equals(protocol)) {
-            return normalizeFileUri(resource.toExternalForm());
-        }
-        if ("jar".equals(protocol)) {
-            String fileName = PathUtils.get(resourcePath).getFileName().toString();
-            String prefix = CsvTests.class.getCanonicalName() + "-" + fileName + "-";
-            Path tempDir = PathUtils.get(System.getProperty("java.io.tmpdir"));
-            try (var stream = Files.newDirectoryStream(tempDir, prefix + "*")) {
-                var iterator = stream.iterator();
-                if (iterator.hasNext()) {
-                    Path existing = iterator.next();
-                    return normalizeFileUri(existing.toUri().toURL().toExternalForm());
-                }
-            }
-            Path tempFile = createTempFile(tempDir, prefix, ".csv");
-            try (InputStream in = getResourceStream(resourcePath)) {
-                Files.copy(in, tempFile, StandardCopyOption.REPLACE_EXISTING);
-            }
-            return normalizeFileUri(tempFile.toUri().toURL().toExternalForm());
-        }
-        throw new IllegalStateException("Unsupported resource protocol: " + protocol);
-    }
-
-    private static Path createTempFile(Path tempDir, String prefix, String suffix) throws IOException {
-        Path tempFile = Files.createTempFile(tempDir, prefix, suffix);
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            try {
-                Files.deleteIfExists(tempFile);
-            } catch (IOException ignored) {
-                // Best-effort cleanup on shutdown
-            }
-        }));
-        return tempFile;
-    }
-
-    private static String normalizeFileUri(String uri) {
-        if (uri != null && uri.startsWith("file:/") && uri.startsWith("file:///") == false) {
-            return "file://" + uri.substring(5);
-        }
-        return uri;
-    }
-
-    public static String substituteTemplates(String query, Function<String, String> templateResolver) {
-        Matcher matcher = TEMPLATE_PATTERN.matcher(query);
-        StringBuilder result = new StringBuilder();
-        while (matcher.find()) {
-            String templateName = matcher.group(1);
-            String replacement = templateResolver.apply(templateName);
-            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement != null ? replacement : matcher.group(0)));
-        }
-        matcher.appendTail(result);
-        return result.toString();
+        return UserAgentPlugin.createRegistry(
+            TestEnvironment.newEnvironment(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), homeDir).build()),
+            Settings.EMPTY
+        );
     }
 }

@@ -164,6 +164,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,
+                IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
                 FieldMapper.COERCE_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
@@ -259,6 +260,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         }
         if (IndexSettings.ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled()) {
             settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
+        }
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

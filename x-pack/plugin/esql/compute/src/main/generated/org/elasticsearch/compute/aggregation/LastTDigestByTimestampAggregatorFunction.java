@@ -36,16 +36,10 @@ public final class LastTDigestByTimestampAggregatorFunction implements Aggregato
 
   private final List<Integer> channels;
 
-  public LastTDigestByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, TDigestStates.WithLongSingleState state) {
+  LastTDigestByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static LastTDigestByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new LastTDigestByTimestampAggregatorFunction(driverContext, channels, LastTDigestByTimestampAggregator.initSingle(driverContext));
+    this.state = LastTDigestByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -30,9 +32,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -1606,7 +1611,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning
@@ -1657,7 +1662,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning
@@ -1716,7 +1721,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning
@@ -2498,6 +2503,34 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b"));
     }
 
+    /**
+     * Ensures that PruneColumns does not drop a column used by LIMIT BY even when a subsequent DROP removes it from the output.
+     * <pre>{@code
+     * Project[[emp_no, first_name, ...excluding x]]
+     * \_LimitBy[1,[x]]
+     *   \_Eval[[salary + 4 AS x]]
+     *     \_Limit[1000]
+     *       \_EsRelation[test]
+     * }</pre>
+     */
+    public void testPruneColumnsKeepsLimitByGrouping() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var plan = plan("""
+            from test
+            | eval x = salary + 4
+            | limit 1 by x
+            | drop x
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), org.hamcrest.Matchers.not(hasItems("x")));
+        var defaultLimit = as(project.child(), Limit.class);
+        var limitBy = as(defaultLimit.child(), LimitBy.class);
+        assertThat(Expressions.names(limitBy.groupings()), contains("x"));
+        var eval = as(limitBy.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x"));
+    }
+
     private static Attribute extAttr(String name, DataType type) {
         return new FieldAttribute(EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
@@ -2530,6 +2563,66 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             }
         };
         return new ExternalRelation(EMPTY, "s3://bucket/data.parquet", metadata, attributes);
+    }
+
+    /**
+     * PruneColumns must not descend into MetricsInfo children. MetricsInfo.computeReferences()
+     * returns EMPTY, so without the skip the rule would prune every projection below it to
+     * Project[[]], breaking the data pipeline on data nodes.
+     */
+    public void testPruneColumnsSkipsMetricsInfo() {
+        FieldAttribute cpuField = new FieldAttribute(
+            EMPTY,
+            "cpu",
+            new EsField("cpu", LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+        );
+        EsRelation esRelation = new EsRelation(
+            EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of(cpuField)
+        );
+        Project project = new Project(EMPTY, esRelation, List.of(cpuField));
+        MetricsInfo metricsInfo = new MetricsInfo(EMPTY, project);
+
+        LogicalPlan result = new PruneColumns().apply(metricsInfo);
+
+        MetricsInfo resultMetricsInfo = as(result, MetricsInfo.class);
+        Project resultProject = as(resultMetricsInfo.child(), Project.class);
+        assertThat(resultProject.projections(), hasSize(1));
+        assertThat(Expressions.names(resultProject.projections()), contains("cpu"));
+    }
+
+    /**
+     * Same as {@link #testPruneColumnsSkipsMetricsInfo()} but for TsInfo.
+     */
+    public void testPruneColumnsSkipsTsInfo() {
+        FieldAttribute cpuField = new FieldAttribute(
+            EMPTY,
+            "cpu",
+            new EsField("cpu", LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+        );
+        EsRelation esRelation = new EsRelation(
+            EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of(cpuField)
+        );
+        Project project = new Project(EMPTY, esRelation, List.of(cpuField));
+        TsInfo tsInfo = new TsInfo(EMPTY, project);
+
+        LogicalPlan result = new PruneColumns().apply(tsInfo);
+
+        TsInfo resultTsInfo = as(result, TsInfo.class);
+        Project resultProject = as(resultTsInfo.child(), Project.class);
+        assertThat(resultProject.projections(), hasSize(1));
+        assertThat(Expressions.names(resultProject.projections()), contains("cpu"));
     }
 
 }

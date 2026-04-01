@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -37,6 +38,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -212,6 +214,12 @@ public abstract class Plugin implements Closeable {
 
         /** A utility for executing transport actions on remote nodes */
         RemoteTransportClient remoteTransportClient();
+
+        /** A service to determine whether Cross-Project Search applies to a request */
+        CrossProjectModeDecider crossProjectModeDecider();
+
+        /** A utility for recording lifecycle errors for data stream lifecycles */
+        DataStreamLifecycleErrorStore dlmErrorStore();
     }
 
     /**

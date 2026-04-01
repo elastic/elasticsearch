@@ -37,16 +37,10 @@ public final class AllLastFloatByIntGroupingAggregatorFunction implements Groupi
 
   private final DriverContext driverContext;
 
-  public AllLastFloatByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllLastFloatByIntAggregator.GroupingState state, DriverContext driverContext) {
+  AllLastFloatByIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AllLastFloatByIntAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AllLastFloatByIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AllLastFloatByIntGroupingAggregatorFunction(channels, AllLastFloatByIntAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -217,14 +211,24 @@ public final class AllLastFloatByIntGroupingAggregatorFunction implements Groupi
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = AllLastFloatByIntAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = AllLastFloatByIntAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

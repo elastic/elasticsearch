@@ -39,17 +39,12 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
 
   private final DriverContext driverContext;
 
-  public SumDenseVectorGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
-      SumDenseVectorGroupingState state, DriverContext driverContext) {
+  SumDenseVectorGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+      DriverContext driverContext) {
     this.warnings = warnings;
     this.channels = channels;
-    this.state = state;
+    this.state = SumDenseVectorAggregator.initGrouping(driverContext.bigArrays());
     this.driverContext = driverContext;
-  }
-
-  public static SumDenseVectorGroupingAggregatorFunction create(Warnings warnings,
-      List<Integer> channels, DriverContext driverContext) {
-    return new SumDenseVectorGroupingAggregatorFunction(warnings, channels, SumDenseVectorAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -242,14 +237,24 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = SumDenseVectorAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SumDenseVectorAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

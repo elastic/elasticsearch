@@ -134,7 +134,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     if ("index_not_found".equals(request.preference())) {
                         channel.sendResponse(new IndexNotFoundException("index"));
                     } else {
-                        channel.sendResponse(new SearchShardsResponse(List.of(), knownNodes, Collections.emptyMap()));
+                        channel.sendResponse(new SearchShardsResponse(List.of(), 0, knownNodes, Collections.emptyMap()));
                     }
                 }
             );

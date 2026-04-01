@@ -9,9 +9,11 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.ingest.DropProcessor;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Map.entry;
 
@@ -70,7 +73,19 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(TrimProcessor.TYPE, new TrimProcessor.Factory()),
             entry(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory()),
             entry(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory()),
-            entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory())
+            entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory()),
+            entry(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(parameters.userAgentParserRegistry))
+        );
+    }
+
+    @Override
+    public Map<String, UnaryOperator<Metadata.ProjectCustom>> getProjectCustomMetadataUpgraders() {
+        return Map.of(
+            IngestMetadata.TYPE,
+            ingestMetadata -> ((IngestMetadata) ingestMetadata).maybeUpgradeProcessors(
+                UserAgentProcessor.TYPE,
+                UserAgentProcessor::maybeUpgradeConfig
+            )
         );
     }
 

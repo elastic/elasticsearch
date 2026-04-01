@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -388,13 +389,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     assertFalse(plan.containsKey("reduction_nanos"));
                 }
                 case "node_reduce" -> {
-                    if (Build.current().isSnapshot()) {
-                        // Node reduction depends on a pragma for now, so not available on non-snapshot builds - timing won't be available
-                        assertThat((int) plan.get("reduction_nanos"), greaterThanOrEqualTo(0));
-                    } else {
-                        // Remove the if and check reduction_nanos is there when the following fails
-                        assertNull(plan.get("reduction_nanos"));
-                    }
+                    assertThat((int) plan.get("reduction_nanos"), greaterThanOrEqualTo(0));
                     assertFalse(plan.containsKey("logical_optimization_nanos"));
                     assertFalse(plan.containsKey("physical_optimization_nanos"));
                 }
@@ -741,31 +736,51 @@ public class RestEsqlIT extends RestEsqlTestCase {
         for (Map<String, Object> p : profiles) {
             fixTypesOnProfile(p);
             assertMap(p, commonProfile());
-            @SuppressWarnings("unchecked")
-            Map<String, Object> sleeps = (Map<String, Object>) p.get("sleeps");
-            String operators = p.get("operators").toString();
-            MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
-                .entry("sleep_millis", greaterThan(0L))
-                .entry("thread_name", containsString("[esql_worker]")) // NB: this doesn't run in the test thread
-                .entry("wake_millis", greaterThan(0L));
+            Map<?, ?> sleeps = (Map<?, ?>) p.get("sleeps");
             String description = p.get("description").toString();
             switch (description) {
-                case "data" -> assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
-                case "node_reduce", "final" -> {
+                case "data" -> {
+                    // We force a page size of 10 so there are likely to be sleeps with the outbound buffer full
+                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0))).extraOk());
+                    assertSleeps(sleeps, sleepMatcher("exchange full"));
+                }
+                case "node_reduce" -> {
+                    // There will always be sleeps on the reduce drivers because they won't have results ready
+                    // There *might* be exchange_full sleeps as well
+                    Map<?, ?> counts = (Map<?, ?>) sleeps.get("counts");
+                    assertThat(counts, either(hasKey((Object) "exchange empty")).or(hasKey("exchange empty OR exchange full")));
+                    assertSleeps(
+                        sleeps,
+                        sleepMatcher(
+                            either(equalTo("exchange empty")).or(equalTo("exchange full")).or(equalTo("exchange empty OR exchange full"))
+                        )
+                    );
+                }
+                case "final" -> {
+                    // There will always be sleeps on the reduce drivers because they won't have results ready
                     assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
-                    for (Map<String, Object> s : first) {
-                        assertMap(s, sleepMatcher);
-                    }
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
-                    for (Map<String, Object> s : last) {
-                        assertMap(s, sleepMatcher);
-                    }
+                    assertSleeps(sleeps, sleepMatcher("exchange empty"));
                 }
                 default -> throw new IllegalArgumentException("unknown task: " + description);
             }
+        }
+    }
+
+    private MapMatcher sleepMatcher(Object reason) {
+        return matchesMap().entry("reason", reason)
+            .entry("sleep_millis", greaterThan(0L))
+            .entry("thread_name", containsString("[esql_worker]"))
+            .entry("wake_millis", greaterThan(0L));
+    }
+
+    private void assertSleeps(Map<?, ?> sleeps, MapMatcher sleepMatcher) {
+        List<?> first = (List<?>) sleeps.get("first");
+        for (Object s : first) {
+            assertMap((Map<?, ?>) s, sleepMatcher);
+        }
+        List<?> last = (List<?>) sleeps.get("last");
+        for (Object s : last) {
+            assertMap((Map<?, ?>) s, sleepMatcher);
         }
     }
 
@@ -1244,6 +1259,67 @@ public class RestEsqlIT extends RestEsqlTestCase {
             greaterThanOrEqualTo(1)
         );
         assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    public void testAutoPartitioning() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        {
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+            builder.profile(true);
+            builder.pragmas(
+                Settings.builder().put("data_partitioning", "auto").put("esql.docs_threshold_auto_partitioning", 1000_000).build()
+            );
+            Map<String, Object> result = runEsql(builder);
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                equalTo(List.of(List.of(499.5d)))
+            );
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    String name = signature(o);
+                    if (name.equals("LuceneSourceOperator")) {
+                        MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
+                            .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
+                            .extraOk();
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    }
+                }
+            }
+        }
+        {
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+            builder.profile(true);
+            builder.pragmas(Settings.builder().put("data_partitioning", "auto").put("esql.docs_threshold_auto_partitioning", 20).build());
+            Map<String, Object> result = runEsql(builder);
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                equalTo(List.of(List.of(499.5d)))
+            );
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    String name = signature(o);
+                    if (name.equals("LuceneSourceOperator")) {
+                        MapMatcher status = matchesMap().entry("total_slices", greaterThan(1))
+                            .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
+                            .extraOk();
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    }
+                }
+            }
+        }
     }
 
     private Map<String, Object> findSingleReaderProfile(String driverDescription, Map<String, Object> result) {

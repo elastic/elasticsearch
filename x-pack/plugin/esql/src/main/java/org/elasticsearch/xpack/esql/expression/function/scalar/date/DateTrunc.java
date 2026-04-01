@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -272,5 +273,9 @@ public class DateTrunc extends EsqlConfigurationFunction {
         Rounding.Prepared rounding
     ) {
         return evaluatorMap.get(forType).apply(source, fieldEvaluator, rounding);
+    }
+
+    public Bucket timeBucketSpecRef() {
+        return new Bucket(source(), field(), interval(), null, null, configuration());
     }
 }

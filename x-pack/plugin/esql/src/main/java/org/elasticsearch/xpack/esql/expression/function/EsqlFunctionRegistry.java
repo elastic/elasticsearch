@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
@@ -379,6 +380,7 @@ public class EsqlFunctionRegistry {
                 def(Bucket.class, Bucket::new, "bucket", "bin"),
                 def(Categorize.class, Categorize::new, "categorize"),
                 defTS(TBucket.class, TBucket::new, "tbucket"),
+                defTS(TStep.class, tric(TStep::new), "tstep"),
                 def(TimeSeriesWithout.class, TimeSeriesWithout::new, "without") },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without

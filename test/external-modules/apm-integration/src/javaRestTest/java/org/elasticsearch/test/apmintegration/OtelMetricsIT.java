@@ -9,9 +9,18 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Test metrics exported by Elasticsearch directly using the OTel SDK
@@ -30,5 +39,38 @@ public class OtelMetricsIT extends AbstractMetricsIT {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    public void testOTelHealthMetrics() throws Exception {
+        final Set<String> remaining = new HashSet<>(
+            Set.of(
+                "otel.sdk.metric_reader.collection.duration",
+                "otel.sdk.exporter.metric_data_point.exported",
+                "otel.sdk.exporter.metric_data_point.inflight",
+                "otel.sdk.exporter.operation.duration"
+            )
+        );
+
+        CountDownLatch finished = new CountDownLatch(1);
+
+        Consumer<ReceivedTelemetry> messageConsumer = (ReceivedTelemetry msg) -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m) {
+                for (Map.Entry<String, ReceivedTelemetry.ReceivedMetricValue> e : m.samples().entrySet()) {
+                    remaining.remove(e.getKey());
+                }
+            }
+            if (remaining.isEmpty()) {
+                finished.countDown();
+            }
+        };
+
+        recordingApmServer.addMessageConsumer(messageConsumer);
+
+        client().performRequest(new Request("GET", "/_use_apm_metrics"));
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+
+        boolean completed = finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS);
+        String missing = remaining.stream().sorted().collect(Collectors.joining(", "));
+        assertTrue("Timeout waiting for OTel SDK health metrics. Missing: " + missing, completed && remaining.isEmpty());
     }
 }

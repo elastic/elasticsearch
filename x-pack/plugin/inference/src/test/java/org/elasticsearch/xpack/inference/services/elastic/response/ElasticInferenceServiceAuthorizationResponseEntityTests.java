@@ -926,6 +926,27 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
         assertThat(response.removedEndpoints(), is(empty()));
     }
 
+    public void testParse_GivenRemovedEndpointsFieldIsMissing() throws IOException {
+        ElasticInferenceServiceAuthorizationResponseEntity response = parse("""
+            {
+                "inference_endpoints": []
+            }
+            """);
+        assertThat(response.authorizedEndpoints(), is(empty()));
+        assertThat(response.removedEndpoints(), is(empty()));
+    }
+
+    public void testParse_GivenRemovedEndpointsContainDuplicates() throws IOException {
+        ElasticInferenceServiceAuthorizationResponseEntity response = parse("""
+            {
+                "inference_endpoints": [],
+                "removed_endpoints": ["endpoint-1", "endpoint-1", "endpoint-2"]
+            }
+            """);
+        assertThat(response.authorizedEndpoints(), is(empty()));
+        assertThat(response.removedEndpoints(), containsInAnyOrder("endpoint-1", "endpoint-2"));
+    }
+
     private ElasticInferenceServiceAuthorizationResponseEntity parse(String json) throws IOException {
         try (var parser = createParser(JsonXContent.jsonXContent, json)) {
             return ElasticInferenceServiceAuthorizationResponseEntity.PARSER.apply(parser, null);

@@ -61,6 +61,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -486,28 +487,15 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         // Wait for both endpoints to be created
         assertBusy(() -> assertThat(getEisEndpoints(), hasSize(2)));
 
-        var eisEndpoints = getEisEndpoints().stream().collect(Collectors.toMap(UnparsedModel::inferenceEntityId, Function.identity()));
-        assertThat(eisEndpoints.size(), is(2));
+        var eisEndpoints = getEisEndpoints().stream().map(UnparsedModel::inferenceEntityId).collect(Collectors.toSet());
+        assertThat(eisEndpoints, containsInAnyOrder(RAINBOW_SPRINKLES_ENDPOINT_ID, JINA_EMBED_V3_ENDPOINT_ID));
 
-        assertTrue(eisEndpoints.containsKey(RAINBOW_SPRINKLES_ENDPOINT_ID));
-        assertTrue(eisEndpoints.containsKey(JINA_EMBED_V3_ENDPOINT_ID));
-
-        webServer.enqueue(
-            new MockResponse().setResponseCode(200)
-                .setBody(
-                    Strings.format(
-                        """
-                            {
-                              "inference_endpoints": [],
-                              "removed_endpoints": [%s]
-                            }
-                            """,
-                        Strings.collectionToCommaDelimitedString(
-                            removedEndpoints.stream().map(s -> "\"" + s + "\"").collect(Collectors.toList())
-                        )
-                    )
-                )
-        );
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(Strings.format("""
+            {
+              "inference_endpoints": [],
+              "removed_endpoints": [%s]
+            }
+            """, removedEndpoints.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(",")))));
 
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();

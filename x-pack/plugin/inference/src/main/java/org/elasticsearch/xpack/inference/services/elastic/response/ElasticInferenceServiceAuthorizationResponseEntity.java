@@ -58,7 +58,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
             true,
             args -> new ElasticInferenceServiceAuthorizationResponseEntity(
                 (List<AuthorizedEndpoint>) args[0],
-                args[1] != null ? ((List<String>) args[1]).stream().collect(Collectors.toSet()) : Set.of()
+                args[1] != null ? ((List<String>) args[1]).stream().collect(Collectors.toUnmodifiableSet()) : Set.of()
             )
         );
 

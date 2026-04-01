@@ -62,7 +62,6 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -137,14 +136,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         poller.sendAuthorizationRequest();
 
         verify(mockAuthHandler, never()).getAuthorization(any(), any());
-        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
-            eq(persistentTaskId),
-            eq(allocationId),
-            isNull(),
-            isNull(),
-            any(),
-            any()
-        );
+        verify(mockPersistentTasksService).sendCompletionRequest(eq(persistentTaskId), eq(allocationId), isNull(), isNull(), any(), any());
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenClusterDoesNotIncludeMetadata_MappingUpdate() {
@@ -189,14 +181,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         poller.sendAuthorizationRequest();
 
         verify(mockAuthHandler, never()).getAuthorization(any(), any());
-        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
-            eq(persistentTaskId),
-            eq(allocationId),
-            isNull(),
-            isNull(),
-            any(),
-            any()
-        );
+        verify(mockPersistentTasksService).sendCompletionRequest(eq(persistentTaskId), eq(allocationId), isNull(), isNull(), any(), any());
     }
 
     public void testSendsAuthorizationRequest_WhenModelRegistryIsReady() {
@@ -486,7 +471,7 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         assertThat(callbackCount.get(), is(1));
         assertTrue(poller.isShutdown());
-        verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
+        verify(mockPersistentTasksService).sendCompletionRequest(
             eq(persistentTaskId),
             eq(allocationId),
             eq(exception),
@@ -508,46 +493,44 @@ public class AuthorizationPollerTests extends ESTestCase {
     }
 
     public void testSendsAuthorizationRequest_ShouldDeleteRemovedEndpoints() {
-        var url = "eis-url";
+        Set<String> endpointsToDelete = Set.of("id-1", "id-2");
 
         when(mockRegistry.isReady()).thenReturn(true);
         when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-2", "id-3"));
         ccmFeature = createMockCCMFeature(true);
         ccmService = createMockCCMService(true);
 
-        givenAuthHandlerRespondsForUrl(url, List.of(), Set.of("id-1", "id-2"));
+        givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), endpointsToDelete);
 
         var poller = createPoller();
         poller.sendAuthorizationRequest();
 
-        verify(mockRegistry, times(1)).deleteModels(eq(Set.of("id-1", "id-2")), any());
+        verify(mockRegistry).deleteModels(eq(endpointsToDelete), any());
     }
 
     public void testSendsAuthorizationRequest_ShouldIgnoreRemovedEndpointsNotInRegistry() {
-        var url = "eis-url";
+        Set<String> endpointsToDelete = Set.of("id-1", "id-3");
 
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-3"));
+        when(mockRegistry.getInferenceIds()).thenReturn(endpointsToDelete);
         ccmFeature = createMockCCMFeature(true);
         ccmService = createMockCCMService(true);
 
-        givenAuthHandlerRespondsForUrl(url, List.of(), Set.of("id-1", "id-2", "id-3", "id-4"));
+        givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-1", "id-2", "id-3", "id-4"));
 
         var poller = createPoller();
         poller.sendAuthorizationRequest();
 
-        verify(mockRegistry, times(1)).deleteModels(eq(Set.of("id-1", "id-3")), any());
+        verify(mockRegistry).deleteModels(eq(endpointsToDelete), any());
     }
 
     public void testSendsAuthorizationRequest_ShouldNotDeleteAnyWhenNoRemovedEndpointIsPresentInRegistry() {
-        var url = "eis-url";
-
         when(mockRegistry.isReady()).thenReturn(true);
         when(mockRegistry.getInferenceIds()).thenReturn(Set.of("id-1", "id-2"));
         ccmFeature = createMockCCMFeature(true);
         ccmService = createMockCCMService(true);
 
-        givenAuthHandlerRespondsForUrl(url, List.of(), Set.of("id-3", "id-4"));
+        givenAuthHandlerRespondsForUrl(randomAlphaOfLength(10), List.of(), Set.of("id-3", "id-4"));
 
         var poller = createPoller();
         poller.sendAuthorizationRequest();

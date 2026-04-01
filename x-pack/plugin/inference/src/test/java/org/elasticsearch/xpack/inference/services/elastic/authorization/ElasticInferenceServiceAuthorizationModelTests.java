@@ -1441,10 +1441,11 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
 
     public void testContainsRemovedEndpoints() {
         String randomId = randomAlphaOfLength(10);
-        var authResponse = new ElasticInferenceServiceAuthorizationResponseEntity(List.of(), Set.of("id1", "id2", randomId));
+        var removed = Set.of("id1", "id2", randomId);
+        var authResponse = new ElasticInferenceServiceAuthorizationResponseEntity(List.of(), removed);
 
         ElasticInferenceServiceAuthorizationModel model = ElasticInferenceServiceAuthorizationModel.of(authResponse, "url");
 
-        assertThat(model.getRemovedEndpoints(), containsInAnyOrder("id1", "id2", randomId));
+        assertThat(model.getRemovedEndpoints(), is(removed));
     }
 }

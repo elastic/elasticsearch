@@ -10,6 +10,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatterBuilder;
@@ -231,6 +232,7 @@ class JavaDateFormatter implements DateFormatter {
     }
 
     @Override
+    @Nullable
     public TemporalAccessor tryParse(String input) {
         if (Strings.isNullOrEmpty(input)) {
             return null;

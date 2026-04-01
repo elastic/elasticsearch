@@ -10,6 +10,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
@@ -38,6 +39,7 @@ public interface DateFormatter {
      * @param input An arbitrary string resembling the string representation of a date or time
      * @return      The java time object containing the parsed input, or {@code null} if parsing failed
      */
+    @Nullable
     TemporalAccessor tryParse(String input);
 
     /**

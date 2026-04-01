@@ -1,5 +1,5 @@
 ExchangeSinkExec[[$$count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5$count{r}#0, $$count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5$seen{r}#1],false]
 \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5#2],INITIAL,[$$count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5$count{r}#3, $$count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5$seen{r}#4],8]
-  \_FilterExec[$$dense_vector$V_COSINE$-1401200320{f$}#5 > 0.5[DOUBLE]]
-    \_FieldExtractExec[$$dense_vector$V_COSINE$-1401200320{f$}#5]<[],[],[]>
+  \_FilterExec[$$dense_vector$V_COSINE$0{f$}#5 > 0.5[DOUBLE]]
+    \_FieldExtractExec[$$dense_vector$V_COSINE$0{f$}#5]<[],[],[]>
       \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#6], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

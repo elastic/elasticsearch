@@ -114,7 +114,7 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testValidate_UnmappedFields_allValues() {
-        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.isEnabled());
+        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
         validateUnmappedFields("DEFAULT", "NULLIFY", "LOAD");
     }
 

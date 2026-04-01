@@ -286,8 +286,7 @@ public class ViewResolver {
     /**
      * Builds an ordered list of subqueries by iterating the resolved index expressions in order.
      * Each expression is classified as either a view (added as a ViewPlan) or a concrete index
-     * (accumulated into a single UnresolvedRelation). This uses the resolution layer's ordering
-     * directly, avoiding redundant wildcard matching.
+     * (accumulated into a single UnresolvedRelation).
      */
     private List<ViewPlan> buildOrderedSubqueries(
         UnresolvedRelation unresolvedRelation,
@@ -635,14 +634,7 @@ public class ViewResolver {
             ViewUnionAll innerVua = (ViewUnionAll) inner;
             hasInnerVua = true;
             for (Map.Entry<String, LogicalPlan> innerEntry : innerVua.namedSubqueries().entrySet()) {
-                String innerKey = makeUniqueKey(flat, innerEntry.getKey());
-                if (innerEntry.getValue() instanceof UnresolvedRelation) {
-                    // Lift bare URs from the inner VUA into the parent — keeps them as separate
-                    // branches so IndexResolution resolves each independently (preserving duplicates).
-                    flat.put(innerKey, innerEntry.getValue());
-                } else {
-                    flat.put(innerKey, innerEntry.getValue());
-                }
+                flat.put(makeUniqueKey(flat, innerEntry.getKey()), innerEntry.getValue());
             }
         }
 

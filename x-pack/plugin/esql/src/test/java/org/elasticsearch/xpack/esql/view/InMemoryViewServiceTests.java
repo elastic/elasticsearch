@@ -274,7 +274,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         addIndex("view3");
         LogicalPlan plan = query("FROM view*::data");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM view*::data,emp1,emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,view*::data")));
     }
 
     public void testConcreteDataSelector() {
@@ -548,25 +548,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
         LogicalPlan rewritten = replaceViews(plan);
-        // We cannot express the expected plan easily, so we check its structure instead
+        // Nested ViewUnionAlls are flattened into the parent, so all branches appear at the top level
         assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
-        assertThat(subqueries.size(), equalTo(2));
-        for (LogicalPlan child : subqueries) {
-            child = (child instanceof Subquery subquery) ? subquery.child() : child;
-            assertThat(child, instanceOf(ViewUnionAll.class));
-            List<LogicalPlan> subchildren = child.children();
-            assertThat(subchildren.size(), equalTo(2));
-            assertThat(
-                subchildren,
-                matchesAnyXOf(
-                    2,
-                    query("FROM emp1 | WHERE emp.age > 30"),
-                    query("FROM emp2 | WHERE emp.age < 40"),
-                    query("FROM emp3 | WHERE emp.salary > 50000")
-                )
-            );
-        }
+        assertThat(subqueries.size(), equalTo(4));
+        assertThat(
+            subqueries,
+            containsInAnyOrder(
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
+                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000"))
+            )
+        );
     }
 
     public void testReplaceViewsNestedPlansWildcardWithIndex() {
@@ -578,26 +572,20 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
         LogicalPlan rewritten = replaceViews(plan);
-        // We cannot express the expected plan easily, so we check its structure instead
+        // Nested ViewUnionAlls are flattened into the parent, so all branches appear at the top level
         assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
-        assertThat(subqueries.size(), equalTo(3));
-        assertThat(subqueries.getLast(), matchesPlan(query("FROM view_1_*")));
-        for (LogicalPlan child : subqueries.subList(0, 2)) {
-            child = (child instanceof Subquery subquery) ? subquery.child() : child;
-            assertThat(child, instanceOf(ViewUnionAll.class));
-            List<LogicalPlan> subchildren = child.children();
-            assertThat(subchildren.size(), equalTo(2));
-            assertThat(
-                subchildren,
-                matchesAnyXOf(
-                    2,
-                    query("FROM emp1 | WHERE emp.age > 30"),
-                    query("FROM emp2 | WHERE emp.age < 40"),
-                    query("FROM emp3 | WHERE emp.salary > 50000")
-                )
-            );
-        }
+        assertThat(subqueries.size(), equalTo(5));
+        assertThat(
+            subqueries,
+            containsInAnyOrder(
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
+                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000")),
+                matchesPlan(query("FROM view_1_*"))
+            )
+        );
     }
 
     public void testReplaceViewsNestedPlansWildcards() {
@@ -1333,18 +1321,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                             e.getMessage(),
                             startsWith("The maximum allowed view depth of " + maxViewDepth + " has been exceeded")
                         );
-                    } else if (branching >= 2 && effectiveDiagonalBranches(nesting, branching) > Fork.MAX_BRANCHES) {
-                        var e = expectThrows(IllegalArgumentException.class, () -> replaceViews(query(queryStr), matrixResolver));
-                        assertThat(
-                            "nesting=" + nesting + ", branching=" + branching,
-                            e.getMessage(),
-                            containsString("FORK supports up to " + Fork.MAX_BRANCHES + " branches")
-                        );
                     } else {
                         LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
                         assertNotNull("Diagonal resolution should succeed for nesting=" + nesting + ", branching=" + branching, result);
-                        // Flattening through compactable wrappers eliminates nesting, so no nested FORK errors
-                        if (branching >= 2) {
+                        // When flattening stays within MAX_BRANCHES, nesting is eliminated and no nested FORK errors occur.
+                        // When flattening would exceed MAX_BRANCHES, it is skipped, keeping nested ViewUnionAlls.
+                        if (branching >= 2 && effectiveDiagonalBranches(nesting, branching) <= Fork.MAX_BRANCHES) {
                             Failures failures = new Failures();
                             Failures depFailures = new Failures();
                             LogicalVerifier.INSTANCE.checkPlanConsistency(result, failures, depFailures);

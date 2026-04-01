@@ -401,6 +401,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees METADATA _score, _index, _id
             | FORK (WHERE does_not_exist::LONG > 0)
                    (WHERE emp_no > 0)
+            | LIMIT 100
             | FUSE
             """, STAGES);
     }
@@ -410,6 +411,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees METADATA _score, _index, _id
             | FORK (EVAL x = does_not_exist::DOUBLE + 1)
                    (EVAL y = emp_no + 1)
+            | LIMIT 100
             | FUSE RRF
             """, STAGES);
     }
@@ -419,6 +421,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees METADATA _score, _index, _id
             | FORK (WHERE does_not_exist::LONG > 0 | EVAL x = 1)
                    (WHERE emp_no > 0 | EVAL y = 2)
+            | LIMIT 100
             | FUSE LINEAR
             """, STAGES);
     }

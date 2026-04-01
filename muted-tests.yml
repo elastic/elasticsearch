@@ -330,32 +330,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:approximation.Exact stats on small multi-valued data}
   issue: https://github.com/elastic/elasticsearch/issues/145251
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  method: testFold {TestCase=<int, 15 fixed-interval ints>}
-  issue: https://github.com/elastic/elasticsearch/issues/145254
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  method: testFold {TestCase=<long, 15 fixed-interval longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/145255
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  method: testEvaluateInManyThreads {TestCase=<long, 11 fixed-interval longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/145256
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/131964
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  method: testEvaluateBlockWithNulls {TestCase=<long, 20 fixed-interval longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/145259
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testNoInfiniteRecursiveGetObjectCalls
   issue: https://github.com/elastic/elasticsearch/issues/145269
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  method: testEvaluateInManyThreads {TestCase=<int, 20 fixed-interval ints>}
-  issue: https://github.com/elastic/elasticsearch/issues/145275
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  method: testEvaluate {TestCase=<long, 15 fixed-interval longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/145276
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  issue: https://github.com/elastic/elasticsearch/issues/145277
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:approximation.Approximate stats by on large multi-valued data}
   issue: https://github.com/elastic/elasticsearch/issues/145280
@@ -371,11 +351,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidShortWithCasting
   issue: https://github.com/elastic/elasticsearch/issues/145288
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  issue: https://github.com/elastic/elasticsearch/issues/145289
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
-  method: testEvaluateBlockWithNulls {TestCase=<int, 11 fixed-interval ints>}
-  issue: https://github.com/elastic/elasticsearch/issues/145257
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:external-basic.scoreFunction}
   issue: https://github.com/elastic/elasticsearch/issues/145352
@@ -391,6 +366,12 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
   method: testMeta
   issue: https://github.com/elastic/elasticsearch/issues/145370
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidBigDecimalFromDoubleWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145372
+- class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
+  method: testKnnVectors
+  issue: https://github.com/elastic/elasticsearch/issues/145377
 
 # Examples:
 #

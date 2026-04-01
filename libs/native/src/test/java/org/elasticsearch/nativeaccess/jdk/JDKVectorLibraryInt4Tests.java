@@ -240,6 +240,111 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         assertArrayEquals(expectedScores, bulkScores, 0f);
     }
 
+    public void testInt4BulkSparse() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int packedLen = dims / 2;
+        final int numVecs = randomIntBetween(2, 101);
+
+        var ordinals = new int[numVecs];
+        var unpackedValues = new byte[numVecs][dims];
+        var packedValues = new byte[numVecs][packedLen];
+        var packedSegment = arena.allocate((long) packedLen * numVecs);
+
+        for (int i = 0; i < numVecs; i++) {
+            ordinals[i] = randomInt(numVecs - 1);
+            randomBytesBetween(unpackedValues[i], MIN_INT4_VALUE, MAX_INT4_VALUE);
+            packedValues[i] = packNibbles(unpackedValues[i]);
+            MemorySegment.copy(packedValues[i], 0, packedSegment, ValueLayout.JAVA_BYTE, (long) i * packedLen, packedLen);
+        }
+
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        for (int i = 0; i < numVecs; i++) {
+            expectedScores[i] = dotProductI4SinglePacked(unpackedValues[queryOrd], packedValues[ordinals[i]]);
+        }
+
+        var nativeQuerySeg = arena.allocate(dims);
+        MemorySegment.copy(unpackedValues[queryOrd], 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
+
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < numVecs; i++) {
+            addressesSeg.setAtIndex(
+                ValueLayout.ADDRESS,
+                i,
+                packedSegment.asSlice((long) ordinals[i] * packedLen, packedLen)
+            );
+        }
+
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        similarityBulkSparse(addressesSeg, nativeQuerySeg, packedLen, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    public void testInt4BulkSparseScattered() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int packedLen = dims / 2;
+        final int numVecs = randomIntBetween(2, 101);
+
+        var ordinals = new int[numVecs];
+        var unpackedValues = new byte[numVecs][dims];
+        var packedValues = new byte[numVecs][packedLen];
+        var packedSegments = new MemorySegment[numVecs];
+
+        for (int i = 0; i < numVecs; i++) {
+            randomBytesBetween(unpackedValues[i], MIN_INT4_VALUE, MAX_INT4_VALUE);
+            packedValues[i] = packNibbles(unpackedValues[i]);
+            packedSegments[i] = arena.allocate(packedLen);
+            MemorySegment.copy(packedValues[i], 0, packedSegments[i], ValueLayout.JAVA_BYTE, 0L, packedLen);
+        }
+        for (int i = 0; i < numVecs; i++) {
+            ordinals[i] = randomInt(numVecs - 1);
+        }
+
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        for (int i = 0; i < numVecs; i++) {
+            expectedScores[i] = dotProductI4SinglePacked(unpackedValues[queryOrd], packedValues[ordinals[i]]);
+        }
+
+        var nativeQuerySeg = arena.allocate(dims);
+        MemorySegment.copy(unpackedValues[queryOrd], 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
+
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < numVecs; i++) {
+            addressesSeg.setAtIndex(ValueLayout.ADDRESS, i, packedSegments[ordinals[i]]);
+        }
+
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        similarityBulkSparse(addressesSeg, nativeQuerySeg, packedLen, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    public void testBulkSparseIllegalArgs() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int packedLen = size / 2;
+        int count = 3;
+        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        var query = arena.allocate(size);
+        var scores = arena.allocate((long) count * Float.BYTES);
+
+        var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count - 1);
+        Exception ex = expectThrows(IOOBE, () -> similarityBulkSparse(tooSmallAddrs, query, packedLen, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        var tooSmallQuery = arena.allocate(size - 1);
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, tooSmallQuery, packedLen, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        var tooSmallScores = arena.allocate((long) count * Float.BYTES - 1);
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, query, packedLen, count, tooSmallScores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        ex = expectThrows(IOOBE, () -> similarityBulkSparse(addresses, query, packedLen, -1, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+    }
+
     public void testIllegalDims() {
         assumeTrue(notSupportedMsg(), supported());
         int packedLen = size / 2;
@@ -340,6 +445,18 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
                 VectorSimilarityFunctions.DataType.INT4,
                 VectorSimilarityFunctions.Operation.BULK_OFFSETS
             ).invokeExact(packedDocs, unpackedQuery, packedLen, pitch, offsets, count, result);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    void similarityBulkSparse(MemorySegment addresses, MemorySegment unpackedQuery, int packedLen, int count, MemorySegment result) {
+        try {
+            getVectorDistance().getHandle(
+                function,
+                VectorSimilarityFunctions.DataType.INT4,
+                VectorSimilarityFunctions.Operation.BULK_SPARSE
+            ).invokeExact(addresses, unpackedQuery, packedLen, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }

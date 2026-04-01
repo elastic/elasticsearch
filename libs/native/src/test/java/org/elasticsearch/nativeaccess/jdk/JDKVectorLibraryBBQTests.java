@@ -305,6 +305,109 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         assertArrayEquals(expectedScores, bulkScores, 0f);
     }
 
+    public void testBulkSparse() {
+        assumeTrue(notSupportedMsg(), supported());
+
+        final int numVecs = randomIntBetween(2, 101);
+        final TestData testData = createTestData(numVecs, size, type);
+
+        var ordinals = new int[numVecs];
+        for (int i = 0; i < numVecs; i++) {
+            ordinals[i] = randomInt(numVecs - 1);
+        }
+
+        float[] expectedScores = new float[numVecs];
+        ScalarOperations.bulkWithOffsets(
+            function,
+            testData.unpackedQueryVector,
+            testData.unpackedIndexVectors,
+            ordinals,
+            expectedScores
+        );
+
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < numVecs; i++) {
+            addressesSeg.setAtIndex(
+                ValueLayout.ADDRESS,
+                i,
+                testData.indexSegment.asSlice((long) ordinals[i] * testData.indexVectorBytes, testData.indexVectorBytes)
+            );
+        }
+
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        nativeSimilarityBulkSparse(addressesSeg, testData.querySegment, testData.indexVectorBytes, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    public void testBulkSparseScattered() {
+        assumeTrue(notSupportedMsg(), supported());
+
+        final int numVecs = randomIntBetween(2, 101);
+        final int indexVectorBytes = numBytes(size, type.dataBits());
+        final int queryVectorBytes = numBytes(size, type.queryBits());
+
+        var unpackedIndexVectors = new byte[numVecs][size];
+        var unpackedQueryVector = new byte[size];
+
+        var indexSegments = new MemorySegment[numVecs];
+        var querySegment = arena.allocate(queryVectorBytes);
+
+        randomBytesBetween(unpackedQueryVector, (byte) 0, maxQueryValue);
+        var queryVector = new byte[queryVectorBytes];
+        pack(unpackedQueryVector, queryVector, type.queryBits());
+        MemorySegment.copy(queryVector, 0, querySegment, ValueLayout.JAVA_BYTE, 0L, queryVectorBytes);
+
+        for (int i = 0; i < numVecs; i++) {
+            randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
+            var indexVector = new byte[indexVectorBytes];
+            pack(unpackedIndexVectors[i], indexVector, type.dataBits());
+            indexSegments[i] = arena.allocate(indexVectorBytes);
+            MemorySegment.copy(indexVector, 0, indexSegments[i], ValueLayout.JAVA_BYTE, 0L, indexVectorBytes);
+        }
+
+        var ordinals = new int[numVecs];
+        for (int i = 0; i < numVecs; i++) {
+            ordinals[i] = randomInt(numVecs - 1);
+        }
+
+        float[] expectedScores = new float[numVecs];
+        ScalarOperations.bulkWithOffsets(function, unpackedQueryVector, unpackedIndexVectors, ordinals, expectedScores);
+
+        var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < numVecs; i++) {
+            addressesSeg.setAtIndex(ValueLayout.ADDRESS, i, indexSegments[ordinals[i]]);
+        }
+
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        nativeSimilarityBulkSparse(addressesSeg, querySegment, indexVectorBytes, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    public void testBulkSparseIllegalArgs() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int indexVectorBytes = numBytes(size, type.dataBits());
+        final int queryVectorBytes = numBytes(size, type.queryBits());
+        int count = 3;
+        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        var query = arena.allocate(queryVectorBytes);
+        var scores = arena.allocate((long) count * Float.BYTES);
+
+        var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count - 1);
+        Exception ex = expectThrows(IOOBE, () -> nativeSimilarityBulkSparse(tooSmallAddrs, query, indexVectorBytes, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        var tooSmallQuery = arena.allocate(queryVectorBytes - 1);
+        ex = expectThrows(IOOBE, () -> nativeSimilarityBulkSparse(addresses, tooSmallQuery, indexVectorBytes, count, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        var tooSmallScores = arena.allocate((long) count * Float.BYTES - 1);
+        ex = expectThrows(IOOBE, () -> nativeSimilarityBulkSparse(addresses, query, indexVectorBytes, count, tooSmallScores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        ex = expectThrows(IOOBE, () -> nativeSimilarityBulkSparse(addresses, query, indexVectorBytes, -1, scores));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+    }
+
     public void testIllegalDims() {
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3);
@@ -414,6 +517,15 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         try {
             getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.BULK_OFFSETS)
                 .invokeExact(a, b, dims, pitch, offsets, count, result);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    void nativeSimilarityBulkSparse(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment result) {
+        try {
+            getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.BULK_SPARSE)
+                .invokeExact(addresses, b, dims, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }

@@ -187,3 +187,13 @@ EXPORT void vec_doti4_bulk_offsets(
 ) {
     doti4_bulk_impl<int8_t, offsets_mapper>(docs, query, packed_len, pitch, offsets, count, results);
 }
+
+EXPORT void vec_doti4_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* query,
+    int32_t packed_len,
+    int32_t count,
+    f32_t* results
+) {
+    doti4_bulk_impl<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, packed_len, 0, NULL, count, results);
+}

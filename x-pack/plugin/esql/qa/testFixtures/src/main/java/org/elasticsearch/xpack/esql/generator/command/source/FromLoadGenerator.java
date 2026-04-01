@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.generator.command.source;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
-import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.HashMap;
 import java.util.List;

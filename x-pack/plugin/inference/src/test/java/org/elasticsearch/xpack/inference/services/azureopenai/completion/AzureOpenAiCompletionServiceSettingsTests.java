@@ -33,7 +33,10 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServiceSettingsTests<AzureOpenAiCompletionServiceSettings> {
 
-    private static final int DEFAULT_RATE_LIMIT = 120;
+    @Override
+    protected RateLimitSettings getDefaultRateLimitSettings() {
+        return new RateLimitSettings(120);
+    }
 
     @Override
     protected AzureOpenAiCompletionServiceSettings updateServiceSettings(
@@ -46,15 +49,6 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
     @Override
     protected AzureOpenAiCompletionServiceSettings fromMap(Map<String, Object> serviceSettingsMap, ConfigurationParseContext context) {
         return AzureOpenAiCompletionServiceSettings.fromMap(serviceSettingsMap, context);
-    }
-
-    @Override
-    protected void assertFromMap_RequiredFieldsOnly(
-        AzureOpenAiCompletionServiceSettings serviceSettings,
-        ConfigurationParseContext context
-    ) {
-        super.assertFromMap_RequiredFieldsOnly(serviceSettings, context);
-        assertThat(serviceSettings.rateLimitSettings(), is(new RateLimitSettings(DEFAULT_RATE_LIMIT)));
     }
 
     @Override
@@ -149,7 +143,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
                     "requests_per_minute": %d
                 }
             }
-            """, TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION, DEFAULT_RATE_LIMIT))));
+            """, TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION, getDefaultRateLimitSettings().requestsPerTimeUnit()))));
     }
 
     public static AzureOpenAiCompletionServiceSettings createRandom() {

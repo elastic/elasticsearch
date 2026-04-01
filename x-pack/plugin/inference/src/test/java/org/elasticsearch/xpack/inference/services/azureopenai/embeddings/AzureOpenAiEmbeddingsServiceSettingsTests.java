@@ -57,8 +57,6 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
     public static final SimilarityMeasure TEST_SIMILARITY = SimilarityMeasure.DOT_PRODUCT;
     private static final SimilarityMeasure INITIAL_TEST_SIMILARITY = SimilarityMeasure.COSINE;
 
-    private static final int DEFAULT_RATE_LIMIT = 1_440;
-
     private static final String ERROR_DIMENSIONS_SET_BY_USER_NOT_ALLOWED =
         "Validation Failed: 1: [service_settings] does not allow the setting [%s];";
     private static final String ERROR_DIMENSIONS =
@@ -69,6 +67,11 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
         "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;";
     private static final String ERROR_DIMENSIONS_SET_BY_USER_REQUIRED =
         "Validation Failed: 1: [service_settings] does not contain the required setting [dimensions_set_by_user];";
+
+    @Override
+    protected RateLimitSettings getDefaultRateLimitSettings() {
+        return new RateLimitSettings(1_440);
+    }
 
     @Override
     protected AzureOpenAiEmbeddingsServiceSettings updateServiceSettings(
@@ -107,7 +110,6 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
         ConfigurationParseContext context
     ) {
         super.assertFromMap_RequiredFieldsOnly(serviceSettings, context);
-        assertThat(serviceSettings.rateLimitSettings(), is(new RateLimitSettings(DEFAULT_RATE_LIMIT)));
         assertThat(serviceSettings.dimensionsSetByUser(), is(Boolean.FALSE));
         assertThat(serviceSettings.maxInputTokens(), is(nullValue()));
         assertThat(serviceSettings.similarity(), is(nullValue()));
@@ -448,17 +450,31 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
         entity.toXContent(builder, null);
         var xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
-            {
-                "resource_name": "%s",
-                "deployment_id": "%s",
-                "api_version": "%s",
-                "rate_limit": {
-                    "requests_per_minute": %d
-                },
-                "dimensions_set_by_user": %b
-            }
-            """, TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION, DEFAULT_RATE_LIMIT, dimensionsSetByUser))));
+        assertThat(
+            xContentResult,
+            is(
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {
+                                "resource_name": "%s",
+                                "deployment_id": "%s",
+                                "api_version": "%s",
+                                "rate_limit": {
+                                    "requests_per_minute": %d
+                                },
+                                "dimensions_set_by_user": %b
+                            }
+                            """,
+                        TEST_RESOURCE_NAME,
+                        TEST_DEPLOYMENT_ID,
+                        TEST_API_VERSION,
+                        getDefaultRateLimitSettings().requestsPerTimeUnit(),
+                        dimensionsSetByUser
+                    )
+                )
+            )
+        );
     }
 
     public static AzureOpenAiEmbeddingsServiceSettings createRandom() {

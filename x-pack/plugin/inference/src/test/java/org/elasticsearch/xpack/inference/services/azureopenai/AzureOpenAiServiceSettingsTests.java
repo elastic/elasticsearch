@@ -52,6 +52,12 @@ public abstract class AzureOpenAiServiceSettingsTests<T extends AzureOpenAiServi
 
     protected abstract T createServiceSettings(@Nullable AzureOpenAiOAuth2Settings oAuth2Settings);
 
+    /**
+     * Expected {@link RateLimitSettings} when {@link RateLimitSettings#FIELD_NAME} is omitted from the service settings map
+     * (required-fields-only {@link #fromMap}).
+     */
+    protected abstract RateLimitSettings getDefaultRateLimitSettings();
+
     protected static AzureOpenAiOAuth2Settings createInitialOAuth2Settings() {
         return new AzureOpenAiOAuth2Settings(
             new OAuth2Settings(OAuth2SettingsTests.INITIAL_TEST_CLIENT_ID, OAuth2SettingsTests.INITIAL_TEST_SCOPES),
@@ -123,6 +129,7 @@ public abstract class AzureOpenAiServiceSettingsTests<T extends AzureOpenAiServi
         assertThat(serviceSettings.deploymentId(), is(TEST_DEPLOYMENT_ID));
         assertThat(serviceSettings.apiVersion(), is(TEST_API_VERSION));
 
+        assertThat(serviceSettings.rateLimitSettings(), is(getDefaultRateLimitSettings()));
         assertThat(serviceSettings.oAuth2Settings(), is(nullValue()));
     }
 

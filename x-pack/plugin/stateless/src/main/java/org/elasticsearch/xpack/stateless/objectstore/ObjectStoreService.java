@@ -1013,7 +1013,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 } else {
                     Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
                     readReferencedCompoundCommitsUsingCache(
-                        latestBcc.lastCompoundCommit(),
+                        latestBcc.lastCompoundCommit().commitFiles(),
                         latestBcc,
                         directory,
                         context,
@@ -1194,12 +1194,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     /**
-     * Computes a map of blobs ({@code BlobFile}) referenced from the passed-in {@param compoundCommit} where the map values
+     * Computes a map of blobs ({@code BlobFile}) referenced from the passed-in {@param commitFiles} where the map values
      * contain the set of file names, together with their maximum offset, in the blob file.
      */
-    private static Map<BlobFile, ReferencedFilesAndMaxBlobOffset> groupReferencedFilesByBlob(StatelessCompoundCommit compoundCommit) {
+    private static Map<BlobFile, ReferencedFilesAndMaxBlobOffset> groupReferencedFilesByBlob(Map<String, BlobLocation> commitFiles) {
         var referencedFilesByBlob = new HashMap<BlobFile, ReferencedFilesAndMaxBlobOffset>();
-        for (var commitFile : compoundCommit.commitFiles().entrySet()) {
+        for (var commitFile : commitFiles.entrySet()) {
             var blobLocation = commitFile.getValue();
             referencedFilesByBlob.compute(blobLocation.blobFile(), (ignored, existing) -> {
                 long maxBlobOffset = blobLocation.offset();
@@ -1219,14 +1219,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     /**
-     * Starting from the passed-in {@param compoundCommit}, this finds all the referenced BCC blobs, then all the CCs in those
+     * Given a set of {@param commitFiles}, this finds all the referenced BCC blobs, then all the CCs in those
      * BCCs. It then finds all the referenced internal files in these referenced CCs, and executes the provided
-     * {@param referencedCCsConsumer} on each one of it.
-     * The optional param {@param bcc} is passed-in in order to avoid re-reading it from the blobstore (usually one gets a {@code
-     * compoundCommit} from a {@code bcc}).
+     * {@param referencedCCsConsumer} on each one of them.
+     * The optional param {@param bcc} is passed-in in order to avoid re-reading it from the blobstore (usually one gets a
+     * commit's files from a {@code bcc}).
      */
     public static void readReferencedCompoundCommitsUsingCache(
-        StatelessCompoundCommit compoundCommit,
+        Map<String, BlobLocation> commitFiles,
         @Nullable BatchedCompoundCommit bcc,
         BlobStoreCacheDirectory directory,
         IOContext context,
@@ -1235,7 +1235,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         ActionListener<Void> listener
     ) {
         readReferencedCompoundCommits(
-            compoundCommit,
+            commitFiles,
             bccHeaderReadExecutor,
             (referencedBlob, maxBlobOffset) -> bcc != null && referencedBlob.termAndGeneration().equals(bcc.primaryTermAndGeneration())
                 ? bcc.compoundCommits().iterator()
@@ -1246,13 +1246,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     private static void readReferencedCompoundCommits(
-        StatelessCompoundCommit compoundCommit,
+        Map<String, BlobLocation> commitFiles,
         Executor bccHeaderReadExecutor,
         BiFunction<BlobFile, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
         ActionListener<Void> listener
     ) {
-        var referencedFilesByBlob = groupReferencedFilesByBlob(compoundCommit);
+        var referencedFilesByBlob = groupReferencedFilesByBlob(commitFiles);
         try (var listeners = new RefCountingListener(listener)) {
             for (var referencedFilesForBlob : referencedFilesByBlob.entrySet()) {
                 var referencedBlob = referencedFilesForBlob.getKey();

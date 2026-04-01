@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -1609,10 +1608,6 @@ public class VerifierTests extends ESTestCase {
         checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
         checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")");
 
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFieldBasedWithNonIndexedColumn("MultiMatch", "multi_match(\"cat\", text)", "function");
-            checkFieldBasedFunctionNotAllowedAfterCommands("MultiMatch", "function", "multi_match(\"Meditation\", title)");
-        }
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
     }
 
@@ -1652,19 +1647,6 @@ public class VerifierTests extends ESTestCase {
             allOf(
                 containsString("[" + functionName + "] " + functionType + " cannot operate on"),
                 containsString("which is not a field from an index mapping")
-            )
-        );
-    }
-
-    public void testMultiMatchWithLookupJoinField() {
-        assumeTrue("multi_match function available", EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled());
-        analyzerWithLanguagesLookup().error(
-            "FROM test | EVAL language_code = languages "
-                + "| LOOKUP JOIN languages_lookup ON language_code "
-                + "| WHERE multi_match(\"test\", language_name)",
-            containsString(
-                "[MultiMatch] function cannot operate on [language_name],"
-                    + " supplied by an index [languages_lookup] in non-STANDARD mode [lookup]"
             )
         );
     }
@@ -1758,9 +1740,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
         checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
-        }
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
@@ -1805,9 +1784,6 @@ public class VerifierTests extends ESTestCase {
         checkWithFullTextFunctionsDisjunctions("kql(\"title: Meditation\")");
         checkWithFullTextFunctionsDisjunctions("match_phrase(title, \"Meditation\")");
         checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkWithFullTextFunctionsDisjunctions("multi_match(\"Meditation\", title, body)");
-        }
     }
 
     private void checkWithFullTextFunctionsDisjunctions(String functionInvocation) {
@@ -1854,9 +1830,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"title: Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("MatchPhrase", "match_phrase(title, \"Meditation\")", "function");
         checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsWithNonBooleanFunctions("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
-        }
     }
 
     private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation, String functionType) {
@@ -1930,9 +1903,6 @@ public class VerifierTests extends ESTestCase {
         testFullTextFunctionTargetsExistingField("title : \"Meditation\"");
         testFullTextFunctionTargetsExistingField("match_phrase(title, \"Meditation\")");
         testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2], 10)");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            testFullTextFunctionTargetsExistingField("multi_match(\"Meditation\", title)");
-        }
     }
 
     private void testFullTextFunctionTargetsExistingField(String functionInvocation) throws Exception {
@@ -1943,9 +1913,6 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | rename title as name | where match(name, \"Meditation\")");
         fullText().query("from test | rename title as name | where name : \"Meditation\"");
         fullText().query("from test | rename title as name | where match_phrase(name, \"Meditation\")");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            fullText().query("from test | rename title as name | where multi_match(\"Meditation\", name)");
-        }
     }
 
     public void testFullTextFunctionsAfterChainedRename() throws Exception {
@@ -2752,7 +2719,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
+            equalTo("Found ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
         );
     }
 
@@ -2845,7 +2812,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]")
+            equalTo("Found ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]")
         );
     }
 
@@ -2862,7 +2829,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
+            equalTo("Found ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
         );
     }
 
@@ -2871,9 +2838,6 @@ public class VerifierTests extends ESTestCase {
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");
         checkOptionDataTypes(MatchPhrase.ALLOWED_OPTIONS, "FROM test | WHERE MATCH_PHRASE(title, \"Jean\", {\"%s\": %s})");
         checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
-        }
         if (EsqlCapabilities.Cap.KQL_FUNCTION_OPTIONS.isEnabled()) {
             checkOptionDataTypes(Kql.ALLOWED_OPTIONS, "FROM test | WHERE KQL(\"title: Jean\", {\"%s\": %s})");
         }
@@ -2941,9 +2905,6 @@ public class VerifierTests extends ESTestCase {
         testFullTextFunctionsCurrentlyUnsupportedBehaviour("match(title, \"Meditation\")");
         testFullTextFunctionsCurrentlyUnsupportedBehaviour("title : \"Meditation\"");
         testFullTextFunctionsCurrentlyUnsupportedBehaviour("match_phrase(title, \"Meditation\")");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            testFullTextFunctionsCurrentlyUnsupportedBehaviour("multi_match(\"Meditation\", title)");
-        }
     }
 
     private void testFullTextFunctionsCurrentlyUnsupportedBehaviour(String functionInvocation) throws Exception {
@@ -2962,10 +2923,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionAcceptsNullField("match_phrase(null, \"test\")");
         checkFullTextFunctionNullArgs("knn(vector, null)", "second");
         checkFullTextFunctionAcceptsNullField("knn(null, [0, 1, 2])");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionNullArgs("multi_match(null, title)", "first");
-            checkFullTextFunctionAcceptsNullField("multi_match(\"test\", null)");
-        }
     }
 
     private void checkFullTextFunctionNullArgs(String functionInvocation, String argOrdinal) throws Exception {
@@ -2995,9 +2952,6 @@ public class VerifierTests extends ESTestCase {
         checkFullTextFunctionsInStats("kql(\"title: Meditation\")");
         checkFullTextFunctionsInStats("match_phrase(title, \"Meditation\")");
         checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsInStats("multi_match(\"Meditation\", title, body)");
-        }
     }
 
     public void testDecayArgs() {
@@ -3924,10 +3878,14 @@ public class VerifierTests extends ESTestCase {
 
     public void testMMRLimitIsValid() {
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
-
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5",
-            equalTo("1:58: MMR limit must be a positive integer")
+            equalTo("1:58: MMR limit must be a positive integer, got [-5]")
+        );
+
+        defaultAnalyzer().error(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 0",
+            equalTo("1:58: MMR limit must be a positive integer, got [0]")
         );
     }
 
@@ -3946,6 +3904,11 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"7e7e\" on dense_embedding limit 10");
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [15, 16, 20] on dense_embedding limit 10");
+
+        fullText().error(
+            "FROM test | LIMIT 100 | MMR published_date ON vector LIMIT 10",
+            equalTo("1:25: MMR query vector must be a DENSE_VECTOR, found [published_date] of type [DATETIME]")
+        );
     }
 
     public void testMMRLambdaValueIsValid() {
@@ -3955,23 +3918,28 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"unknown\": true }",
-            equalTo("1:58: Invalid option [unknown] in <MMR>, expected one of [[lambda]]")
+            equalTo("1:58: Invalid option [unknown] in [mmr on dense_embedding limit 10 with { \"unknown\": true }]")
         );
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with "
                 + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
-            equalTo("1:58: Invalid option [unknown_extra] in <MMR>, expected one of [[lambda]]")
+            containsString("1:58: Invalid option [unknown_extra]")
         );
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 2.5 }",
-            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0, got [2.5]")
         );
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": -2.5 }",
-            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0, got [-2.5]")
         );
+
+        defaultAnalyzer().error("""
+            row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
+            | mmr on dense_embedding limit 10 with { "lambda": "hello" }
+            """, equalTo("2:3: expected lambda to be numeric, got [\"hello\"]"));
     }
 
     public void testMMRLimitedInput() {
@@ -3996,6 +3964,19 @@ public class VerifierTests extends ESTestCase {
 
     public void testTopSnippetsQueryFoldableConcatConstants() {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
+    }
+
+    /**
+     * A second {@code STATS} on a time-series pipeline becomes a regular {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate};
+     * {@code WITHOUT} is only valid on {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate} until non-TS support exists.
+     */
+    public void testWithoutOnlyInTimeSeriesStats() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        k8s().error("""
+            FROM k8s
+            | STATS mc = max(network.cost) BY cluster, pod, region
+            | STATS d = sum(mc) BY WITHOUT(region)
+            """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
     }
 
     private static TestAnalyzer defaultAnalyzer() {

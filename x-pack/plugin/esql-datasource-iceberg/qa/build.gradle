@@ -53,7 +53,7 @@ dependencies {
     exclude group: 'org.slf4j', module: 'slf4j-api'
     exclude group: 'org.checkerframework', module: 'checker-qual'
   }
-  javaRestTestImplementation('org.apache.parquet:parquet-hadoop-bundle:1.17.0')
+  javaRestTestImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
   javaRestTestImplementation('com.github.ben-manes.caffeine:caffeine:2.9.3') {
     exclude group: 'org.checkerframework', module: 'checker-qual'
   }

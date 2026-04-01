@@ -530,4 +530,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.diversification;
     exports org.elasticsearch.search.diversification.mmr;
     exports org.elasticsearch.inference.completion;
+    exports org.elasticsearch.dlm;
 }

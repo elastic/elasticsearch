@@ -375,7 +375,7 @@ EXTERNAL "{{employees}}"
 ;
 
 count:long
-30..70
+5..95
 ;
 
 forkTwoBranches
@@ -771,7 +771,7 @@ EXTERNAL "{{books}}"
 | KEEP title, completion
 ;
 
-title:text                         | completion:keyword
+title:keyword                      | completion:keyword
 War and Peace                      | WAR AND PEACE
 War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
 ;
@@ -788,7 +788,7 @@ EXTERNAL "{{books}}"
 | KEEP book_no, title, author, _score
 ;
 
-book_no:keyword | title:text                                            | author:text                                 | _score:double
+book_no:keyword | title:keyword                                         | author:keyword                              | _score:double
 5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
 4536            | War and Peace (Signet Classics)                       | [Leo Tolstoy, Pat Conroy, John Hockenberry] | 0.03
 9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
@@ -837,7 +837,7 @@ EXTERNAL "{{books}}"
 | WHERE book_no::INTEGER == 9607
 ;
 
-book_no:keyword|title:text                           |description:text                                                                                   |snippets:keyword
+book_no:keyword|title:keyword                        |description:keyword                                                                                 |snippets:keyword
 9607           |Beowolf: The monsters and the critics|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature
 ;
 
@@ -852,7 +852,7 @@ EXTERNAL "{{books}}"
 | WHERE book_no::INTEGER == 9607
 ;
 
-book_no:keyword|title:text                           |description:text                                                                                   |score:double
+book_no:keyword|title:keyword                        |description:keyword                                                                                 |score:double
 9607           |Beowolf: The monsters and the critics|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature|0.0
 ;
 

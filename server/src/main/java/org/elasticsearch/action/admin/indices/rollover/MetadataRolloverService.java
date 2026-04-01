@@ -423,7 +423,6 @@ public class MetadataRolloverService {
                 projectState.cluster(),
                 createIndexClusterStateRequest,
                 silent,
-                RerouteBehavior.SKIP_REROUTE,
                 (builder, indexMetadata) -> {
                     downgradeBrokenTsdbBackingIndices(dataStream, builder);
                     builder.put(
@@ -435,6 +434,7 @@ public class MetadataRolloverService {
                         )
                     );
                 },
+                RerouteBehavior.SKIP_REROUTE,
                 rerouteCompletionIsNotRequired()
             );
         }
@@ -479,9 +479,10 @@ public class MetadataRolloverService {
                 && index.getIndexMode() == IndexMode.TIME_SERIES
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_START_TIME.getKey()) == false
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
-                final Settings.Builder settingsBuilder = Settings.builder().put(originalSettings);
-                settingsBuilder.remove(IndexSettings.MODE.getKey());
-                settingsBuilder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                final Settings.Builder settingsBuilder = Settings.builder()
+                    .put(originalSettings)
+                    .remove(IndexSettings.MODE.getKey())
+                    .remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
                 long newVersion = index.getSettingsVersion() + 1;
                 projectBuilder.put(IndexMetadata.builder(index).settings(settingsBuilder.build()).settingsVersion(newVersion));
             }

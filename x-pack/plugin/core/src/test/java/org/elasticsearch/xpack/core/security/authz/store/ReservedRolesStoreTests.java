@@ -628,7 +628,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_BACKING_INDEX_REINDEXED + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ReservedRolesStore.ALERTING_V2_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.ALERTING_V2_ALERT_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.ALERTING_V2_RULE_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_REINDEXED + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -640,13 +641,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
         // Alerting V2 views prefix: Kibana system user has create_view only
-        final IndexAbstraction alertingV2ViewsAbstraction = mockIndexAbstraction(
-            ReservedRolesStore.ALERTING_V2_VIEWS + randomAlphaOfLength(randomIntBetween(0, 13))
-        );
-        assertThat(
-            kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(alertingV2ViewsAbstraction),
-            is(true)
-        );
+        Arrays.asList(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS).forEach(index -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(indexAbstraction),
+                is(true)
+            );
+        });
 
         Arrays.asList(
             ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -1003,7 +1004,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Kibana Security Solution EDR workflows team
         // - indexes in support of Elastic Defend Scripts library
-        Arrays.asList(".endpoint-script-file-meta-default", ".endpoint-script-file-data-default").forEach((index) -> {
+        Arrays.asList(".endpoint-fleetfiles-script-meta", ".endpoint-fleetfiles-script-data").forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));

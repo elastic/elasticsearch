@@ -14,6 +14,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -103,6 +105,15 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
             return ReleasableIterator.single(positions.blockFactory().newConstantBytesRefBlockWith(value, positions.getPositionCount()));
         }
         return new BytesRefLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantBytesRefVector(value, endExclusive - beginInclusive);
     }
 
     @Override

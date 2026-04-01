@@ -49,7 +49,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
@@ -70,6 +70,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -82,6 +83,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -114,7 +116,7 @@ public class ReindexerTests extends ESTestCase {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
         BulkByScrollTask task = createNonSlicedWorkerTask();
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
         BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
@@ -129,7 +131,7 @@ public class ReindexerTests extends ESTestCase {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
         BulkByScrollTask task = createNonSlicedWorkerTask();
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
         Exception exception = new Exception("random failure");
         wrapped.onFailure(exception);
@@ -144,7 +146,7 @@ public class ReindexerTests extends ESTestCase {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
         BulkByScrollTask task = createNonSlicedWorkerTask();
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
@@ -164,13 +166,13 @@ public class ReindexerTests extends ESTestCase {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
         BulkByScrollTask task = createNonSlicedWorkerTask();
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
         BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(
             null,
-            List.of(new PaginatedHitSource.SearchFailure(exception), new PaginatedHitSource.SearchFailure(anotherException))
+            List.of(new PaginatedSearchFailure(exception), new PaginatedSearchFailure(anotherException))
         );
         wrapped.onResponse(response);
 
@@ -185,7 +187,7 @@ public class ReindexerTests extends ESTestCase {
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
         BulkByScrollTask task = createSliceWorkerTask();
 
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
         assertSame(listener, wrapped);
         verifyNoMoreInteractions(metrics);
@@ -196,7 +198,7 @@ public class ReindexerTests extends ESTestCase {
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
         BulkByScrollTask task = createLeaderTask();
 
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
         assertNotSame(listener, wrapped);
 
@@ -212,7 +214,7 @@ public class ReindexerTests extends ESTestCase {
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
         BulkByScrollTask task = createNonSlicedWorkerTask();
 
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
         BulkByScrollResponse response = reindexResponseWithResumeInfo();
         wrapped.onResponse(response);
@@ -221,19 +223,58 @@ public class ReindexerTests extends ESTestCase {
         verifyNoMoreInteractions(metrics);
     }
 
+    public void testWrapWithMetricsRecordsDurationFromRelocationOrigin() {
+        final long taskStartTimeMillis = TimeUnit.SECONDS.toMillis(randomLongBetween(0, 100));
+        final long currentTimeMillis = taskStartTimeMillis + TimeUnit.SECONDS.toMillis(randomIntBetween(0, 100));
+        final long expectedElapsedSeconds = TimeUnit.MILLISECONDS.toSeconds(currentTimeMillis - taskStartTimeMillis);
+
+        final ReindexMetrics metrics = mock();
+        final ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(randomTaskId(), taskStartTimeMillis);
+        final BulkByScrollTask task = nonSlicedWorkerTaskWithOrigin(origin);
+
+        final var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), () -> currentTimeMillis);
+
+        final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        wrapped.onResponse(response);
+
+        final ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
+        verify(metrics).recordTookTime(captor.capture(), eq(false), any());
+        assertThat(captor.getValue(), equalTo(expectedElapsedSeconds));
+    }
+
+    public void testWrapWithMetricsRecordsDurationForNewTask() {
+        final ReindexMetrics metrics = mock();
+        final ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        final BulkByScrollTask task = nonSlicedWorkerTaskWithOrigin(null);
+        final long taskStartTime = task.getStartTime();
+        final long currentTimeMillis = taskStartTime + TimeUnit.SECONDS.toMillis(randomIntBetween(0, 100));
+        final long expectedElapsedSeconds = TimeUnit.MILLISECONDS.toSeconds(currentTimeMillis - taskStartTime);
+
+        final var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), () -> currentTimeMillis);
+
+        final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        wrapped.onResponse(response);
+
+        final ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
+        verify(metrics).recordTookTime(captor.capture(), eq(false), any());
+        assertThat(captor.getValue(), equalTo(expectedElapsedSeconds));
+    }
+
     // listenerWithRelocations tests
 
     public void testListenerWithRelocationsPassesThroughForWorkerWithLeaderParent() {
         assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final long parentTaskId = 99;
         final BulkByScrollTask leaderTask = new BulkByScrollTask(
-            parentTaskId,
+            new TaskId(randomAlphaOfLength(10), parentTaskId),
             "test_type",
             "test_action",
             "test",
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap(),
-            true
+            true,
+            randomOrigin()
         );
         leaderTask.setWorkerCount(2);
 
@@ -532,13 +573,14 @@ public class ReindexerTests extends ESTestCase {
             request.setSlices(1);
 
             final BulkByScrollTask task = new BulkByScrollTask(
-                randomLong(),
+                randomTaskId(),
                 "reindex",
                 "reindex",
                 "test",
                 TaskId.EMPTY_TASK_ID,
                 Collections.emptyMap(),
-                false
+                false,
+                randomOrigin()
             );
 
             final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -600,13 +642,14 @@ public class ReindexerTests extends ESTestCase {
                 request.setSlices(1);
 
                 final BulkByScrollTask task = new BulkByScrollTask(
-                    randomLong(),
+                    randomTaskId(),
                     "reindex",
                     "reindex",
                     "test",
                     TaskId.EMPTY_TASK_ID,
                     Collections.emptyMap(),
-                    false
+                    false,
+                    randomOrigin()
                 );
 
                 MockLog.awaitLogger(() -> {
@@ -677,13 +720,14 @@ public class ReindexerTests extends ESTestCase {
                 request.setSlices(1);
 
                 final BulkByScrollTask task = new BulkByScrollTask(
-                    randomLong(),
+                    randomTaskId(),
                     "reindex",
                     "reindex",
                     "test",
                     TaskId.EMPTY_TASK_ID,
                     Collections.emptyMap(),
-                    false
+                    false,
+                    randomOrigin()
                 );
 
                 final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -749,13 +793,14 @@ public class ReindexerTests extends ESTestCase {
                 request.getSearchRequest().routing("r1");
 
                 final BulkByScrollTask task = new BulkByScrollTask(
-                    randomLong(),
+                    randomTaskId(),
                     "reindex",
                     "reindex",
                     "test",
                     TaskId.EMPTY_TASK_ID,
                     Collections.emptyMap(),
-                    false
+                    false,
+                    randomOrigin()
                 );
 
                 final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -822,13 +867,14 @@ public class ReindexerTests extends ESTestCase {
                 request.getSearchRequest().preference("_local");
 
                 final BulkByScrollTask task = new BulkByScrollTask(
-                    randomLong(),
+                    randomTaskId(),
                     "reindex",
                     "reindex",
                     "test",
                     TaskId.EMPTY_TASK_ID,
                     Collections.emptyMap(),
-                    false
+                    false,
+                    randomOrigin()
                 );
 
                 final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -895,13 +941,14 @@ public class ReindexerTests extends ESTestCase {
                 request.getSearchRequest().allowPartialSearchResults(true);
 
                 final BulkByScrollTask task = new BulkByScrollTask(
-                    randomLong(),
+                    randomTaskId(),
                     "reindex",
                     "reindex",
                     "test",
                     TaskId.EMPTY_TASK_ID,
                     Collections.emptyMap(),
-                    false
+                    false,
+                    randomOrigin()
                 );
 
                 final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -1173,13 +1220,14 @@ public class ReindexerTests extends ESTestCase {
             );
 
             BulkByScrollTask task = new BulkByScrollTask(
-                randomLong(),
+                randomTaskId(),
                 "reindex",
                 "reindex",
                 "test",
                 TaskId.EMPTY_TASK_ID,
                 Collections.emptyMap(),
-                false
+                false,
+                randomOrigin()
             );
 
             PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -1196,7 +1244,7 @@ public class ReindexerTests extends ESTestCase {
 
     private BulkByScrollResponse reindexResponseWithBulkAndSearchFailures(
         final List<BulkItemResponse.Failure> bulkFailures,
-        List<PaginatedHitSource.SearchFailure> searchFailures
+        List<PaginatedSearchFailure> searchFailures
     ) {
         return new BulkByScrollResponse(
             TimeValue.ZERO,
@@ -1220,19 +1268,24 @@ public class ReindexerTests extends ESTestCase {
             List.of(),
             List.of(),
             false,
-            new ResumeInfo(workerResumeInfo, null)
+            new ResumeInfo(randomOrigin(), workerResumeInfo, null)
         );
     }
 
     private static BulkByScrollTask createNonSlicedWorkerTask() {
+        return nonSlicedWorkerTaskWithOrigin(randomOrigin());
+    }
+
+    private static BulkByScrollTask nonSlicedWorkerTaskWithOrigin(ResumeInfo.RelocationOrigin origin) {
         BulkByScrollTask task = new BulkByScrollTask(
-            randomNonNegativeLong(),
+            randomTaskId(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             TaskId.EMPTY_TASK_ID,
             Map.of(),
-            randomBoolean()
+            randomBoolean(),
+            origin
         );
         task.setWorker(Float.POSITIVE_INFINITY, null);
         return task;
@@ -1240,13 +1293,14 @@ public class ReindexerTests extends ESTestCase {
 
     private static BulkByScrollTask createSliceWorkerTask() {
         BulkByScrollTask task = new BulkByScrollTask(
-            randomNonNegativeLong(),
+            randomTaskId(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             new TaskId("node", 1),
             Map.of(),
-            randomBoolean()
+            randomBoolean(),
+            randomOrigin()
         );
         task.setWorker(randomFloat(), 0);
         return task;
@@ -1254,20 +1308,30 @@ public class ReindexerTests extends ESTestCase {
 
     private static BulkByScrollTask createLeaderTask() {
         BulkByScrollTask task = new BulkByScrollTask(
-            randomNonNegativeLong(),
+            randomTaskId(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             TaskId.EMPTY_TASK_ID,
             Map.of(),
-            randomBoolean()
+            randomBoolean(),
+            randomOrigin()
         );
         task.setWorkerCount(randomIntBetween(2, 10));
         return task;
     }
 
     private static BulkByScrollTask createTaskWithParentIdAndRelocationEnabled(final TaskId parentTaskId) {
-        return new BulkByScrollTask(987, "test_type", "test_action", "test", parentTaskId, Collections.emptyMap(), true);
+        return new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), 987),
+            "test_type",
+            "test_action",
+            "test",
+            parentTaskId,
+            Collections.emptyMap(),
+            true,
+            randomOrigin()
+        );
     }
 
     private static Reindexer reindexerWithRelocation() {
@@ -1295,23 +1359,15 @@ public class ReindexerTests extends ESTestCase {
         );
     }
 
-    private static Reindexer reindexerWithRelocationAndMetrics(final ReindexMetrics metrics) {
-        return new Reindexer(
-            mock(ClusterService.class),
-            mock(ProjectResolver.class),
-            mock(Client.class),
-            mock(ThreadPool.class),
-            mock(ScriptService.class),
-            mock(ReindexSslConfig.class),
-            metrics,
-            mock(TransportService.class),
-            mock(ReindexRelocationNodePicker.class),
-            // Will default REINDEX_PIT_SEARCH_FEATURE to false
-            mock(FeatureService.class)
-        );
-    }
-
     private static ReindexRequest reindexRequest() {
         return new ReindexRequest();
+    }
+
+    private static ResumeInfo.RelocationOrigin randomOrigin() {
+        return new ResumeInfo.RelocationOrigin(randomTaskId(), randomNonNegativeLong());
+    }
+
+    private static TaskId randomTaskId() {
+        return randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
     }
 }

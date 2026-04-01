@@ -33,7 +33,7 @@ public class ApproximationTests extends ApproximationTestCase {
     public void testVerify_validQuery() throws Exception {
         verify("FROM test | WHERE emp_no<99 | SORT last_name | MV_EXPAND salary | STATS COUNT() BY gender");
         verify("FROM test | CHANGE_POINT salary ON emp_no | EVAL x=1 | DROP emp_no | STATS SUM(salary) BY x");
-        verify("FROM test | LIMIT 1000 | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no)");
+        verify("FROM test | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no) | LIMIT 1000");
         verify("FROM test | EVAL blah=1 | GROK last_name \"%{IP:x}\" | SAMPLE 0.1 | STATS a=COUNT() | LIMIT 100 | SORT a");
         verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
         verify("FROM test | URI_PARTS parts = last_name | STATS scheme_count = COUNT() BY parts.scheme | LIMIT 10");
@@ -54,10 +54,6 @@ public class ApproximationTests extends ApproximationTestCase {
             equalTo(new Approximation.QueryProperties(false, true, false))
         );
         assertThat(
-            verify("FROM test | LIMIT 3 | STATS COUNT(), SUM(emp_no) BY emp_no"),
-            equalTo(new Approximation.QueryProperties(true, true, false))
-        );
-        assertThat(
             verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"),
             equalTo(new Approximation.QueryProperties(true, true, false))
         );
@@ -66,7 +62,7 @@ public class ApproximationTests extends ApproximationTestCase {
             equalTo(new Approximation.QueryProperties(true, false, true))
         );
         assertThat(
-            verify("FROM test | MV_EXPAND gender | LIMIT 42 | STATS COUNT()"),
+            verify("FROM test | MV_EXPAND gender | WHERE emp_no < 3 | STATS COUNT()"),
             equalTo(new Approximation.QueryProperties(false, true, true))
         );
     }
@@ -74,58 +70,75 @@ public class ApproximationTests extends ApproximationTestCase {
     public void testVerify_exactlyOneStats() {
         assertError(
             "FROM test | EVAL x = 1 | SORT emp_no | LIMIT 100 | MV_EXPAND x",
-            equalTo("line 1:1: query without [STATS] cannot be approximated")
+            equalTo("line 1:1: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated")
         );
         assertError(
             "FROM test | STATS COUNT() BY emp_no | STATS COUNT()",
-            equalTo("line 1:39: query with multiple [STATS] cannot be approximated")
+            equalTo("line 1:39: approximation not supported: query with multiple [STATS] cannot be approximated")
         );
     }
 
     public void testVerify_incompatibleSourceCommand() {
-        assertError("SHOW INFO | STATS COUNT()", equalTo("line 1:1: query with [SHOW INFO] cannot be approximated"));
-        assertError("TS k8s | STATS COUNT(network.cost)", equalTo("line 1:1: query with [TS k8s] cannot be approximated"));
+        assertError(
+            "SHOW INFO | STATS COUNT()",
+            equalTo("line 1:1: approximation not supported: query with [SHOW INFO] cannot be approximated")
+        );
+        assertError(
+            "TS k8s | STATS COUNT(network.cost)",
+            equalTo("line 1:1: approximation not supported: query with [TS k8s] cannot be approximated")
+        );
     }
 
     public void testVerify_incompatibleProcessingCommand() {
         assertError(
             "FROM test | FORK (EVAL x=1) (EVAL y=1) | STATS COUNT()",
-            equalTo("line 1:13: query with [FORK (EVAL x=1) (EVAL y=1)] cannot be approximated")
+            equalTo("line 1:13: approximation not supported: query with [FORK (EVAL x=1) (EVAL y=1)] cannot be approximated")
         );
         assertError(
             "FROM test | STATS COUNT() | FORK (EVAL x=1) (EVAL y=1)",
-            equalTo("line 1:29: query with [FORK (EVAL x=1) (EVAL y=1)] cannot be approximated")
+            equalTo("line 1:29: approximation not supported: query with [FORK (EVAL x=1) (EVAL y=1)] cannot be approximated")
         );
         assertError(
             "FROM test | INLINE STATS COUNT() | STATS COUNT()",
-            equalTo("line 1:13: query with [INLINE STATS COUNT()] cannot be approximated")
+            equalTo("line 1:13: approximation not supported: query with [INLINE STATS COUNT()] cannot be approximated")
         );
         assertError(
             "FROM test | STATS COUNT() | INLINE STATS COUNT()",
-            equalTo("line 1:29: query with [INLINE STATS COUNT()] cannot be approximated")
+            equalTo("line 1:29: approximation not supported: query with [INLINE STATS COUNT()] cannot be approximated")
         );
         assertError(
             "FROM test | LOOKUP JOIN test_lookup ON emp_no | FORK (EVAL x=1) (EVAL y=1) | STATS COUNT()",
-            equalTo("line 1:13: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
+            equalTo("line 1:13: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
         );
         assertError(
             "FROM test | STATS emp_no=COUNT() | LOOKUP JOIN test_lookup ON emp_no | FORK (EVAL x=1) (EVAL y=1)",
-            equalTo("line 1:36: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
+            equalTo("line 1:36: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
+        );
+    }
+
+    public void testVerify_incompatibleProcessingCommandBeforeStats() {
+        assertError(
+            "FROM test | LIMIT 1000 | STATS COUNT()",
+            equalTo("line 1:13: approximation not supported: query with [LIMIT 1000] before [STATS] cannot be approximated")
         );
     }
 
     public void testVerify_incompatibleAggregation() {
         assertError(
             "FROM test | SORT emp_no | STATS MIN(emp_no) | LIMIT 100",
-            equalTo("line 1:33: aggregation function [MIN(emp_no)] cannot be approximated")
+            equalTo("line 1:33: approximation not supported: aggregation function [MIN(emp_no)] cannot be approximated")
         );
         assertError(
             "FROM test | STATS SUM(emp_no), VALUES(emp_no), TOP(emp_no, 2, \"ASC\"), COUNT()",
-            equalTo("line 1:32: aggregation function [VALUES(emp_no)] cannot be approximated")
+            equalTo("line 1:32: approximation not supported: aggregation function [VALUES(emp_no)] cannot be approximated")
         );
         assertError(
             "FROM test | STATS 5+10*POW(MAX(emp_no), 2) BY gender",
-            equalTo("line 1:28: aggregation function [MAX(emp_no)] cannot be approximated")
+            equalTo("line 1:28: approximation not supported: aggregation function [MAX(emp_no)] cannot be approximated")
+        );
+        assertError(
+            "ROW x=[1,2]::DENSE_VECTOR | STATS SUM(x)",
+            equalTo("line 1:35: approximation not supported: aggregation function [SUM(x)] must return a numeric value; got [DENSE_VECTOR]")
         );
     }
 

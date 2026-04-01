@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
@@ -17,15 +18,23 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -36,13 +45,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
@@ -68,6 +78,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  */
 public class Verifier {
 
+    static final String UNMAPPED_TIMESTAMP_SUFFIX = "; the [unmapped_fields] setting does not apply to the implicit @timestamp reference";
+
     /**
      * Extra plan verification checks defined in plugins.
      */
@@ -89,16 +101,19 @@ public class Verifier {
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
-     * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
-     * @param unmappedResolution the active unmapped-field resolution strategy; used to gate commands unsupported in certain modes
-     * @return a collection of verification failures; empty if and only if the plan is valid
+     * @param partialMetrics A bitset indicating a certain command (or "telemetry feature") is present in the query
+     * @param unmappedResolution How unmapped fields are resolved for this query.
+     * @return A collection of verification failures; empty if and only if the plan is valid
      */
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
+
         Failures failures = new Failures();
+        boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
+            && isTimestampUnmappedInAllIndices(plan, failures);
 
         // quick verification for unresolved attributes
-        checkUnresolvedAttributes(plan, failures);
+        checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
@@ -109,6 +124,8 @@ public class Verifier {
 
         if (unmappedResolution == UnmappedResolution.LOAD) {
             checkLoadModeDisallowedCommands(plan, failures);
+            checkLoadModeDisallowedFunctions(plan, failures);
+            checkFlattenedSubFieldLoad(plan, failures);
         }
 
         // collect plan checkers
@@ -134,7 +151,7 @@ public class Verifier {
             checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
-            checkLimitBy(p, failures);
+            checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -149,7 +166,7 @@ public class Verifier {
         return failures.failures();
     }
 
-    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures) {
+    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures, boolean skipUnresolvedTimestamp) {
         plan.forEachUp(p -> {
             // if the children are unresolved, so will this node; counting it will only add noise
             if (p.childrenResolved() == false) {
@@ -182,6 +199,9 @@ public class Verifier {
                         return;
                     }
 
+                    if (skipUnresolvedTimestamp && ae instanceof UnresolvedTimestamp) {
+                        return;
+                    }
                     if (ae instanceof Unresolvable u) {
                         failures.add(fail(ae, u.unresolvedMessage()));
                     }
@@ -348,10 +368,49 @@ public class Verifier {
         }
     }
 
-    private static void checkLimitBy(LogicalPlan plan, Failures failures) {
-        if (plan instanceof LimitBy) {
-            failures.add(fail(plan, "LIMIT BY is not yet supported"));
+    /**
+     * {@code WITHOUT(...)} is only supported on the time-series {@link TimeSeriesAggregate} path for now; relax when non-TS support lands.
+     */
+    private static void checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(LogicalPlan p, Failures failures) {
+        if (p instanceof Aggregate agg && (p instanceof TimeSeriesAggregate) == false) {
+            for (Expression g : agg.groupings()) {
+                if (Alias.unwrap(g) instanceof TimeSeriesWithout) {
+                    failures.add(fail(g, "WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
+                }
+            }
         }
+    }
+
+    /**
+     * The {@code unmapped_fields} setting does not apply to the implicit {@code @timestamp} reference ({@link TimestampAware} functions).
+     * Only emits the specific message when {@code @timestamp} is truly absent from all source index mappings;
+     * if the field was present but dropped/renamed by the query, the generic unresolved-attribute message is more appropriate.
+     * See https://github.com/elastic/elasticsearch/issues/142127
+     */
+    private static boolean isTimestampUnmappedInAllIndices(LogicalPlan plan, Failures failures) {
+        if (plan.anyMatch(p -> p instanceof EsRelation r && r.indexMode() != IndexMode.LOOKUP && hasTimestamp(r))) {
+            return false;
+        }
+        plan.forEachDown(p -> {
+            if (p instanceof TimestampAware ta && ta.timestamp() instanceof UnresolvedTimestamp) {
+                failures.add(fail(p, "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX + UNMAPPED_TIMESTAMP_SUFFIX, p.sourceText()));
+            }
+            p.forEachExpression(Expression.class, e -> {
+                if (e instanceof TimestampAware ta && ta.timestamp() instanceof UnresolvedTimestamp) {
+                    failures.add(fail(e, "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX + UNMAPPED_TIMESTAMP_SUFFIX, e.sourceText()));
+                }
+            });
+        });
+        return true;
+    }
+
+    private static boolean hasTimestamp(EsRelation relation) {
+        for (Attribute attr : relation.output()) {
+            if (MetadataAttribute.TIMESTAMP_FIELD.equals(attr.name())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -369,7 +428,81 @@ public class Verifier {
             if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
                 failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
             }
+            if (p instanceof PromqlCommand) {
+                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
+            }
         });
+    }
+
+    /**
+     * Disallow full-text search when unmapped_fields=load. We do not restrict to "only when the FTF
+     * is applied to an unmapped field" because FTFs like KQL can reference unmapped fields inside the
+     * query string (e.g. KQL("author: Faulkner")), and the desired behavior there is unclear.
+     */
+    private static void checkLoadModeDisallowedFunctions(LogicalPlan plan, Failures failures) {
+        List<FullTextFunction> fullTextFunctions = new ArrayList<>();
+        plan.forEachExpressionDown(FullTextFunction.class, fullTextFunctions::add);
+        fullTextFunctions.forEach(
+            f -> failures.add(
+                fail(
+                    f,
+                    "unmapped_fields=\"load\" does not support full-text search function [{}]; use \"default\" or \"nullify\"",
+                    f.functionName()
+                )
+            )
+        );
+    }
+
+    /**
+     * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}, by checking if any
+     * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
+     * flattened subfields resolution may eventually differ from what happens when {@code unmapped_fields="load"}.
+     */
+    private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(EsRelation.class, esRelation -> {
+            Set<String> flattenedFieldNames = flattenedFieldNames(esRelation.output());
+
+            if (flattenedFieldNames.isEmpty()) {
+                return;
+            }
+
+            for (Attribute attr : esRelation.output()) {
+                if (!(attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)) {
+                    continue;
+                }
+
+                String name = fa.name();
+                List<String> prefixes = FieldNameUtils.parentPrefixes(name);
+                for (String parent : prefixes) {
+                    if (flattenedFieldNames.contains(parent)) {
+                        // It is sufficient to find "a" flattened field with a name matching the parent's.
+                        Failure failure = fail(
+                            fa,
+                            "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with "
+                                + "unmapped_fields=\"load\"",
+                            name,
+                            parent
+                        );
+                        failures.add(failure);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    private static Set<String> flattenedFieldNames(List<Attribute> attributes) {
+        Set<String> names = new HashSet<>();
+
+        for (Attribute attribute : attributes) {
+            if (attribute instanceof FieldAttribute fa
+                && fa.field() instanceof UnsupportedEsField uef
+                && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
+                names.add(fa.name());
+            }
+        }
+
+        return names;
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

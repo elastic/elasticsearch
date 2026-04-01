@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 144509
+summary: Enable multimodal inputs for all chat completion integrations
+type: enhancement

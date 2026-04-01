@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexingPressure;
@@ -22,8 +21,13 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusInstantQueryRestAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusLabelValuesRestAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusLabelsRestAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryRangeRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusSeriesRestAction;
 
 import java.util.Collection;
 import java.util.List;
@@ -31,8 +35,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class PrometheusPlugin extends Plugin implements ActionPlugin {
-
-    public static final FeatureFlag PROMETHEUS_FEATURE_FLAG = new FeatureFlag("prometheus");
 
     // Controls enabling the index template registry.
     // This setting will be ignored if the plugin is disabled.
@@ -50,7 +52,7 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     private final long maxProtobufContentLengthBytes;
 
     public PrometheusPlugin(Settings settings) {
-        this.enabled = XPackSettings.PROMETHEUS_ENABLED.get(settings) && PROMETHEUS_FEATURE_FLAG.isEnabled();
+        this.enabled = XPackSettings.PROMETHEUS_ENABLED.get(settings);
         this.maxProtobufContentLengthBytes = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.get(settings).getBytes();
     }
 
@@ -97,7 +99,14 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     ) {
         if (enabled) {
             assert indexingPressure.get() != null : "indexing pressure must be set if plugin is enabled";
-            return List.of(new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes, recycler.get()));
+            return List.of(
+                new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes, recycler.get()),
+                new PrometheusSeriesRestAction(),
+                new PrometheusQueryRangeRestAction(),
+                new PrometheusInstantQueryRestAction(),
+                new PrometheusLabelsRestAction(),
+                new PrometheusLabelValuesRestAction()
+            );
         }
         return List.of();
     }

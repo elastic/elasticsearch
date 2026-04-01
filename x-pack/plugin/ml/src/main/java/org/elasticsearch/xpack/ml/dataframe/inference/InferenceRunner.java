@@ -198,22 +198,19 @@ public class InferenceRunner {
         long processedDocCount = processedTestDocsCount;
 
         try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
-            while (testDocsIterator.hasNext()) {
-                if (isCancelled) {
-                    break;
-                }
+            try {
+                while (testDocsIterator.hasNext()) {
+                    if (isCancelled) {
+                        break;
+                    }
 
-                Deque<SearchHit> batchDeque = testDocsIterator.next();
-                SearchHit[] batch = batchDeque.toArray(new SearchHit[0]);
+                    Deque<SearchHit> batch = testDocsIterator.next();
 
-                if (totalDocCount == 0) {
-                    totalDocCount = testDocsIterator.getTotalHits();
-                }
+                    if (totalDocCount == 0) {
+                        totalDocCount = testDocsIterator.getTotalHits();
+                    }
 
-                int nextToRelease = 0;
-                try {
-                    while (nextToRelease < batch.length) {
-                        SearchHit doc = batch[nextToRelease];
+                    for (SearchHit doc : batch) {
                         dataCountsTracker.incrementTestDocsCount();
                         SourceSupplier sourceSupplier = new SourceSupplier(doc);
                         InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc, sourceSupplier));
@@ -224,14 +221,10 @@ public class InferenceRunner {
                         processedDocCount++;
                         int progressPercent = Math.min((int) (processedDocCount * 100.0 / totalDocCount), MAX_PROGRESS_BEFORE_COMPLETION);
                         progressTracker.updateInferenceProgress(progressPercent);
-                        doc.decRef();
-                        nextToRelease++;
-                    }
-                } finally {
-                    while (nextToRelease < batch.length) {
-                        batch[nextToRelease++].decRef();
                     }
                 }
+            } finally {
+                testDocsIterator.releaseRetainedSearchHits();
             }
         }
 

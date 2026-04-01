@@ -138,6 +138,8 @@ public class InferenceRunnerTests extends ESTestCase {
             doc2Source.get("test_results_field"),
             equalTo(Map.of("predicted_value", "bar", "prediction_probability", 0.5, "prediction_score", .7, "is_training", false))
         );
+
+        verify(testDocsIterator).releaseRetainedSearchHits();
     }
 
     public void testInferTestDocs_GivenCancelWasCalled() {
@@ -151,6 +153,7 @@ public class InferenceRunnerTests extends ESTestCase {
         inferenceRunner.cancel();
         run(inferenceRunner).assertSuccess();
 
+        // Cancel before run(): run() returns immediately and never opens the test iterator.
         Mockito.verifyNoMoreInteractions(localModel, resultsPersisterService);
         assertThat(progressTracker.getInferenceProgressPercent(), equalTo(0));
     }

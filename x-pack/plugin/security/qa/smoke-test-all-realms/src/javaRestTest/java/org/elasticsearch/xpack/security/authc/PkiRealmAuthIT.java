@@ -25,13 +25,13 @@ public class PkiRealmAuthIT extends SecurityRealmSmokeTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        Settings.Builder builder = Settings.builder()
+        return Settings.builder()
             .put(super.restClientSettings())
             .put(CLIENT_CERT_PATH, getDataPath("/ssl/pki-auth.crt"))
             .put(CLIENT_KEY_PATH, getDataPath("/ssl/pki-auth.key"))
-            .put(CLIENT_KEY_PASSWORD, "http-password");
-        builder.remove(ThreadContext.PREFIX + ".Authorization");
-        return builder.build();
+            .put(CLIENT_KEY_PASSWORD, "http-password")
+            .remove(ThreadContext.PREFIX + ".Authorization")
+            .build();
     }
 
     public void testAuthenticationUsingPkiRealm() throws IOException {

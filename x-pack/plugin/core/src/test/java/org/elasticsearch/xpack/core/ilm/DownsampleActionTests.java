@@ -163,7 +163,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
         assertThat(steps.get(14).getNextStepKey(), equalTo(nextStepKey));
     }
 
-    public void testToStepsWithoutForceMerge() {
+    public void testToStepsWithForceMerge() {
         DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, true, randomSamplingMethod());
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(

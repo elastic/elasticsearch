@@ -17,6 +17,7 @@ import org.elasticsearch.logging.Logger;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.nio.file.FileVisitResult;
@@ -165,6 +166,35 @@ public class FixtureUtils {
         }
         return null;
     }
+
+    /**
+     * Directory path for Elasticsearch {@code path.repo} when tests need a narrow filesystem root for
+     * {@code shared_repo}-backed file entitlements (e.g. esql-datasource-http). Using {@code java.io.tmpdir}
+     * or {@code /tmp} as the repo root can imply read access under the test distribution's {@code modules}
+     * directory and fail {@code FilesEntitlementsValidation} at node bootstrap.
+     * <p>
+     * If {@code iceberg-fixtures} resolves to an on-disk path for the given anchor class, that path is
+     * returned. Otherwise a unique temporary directory is created once per anchor class per JVM via
+     * {@link Files#createTempDirectory(String, java.nio.file.attribute.FileAttribute[])}.
+     */
+    public static String pathRepoRootForIcebergFixtures(Class<?> anchor) {
+        Path local = resolveLocalFixturesPath(logger, anchor);
+        if (local != null) {
+            return local.toAbsolutePath().toString();
+        }
+        return pathRepoFallback.get(anchor).toAbsolutePath().toString();
+    }
+
+    private static final ClassValue<Path> pathRepoFallback = new ClassValue<>() {
+        @Override
+        protected Path computeValue(Class<?> type) {
+            try {
+                return Files.createTempDirectory("esql-path-repo-" + type.getSimpleName() + "-");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    };
 
     public static byte[] compress(byte[] input, String suffix) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();

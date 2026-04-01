@@ -66,6 +66,7 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemoteReindexingUtils;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
 import org.elasticsearch.script.CtxMap;
@@ -121,6 +122,7 @@ public class Reindexer {
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
     private final FeatureService featureService;
+    private final TimeValue reindexShutdownGracePeriod;
 
     Reindexer(
         ClusterService clusterService,
@@ -145,6 +147,7 @@ public class Reindexer {
         this.transportService = transportService;
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
         this.featureService = featureService;
+        this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -210,7 +213,8 @@ public class Reindexer {
                 reindexSslConfig,
                 request,
                 listener,
-                remoteVersion
+                remoteVersion,
+                reindexShutdownGracePeriod
             );
             searchAction.start();
         };
@@ -689,7 +693,8 @@ public class Reindexer {
             ReindexSslConfig sslConfig,
             ReindexRequest request,
             ActionListener<BulkByScrollResponse> listener,
-            @Nullable Version remoteVersion
+            @Nullable Version remoteVersion,
+            TimeValue maxTaskShutdownGracePeriod
         ) {
             super(
                 task,
@@ -707,7 +712,8 @@ public class Reindexer {
                 request,
                 listener,
                 scriptService,
-                sslConfig
+                sslConfig,
+                maxTaskShutdownGracePeriod
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
             this.remoteVersion = remoteVersion;

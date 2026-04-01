@@ -547,6 +547,7 @@ public class ReindexerTests extends ESTestCase {
             final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
             when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
             when(clusterService.localNode()).thenReturn(localNode);
+            when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
             final ProjectResolver projectResolver = mock(ProjectResolver.class);
             when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -616,6 +617,7 @@ public class ReindexerTests extends ESTestCase {
                 final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
                 when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
                 when(clusterService.localNode()).thenReturn(localNode);
+                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -694,6 +696,7 @@ public class ReindexerTests extends ESTestCase {
                 final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
                 when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
                 when(clusterService.localNode()).thenReturn(localNode);
+                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -766,6 +769,7 @@ public class ReindexerTests extends ESTestCase {
                 final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
                 when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
                 when(clusterService.localNode()).thenReturn(localNode);
+                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -840,6 +844,7 @@ public class ReindexerTests extends ESTestCase {
                 final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
                 when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
                 when(clusterService.localNode()).thenReturn(localNode);
+                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -914,6 +919,7 @@ public class ReindexerTests extends ESTestCase {
                 final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
                 when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
                 when(clusterService.localNode()).thenReturn(localNode);
+                when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -1189,6 +1195,7 @@ public class ReindexerTests extends ESTestCase {
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         when(clusterService.localNode()).thenReturn(localNode);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
         ProjectResolver projectResolver = mock(ProjectResolver.class);
         when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
@@ -1344,6 +1351,7 @@ public class ReindexerTests extends ESTestCase {
     private static Reindexer reindexerWithRelocation(ClusterService clusterService, TransportService transportService) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         return new Reindexer(
             clusterService,
             mock(ProjectResolver.class),

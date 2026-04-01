@@ -43,7 +43,8 @@ public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByScrollActionM
                 UpdateByQueryMetadataTests.this.threadPool,
                 null,
                 request(),
-                listener()
+                listener(),
+                randomPositiveTimeValue()
             );
         }
 

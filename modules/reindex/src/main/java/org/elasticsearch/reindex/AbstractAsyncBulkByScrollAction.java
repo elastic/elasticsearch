@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -118,6 +119,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * in order to compute a correct scroll keep alive time.
      */
     private final AtomicInteger totalBatchSizeInSingleScrollResponse = new AtomicInteger();
+    /**
+     * Minimum time a relocated task must run before it can be relocated again.
+     * Prevents quick back-to-back relocations that could cause issues with tasks endpoints,
+     * as of writing, mainly race condition in list where a two-listing approach could hit two relocations and have missing results.
+     */
+    private final long relocationCooldownNanos;
 
     AbstractAsyncBulkByScrollAction(
         BulkByScrollTask task,
@@ -130,7 +137,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
         Request mainRequest,
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ScriptService scriptService,
-        @Nullable ReindexSslConfig sslConfig
+        @Nullable ReindexSslConfig sslConfig,
+        TimeValue maxTaskShutdownGracePeriod
     ) {
         this(
             task,
@@ -144,7 +152,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
             mainRequest,
             listener,
             scriptService,
-            sslConfig
+            sslConfig,
+            maxTaskShutdownGracePeriod
         );
     }
 
@@ -160,7 +169,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
         Request mainRequest,
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ScriptService scriptService,
-        @Nullable ReindexSslConfig sslConfig
+        @Nullable ReindexSslConfig sslConfig,
+        TimeValue maxTaskShutdownGracePeriod
     ) {
         this.task = task;
         this.scriptService = scriptService;
@@ -175,6 +185,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.bulkClient = bulkClient;
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
+        this.relocationCooldownNanos = computeMinRelocationAgeNanos(maxTaskShutdownGracePeriod);
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
@@ -183,6 +194,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
             prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, needsVectors)
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
+    }
+
+    /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */
+    static long computeMinRelocationAgeNanos(TimeValue maxTaskShutdownGracePeriod) {
+        assert maxTaskShutdownGracePeriod.nanos() >= 0 : "shutdownTimeout must be non-negative"; // implicit nullcheck
+        // no point of going above 30 seconds since it solves our issue with race conditions in list
+        return Math.min(maxTaskShutdownGracePeriod.nanos() / 2, TimeUnit.SECONDS.toNanos(30));
     }
 
     /**
@@ -556,39 +574,45 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         if (task.isRelocationRequested()) {
-            final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateTo();
-            if (nodeToRelocateTo.isPresent()) {
-                final String scrollId = asyncResponse.response().getScrollId();
-                final Version remoteVersion = paginatedHitSource instanceof RemoteScrollablePaginatedHitSource s
-                    ? s.remoteVersion().orElseThrow(() -> new IllegalStateException("Remote scroll version should be set"))
-                    : null;
-                final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
-                    scrollId,
-                    startTimeEpochMillis.get(),
-                    worker.getStatus(),
-                    remoteVersion
-                );
-                final ResumeInfo resumeInfo = new ResumeInfo(task.relocationOrigin(), workerResumeInfo, null);
-                // This response is a local carrier for resumeInfo — for higher-level code to handle relocation and then discard.
-                // However, status must be accurate for sliced tasks only, the leader state stores this response and derives
-                // its own combined status from it to serialize to .tasks index.
-                // For non-sliced, status is unused (comes from the worker state).
-                final BulkByScrollResponse response = new BulkByScrollResponse(
-                    TimeValue.MINUS_ONE,
-                    task.getStatus(),
-                    List.of(),
-                    List.of(),
-                    false,
-                    resumeInfo
-                );
-                // Don't call finishHim — it clears the pagination which the relocated task needs.
-                // Do close local resources (e.g. the remote REST client) that won't be reused.
-                paginatedHitSource.cleanupWithoutClosingPagination(
-                    threadPool.getThreadContext().preserveContext(() -> listener.onResponse(response))
-                );
-                return;
+            final boolean tooYoungToRelocateAgain = task.isRelocatedTask()
+                && (System.nanoTime() - task.getStartTimeNanos()) < relocationCooldownNanos;
+            if (tooYoungToRelocateAgain) {
+                logger.debug("skipping re-relocation for recently-relocated task [{}]", task.getId());
+            } else {
+                final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateTo();
+                if (nodeToRelocateTo.isPresent()) {
+                    final String scrollId = asyncResponse.response().getScrollId();
+                    final Version remoteVersion = paginatedHitSource instanceof RemoteScrollablePaginatedHitSource s
+                        ? s.remoteVersion().orElseThrow(() -> new IllegalStateException("Remote scroll version should be set"))
+                        : null;
+                    final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
+                        scrollId,
+                        startTimeEpochMillis.get(),
+                        worker.getStatus(),
+                        remoteVersion
+                    );
+                    final ResumeInfo resumeInfo = new ResumeInfo(task.relocationOrigin(), workerResumeInfo, null);
+                    // This response is a local carrier for resumeInfo — for higher-level code to handle relocation and then discard.
+                    // However, status must be accurate for sliced tasks only, the leader state stores this response and derives
+                    // its own combined status from it to serialize to .tasks index.
+                    // For non-sliced, status is unused (comes from the worker state).
+                    final BulkByScrollResponse response = new BulkByScrollResponse(
+                        TimeValue.MINUS_ONE,
+                        task.getStatus(),
+                        List.of(),
+                        List.of(),
+                        false,
+                        resumeInfo
+                    );
+                    // Don't call finishHim — it clears the pagination which the relocated task needs.
+                    // Do close local resources (e.g. the remote REST client) that won't be reused.
+                    paginatedHitSource.cleanupWithoutClosingPagination(
+                        threadPool.getThreadContext().preserveContext(() -> listener.onResponse(response))
+                    );
+                    return;
+                }
             }
-            // if the task has no node to relocate to, continue. it might finish before shutdown or a suitable node might join the cluster.
+            // if we can't relocate, continue. we could still finish gracefully, or eventually meet the conditions for relocation.
         }
 
         int totalBatchSize = totalBatchSizeInSingleScrollResponse.getAndSet(0);

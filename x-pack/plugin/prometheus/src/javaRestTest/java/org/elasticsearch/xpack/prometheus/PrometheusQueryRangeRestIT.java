@@ -12,12 +12,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.ClassRule;
@@ -33,10 +29,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Integration tests for the Prometheus {@code /api/v1/query_range} endpoint.
  */
-public class PrometheusQueryRangeRestIT extends ESRestTestCase {
-
-    private static final String USER = "test_admin";
-    private static final String PASS = "x-pack-test-password";
+public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -54,12 +47,6 @@ public class PrometheusQueryRangeRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
     /**
      * Verifies that querying when no Prometheus indices exist returns an empty result instead of an error.
      * ESRestTestCase wipes all indices between test methods, so this test always runs on a clean cluster.
@@ -70,6 +57,7 @@ public class PrometheusQueryRangeRestIT extends ESRestTestCase {
         request.addParameter("start", "2026-01-01T00:00:00Z");
         request.addParameter("end", "2026-01-01T00:05:00Z");
         request.addParameter("step", "60s");
+        addReadAuth(request);
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -121,6 +109,7 @@ public class PrometheusQueryRangeRestIT extends ESRestTestCase {
         request.addParameter("start", "2026-01-01T00:00:00Z");
         request.addParameter("end", "2026-01-01T00:05:00Z");
         request.addParameter("step", "60s");
+        addReadAuth(request);
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -166,6 +155,7 @@ public class PrometheusQueryRangeRestIT extends ESRestTestCase {
         writeRequest.setEntity(
             new ByteArrayEntity(writeRequestBuilder.build().toByteArray(), ContentType.create("application/x-protobuf"))
         );
+        addWriteAuth(writeRequest);
         Response writeResponse = client().performRequest(writeRequest);
         assertThat(writeResponse.getStatusLine().getStatusCode(), equalTo(204));
         if (writeResponse.getEntity() != null) {

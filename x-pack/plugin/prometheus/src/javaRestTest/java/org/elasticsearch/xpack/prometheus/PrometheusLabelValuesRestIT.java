@@ -18,12 +18,8 @@ import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.ClassRule;
 
@@ -44,10 +40,8 @@ import static org.hamcrest.Matchers.notNullValue;
  * <p>Tests focus on high-level HTTP concerns: routing, request/response format, status codes.
  * Detailed plan-building and response-parsing logic is covered by unit tests.
  */
-public class PrometheusLabelValuesRestIT extends ESRestTestCase {
+public class PrometheusLabelValuesRestIT extends AbstractPrometheusRestIT {
 
-    private static final String USER = "test_admin";
-    private static final String PASS = "x-pack-test-password";
     private static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
 
     @ClassRule
@@ -66,14 +60,9 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
     public void testInvalidSelectorSyntaxReturnsBadRequest() throws Exception {
         Request request = labelValuesRequest("job", "{not valid!!!}");
+        addReadAuth(request);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
@@ -81,6 +70,7 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
     public void testRangeSelectorReturnsBadRequest() throws Exception {
         // up[5m] is a range vector, not an instant vector
         Request request = labelValuesRequest("job", "up[5m]");
+        addReadAuth(request);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
@@ -88,7 +78,9 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
     public void testGetResponseIsJsonWithSuccessEnvelope() throws Exception {
         writeMetric("test_gauge", Map.of("job", "prometheus"));
 
-        Response response = client().performRequest(labelValuesRequest("job"));
+        Request getRequest = labelValuesRequest("job");
+        addReadAuth(getRequest);
+        Response response = client().performRequest(getRequest);
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(response.getEntity().getContentType().getValue(), containsString("application/json"));
@@ -99,7 +91,9 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
     }
 
     public void testUnknownLabelReturnsEmptyData() throws Exception {
-        Response response = client().performRequest(labelValuesRequest("label_that_does_not_exist_anywhere"));
+        Request request = labelValuesRequest("label_that_does_not_exist_anywhere");
+        addReadAuth(request);
+        Response response = client().performRequest(request);
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         List<String> data = labelValuesData(response);
@@ -110,7 +104,9 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
         writeMetric("roundtrip_gauge", Map.of("job", "node_exporter", "instance", "host1:9100"));
         writeMetric("roundtrip_gauge", Map.of("job", "prometheus", "instance", "host2:9090"));
 
-        List<String> values = labelValuesData(client().performRequest(labelValuesRequest("job")));
+        Request jobRequest = labelValuesRequest("job");
+        addReadAuth(jobRequest);
+        List<String> values = labelValuesData(client().performRequest(jobRequest));
 
         assertThat(values, hasItem("node_exporter"));
         assertThat(values, hasItem("prometheus"));
@@ -120,7 +116,9 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
         writeMetric("name_label_metric_a", Map.of("job", "test"));
         writeMetric("name_label_metric_b", Map.of("job", "test"));
 
-        List<String> values = labelValuesData(client().performRequest(labelValuesRequest("__name__")));
+        Request nameRequest = labelValuesRequest("__name__");
+        addReadAuth(nameRequest);
+        List<String> values = labelValuesData(client().performRequest(nameRequest));
 
         assertThat(values, hasItem("name_label_metric_a"));
         assertThat(values, hasItem("name_label_metric_b"));
@@ -131,7 +129,9 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
         writeMetric("other_metric", Map.of("job", "other_job", "env", "staging"));
 
         // Only request values for "job" where the metric is selector_metric
-        List<String> values = labelValuesData(client().performRequest(labelValuesRequest("job", "selector_metric")));
+        Request filteredRequest = labelValuesRequest("job", "selector_metric");
+        addReadAuth(filteredRequest);
+        List<String> values = labelValuesData(client().performRequest(filteredRequest));
 
         assertThat(values, hasItem("filtered_job"));
         assertThat(values, not(hasItem("other_job")));
@@ -151,6 +151,7 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
                 .build()
                 .toString()
         );
+        addReadAuth(request);
         List<String> values = labelValuesData(client().performRequest(request));
 
         assertThat(values, containsInAnyOrder("multi_job_a", "multi_job_b"));
@@ -161,7 +162,9 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
         writeMetric("sorted_gauge", Map.of("job", "alpha"));
         writeMetric("sorted_gauge", Map.of("job", "middle"));
 
-        List<String> values = labelValuesData(client().performRequest(labelValuesRequest("job")));
+        Request sortedRequest = labelValuesRequest("job");
+        addReadAuth(sortedRequest);
+        List<String> values = labelValuesData(client().performRequest(sortedRequest));
 
         // Extract just the values that we wrote (there may be others from earlier tests)
         List<String> ours = values.stream().filter(v -> List.of("zebra", "alpha", "middle").contains(v)).toList();
@@ -171,7 +174,9 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
     public void testUEncodedLabelNameIsDecoded() throws Exception {
         // U__http_2e_requests decodes to http.requests — which doesn't exist, so we just
         // verify the endpoint is reachable and returns a 200 with an empty data array.
-        Response response = client().performRequest(new Request("GET", "/_prometheus/api/v1/label/U__http_2e_requests/values"));
+        Request request = new Request("GET", "/_prometheus/api/v1/label/U__http_2e_requests/values");
+        addReadAuth(request);
+        Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(entityAsMap(response).get("status"), equalTo("success"));
     }
@@ -204,6 +209,7 @@ public class PrometheusLabelValuesRestIT extends ESRestTestCase {
         Request request = new Request("POST", "/_prometheus/api/v1/write");
         request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
+        addWriteAuth(request);
         client().performRequest(request);
         client().performRequest(new Request("POST", "/" + DEFAULT_DATA_STREAM + "/_refresh"));
     }

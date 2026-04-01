@@ -19,12 +19,8 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.ClassRule;
 
@@ -44,10 +40,8 @@ import static org.hamcrest.Matchers.notNullValue;
  * <p>Tests focus on high-level HTTP concerns: routing, request/response format, status codes.
  * Detailed plan-building and response-parsing logic is covered by unit tests.
  */
-public class PrometheusSeriesRestIT extends ESRestTestCase {
+public class PrometheusSeriesRestIT extends AbstractPrometheusRestIT {
 
-    private static final String USER = "test_admin";
-    private static final String PASS = "x-pack-test-password";
     private static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
 
     @ClassRule
@@ -66,16 +60,11 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
     // Validation — 400 responses
 
     public void testMissingMatchSelectorReturnsBadRequest() throws Exception {
         Request request = new Request("GET", "/_prometheus/api/v1/series");
+        addReadAuth(request);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("match[]"));
@@ -84,6 +73,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
     public void testInvalidSelectorSyntaxReturnsBadRequest() throws Exception {
         // {not valid!!!} is not valid PromQL
         Request request = seriesRequest("{not valid!!!}");
+        addReadAuth(request);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
@@ -91,6 +81,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
     public void testRangeSelectorReturnsBadRequest() throws Exception {
         // up[5m] is a range vector, not an instant vector
         Request request = seriesRequest("up[5m]");
+        addReadAuth(request);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
@@ -159,6 +150,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
                 .build()
                 .toString()
         );
+        addReadAuth(request);
         List<Map<String, Object>> data = seriesData(client().performRequest(request));
 
         List<String> names = data.stream().map(s -> (String) s.get("__name__")).toList();
@@ -183,7 +175,9 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
     }
 
     private Response querySeries(String index, String matcher) throws IOException {
-        return client().performRequest(seriesRequest(index, matcher));
+        Request request = seriesRequest(index, matcher);
+        addReadAuth(request);
+        return client().performRequest(request);
     }
 
     @SuppressWarnings("unchecked")
@@ -216,6 +210,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
         Request request = new Request("POST", "/_prometheus/api/v1/write");
         request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
+        addWriteAuth(request);
         client().performRequest(request);
         client().performRequest(new Request("POST", "/" + DEFAULT_DATA_STREAM + "/_refresh"));
     }

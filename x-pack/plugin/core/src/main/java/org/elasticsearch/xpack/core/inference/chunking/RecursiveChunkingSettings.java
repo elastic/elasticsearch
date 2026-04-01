@@ -30,7 +30,7 @@ import java.util.Set;
 public class RecursiveChunkingSettings implements ChunkingSettings {
     public static final String NAME = "RecursiveChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.RECURSIVE;
-    private static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
+    static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
 
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
@@ -58,7 +58,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
 
         if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
             validationException.addValidationError(
-                ChunkingSettingsOptions.MAX_CHUNK_SIZE + "[" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
+                ChunkingSettingsOptions.MAX_CHUNK_SIZE + " [" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
             );
         }
 

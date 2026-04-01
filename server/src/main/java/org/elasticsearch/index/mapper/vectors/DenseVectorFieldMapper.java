@@ -266,13 +266,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final IndexSettings indexSettings;
+        final IndexVersion indexVersionCreated;
+        final boolean isExcludeSourceVectors;
+        final boolean experimentalFeaturesEnabled;
         private final List<VectorsFormatProvider> vectorsFormatProviders;
 
-        public Builder(String name, IndexSettings indexSettings, List<VectorsFormatProvider> vectorsFormatProviders) {
+        public Builder(
+            String name,
+            IndexVersion indexVersionCreated,
+            boolean isExcludeSourceVectors,
+            boolean experimentalFeaturesEnabled,
+            List<VectorsFormatProvider> vectorsFormatProviders
+        ) {
             super(name);
+            this.indexVersionCreated = indexVersionCreated;
+            this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
             this.vectorsFormatProviders = vectorsFormatProviders;
-            this.indexSettings = indexSettings;
             // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
             // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
             this.dims = new Parameter<>("dims", true, () -> null, (n, c, o) -> {
@@ -302,8 +311,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         }
                     }
                 });
-
-            IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
+            this.isExcludeSourceVectors = isExcludeSourceVectors;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
             final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
@@ -333,7 +341,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
                 }
             });
-            boolean experimentalFeaturesEnabled = IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(indexSettings.getSettings());
             this.indexOptions = new Parameter<>(
                 "index_options",
                 true,
@@ -454,10 +461,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
-            boolean excludeSourceVectors = context.isSourceSynthetic() == false
-                && indexed.getValue()
-                && INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings());
-            IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
+            boolean isExcludeSourceVectorsFinal = context.isSourceSynthetic() == false && indexed.getValue() && isExcludeSourceVectors;
             return new DenseVectorFieldMapper(
                 leafName(),
                 new DenseVectorFieldType(
@@ -473,8 +477,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 ),
                 builderParams(this, context),
                 indexOptions.getValue(),
-                indexSettings,
-                excludeSourceVectors,
+                indexVersionCreated,
+                isExcludeSourceVectors,
+                isExcludeSourceVectorsFinal,
+                experimentalFeaturesEnabled,
                 vectorsFormatProviders
             );
         }
@@ -768,10 +774,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Field field = createKnnVectorField(
                 fieldMapper.fieldType().name(),
                 vectorData.asByteVector(),
-                fieldMapper.fieldType().similarity.vectorSimilarityFunction(
-                    fieldMapper.indexSettings.getIndexVersionCreated(),
-                    elementType()
-                )
+                fieldMapper.fieldType().similarity.vectorSimilarityFunction(fieldMapper.indexCreatedVersion, elementType())
             );
             context.doc().addWithKey(fieldMapper.fieldType().name(), field);
         }
@@ -1117,10 +1120,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Field field = createKnnVectorField(
                 fieldMapper.fieldType().name(),
                 vector,
-                fieldMapper.fieldType().similarity.vectorSimilarityFunction(
-                    fieldMapper.indexSettings.getIndexVersionCreated(),
-                    elementType()
-                )
+                fieldMapper.fieldType().similarity.vectorSimilarityFunction(fieldMapper.indexCreatedVersion, elementType())
             );
             context.doc().addWithKey(fieldMapper.fieldType().name(), field);
         }
@@ -2750,7 +2750,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexSettings(), c.getVectorsFormatProviders()),
+        (n, c) -> new Builder(
+            n,
+            c.getIndexSettings().getIndexVersionCreated(),
+            INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings()),
+            IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(c.getIndexSettings().getSettings()),
+            c.getVectorsFormatProviders()
+        ),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -3361,8 +3367,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private final DenseVectorIndexOptions indexOptions;
-    private final IndexSettings indexSettings;
+    private final IndexVersion indexCreatedVersion;
+    private final boolean excludeSourceVectorsSetting;
     private final boolean excludeSourceVectors;
+    private final boolean experimentalFeaturesEnabled;
     private final List<VectorsFormatProvider> extraVectorsFormatProviders;
 
     private DenseVectorFieldMapper(
@@ -3370,14 +3378,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
         MappedFieldType mappedFieldType,
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
-        IndexSettings indexSettings,
+        IndexVersion indexCreatedVersion,
+        boolean excludeSourceVectorsSetting,
         boolean excludeSourceVectors,
+        boolean experimentalFeaturesEnabled,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
-        this.indexSettings = indexSettings;
+        this.indexCreatedVersion = indexCreatedVersion;
+        this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
         this.excludeSourceVectors = excludeSourceVectors;
+        this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
         this.extraVectorsFormatProviders = vectorsFormatProviders;
     }
 
@@ -3428,7 +3440,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         // this code is here and not in the VectorEncoderDecoder so not to create extra arrays
         int dims = fieldType().dims;
         Element element = fieldType().element;
-        IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         int numBytes = indexCreatedVersion.onOrAfter(MAGNITUDE_STORED_INDEX_VERSION)
             ? element.getNumBytes(dims) + MAGNITUDE_BYTES
             : element.getNumBytes(dims);
@@ -3500,7 +3511,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSettings, extraVectorsFormatProviders).init(this);
+        return new Builder(
+            leafName(),
+            indexCreatedVersion,
+            excludeSourceVectorsSetting,
+            experimentalFeaturesEnabled,
+            extraVectorsFormatProviders
+        ).init(this);
     }
 
     private static DenseVectorIndexOptions parseIndexOptions(
@@ -3625,7 +3642,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (excludeSourceVectors) {
             return new SyntheticVectorsPatchFieldLoader<>(
                 // Recreate the object for each leaf so that different segments can be searched concurrently.
-                () -> new IndexedSyntheticFieldLoader(indexSettings.getIndexVersionCreated(), fieldType().similarity),
+                () -> new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity),
                 IndexedSyntheticFieldLoader::copyVectorAsList
             );
         }
@@ -3634,7 +3651,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         return new SyntheticSourceSupport.Native(
             () -> fieldType().indexed
                 ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)

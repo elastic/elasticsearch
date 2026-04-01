@@ -1381,7 +1381,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             case SPARSE_EMBEDDING -> {
                 SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexSettings
+                    indexSettings.getIndexVersionCreated(),
+                    false
                 ).setStored(useLegacyFormat == false);
 
                 configureSparseVectorMapperBuilder(indexSettings.getIndexVersionCreated(), sparseVectorMapperBuilder, indexOptions);
@@ -1391,7 +1392,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexSettings,
+                    indexSettings.getIndexVersionCreated(),
+                    false,
+                    IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(indexSettings.getSettings()),
                     vectorsFormatProviders
                 );
 

@@ -26,7 +26,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -95,7 +94,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
-
+        private final IndexVersion indexVersionCreated;
         private final Parameter<Boolean> stored;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<SparseVectorIndexOptions> indexOptions = new Parameter<>(
@@ -108,17 +107,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
             Objects::toString
         ).acceptsNull().setSerializerCheck(this::indexOptionsSerializerCheck);
 
-        private final IndexSettings indexSettings;
+        private final boolean isExcludeSourceVectors;
 
-        public Builder(String name, IndexSettings indexSettings) {
+        public Builder(String name, IndexVersion indexVersionCreated, boolean isExcludeSourceVectors) {
             super(name);
-            this.stored = Parameter.boolParam(
-                "store",
-                false,
-                m -> toType(m).fieldType().isStored(),
-                () -> INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings())
-            );
-            this.indexSettings = indexSettings;
+            this.stored = Parameter.boolParam("store", false, m -> toType(m).fieldType().isStored(), () -> isExcludeSourceVectors);
+            this.indexVersionCreated = indexVersionCreated;
+            this.isExcludeSourceVectors = isExcludeSourceVectors;
         }
 
         public Builder setStored(boolean value) {
@@ -138,16 +133,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
-
-            IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
-            boolean excludeSourceVectors = INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings());
-
             SparseVectorIndexOptions builderIndexOptions = indexOptions.getValue();
             if (builderIndexOptions == null) {
                 builderIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
             }
 
-            final boolean isExcludeSourceVectorsFinal = excludeSourceVectors && context.isSourceSynthetic() == false && stored.get();
+            final boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && context.isSourceSynthetic() == false && stored.get();
             return new SparseVectorFieldMapper(
                 leafName(),
                 new SparseVectorFieldType(
@@ -158,13 +149,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     builderIndexOptions
                 ),
                 builderParams(this, context),
-                indexSettings,
+                isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal
             );
         }
 
         private boolean indexOptionsSerializerCheck(boolean includeDefaults, boolean isConfigured, SparseVectorIndexOptions value) {
-            return includeDefaults || (SparseVectorIndexOptions.isDefaultOptions(value, indexSettings.getIndexVersionCreated()) == false);
+            return includeDefaults || (SparseVectorIndexOptions.isDefaultOptions(value, indexVersionCreated) == false);
         }
 
         public void setIndexOptions(SparseVectorIndexOptions sparseVectorIndexOptions) {
@@ -218,7 +209,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(ERROR_MESSAGE_8X);
         }
 
-        return new Builder(n, c.getIndexSettings());
+        return new Builder(
+            n,
+            c.indexVersionCreated(),
+            INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
+        );
     }, notInMultiFields(CONTENT_TYPE));
 
     public static final class SparseVectorFieldType extends MappedFieldType {
@@ -326,20 +321,20 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean isExcludeSourceVectors;
-    private final IndexSettings indexSettings;
+    private final boolean excludeSourceVectorsSetting;
+    private final boolean excludeSourceVectors;
 
     private SparseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        IndexSettings indexSettings,
-        boolean isExcludeSourceVectors
+        boolean excludeSourceVectorsSetting,
+        boolean excludeSourceVectors
     ) {
         super(simpleName, mappedFieldType, builderParams);
-        assert isExcludeSourceVectors == false || fieldType().isStored();
-        this.isExcludeSourceVectors = isExcludeSourceVectors;
-        this.indexSettings = indexSettings;
+        assert excludeSourceVectors == false || fieldType().isStored();
+        this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
+        this.excludeSourceVectors = excludeSourceVectors;
     }
 
     @Override
@@ -352,7 +347,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isExcludeSourceVectors) {
+        if (excludeSourceVectors) {
             return new SyntheticVectorsPatchFieldLoader<>(
                 // Recreate the object for each leaf so that different segments can be searched concurrently.
                 () -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()),
@@ -369,7 +364,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), this.indexSettings).init(this);
+        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.excludeSourceVectorsSetting).init(this);
     }
 
     @Override

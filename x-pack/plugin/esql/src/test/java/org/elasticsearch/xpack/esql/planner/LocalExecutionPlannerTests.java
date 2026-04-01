@@ -258,7 +258,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(supplier.nodeName(), equalTo("node-1"));
     }
 
-    public void testExternalSourceUsesSliceQueueWhenFileSetIsUnresolved() throws IOException {
+    public void testExternalSourceUsesSliceQueueWhenGenericFileListIsUnresolved() throws IOException {
         AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
         SourceOperatorFactoryProvider provider = context -> {
             captured.set(context);
@@ -564,6 +564,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 .put(Node.NODE_NAME_SETTING.getKey(), "node-1")
                 .build(),
             config(),
+            null,
             null,
             null,
             null,

@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.dlm.frozen;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+
 /**
  * A runnable task associated with a specific index transition.
  */
 interface DlmFrozenTransitionRunnable extends Runnable {
     String getIndexName();
+
+    ProjectId getProjectId();
 }

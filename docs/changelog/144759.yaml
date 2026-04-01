@@ -1,0 +1,5 @@
+area: Watcher
+issues: []
+pr: 144759
+summary: Validate Watcher Proxy Allowlist
+type: bug

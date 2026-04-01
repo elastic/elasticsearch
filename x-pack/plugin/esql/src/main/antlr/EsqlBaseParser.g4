@@ -73,6 +73,7 @@ processingCommand
     | metricsInfoCommand
     | registeredDomainCommand
     | tsInfoCommand
+    | userAgentCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
@@ -117,7 +118,7 @@ indexPatternAndMetadataFields
 
 indexPatternOrSubquery
     : indexPattern
-    | {this.isDevVersion()}? subquery
+    | subquery
     ;
 
 subquery
@@ -225,7 +226,7 @@ limitCommand
     ;
 
 limitByGroupKey:
-    {this.isDevVersion()}? BY booleanExpression (COMMA booleanExpression)*
+    BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand
@@ -391,6 +392,10 @@ uriPartsCommand
 
 registeredDomainCommand
     : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
+    ;
+
+userAgentCommand
+    : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
     ;
 
 setCommand

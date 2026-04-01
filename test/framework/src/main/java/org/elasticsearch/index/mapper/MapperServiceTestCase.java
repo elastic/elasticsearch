@@ -183,6 +183,12 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return mapperService.documentMapper();
     }
 
+    public final MappingBuilder parseMappings(XContentBuilder mappings) throws IOException {
+        try (MapperService mapperService = createMapperService("{\"_doc\":{}}")) {
+            return mapperService.parseMappings(new CompressedXContent(BytesReference.bytes(mappings)));
+        }
+    }
+
     public final MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(getVersion(), mappings);
     }

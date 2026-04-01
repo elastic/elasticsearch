@@ -580,7 +580,7 @@ public abstract class DocsV3Support {
 
             // Aggregation (The big bucket)
             case "avg", "count", "count_distinct", "max", "median", "median_absolute_deviation", "min", "percentile", "sum", "top",
-                "values", "weighted_avg" -> "aggregation-functions";
+                "values", "weighted_avg", "sparkline" -> "aggregation-functions";
 
             // FAIL FAST: Don't guess. Force the developer to categorize new generic functions.
             default -> throw new IllegalArgumentException(

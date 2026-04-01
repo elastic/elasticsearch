@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
-import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -198,7 +197,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
             SearchResponse searchResponse = AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket));
-            SearchHitTestUtil.respondAndReleaseSearchResponse(listener, searchResponse);
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
     }

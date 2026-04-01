@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.SourceField;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
-import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -254,7 +253,8 @@ public class InferenceRunnerTests extends ESTestCase {
             SearchResponse built = SearchResponseUtils.response(pooledHits)
                 .aggregations(InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))))
                 .build();
-            return SearchHitTestUtil.spySearchResponseDrainingPooledHits(built, pooledHits);
+            pooledHits.decRef();
+            return built;
         };
         Supplier<SearchResponse> withNoHits = () -> SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
 

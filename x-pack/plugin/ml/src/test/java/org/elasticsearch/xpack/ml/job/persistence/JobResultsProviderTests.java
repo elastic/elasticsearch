@@ -978,7 +978,7 @@ public class JobResultsProviderTests extends ESTestCase {
             queryBuilderConsumer.accept(searchRequest.source().query());
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> actionListener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-            SearchHitTestUtil.respondAndReleaseSearchResponse(actionListener, response);
+            ActionListener.respondAndRelease(actionListener, response);
             return null;
         }).when(client).search(any(), any());
         return client;

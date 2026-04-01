@@ -145,7 +145,7 @@ public class MockClientBuilder {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) {
                 ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-                SearchHitTestUtil.respondAndReleaseSearchResponse(listener, response);
+                ActionListener.respondAndRelease(listener, response);
                 return null;
             }
         }).when(client).search(eq(request), any());
@@ -185,7 +185,7 @@ public class MockClientBuilder {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) {
                 ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
-                SearchHitTestUtil.respondAndReleaseSearchResponse(listener, response);
+                ActionListener.respondAndRelease(listener, response);
                 return null;
             }
         }).when(client).search(eq(request), any());

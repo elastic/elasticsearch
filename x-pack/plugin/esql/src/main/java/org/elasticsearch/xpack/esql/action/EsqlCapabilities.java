@@ -226,7 +226,7 @@ public class EsqlCapabilities {
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY only.
-         * Compared to {@link #OPTIONAL_FIELDS_V4}, this does not enable support for LOAD.
+         * Compared to {@link #OPTIONAL_FIELDS_V5}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
@@ -249,11 +249,13 @@ public class EsqlCapabilities {
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
-         * V2:  Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
-         * V3:  Fix synthetic _source numeric load bug (#143916)
-         * V4:  Support for union type like resolution for load.
+         * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         * V3: Fix synthetic _source numeric load bug (#143916)
+         * V4: Support for union type like resolution for load.
+         * V5: Support for rejecting partially unmapped non-keywords unless cast or projected
+         *     Support for rejecting loading subfields of flattened fields
          */
-        OPTIONAL_FIELDS_V4(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V5(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -2053,6 +2055,11 @@ public class EsqlCapabilities {
         FIX_AGG_ON_NULL_BY_REPLACING_WITH_EVAL,
 
         /**
+         * Makes SUM(long) agg return null+warning instead of a 500 overflow.
+         */
+        FIX_SUM_AGG_LONG_OVERFLOW,
+
+        /**
          * Support for requesting the "_tier" metadata field.
          */
         METADATA_TIER_FIELD(Build.current().isSnapshot()),
@@ -2377,12 +2384,6 @@ public class EsqlCapabilities {
          */
         CHANGE_POINT_ARGS_ANY_ORDER,
 
-        /**
-         * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
-         * See https://github.com/elastic/elasticsearch/issues/143494
-         */
-        REJECT_LOADING_FLATTENED_SUBFIELDS(OPTIONAL_FIELDS_V4.isEnabled()),
-
         FIX_DIV_ERROR_MESSAGE,
 
         /**
@@ -2395,6 +2396,12 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/144833
          */
         UNMAPPED_FIELDS_DEFAULT_SETTING_RENAME,
+
+        /**
+         * Support window durations that are larger than but not exact multiples of the time bucket
+         * for time-series aggregations (e.g., rate(counter, 7 minutes) with TBUCKET(5 minutes)).
+         */
+        TIME_SERIES_WINDOW_NON_MULTIPLE,
 
         /**
          * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams.lifecycle;
+package org.elasticsearch.dlm;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.Message;
@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.DslErrorInfo;
@@ -41,6 +42,19 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 public class DataStreamLifecycleErrorStore {
 
     private static final Logger logger = getLogger(DataStreamLifecycleErrorStore.class);
+
+    /**
+     * This setting controls how often we signal that an index is in the error state when it comes to its data stream lifecycle
+     * progression.
+     * The signalling is currently logging at the `error` level but in the future it can signify other types of signalling.
+     */
+    public static final Setting<Integer> DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING = Setting.intSetting(
+        "data_streams.lifecycle.signalling.error_retry_interval",
+        10,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     public static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
     private final ConcurrentMap<ProjectId, ConcurrentMap<String, ErrorEntry>> projectMap = new ConcurrentHashMap<>();

@@ -48,9 +48,7 @@ public class SumTests extends AbstractAggregationTestCase {
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-            // Longs currently fail on overflow
-            // Restore after https://github.com/elastic/elasticsearch/issues/110437
-            // MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
                 .stream()
@@ -134,7 +132,14 @@ public class SumTests extends AbstractAggregationTestCase {
             if (data.isEmpty() == false) {
                 expected = switch (type) {
                     case INTEGER -> data.stream().mapToLong(v -> (int) v).sum();
-                    case LONG -> data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                    case LONG -> {
+                        try {
+                            yield data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                        } catch (ArithmeticException e) {
+                            expectedWarning = e.toString();
+                            yield null;
+                        }
+                    }
                     case DOUBLE -> data.stream().mapToDouble(v -> (double) v).sum();
                     case AGGREGATE_METRIC_DOUBLE -> data.stream()
                         .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
@@ -156,7 +161,7 @@ public class SumTests extends AbstractAggregationTestCase {
                         yield sums.length == 0 ? null : Arrays.stream(sums).sum();
                     }
                     case DENSE_VECTOR -> {
-                        List<List<Float>> vectors = data.stream().map(v -> (List<Float>) v).collect(Collectors.toList());
+                        List<List<Float>> vectors = data.stream().map(v -> (List<Float>) v).toList();
                         if (vectors.isEmpty()) {
                             yield null;
                         }
@@ -189,20 +194,19 @@ public class SumTests extends AbstractAggregationTestCase {
                 : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE
                 : DataType.LONG;
 
-            var testCase = new TestCaseSupplier.TestCase(
+            return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Sum", fieldSupplier.type()),
                 returnType,
                 expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
+            ).withWarnings(
+                expectedWarning == null
+                    ? null
+                    : List.of(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: " + expectedWarning
+                    )
             );
-
-            if (expectedWarning != null) {
-                testCase = testCase.withWarning(
-                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                ).withWarning("Line 1:1: " + expectedWarning);
-            }
-
-            return testCase;
         });
     }
 }

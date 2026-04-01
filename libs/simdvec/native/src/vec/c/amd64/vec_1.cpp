@@ -242,13 +242,19 @@ static inline void cosi8_inner_bulk(
     // (supporting AVX2, but not AVX-512), benchmarks show that a batch of 2
     // is ideal -- more, and it starts to hurt performances due to bandwidth
     static_assert(batches % 2 == 0, "batches must be even for vectorized cosine");
-    for (; c + 2 * batches - 1 < count; c += batches) {
+    for (; c + batches - 1 < count; c += batches) {
         const int8_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
+
         __m256i sums[batches];
         __m256i a_norms[batches];
         apply_indexed<batches>([&](auto I) {
-            next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-            prefetch(next_vecs[I], lines_to_fetch);
             sums[I] = _mm256_setzero_si256();
             a_norms[I] = _mm256_setzero_si256();
         });
@@ -306,7 +312,9 @@ static inline void cosi8_inner_bulk(
             _mm_maskstore_ps(results + c + j, _mm_setr_epi32(-1, -1, 0, 0), res);
         }
 
-        std::copy_n(next_vecs, batches, current_vecs);
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Tail-handling: remaining vectors

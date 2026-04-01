@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
@@ -35,12 +36,15 @@ public class ApplyWindowFilter extends OptimizerRules.ParameterizedOptimizerRule
         boolean modified = false;
         for (var agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af && af.hasWindow()) {
-                if (af.window().foldable() && af.window().fold(FoldContext.small()) instanceof Duration windowDuration) {
+                // TODO(sidosera): Support trailing windows
+                var folded = Expressions.foldMap(af.window(), FoldContext.small(), AggregateFunction.TSWindow.TYPE);
+                if (folded instanceof AggregateFunction.TSFront tsf) {
+                    assert aggregate.timeBucket() != null;
                     Expression bucket = aggregate.timeBucket().buckets();
                     if (bucket != null
                         && bucket.foldable()
                         && bucket.fold(FoldContext.small()) instanceof Duration bucketDuration
-                        && bucketDuration.compareTo(windowDuration) > 0) {
+                        && bucketDuration.compareTo(tsf.length()) > 0) {
                         aggs.add(
                             new Alias(
                                 alias.source(),

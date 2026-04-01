@@ -147,7 +147,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
     }
 
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), Duration.ofMinutes(5));
+        return forwardWindowAggregatorFunctionSupplier(Duration.ofMinutes(5));
     }
 
     protected String expectedToStringOfSimpleAggregator() {
@@ -213,7 +213,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                forwardWindowAggregatorFunctionSupplier(windowDuration).groupingAggregatorFactory(
                     AggregatorMode.SINGLE,
                     List.of(HASH_CHANNEL_COUNT)
                 )
@@ -305,7 +305,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                forwardWindowAggregatorFunctionSupplier(windowDuration).groupingAggregatorFactory(
                     AggregatorMode.SINGLE,
                     List.of(HASH_CHANNEL_COUNT)
                 )
@@ -398,7 +398,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             rows.add(List.of("s", ts, 10));
         }
 
-        // No outputTimeBucket → needsOutputFiltering() returns false → super.emit() → allGroupIds stays null
+        // No outputTimeBucket and only a forward window → custom emit is skipped → super.emit() → allGroupIds stays null
         var operatorFactory = new TimeSeriesAggregationOperator.Factory(
             fiveMinBucket,
             false,
@@ -408,7 +408,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                forwardWindowAggregatorFunctionSupplier(windowDuration).groupingAggregatorFactory(
                     AggregatorMode.SINGLE,
                     List.of(HASH_CHANNEL_COUNT)
                 )
@@ -457,5 +457,163 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         assertThat(outputRows.get(1).value(), equalTo(20L));
         assertThat(outputRows.get(2).value(), equalTo(20L));
         assertThat(outputRows.get(3).value(), equalTo(10L));
+    }
+
+    /**
+     * Backward windows look backward in time while keeping a positive stored duration. With a coarser output bucket,
+     * emit filtering drops leading buckets that do not yet have a full lookback window of raw data.
+     */
+    public void testBackwardWindowOverCoarserOutputBuckets() {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
+        Duration windowDuration = Duration.ofMinutes(10);
+
+        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
+        long baseTime = oneMinBucket.round(startTime);
+        String tsid = "solo";
+
+        // Enough raw minutes that expanded buckets for the 15m output row stay within trimAfterMillis.
+        List<List<Object>> rows = new ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            long ts = baseTime + TimeValue.timeValueMinutes(i).millis();
+            rows.add(List.of(tsid, ts, 1));
+        }
+
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.SINGLE,
+            List.of(
+                backwardWindowAggregatorFunctionSupplier(windowDuration).groupingAggregatorFactory(
+                    AggregatorMode.SINGLE,
+                    List.of(HASH_CHANNEL_COUNT)
+                )
+            ),
+            10_000,
+            fiveMinBucket
+        );
+
+        var driverCtx = driverContext();
+        var source = new ListRowsBlockSourceOperator(
+            driverCtx.blockFactory(),
+            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
+            rows
+        );
+        List<Page> results = new ArrayList<>();
+        try (
+            var driver = org.elasticsearch.compute.test.TestDriverFactory.create(
+                driverCtx,
+                source,
+                List.of(operatorFactory.get(driverCtx)),
+                new org.elasticsearch.compute.test.TestResultPageSinkOperator(results::add)
+            )
+        ) {
+            new org.elasticsearch.compute.test.TestDriverRunner().run(driver);
+        }
+
+        record OutputRow(long bucket, long value) {}
+        List<OutputRow> backwardRows = new ArrayList<>();
+        for (Page page : results) {
+            LongBlock buckets = page.getBlock(1);
+            LongBlock values = page.getBlock(2);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                backwardRows.add(new OutputRow(buckets.getLong(p), values.getLong(p)));
+            }
+        }
+        backwardRows.sort(Comparator.comparingLong(OutputRow::bucket));
+        assertThat(backwardRows.size(), equalTo(3));
+        assertThat(backwardRows.get(0).bucket(), equalTo(baseTime + TimeValue.timeValueMinutes(10).millis()));
+        assertThat(backwardRows.get(1).bucket(), equalTo(baseTime + TimeValue.timeValueMinutes(15).millis()));
+        assertThat(backwardRows.get(2).bucket(), equalTo(baseTime + TimeValue.timeValueMinutes(20).millis()));
+        for (OutputRow row : backwardRows) {
+            assertThat(fiveMinBucket.round(row.bucket()), equalTo(row.bucket()));
+        }
+        assertThat(backwardRows.get(0).value(), equalTo(10L));
+        assertThat(backwardRows.get(1).value(), equalTo(10L));
+        assertThat(backwardRows.get(2).value(), equalTo(10L));
+    }
+
+    private static WindowAggregatorFunctionSupplier forwardWindowAggregatorFunctionSupplier(Duration windowDuration) {
+        return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration, base -> {
+            long wMillis = windowDuration.toMillis();
+            return new WindowEvaluationContext() {
+                @Override
+                public void forEachGroupInWindow(int startingGroupId, java.util.function.IntConsumer action) {
+                    long start = base.rangeStartInMillis(startingGroupId);
+                    base.forEachGroupInRange(startingGroupId, start, start + wMillis, action);
+                }
+
+                @Override
+                public void forEachBucketInWindow(
+                    long groupId,
+                    org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash tsBlockHash,
+                    java.util.function.LongConsumer action
+                ) {
+                    base.forEachBucketInWindow(groupId, windowDuration, tsBlockHash, action);
+                }
+
+                @Override
+                public long rangeStartInMillis(int groupId) {
+                    return base.rangeStartInMillis(groupId);
+                }
+
+                @Override
+                public long rangeEndInMillis(int groupId) {
+                    return base.rangeStartInMillis(groupId) + wMillis;
+                }
+            };
+        });
+    }
+
+    private static WindowAggregatorFunctionSupplier backwardWindowAggregatorFunctionSupplier(Duration windowDuration) {
+        return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration, base -> {
+            long wMillis = windowDuration.toMillis();
+            return new WindowEvaluationContext() {
+                @Override
+                public void forEachGroupInWindow(int startingGroupId, java.util.function.IntConsumer action) {
+                    long end = base.rangeEndInMillis(startingGroupId);
+                    base.forEachGroupInRange(startingGroupId, end - wMillis, end, action);
+                }
+
+                @Override
+                public void forEachBucketInWindow(
+                    long groupId,
+                    org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash tsBlockHash,
+                    java.util.function.LongConsumer action
+                ) {
+                    long bucket = tsBlockHash.timestampForGroup(groupId);
+                    long bucketMillis = base.rangeStartInMillis(Math.toIntExact(groupId));
+                    base.forEachBucketInRange(bucketMillis, bucketMillis + wMillis, ts -> {
+                        if (ts != bucket) {
+                            action.accept(ts);
+                        }
+                    });
+                }
+
+                @Override
+                public long rangeStartInMillis(int groupId) {
+                    return base.rangeEndInMillis(groupId) - wMillis;
+                }
+
+                @Override
+                public long rangeEndInMillis(int groupId) {
+                    return base.rangeEndInMillis(groupId);
+                }
+
+                @Override
+                public long trimRangeStart(long dataRangeStartMillis, long dataRangeEndMillis) {
+                    return dataRangeStartMillis;
+                }
+
+                @Override
+                public long trimRangeEnd(long dataRangeStartMillis, long dataRangeEndMillis) {
+                    return dataRangeEndMillis;
+                }
+            };
+        });
     }
 }

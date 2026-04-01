@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 
@@ -129,6 +130,14 @@ public final class Expressions {
         return true;
     }
 
+    public static Object foldMap(Expression exp, FoldContext ctx, UnaryOperator<Object> mapper) {
+        Object value;
+        if ((value = exp.fold(ctx)) != null) {
+            return mapper.apply(value);
+        }
+        return null;
+    }
+
     public static List<Object> fold(FoldContext ctx, List<? extends Expression> exps) {
         List<Object> folded = new ArrayList<>(exps.size());
         for (Expression exp : exps) {
@@ -226,7 +235,7 @@ public final class Expressions {
 
         @Override
         public boolean equals(Object obj) {
-            return obj instanceof SemanticExpression other && expression.semanticEquals(other.expression);
+            return obj instanceof SemanticExpression(Expression expression1) && expression.semanticEquals(expression1);
         }
     }
 

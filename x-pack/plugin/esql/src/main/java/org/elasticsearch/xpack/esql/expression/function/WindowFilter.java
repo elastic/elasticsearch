@@ -17,15 +17,16 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,16 +113,18 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
         if (window.foldable() == false) {
             throw new IllegalArgumentException("Window should be foldable");
         }
-        Duration foldedWindow = (Duration) window.fold(toEvaluator.foldCtx());
+        var w = (AggregateFunction.TSWindow) Expressions.foldMap(window, toEvaluator.foldCtx(), AggregateFunction.TSWindow.TYPE);
+
         Rounding.Prepared preparedRounding = bucketBucket.getDateRoundingOrNull(toEvaluator.foldCtx());
         var timestampFactory = toEvaluator.apply(timestamp);
         return new WindowFilterEvaluator.Factory(
             source(),
-            foldedWindow.toMillis(),
+            w.length().toMillis(),
             preparedRounding,
             driverContext -> new HashMap<>(),
             timestampFactory
         );
+
     }
 
     @Override

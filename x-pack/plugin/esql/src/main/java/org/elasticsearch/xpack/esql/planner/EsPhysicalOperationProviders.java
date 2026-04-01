@@ -45,6 +45,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -584,8 +585,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             && internalRounding != null
             && outputRounding.getUnprepared().equals(internalRounding.getUnprepared()) == false;
         return new TimeSeriesAggregationOperator.Factory(
-            internalRounding,
-            ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
+            ts.timeBucketRounding(context.foldCtx()),
+            ts.timeResolution() == DateFieldMapper.Resolution.NANOSECONDS,
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,

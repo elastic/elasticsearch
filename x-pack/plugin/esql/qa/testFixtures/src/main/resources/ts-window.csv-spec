@@ -273,6 +273,33 @@ s:long | dim:keyword | time_bucket:datetime
 ;
 
 ###############################################
+# Negative window duration = backward-looking window.
+# First output buckets before a full lookback exist are omitted; last row differs from +10m forward
+# when the forward case used a shorter tail window (see sum_over_time_exact_multiple_baseline).
+###############################################
+
+sum_over_time_backward_window_10m_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_v1
+required_capability: time_series_window_trailing
+
+TS ts_window
+| STATS s = sum(sum_over_time(val, -10minute)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+s:long | dim:keyword | time_bucket:datetime
+105    | a           | 2024-01-01T00:10:00.000Z
+1050   | b           | 2024-01-01T00:10:00.000Z
+155    | a           | 2024-01-01T00:15:00.000Z
+1550   | b           | 2024-01-01T00:15:00.000Z
+205    | a           | 2024-01-01T00:20:00.000Z
+2050   | b           | 2024-01-01T00:20:00.000Z
+255    | a           | 2024-01-01T00:25:00.000Z
+2550   | b           | 2024-01-01T00:25:00.000Z
+;
+
+###############################################
 # Rate tests with non-multiple windows
 # rate() computes the per-second increase of a
 # counter metric, with interpolation at bucket

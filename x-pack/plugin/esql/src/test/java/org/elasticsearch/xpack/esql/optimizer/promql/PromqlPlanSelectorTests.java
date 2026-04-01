@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -40,7 +42,10 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
     public void testRangeSelector() {
         var plan = planPromql("PROMQL index=k8s step=1h ( max by (pod) (last_over_time(network.bytes_in[1h])) )");
         var lot = collectInnerLastOverTimes(plan).getFirst();
-        assertThat(lot.window().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+        assertThat(
+            ((AggregateFunction.TSWindow) Expressions.foldMap(lot.window(), FoldContext.small(), AggregateFunction.TSWindow.TYPE)).length(),
+            equalTo(Duration.ofHours(1))
+        );
     }
 
     public void testRangeSelectorWithDifferentStep() {
@@ -48,7 +53,10 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         var tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         var sum = tsAggregate.aggregates().getFirst().collect(Sum.class).getFirst();
-        assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+        assertThat(
+            ((AggregateFunction.TSWindow) Expressions.foldMap(sum.window(), FoldContext.small(), AggregateFunction.TSWindow.TYPE)).length(),
+            equalTo(Duration.ofMinutes(10))
+        );
     }
 
     public void testLabelSelector() {

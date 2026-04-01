@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -19,12 +20,14 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
@@ -178,14 +181,27 @@ public class TimeSeriesAggregateExec extends AggregateExec {
     }
 
     public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {
-        if (timeBucket == null) {
-            return null;
+        return timeBucket == null ? null : timeBucket.getDateRoundingOrNull(foldContext);
+    }
+
+    public DateFieldMapper.Resolution timeResolution() {
+        return timeBucket != null && timeBucket.dataType() == DataType.DATE_NANOS
+            ? DateFieldMapper.Resolution.NANOSECONDS
+            : DateFieldMapper.Resolution.MILLISECONDS;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), timeBucket, outputTimeBucket);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
         }
-        Rounding.Prepared rounding = timeBucket.getDateRoundingOrNull(foldContext);
-        if (rounding == null) {
-            throw new EsqlIllegalArgumentException("expected TBUCKET; got ", timeBucket);
-        }
-        return rounding;
+        TimeSeriesAggregateExec other = (TimeSeriesAggregateExec) obj;
+        return Objects.equals(timeBucket, other.timeBucket) && Objects.equals(outputTimeBucket, other.outputTimeBucket);
     }
 
     public Rounding.Prepared outputTimeBucketRounding(FoldContext foldContext) {

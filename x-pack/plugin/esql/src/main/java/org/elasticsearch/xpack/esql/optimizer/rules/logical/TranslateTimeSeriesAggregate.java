@@ -473,18 +473,17 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         List<String> windowSourceTexts = new ArrayList<>();
         for (NamedExpression ne : aggregates) {
             if (Alias.unwrap(ne) instanceof AggregateFunction af && af.hasWindow()) {
-                Expression window = af.window();
-                if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
-                    long windowMillis = d.toMillis();
-                    if (windowMillis > 0) {
-                        windowSourceTexts.add(window.sourceText());
-                        if (windowMillis < bucketMillis) {
-                            hasSmallWindow = true;
-                        } else {
-                            gcdMillis = MathUtil.gcd(gcdMillis, windowMillis);
-                            if (windowMillis % bucketMillis != 0) {
-                                hasNonMultipleWindow = true;
-                            }
+                // TODO(sidosera): Support trailing windows
+                var folded = Expressions.foldMap(af.window(), FoldContext.small(), AggregateFunction.TSWindow.TYPE);
+                if (folded instanceof AggregateFunction.TSFront tsf) {
+                    windowSourceTexts.add(af.window().sourceText());
+                    long millis = tsf.length().toMillis();
+                    if (millis < bucketMillis) {
+                        hasSmallWindow = true;
+                    } else {
+                        gcdMillis = MathUtil.gcd(gcdMillis, millis);
+                        if (millis % bucketMillis != 0) {
+                            hasNonMultipleWindow = true;
                         }
                     }
                 }

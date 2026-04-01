@@ -5,11 +5,21 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources;
+package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
+import org.elasticsearch.xpack.esql.datasources.PartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -20,16 +30,66 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Expands glob patterns and comma-separated path lists into resolved {@link FileSet} instances.
+ * Expands glob patterns and comma-separated path lists into resolved {@link FileList} instances.
  * Delegates to {@link StorageProvider#listObjects} for directory listing and uses {@link GlobMatcher}
  * for filtering results against the glob pattern.
  * Supports partition-aware glob rewriting when filter hints are provided.
  */
-final class GlobExpander {
+public final class GlobExpander {
 
     private GlobExpander() {}
 
-    static PartitionDetector resolveDetector(PartitionConfig config) {
+    /** Creates a file list from raw entries. Primarily for tests. */
+    public static FileList fileListOf(List<StorageEntry> entries, String pattern) {
+        return new GenericFileList(entries, pattern);
+    }
+
+    /** Creates a file list from raw entries with partition metadata. Primarily for tests. */
+    public static FileList fileListOf(List<StorageEntry> entries, String pattern, @Nullable PartitionMetadata partitionMetadata) {
+        return new GenericFileList(entries, pattern, partitionMetadata);
+    }
+
+    /** Compresses a raw file list into a compact representation (dictionary or Hive-partitioned). */
+    public static FileList compact(FileList raw, String basePath) {
+        if (raw instanceof GenericFileList generic) {
+            return FileListCompactor.compact(basePath, generic);
+        }
+        return raw;
+    }
+
+    /** Returns a copy of the file list with per-file schema reconciliation info attached. */
+    public static FileList withSchemaInfo(FileList fileList, Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
+        if (fileList instanceof GenericFileList generic) {
+            return generic.withSchemaInfo(schemaInfo);
+        }
+        return fileList;
+    }
+
+    /**
+     * Expands a glob/comma pattern and compresses the result into a compact representation
+     * (DictionaryFileList or HiveFileList). This is the primary entry point for the resolver.
+     */
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        StoragePath storagePath
+    ) throws IOException {
+        FileList expanded = path.indexOf(',') >= 0
+            ? doExpandCommaSeparated(path, provider, hints, hivePartitioning, null, null)
+            : doExpandGlob(path, provider, hints, hivePartitioning, null, null);
+        if (expanded.isResolved() == false || expanded.fileCount() == 0) {
+            return expanded;
+        }
+        if (expanded instanceof GenericFileList raw) {
+            String basePath = storagePath.patternPrefix().toString();
+            return FileListCompactor.compact(basePath, raw);
+        }
+        return expanded;
+    }
+
+    public static PartitionDetector resolveDetector(PartitionConfig config) {
         if (config == null) {
             return HivePartitionDetector.INSTANCE;
         }
@@ -48,7 +108,7 @@ final class GlobExpander {
         };
     }
 
-    static boolean isMultiFile(String path) {
+    public static boolean isMultiFile(String path) {
         if (path == null) {
             return false;
         }
@@ -60,11 +120,11 @@ final class GlobExpander {
         return path.indexOf(',') >= 0;
     }
 
-    static FileSet expandGlob(String pattern, StorageProvider provider) throws IOException {
+    public static FileList expandGlob(String pattern, StorageProvider provider) throws IOException {
         return expandGlob(pattern, provider, null, true);
     }
 
-    static FileSet expandGlob(
+    public static FileList expandGlob(
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
@@ -75,12 +135,16 @@ final class GlobExpander {
         return doExpandGlob(pattern, provider, hints, hivePartitioning, partitionConfig, config);
     }
 
-    static FileSet expandGlob(String pattern, StorageProvider provider, @Nullable List<PartitionFilterHint> hints, boolean hivePartitioning)
-        throws IOException {
+    public static FileList expandGlob(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        boolean hivePartitioning
+    ) throws IOException {
         return doExpandGlob(pattern, provider, hints, hivePartitioning, null, null);
     }
 
-    private static FileSet doExpandGlob(
+    private static FileList doExpandGlob(
         String pattern,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
@@ -103,7 +167,7 @@ final class GlobExpander {
         StoragePath storagePath = StoragePath.of(effectivePattern);
 
         if (storagePath.isPattern() == false) {
-            return FileSet.UNRESOLVED;
+            return FileList.UNRESOLVED;
         }
 
         StoragePath prefix = storagePath.patternPrefix();
@@ -131,14 +195,14 @@ final class GlobExpander {
         }
 
         if (matched.isEmpty()) {
-            return FileSet.EMPTY;
+            return FileList.EMPTY;
         }
 
         matched.sort(Comparator.comparing(e -> e.path().toString()));
 
         PartitionMetadata partitionMetadata = detectPartitions(matched, hivePartitioning, partitionConfig, config);
 
-        return new FileSet(matched, pattern, partitionMetadata);
+        return new GenericFileList(matched, pattern, partitionMetadata);
     }
 
     static PartitionMetadata detectPartitions(
@@ -170,11 +234,11 @@ final class GlobExpander {
         return result;
     }
 
-    static FileSet expandCommaSeparated(String pathList, StorageProvider provider) throws IOException {
+    public static FileList expandCommaSeparated(String pathList, StorageProvider provider) throws IOException {
         return expandCommaSeparated(pathList, provider, null, true);
     }
 
-    static FileSet expandCommaSeparated(
+    public static FileList expandCommaSeparated(
         String pathList,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
@@ -183,7 +247,7 @@ final class GlobExpander {
         return doExpandCommaSeparated(pathList, provider, hints, hivePartitioning, null, null);
     }
 
-    private static FileSet doExpandCommaSeparated(
+    private static FileList doExpandCommaSeparated(
         String pathList,
         StorageProvider provider,
         @Nullable List<PartitionFilterHint> hints,
@@ -209,9 +273,9 @@ final class GlobExpander {
 
             StoragePath segmentPath = StoragePath.of(trimmed);
             if (segmentPath.isPattern()) {
-                FileSet expanded = doExpandGlob(trimmed, provider, hints, hivePartitioning, partitionConfig, config);
-                if (expanded.isResolved()) {
-                    allEntries.addAll(expanded.files());
+                FileList expanded = doExpandGlob(trimmed, provider, hints, hivePartitioning, partitionConfig, config);
+                if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {
+                    allEntries.addAll(g.files());
                 }
             } else {
                 if (provider.exists(segmentPath)) {
@@ -222,21 +286,21 @@ final class GlobExpander {
         }
 
         if (allEntries.isEmpty()) {
-            return FileSet.EMPTY;
+            return FileList.EMPTY;
         }
 
         allEntries.sort(Comparator.comparing(e -> e.path().toString()));
 
         PartitionMetadata partitionMetadata = detectPartitions(allEntries, hivePartitioning, partitionConfig, config);
 
-        return new FileSet(allEntries, pathList, partitionMetadata);
+        return new GenericFileList(allEntries, pathList, partitionMetadata);
     }
 
-    static String rewriteGlobWithHints(String pattern, List<PartitionFilterHint> hints) {
+    public static String rewriteGlobWithHints(String pattern, List<PartitionFilterHint> hints) {
         return rewriteGlobWithHints(pattern, hints, null);
     }
 
-    static String rewriteGlobWithHints(String pattern, List<PartitionFilterHint> hints, @Nullable PartitionConfig partitionConfig) {
+    public static String rewriteGlobWithHints(String pattern, List<PartitionFilterHint> hints, @Nullable PartitionConfig partitionConfig) {
         Map<String, PartitionFilterHint> rewritableHints = indexRewritableHints(hints);
         if (rewritableHints.isEmpty()) {
             return pattern;
@@ -260,7 +324,7 @@ final class GlobExpander {
         return result.toString();
     }
 
-    static String rewriteGlobWithTemplate(String pattern, Map<String, PartitionFilterHint> rewritableHints, String template) {
+    public static String rewriteGlobWithTemplate(String pattern, Map<String, PartitionFilterHint> rewritableHints, String template) {
         List<String> templateColumns = TemplatePartitionDetector.parseTemplateColumns(template);
         if (templateColumns.isEmpty()) {
             return null;

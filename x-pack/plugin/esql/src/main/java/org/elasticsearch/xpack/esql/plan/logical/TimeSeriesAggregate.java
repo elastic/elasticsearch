@@ -44,8 +44,10 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         TimeSeriesAggregate::new
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
+    public static final TransportVersion TIME_SERIES_OUTPUT_BUCKET = TransportVersion.fromName("time_series_output_bucket");
 
     private final Bucket timeBucket;
+    private final Bucket outputTimeBucket;
     private final Expression timestamp;
 
     public TimeSeriesAggregate(
@@ -56,8 +58,21 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         Bucket timeBucket,
         Expression timestamp
     ) {
+        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp);
+    }
+
+    public TimeSeriesAggregate(
+        Source source,
+        LogicalPlan child,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        Bucket timeBucket,
+        Bucket outputTimeBucket,
+        Expression timestamp
+    ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
+        this.outputTimeBucket = outputTimeBucket;
         this.timestamp = timestamp;
     }
 
@@ -67,9 +82,12 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             this.timestamp = in.readOptionalNamedWriteable(Expression.class);
         } else {
-            // We only need the timestamp during analysis and logical optimization on the coordinator.
-            // Using null (when deserialized from an old node) in this case should be okay.
             this.timestamp = null;
+        }
+        if (in.getTransportVersion().supports(TIME_SERIES_OUTPUT_BUCKET)) {
+            this.outputTimeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        } else {
+            this.outputTimeBucket = this.timeBucket;
         }
     }
 
@@ -80,6 +98,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             out.writeOptionalNamedWriteable(timestamp);
         }
+        if (out.getTransportVersion().supports(TIME_SERIES_OUTPUT_BUCKET)) {
+            out.writeOptionalWriteable(outputTimeBucket);
+        }
     }
 
     @Override
@@ -89,34 +110,42 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, outputTimeBucket, timestamp);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, outputTimeBucket, timestamp);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, outputTimeBucket, timestamp);
     }
 
     public LogicalPlan withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp);
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, outputTimeBucket, newTimestamp);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved()) && (timestamp == null || timestamp.resolved());
+        return super.expressionsResolved()
+            && (timeBucket == null || timeBucket.resolved())
+            && (outputTimeBucket == null || outputTimeBucket.resolved())
+            && (timestamp == null || timestamp.resolved());
     }
 
     @Nullable
     public Bucket timeBucket() {
         return timeBucket;
+    }
+
+    @Nullable
+    public Bucket outputTimeBucket() {
+        return outputTimeBucket;
     }
 
     @Override
@@ -126,7 +155,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, outputTimeBucket, timestamp);
     }
 
     @Override
@@ -144,6 +173,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
+            && Objects.equals(outputTimeBucket, other.outputTimeBucket)
             && Objects.equals(timestamp, other.timestamp);
     }
 

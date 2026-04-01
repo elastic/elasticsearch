@@ -19,6 +19,56 @@ emp_no:integer
 // LIMIT BY
 //
 
+docsLimitBy
+required_capability: esql_limit_by
+
+// tag::limitBy[]
+FROM employees
+| SORT salary DESC
+| LIMIT 1 BY gender
+| KEEP first_name, last_name, salary, gender
+// end::limitBy[]
+;
+
+// tag::limitBy-result[]
+first_name:keyword | last_name:keyword | salary:integer | gender:keyword
+Otmar              | Herbst            | 74999          | M
+Tzvetan            | Zielinski         | 74572          | F
+Lillian            | Haddadi           | 73717          | null
+// end::limitBy-result[]
+;
+
+docsLimitByMultipleGroups
+required_capability: esql_limit_by
+
+// tag::limitByMultipleGroups[]
+FROM employees
+| SORT salary DESC
+| LIMIT 1 BY languages, gender
+// end::limitByMultipleGroups[]
+| SORT languages DESC NULLS LAST, gender DESC NULLS LAST, salary DESC
+| KEEP first_name, last_name, salary, languages, gender
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer | gender:keyword
+Premal             | Baek              | 52833          | 5                 | M
+Arumugam           | Ossenbruggen      | 66817          | 5                 | F
+Patricio           | Bridgland         | 48942          | 5                 | null
+Mayumi             | Schueller         | 65367          | 4                 | M
+Tzvetan            | Zielinski         | 74572          | 4                 | F
+Duangkaew          | Piveteau          | 45797          | 4                 | null
+Moss               | Shanbhogue        | 74970          | 3                 | M
+Erez               | Ritzmann          | 62405          | 3                 | F
+Georgi             | Facello           | 57305          | 2                 | M
+Valter             | Sullins           | 73578          | 2                 | F
+Kazuhito           | Cappelletti       | 61358          | 2                 | null
+null               | Merlo             | 70011          | 1                 | M
+Sumant             | Peac              | 66174          | 1                 | F
+Lillian            | Haddadi           | 73717          | 1                 | null
+Otmar              | Herbst            | 74999          | null              | M
+Divier             | Reistad           | 73851          | null              | F
+;
+
 limitBy
 required_capability: esql_limit_by
 
@@ -354,6 +404,7 @@ Mayumi             | Schueller         | 65367          | 4                 | M
 
 sortLimitByQualifiedName
 required_capability: esql_topn_by
+required_capability: name_qualifiers
 
 FROM employees
 | SORT salary DESC

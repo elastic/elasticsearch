@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
-import org.elasticsearch.xpack.inference.TaskTypeTests;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -74,7 +73,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +87,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.OLD_DEFAULT_SETTINGS;
+import static org.elasticsearch.xpack.inference.TaskTypeTests.randomTaskTypeOtherThanAny;
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertMinimalServiceSettings;
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertStoreModel;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -327,7 +326,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         for (int i = 0; i < modelCount; i++) {
-            var model = createModel(randomAlphaOfLength(5), TaskTypeTests.randomTaskTypeOtherThanAny(), service);
+            var model = createModel(randomAlphaOfLength(5), randomTaskTypeOtherThanAny(), service);
             createdModels.add(model);
             assertStoreModel(modelRegistry, model);
         }
@@ -354,12 +353,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var inferenceEntityId = "model-with-secrets";
         var secret = "abc";
 
-        var modelWithSecrets = createModelWithSecrets(
-            inferenceEntityId,
-            randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY))),
-            service,
-            secret
-        );
+        var modelWithSecrets = createModelWithSecrets(inferenceEntityId, randomFrom(randomTaskTypeOtherThanAny()), service, secret);
         assertStoreModel(modelRegistry, modelWithSecrets);
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -407,7 +401,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var createdModels = new HashMap<String, Model>();
         for (int i = 0; i < configuredModelCount; i++) {
             var id = randomAlphaOfLength(5) + i;
-            var model = createModel(id, randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY))), serviceName);
+            var model = createModel(id, randomFrom(randomTaskTypeOtherThanAny()), serviceName);
             createdModels.put(id, model);
             assertStoreModel(modelRegistry, model);
         }
@@ -550,8 +544,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }).when(service).defaultConfigs(any());
         defaultIds.forEach(modelRegistry::addDefaultIds);
 
-        var configured1 = createModel(randomAlphaOfLength(5) + 1, randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY))), serviceName);
-        var configured2 = createModel(randomAlphaOfLength(5) + 1, randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY))), serviceName);
+        var configured1 = createModel(randomAlphaOfLength(5) + 1, randomTaskTypeOtherThanAny(), serviceName);
+        var configured2 = createModel(randomAlphaOfLength(5) + 1, randomTaskTypeOtherThanAny(), serviceName);
         assertStoreModel(modelRegistry, configured1);
         assertStoreModel(modelRegistry, configured2);
 
@@ -685,7 +679,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         int modelCount = randomIntBetween(20, 30);
 
         for (int i = 0; i < modelCount; i++) {
-            var model = createModel(randomAlphaOfLength(5), TaskTypeTests.randomTaskTypeOtherThanAny(), service);
+            var model = createModel(randomAlphaOfLength(5), randomTaskTypeOtherThanAny(), service);
             createdModels.add(model);
             assertStoreModel(modelRegistry, model);
         }
@@ -708,7 +702,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         Function<Integer, String> endpointIdCreator = i -> "endpoint_id_" + i;
 
         for (int i = 0; i < 5; i++) {
-            var model = createModel(endpointIdCreator.apply(i), TaskTypeTests.randomTaskTypeOtherThanAny(), service);
+            var model = createModel(endpointIdCreator.apply(i), randomTaskTypeOtherThanAny(), service);
             createdModels.add(model);
             assertStoreModel(modelRegistry, model);
         }
@@ -729,7 +723,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var createdModels = new ArrayList<Model>();
 
         for (int i = 0; i < 5; i++) {
-            var model = createModel("model_id_" + i, TaskTypeTests.randomTaskTypeOtherThanAny(), service);
+            var model = createModel("model_id_" + i, randomTaskTypeOtherThanAny(), service);
             createdModels.add(model);
             assertStoreModel(modelRegistry, model);
         }

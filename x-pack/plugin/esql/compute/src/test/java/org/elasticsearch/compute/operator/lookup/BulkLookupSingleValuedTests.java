@@ -19,10 +19,10 @@ import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.operator.WarningsTests;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 import org.hamcrest.Matcher;
+import org.elasticsearch.compute.test.TestWarningsSource;
 
 import java.util.List;
 import java.util.stream.IntStream;
@@ -93,6 +93,6 @@ public class BulkLookupSingleValuedTests extends OperatorTestCase {
     }
 
     private static Warnings warnings() {
-        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new WarningsTests.TestWarningsSource("test"));
+        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
     }
 }

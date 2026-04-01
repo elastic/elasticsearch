@@ -29,39 +29,43 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
-final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
+final class MSInt4SymmetricES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
 
-    MSDibitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+    MSInt4SymmetricES940OSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
     }
 
     @Override
     public long quantizeScore(byte[] q) throws IOException {
-        assert q.length == length * 2;
+        assert q.length == length;
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                return quantizeScore256DibitToInt4(q);
+                return quantizeScoreSymmetric256(q);
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
-                return quantizeScore128DibitToInt4(q);
+                return quantizeScoreSymmetric128(q);
             }
         }
         return Long.MIN_VALUE;
     }
 
-    private long quantizeScore256DibitToInt4(byte[] q) throws IOException {
-        int lower = (int) quantizeScore256(q);
-        int upper = (int) quantizeScore256(q);
-        return lower + ((long) upper << 1);
+    private long quantizeScoreSymmetric128(byte[] q) throws IOException {
+        int stripe0 = (int) quantizeScore128(q);
+        int stripe1 = (int) quantizeScore128(q);
+        int stripe2 = (int) quantizeScore128(q);
+        int stripe3 = (int) quantizeScore128(q);
+        return stripe0 + ((long) stripe1 << 1) + ((long) stripe2 << 2) + ((long) stripe3 << 3);
     }
 
-    private long quantizeScore128DibitToInt4(byte[] q) throws IOException {
-        int lower = (int) quantizeScore128(q);
-        int upper = (int) quantizeScore128(q);
-        return lower + ((long) upper << 1);
+    private long quantizeScoreSymmetric256(byte[] q) throws IOException {
+        int stripe0 = (int) quantizeScore256(q);
+        int stripe1 = (int) quantizeScore256(q);
+        int stripe2 = (int) quantizeScore256(q);
+        int stripe3 = (int) quantizeScore256(q);
+        return stripe0 + ((long) stripe1 << 1) + ((long) stripe2 << 2) + ((long) stripe3 << 3);
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
-        int size = length / 2;
+        int size = length / 4;
         return IndexInputUtils.withSlice(in, size, this::getScratch, segment -> quantizeScore256Impl(q, segment, size));
     }
 
@@ -142,7 +146,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
-        int size = length / 2;
+        int size = length / 4;
         return IndexInputUtils.withSlice(in, size, this::getScratch, segment -> quantizeScore128Impl(q, segment, size));
     }
 
@@ -200,7 +204,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
 
     @Override
     public boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
-        assert q.length == length * 2;
+        assert q.length == length;
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 quantizeScore256Bulk(q, count, scores);
@@ -215,13 +219,13 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         for (int iter = 0; iter < count; iter++) {
-            scores[iter] = quantizeScore128DibitToInt4(q);
+            scores[iter] = quantizeScoreSymmetric128(q);
         }
     }
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         for (int iter = 0; iter < count; iter++) {
-            scores[iter] = quantizeScore256DibitToInt4(q);
+            scores[iter] = quantizeScoreSymmetric256(q);
         }
     }
 
@@ -259,7 +263,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float[] scores,
         int bulkSize
     ) throws IOException {
-        assert q.length == length * 2;
+        assert q.length == length;
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 quantizeScore256Bulk(q, bulkSize, scores);
@@ -342,7 +346,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                 memorySegment,
                 4L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).sub(ax).mul(TWO_BIT_SCALE);
+            ).sub(ax).mul(FOUR_BIT_SCALE);
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES_128,
                 memorySegment,
@@ -356,8 +360,6 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
-            // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly *
-            // qcDist;
             var res1 = ax.mul(ay).mul(dimensions);
             var res2 = lx.mul(ay).mul(targetComponentSums);
             var res3 = ax.mul(ly).mul(y1);
@@ -389,12 +391,13 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
             }
         }
         if (limit < bulkSize) {
+            // missing vectors to score
             maxScore = applyCorrectionsIndividually(
                 memorySegment,
                 queryAdditionalCorrection,
                 similarityFunction,
                 centroidDp,
-                TWO_BIT_SCALE,
+                FOUR_BIT_SCALE,
                 scores,
                 bulkSize,
                 limit,
@@ -459,7 +462,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                 memorySegment,
                 4L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).sub(ax).mul(TWO_BIT_SCALE);
+            ).sub(ax).mul(FOUR_BIT_SCALE);
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES_256,
                 memorySegment,
@@ -512,7 +515,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                 queryAdditionalCorrection,
                 similarityFunction,
                 centroidDp,
-                TWO_BIT_SCALE,
+                FOUR_BIT_SCALE,
                 scores,
                 bulkSize,
                 limit,
@@ -524,4 +527,5 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         }
         return maxScore;
     }
+
 }

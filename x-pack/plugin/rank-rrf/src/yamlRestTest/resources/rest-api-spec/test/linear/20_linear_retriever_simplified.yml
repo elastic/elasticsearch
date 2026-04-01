@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: [ "linear_retriever.multi_fields_query_format_support" ]
+      cluster_features: [ "linear_retriever.multi_fields_query_format_support", "semantic_text.element_type_in_index_options" ]
       reason: "Linear retriever multi-fields query format support"
       test_runner_features: [ "close_to", "headers", "contains" ]
 
@@ -76,6 +76,9 @@ setup:
               dense_inference:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float
               sparse_inference:
                 type: semantic_text
                 inference_id: sparse-inference-id
@@ -151,12 +154,18 @@ setup:
               dense_inference:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float
               sparse_inference:
                 type: semantic_text
                 inference_id: sparse-inference-another-id
               text_1:
                 type: semantic_text
                 inference_id: dense-inference-another-id
+                index_options:
+                  dense_vector:
+                    element_type: float
               text_2:
                 type: text
               sparse_vector:

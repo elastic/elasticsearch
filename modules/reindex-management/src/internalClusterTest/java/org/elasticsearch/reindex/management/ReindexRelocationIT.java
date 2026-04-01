@@ -10,8 +10,16 @@
 package org.elasticsearch.reindex.management;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -25,7 +33,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ShutdownPrepareService;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.ReindexMetrics;
@@ -34,6 +44,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.tasks.RawTaskStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
@@ -97,7 +108,13 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class, MainRestPlugin.class, TestTelemetryPlugin.class);
+        return Arrays.asList(
+            ReindexPlugin.class,
+            ReindexManagementPlugin.class,
+            MainRestPlugin.class,
+            TestTelemetryPlugin.class,
+            BlockTasksWritePlugin.class
+        );
     }
 
     @Override
@@ -228,6 +245,105 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         // assert all documents have been reindexed
         assertExpectedNumberOfDocumentsInDestinationIndex();
+    }
+
+    /**
+     * Verifies that the destination node writes the source task result to {@code .tasks} during relocation, so the chain link is preserved
+     * even when the source node cannot write. The test uses {@link BlockTasksWritePlugin} to block all {@code .tasks} writes on the source
+     * node, so only the destination's write (in {@code Reindexer.storeRelocationSourceTaskResult}) succeeds.
+     */
+    public void testDestinationWritesSourceTaskResultToTasksIndex() throws Exception {
+        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final int shards = randomIntBetween(1, 5);
+
+        final String nodeAName = internalCluster().startNode(
+            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
+        final String nodeAId = nodeIdByName(nodeAName);
+        final String nodeBName = internalCluster().startNode(
+            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+        );
+        ensureStableCluster(2);
+
+        createIndexPinnedToNodeName(SOURCE_INDEX, nodeAName, shards);
+        createIndexPinnedToNodeName(DEST_INDEX, nodeAName, shards);
+        indexRandom(true, SOURCE_INDEX, numberOfDocumentsThatTakes60SecondsToIngest);
+        ensureGreen(SOURCE_INDEX, DEST_INDEX);
+
+        final TaskId originalTaskId = startAsyncThrottledLocalReindexOnNode(nodeBName, 1);
+        assertBusy(() -> {
+            final TaskResult running = getRunningReindex(originalTaskId);
+            assertThat(running.getTask().taskId().getNodeId(), equalTo(nodeIdByName(nodeBName)));
+        });
+
+        assertFalse(".tasks index should not exist before shutdown", indexExists(TaskResultsService.TASK_INDEX));
+
+        // Block .tasks writes on the source node so only the destination's write can succeed.
+        BlockTasksWritePlugin.blockedNodeName = nodeBName;
+        try {
+            shutdownNodeNameAndRelocate(nodeBName);
+
+            final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
+                originalTaskId,
+                nodeAId,
+                localReindexDescription(),
+                1,
+                shards
+            );
+
+            unthrottleReindex(relocatedTaskId);
+            assertRelocatedTaskExpectedEndState(relocatedTaskId, localReindexDescription(), 1, shards);
+            assertExpectedNumberOfDocumentsInDestinationIndex();
+        } finally {
+            BlockTasksWritePlugin.blockedNodeName = null;
+        }
+    }
+
+    /**
+     * Test plugin that blocks {@code .tasks} index writes on a specific node.
+     * Used to verify the destination writes the source task result during relocation.
+     */
+    public static class BlockTasksWritePlugin extends Plugin implements ActionPlugin {
+        static volatile String blockedNodeName = null;
+        private volatile String myNodeName;
+
+        @Override
+        public Collection<Object> createComponents(PluginServices services) {
+            myNodeName = Node.NODE_NAME_SETTING.get(services.environment().settings());
+            return List.of();
+        }
+
+        @Override
+        public List<ActionFilter> getActionFilters() {
+            return List.of(new ActionFilter() {
+                @Override
+                public int order() {
+                    return Integer.MIN_VALUE;
+                }
+
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+                    Task task,
+                    String action,
+                    Request request,
+                    ActionListener<Response> listener,
+                    ActionFilterChain<Request, Response> chain
+                ) {
+                    if (myNodeName != null && myNodeName.equals(blockedNodeName) && isTasksIndexWrite(action, request)) {
+                        listener.onFailure(new ElasticsearchException("blocked .tasks write on [" + myNodeName + "] for testing"));
+                        return;
+                    }
+                    chain.proceed(task, action, request, listener);
+                }
+
+                private boolean isTasksIndexWrite(String action, ActionRequest request) {
+                    if (action.equals(TransportBulkAction.NAME) && request instanceof BulkRequest bulkRequest) {
+                        return bulkRequest.requests().stream().anyMatch(r -> TaskResultsService.TASK_INDEX.equals(r.index()));
+                    }
+                    return false;
+                }
+            });
+        }
     }
 
     private void shutdownNodeNameAndRelocate(final String nodeName) throws Exception {

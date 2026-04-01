@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -175,20 +174,20 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity
     ) {
-        var map = buildRequiredFieldsServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION);
+        var settingsMap = buildRequiredFieldsServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION);
         if (dimensions != null) {
-            map.put(DIMENSIONS, dimensions);
+            settingsMap.put(DIMENSIONS, dimensions);
         }
         if (dimensionsSetByUser != null) {
-            map.put(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+            settingsMap.put(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         }
         if (maxInputTokens != null) {
-            map.put(MAX_INPUT_TOKENS, maxInputTokens);
+            settingsMap.put(MAX_INPUT_TOKENS, maxInputTokens);
         }
         if (similarity != null) {
-            map.put(SIMILARITY, similarity.toString());
+            settingsMap.put(SIMILARITY, similarity.toString());
         }
-        return map;
+        return settingsMap;
     }
 
     public void testFromMap_Request_NoDimensions_DimensionsSetByUserIsFalse() {
@@ -481,17 +480,18 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
         var resourceName = randomAlphaOfLength(8);
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);
-        Integer dims = randomNonNegativeIntOrNull();
-        Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
+        var dimensions = randomBoolean() ? null : randomIntBetween(128, 4096);
+        var maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
+        var similarity = randomFrom(randomSimilarityMeasure(), null);
 
         return new AzureOpenAiEmbeddingsServiceSettings(
             resourceName,
             deploymentId,
             apiVersion,
-            dims,
+            dimensions,
             randomBoolean(),
             maxInputTokens,
-            null,
+            similarity,
             RateLimitSettingsTests.createRandom(),
             randomFrom(AzureOpenAiOAuth2SettingsTests.createRandom(), null)
         );
@@ -522,7 +522,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
             case 0 -> resourceName = randomValueOtherThan(resourceName, () -> randomAlphaOfLength(8));
             case 1 -> deploymentId = randomValueOtherThan(deploymentId, () -> randomAlphaOfLength(8));
             case 2 -> apiVersion = randomValueOtherThan(apiVersion, () -> randomAlphaOfLength(8));
-            case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 3 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(128, 4096), null));
             case 4 -> dimensionsSetByUser = dimensionsSetByUser == false;
             case 5 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
             case 6 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));

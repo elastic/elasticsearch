@@ -147,7 +147,8 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
     }
 
     public static AzureOpenAiCompletionServiceSettings createRandom() {
-        return createRandom(randomFrom(AzureOpenAiOAuth2SettingsTests.createRandom(), null));
+        var oAuth2Settings = randomFrom(AzureOpenAiOAuth2SettingsTests.createRandom(), null);
+        return createRandom(oAuth2Settings);
     }
 
     public static AzureOpenAiCompletionServiceSettings createRandom(@Nullable AzureOpenAiOAuth2Settings oAuth2Settings) {

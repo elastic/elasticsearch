@@ -234,7 +234,7 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
         var tenantId = instance.tenantId();
         switch (randomInt(2)) {
             case 0 -> clientId = randomValueOtherThan(clientId, () -> randomAlphaOfLength(12));
-            case 1 -> scopes = randomValueOtherThan(scopes, () -> List.of(randomAlphaOfLength(10)));
+            case 1 -> scopes = randomValueOtherThan(scopes, () -> randomList(1, 5, () -> randomAlphaOfLength(10)));
             case 2 -> tenantId = randomValueOtherThan(tenantId, () -> randomAlphaOfLength(8));
             default -> throw new AssertionError("Illegal randomization branch");
         }

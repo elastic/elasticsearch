@@ -176,7 +176,7 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         var scopes = instance.scopes();
         switch (randomInt(1)) {
             case 0 -> clientId = randomValueOtherThan(clientId, () -> randomAlphaOfLength(12));
-            case 1 -> scopes = randomValueOtherThan(scopes, () -> List.of(randomAlphaOfLength(10)));
+            case 1 -> scopes = randomValueOtherThan(scopes, () -> randomList(1, 5, () -> randomAlphaOfLength(10)));
             default -> throw new AssertionError("Illegal randomization branch");
         }
         return new OAuth2Settings(clientId, scopes);

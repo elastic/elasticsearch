@@ -394,7 +394,12 @@ public class RangeQueryBuilder extends LeafQueryBuilder<RangeQueryBuilder> imple
                     }
                 }
             } else if (token.isValue()) {
-                throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[range] query does not support [" + currentFieldName + "] as a flat value. "
+                        + "Did you forget to wrap it in a JSON object? "
+                        + "Expected syntax: {\"" + currentFieldName + "\": {\"gte\": ..., \"lte\": ...}}"
+                );
             }
         }
 

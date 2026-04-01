@@ -491,9 +491,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         }
         // end_object of the query object
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            String extraInfo = parser.currentToken() == XContentParser.Token.FIELD_NAME
+                ? ". Found extra field [" + parser.currentName() + "] outside of the [" + queryName
+                    + "] query. Did you mean to place it inside the [" + queryName + "] object?"
+                : "";
             throw new ParsingException(
                 parser.getTokenLocation(),
-                "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]"
+                "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]" + extraInfo
             );
         }
         return result;

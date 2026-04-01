@@ -480,4 +480,18 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         query.lenient(true);
         assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
     }
+
+    public void testParseFailsWithMisplacedFieldSuggestsCorrectLocation() {
+        String json = """
+            {
+                "multi_match": {
+                    "query": "hello"
+                },
+                "type": "phrase"
+            }""";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), containsString("[multi_match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]"));
+        assertThat(e.getMessage(), containsString("Found extra field [type] outside of the [multi_match] query"));
+        assertThat(e.getMessage(), containsString("Did you mean to place it inside the [multi_match] object?"));
+    }
 }

@@ -168,9 +168,16 @@ public class ValuesSourceRegistry {
             @SuppressWarnings("unchecked")
             T supplier = (T) aggregatorRegistry.get(registryKey).get(valuesSourceConfig.valueSourceType());
             if (supplier == null) {
+                String supportedTypes = aggregatorRegistry.get(registryKey)
+                    .keySet()
+                    .stream()
+                    .map(ValuesSourceType::typeName)
+                    .sorted()
+                    .collect(java.util.stream.Collectors.joining(", "));
                 final RuntimeException unmappedException = valuesSourceConfig.valueSourceType()
                     .getUnregisteredException(
                         valuesSourceConfig.getDescription() + " is not supported for aggregation [" + registryKey.getName() + "]"
+                            + ". Supported types: [" + supportedTypes + "]"
                     );
                 assert unmappedException != null
                     : "Value source type ["

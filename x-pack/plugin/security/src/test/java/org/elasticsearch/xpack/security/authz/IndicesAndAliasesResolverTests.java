@@ -1829,6 +1829,28 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.aliases(), arrayContainingInAnyOrder("alias1"));
     }
 
+    public void testGetAliasesFailsWhenSecurityExpandedAliasRemovedFromClusterState() {
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
+        request.aliases("foofoobar");
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
+        resolveIndices(request, authorizedIndices);
+
+        assertThat(Arrays.asList(request.indices()), hasItem("foobarfoo"));
+        assertThat(Arrays.asList(request.indices()), hasItem("foofoobar"));
+
+        ProjectMetadata modifiedMetadata = ProjectMetadata.builder(projectMetadata)
+            .put(IndexMetadata.builder(projectMetadata.index("foobar")).removeAlias("foobarfoo"))
+            .build();
+        assertNull(modifiedMetadata.getIndicesLookup().get("foobarfoo"));
+
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> resolver.concreteIndexNamesWithSystemIndexAccess(modifiedMetadata, request)
+        );
+        assertThat(e.getIndex().getName(), equalTo("foobarfoo"));
+    }
+
     public void testResolveAllGetAliasesRequestExpandWildcardsOpenOnly() {
         GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         // set indices options to have wildcards resolved to open indices only (default is open and closed)

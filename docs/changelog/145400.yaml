@@ -1,0 +1,13 @@
+area: "ILM, Downsampling"
+breaking:
+  area: "ILM, Downsampling"
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Change the default behaviour of force merge in the downsample ILM action
+issues:
+ - 140811
+pr: 145400
+summary: Change the default behaviour of force merge in the downsample ILM action
+type: breaking

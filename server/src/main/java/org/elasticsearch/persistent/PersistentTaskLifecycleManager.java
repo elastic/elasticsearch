@@ -177,6 +177,8 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
             sendClusterTaskStartRequest(reg);
         } else if (enabled == false && taskExists) {
             sendClusterTaskRemoveRequest(reg);
+        } else {
+            logger.debug("Reconciliation of [{}] task complete", reg.taskName());
         }
     }
 
@@ -241,6 +243,8 @@ public final class PersistentTaskLifecycleManager implements ClusterStateListene
             sendProjectTaskStartRequest(reg, projectId, taskId);
         } else if (enabled == false && taskExists) {
             sendProjectTaskRemoveRequest(reg, projectId, taskId);
+        } else {
+            logger.debug("Reconciliation of [{}] task in project [{}] complete", reg.taskName(), projectId);
         }
     }
 

@@ -226,7 +226,8 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
         final var projects = event.state().metadata().projects();
 
-        // Runs on all nodes: track geoip processor presence and schedule downloader
+        // Runs on all nodes: tracks geoip processor presence per project.
+        // Downloader scheduling via requestRunOnDemand only fires on the node hosting the task.
         for (var projectMetadata : projects.values()) {
             ProjectId projectId = projectMetadata.id();
             atLeastOneGeoipProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));

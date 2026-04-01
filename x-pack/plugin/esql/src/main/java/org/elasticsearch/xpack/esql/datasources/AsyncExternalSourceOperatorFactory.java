@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -68,7 +70,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int maxBufferSize;
     private final int rowLimit;
     private final Executor executor;
-    private final FileSet fileSet;
+    private final FileList fileList;
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
     private final ExternalSliceQueue sliceQueue;
@@ -85,7 +87,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxBufferSize,
         int rowLimit,
         Executor executor,
-        FileSet fileSet,
+        FileList fileList,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         ExternalSliceQueue sliceQueue,
@@ -123,7 +125,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.batchSize = batchSize;
         this.maxBufferSize = maxBufferSize;
         this.rowLimit = rowLimit;
-        this.fileSet = fileSet;
+        this.fileList = fileList;
         this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.sliceQueue = sliceQueue;
@@ -141,7 +143,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxBufferSize,
         int rowLimit,
         Executor executor,
-        FileSet fileSet,
+        FileList fileList,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         ExternalSliceQueue sliceQueue,
@@ -157,7 +159,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             maxBufferSize,
             rowLimit,
             executor,
-            fileSet,
+            fileList,
             partitionColumnNames,
             partitionValues,
             sliceQueue,
@@ -176,7 +178,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxBufferSize,
         int rowLimit,
         Executor executor,
-        FileSet fileSet,
+        FileList fileList,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         ExternalSliceQueue sliceQueue,
@@ -191,7 +193,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             maxBufferSize,
             rowLimit,
             executor,
-            fileSet,
+            fileList,
             partitionColumnNames,
             partitionValues,
             sliceQueue,
@@ -210,7 +212,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxBufferSize,
         int rowLimit,
         Executor executor,
-        FileSet fileSet,
+        FileList fileList,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         ExternalSliceQueue sliceQueue
@@ -224,7 +226,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             maxBufferSize,
             rowLimit,
             executor,
-            fileSet,
+            fileList,
             partitionColumnNames,
             partitionValues,
             sliceQueue,
@@ -242,7 +244,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int batchSize,
         int maxBufferSize,
         Executor executor,
-        FileSet fileSet,
+        FileList fileList,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         ExternalSliceQueue sliceQueue
@@ -256,7 +258,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
-            fileSet,
+            fileList,
             partitionColumnNames,
             partitionValues,
             sliceQueue,
@@ -274,7 +276,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int batchSize,
         int maxBufferSize,
         Executor executor,
-        FileSet fileSet,
+        FileList fileList,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues
     ) {
@@ -287,7 +289,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
-            fileSet,
+            fileList,
             partitionColumnNames,
             partitionValues,
             null,
@@ -305,7 +307,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int batchSize,
         int maxBufferSize,
         Executor executor,
-        FileSet fileSet
+        FileList fileList
     ) {
         this(
             storageProvider,
@@ -316,7 +318,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             maxBufferSize,
             FormatReader.NO_LIMIT,
             executor,
-            fileSet,
+            fileList,
             null,
             null,
             null,
@@ -362,7 +364,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         if (sliceQueue != null) {
             startSliceQueueRead(buffer, driverContext);
-        } else if (fileSet != null && fileSet.isResolved()) {
+        } else if (fileList != null && fileList.isResolved()) {
             VirtualColumnInjector injector = buildInjector(driverContext);
             List<String> projectedColumns = projectedColumns(injector);
             startMultiFileRead(projectedColumns, buffer, driverContext, injector);
@@ -497,17 +499,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext,
         VirtualColumnInjector injector
     ) {
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileSet != null ? fileSet.fileSchemaInfo() : null;
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList != null ? fileList.fileSchemaInfo() : null;
 
         executor.execute(() -> {
             try {
                 int rowsRemaining = rowLimit;
                 boolean useParallel = rowLimit == FormatReader.NO_LIMIT && formatReader instanceof SegmentableFormatReader;
-                for (StorageEntry entry : fileSet.files()) {
+                for (int i = 0; i < fileList.fileCount(); i++) {
                     if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
                         break;
                     }
-                    StorageObject obj = storageProvider.newObject(entry.path(), entry.length(), entry.lastModified());
+                    StorageObject obj = storageProvider.newObject(
+                        fileList.path(i),
+                        fileList.size(i),
+                        Instant.ofEpochMilli(fileList.lastModifiedMillis(i))
+                    );
                     CloseableIterator<Page> pages;
                     if (useParallel) {
                         pages = ParallelParsingCoordinator.parallelRead(
@@ -532,7 +538,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
                     SchemaReconciliation.ColumnMapping mapping = null;
                     if (schemaInfo != null) {
-                        SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(entry.path());
+                        SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(fileList.path(i));
                         if (info != null) {
                             mapping = info.mapping();
                         }
@@ -775,8 +781,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return executor;
     }
 
-    public FileSet fileSet() {
-        return fileSet;
+    public FileList fileList() {
+        return fileList;
     }
 
     public Set<String> partitionColumnNames() {

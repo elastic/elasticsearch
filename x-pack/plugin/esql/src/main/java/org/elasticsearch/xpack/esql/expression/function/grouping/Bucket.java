@@ -566,6 +566,10 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return offset;
     }
 
+    public Configuration configuration() {
+        return configuration;
+    }
+
     @Override
     public String toString() {
         return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + ", offset=" + offset + '}';

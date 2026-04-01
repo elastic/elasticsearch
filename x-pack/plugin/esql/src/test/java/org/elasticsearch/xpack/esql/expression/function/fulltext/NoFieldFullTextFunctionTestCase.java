@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -20,15 +18,14 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunctionTestCase {
+/**
+ * Base class for testing full-text functions that don't operate on a field, such as KQL.
+ * It provides utilities for building test cases with string parameters.
+ */
+public abstract class NoFieldFullTextFunctionTestCase extends SingleFieldFullTextFunctionTestCase {
 
-    public NoneFieldFullTextFunctionTestCase(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public NoFieldFullTextFunctionTestCase(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
-    }
-
-    public void testFold() {
-        Expression expression = buildLiteralExpression(testCase);
-        assertFalse("expected resolved", expression.typeResolved().unresolved());
     }
 
     protected static List<TestCaseSupplier> getStringTestSupplier() {
@@ -45,10 +42,6 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
         return suppliers;
     }
 
-    protected static Iterable<Object[]> generateParameters() {
-        return parameterSuppliersFromTypedData(getStringTestSupplier());
-    }
-
     private static TestCaseSupplier.TestCase testCase(DataType strType, String str, Matcher<Boolean> matcher) {
         return new TestCaseSupplier.TestCase(
             List.of(new TestCaseSupplier.TypedData(new BytesRef(str), strType, "query")),
@@ -57,4 +50,5 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
             matcher
         );
     }
+
 }

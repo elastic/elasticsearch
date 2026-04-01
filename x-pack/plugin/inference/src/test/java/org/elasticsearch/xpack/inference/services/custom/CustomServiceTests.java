@@ -27,16 +27,15 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
-import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
-import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
@@ -794,8 +793,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
             assertThat(chunkingSettings, instanceOf(SentenceBoundaryChunkingSettings.class));
             assertThat(chunkingSettings.getChunkingStrategy(), equalTo(ChunkingStrategy.SENTENCE));
-            assertThat(chunkingSettings.maxChunkSize(), equalTo(40));
-            assertThat(((SentenceBoundaryChunkingSettings) chunkingSettings).sentenceOverlap(), equalTo(0));
+            assertThat(chunkingSettings.asMap().get(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString()), equalTo(40));
+            assertThat(chunkingSettings.asMap().get(ChunkingSettingsOptions.SENTENCE_OVERLAP.toString()), equalTo(0));
         }
     }
 

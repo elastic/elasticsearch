@@ -551,7 +551,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static class SparseVectorIndexOptions implements IndexOptions {
+    public static class SparseVectorIndexOptions extends IndexOptions {
         public static final ParseField PRUNE_FIELD_NAME = new ParseField("prune");
         public static final ParseField PRUNING_CONFIG_FIELD_NAME = new ParseField("pruning_config");
         public static final SparseVectorIndexOptions DEFAULT_PRUNING_INDEX_OPTIONS = new SparseVectorIndexOptions(
@@ -619,18 +619,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             if (prune != null) {
                 builder.field(PRUNE_FIELD_NAME.getPreferredName(), prune);
             }
             if (pruningConfig != null) {
                 builder.field(PRUNING_CONFIG_FIELD_NAME.getPreferredName(), pruningConfig);
             }
-
-            builder.endObject();
-            return builder;
         }
 
         @Override

@@ -1086,7 +1086,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1124,7 +1123,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByQualifiedName() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1158,7 +1157,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByNegativeValue() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
@@ -1170,7 +1168,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByExpressionForN() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
             FROM foo
             | LIMIT -1 * 42 BY languages

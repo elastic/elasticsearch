@@ -52,4 +52,16 @@ public interface Instrumenter {
      * @return internal names of all direct supertypes (e.g. {@code "java/lang/Object"})
      */
     String[] readDirectSupertypes(byte[] classfileBuffer);
+
+    /**
+     * Returns {@code true} if any supertype in the full hierarchy of the class described
+     * by the given classfile bytes has entitlement rules defined on it.
+     * <p>
+     * Performs a BFS traversal of the supertype hierarchy using classpath resource reading,
+     * without triggering class loading.
+     *
+     * @param classfileBuffer the raw classfile bytes of the class to check
+     * @return {@code true} if any ancestor has entitlement rules
+     */
+    boolean hasRuleInHierarchy(byte[] classfileBuffer);
 }

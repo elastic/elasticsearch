@@ -21,29 +21,27 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * A {@link ClassFileTransformer} that applies an {@link Instrumenter} to the appropriate classes.
  * <p>
  * Supports hierarchy-aware instrumentation: classes that extend a type with entitlement rules
- * are automatically detected and instrumented. The {@link #classesInRuleHierarchy} set is seeded
- * with classes that have direct rules and grows incrementally as subtypes are discovered,
- * relying on the JVM guarantee that supertypes are always loaded before subtypes.
+ * are automatically detected and instrumented. For each class, the transformer performs a full
+ * BFS traversal of the supertype hierarchy (without class loading) to determine if any ancestor
+ * has entitlement rules. This approach is resilient to class visitation order.
  */
 public class Transformer implements ClassFileTransformer {
     private static final Logger logger = LogManager.getLogger(Transformer.class);
 
     private final Instrumenter instrumenter;
-    private final Set<String> classesInRuleHierarchy;
+    private final Set<String> classesWithDirectRules;
     private final AtomicBoolean hadErrors = new AtomicBoolean(false);
 
     private boolean verifyClasses;
 
     /**
      * @param instrumenter          the instrumenter to apply to matched classes
-     * @param classesInRuleHierarchy a concurrent set of internal class names that should be instrumented,
-     *                               including both classes with direct rules and discovered subtypes.
-     *                               This set is grown by the transformer as new subtypes are discovered.
+     * @param classesWithDirectRules an immutable set of internal class names that have direct entitlement rules
      * @param verifyClasses          whether to verify bytecode before and after instrumentation
      */
-    public Transformer(Instrumenter instrumenter, Set<String> classesInRuleHierarchy, boolean verifyClasses) {
+    public Transformer(Instrumenter instrumenter, Set<String> classesWithDirectRules, boolean verifyClasses) {
         this.instrumenter = instrumenter;
-        this.classesInRuleHierarchy = classesInRuleHierarchy;
+        this.classesWithDirectRules = classesWithDirectRules;
         this.verifyClasses = verifyClasses;
     }
 
@@ -63,7 +61,7 @@ public class Transformer implements ClassFileTransformer {
         ProtectionDomain protectionDomain,
         byte[] classfileBuffer
     ) {
-        if (classesInRuleHierarchy.contains(className)) {
+        if (classesWithDirectRules.contains(className)) {
             return doInstrument(className, classfileBuffer);
         }
 
@@ -71,8 +69,7 @@ public class Transformer implements ClassFileTransformer {
             return null;
         }
 
-        if (hasSupertypeInRuleHierarchy(classBeingRedefined, classfileBuffer)) {
-            classesInRuleHierarchy.add(className);
+        if (instrumenter.hasRuleInHierarchy(classfileBuffer)) {
             return doInstrument(className, classfileBuffer);
         }
 
@@ -87,27 +84,6 @@ public class Transformer implements ClassFileTransformer {
      */
     private static boolean isNonJdkClassLoader(ClassLoader loader) {
         return loader != null && loader != ClassLoader.getPlatformClassLoader();
-    }
-
-    private boolean hasSupertypeInRuleHierarchy(Class<?> classBeingRedefined, byte[] classfileBuffer) {
-        if (classBeingRedefined != null) {
-            Class<?> sup = classBeingRedefined.getSuperclass();
-            if (sup != null && classesInRuleHierarchy.contains(sup.getName().replace('.', '/'))) {
-                return true;
-            }
-            for (Class<?> iface : classBeingRedefined.getInterfaces()) {
-                if (classesInRuleHierarchy.contains(iface.getName().replace('.', '/'))) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        for (String supertype : instrumenter.readDirectSupertypes(classfileBuffer)) {
-            if (classesInRuleHierarchy.contains(supertype)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private byte[] doInstrument(String className, byte[] classfileBuffer) {

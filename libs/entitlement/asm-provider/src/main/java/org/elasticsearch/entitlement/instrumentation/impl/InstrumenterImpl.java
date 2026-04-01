@@ -650,6 +650,24 @@ public final class InstrumenterImpl implements Instrumenter {
         return readDirectSupertypes(new ByteArrayInputStream(classfileBuffer));
     }
 
+    @Override
+    public boolean hasRuleInHierarchy(byte[] classfileBuffer) {
+        Set<String> visited = new HashSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        Collections.addAll(queue, readDirectSupertypes(classfileBuffer));
+        while (queue.isEmpty() == false) {
+            String current = queue.poll();
+            if (visited.add(current) == false) {
+                continue;
+            }
+            if (rulesByClass.containsKey(current)) {
+                return true;
+            }
+            Collections.addAll(queue, readDirectSupertypes(current));
+        }
+        return false;
+    }
+
     /**
      * Reads the direct supertypes of a class from its classfile resource, without triggering class loading.
      * Returns an empty array for {@code java/lang/Object}, or {@code ["java/lang/Object"]} if the

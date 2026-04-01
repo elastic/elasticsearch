@@ -20,12 +20,13 @@ import org.elasticsearch.logging.Logger;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 class DynamicInstrumentation {
 
@@ -62,14 +63,13 @@ class DynamicInstrumentation {
 
         var rulesByClass = registry.getInstrumentedMethods();
 
-        Set<String> classesInRuleHierarchy = ConcurrentHashMap.newKeySet();
-        classesInRuleHierarchy.addAll(rulesByClass.keySet());
+        Set<String> classesWithDirectRules = Set.copyOf(rulesByClass.keySet());
 
         Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(InstrumentationRegistry.class, rulesByClass);
-        var transformer = new Transformer(instrumenter, classesInRuleHierarchy, verifyBytecode);
+        var transformer = new Transformer(instrumenter, classesWithDirectRules, verifyBytecode);
         inst.addTransformer(transformer, true);
 
-        var classesToRetransform = findClassesToRetransform(inst, inst.getAllLoadedClasses(), classesInRuleHierarchy);
+        var classesToRetransform = findClassesToRetransform(inst, inst.getAllLoadedClasses(), classesWithDirectRules);
         try {
             inst.retransformClasses(classesToRetransform);
         } catch (VerifyError e) {
@@ -91,27 +91,27 @@ class DynamicInstrumentation {
 
     /**
      * Finds already-loaded classes that need retransformation, including subtypes of classes with rules.
-     * Classes are sorted by hierarchy depth (supertypes first) so that the {@code classesInRuleHierarchy}
-     * set is populated correctly for transitive inheritance (e.g. A extends B extends Socket).
+     * Performs a full BFS traversal of each class's hierarchy to check for inherited rules,
+     * so visitation order does not matter.
      */
-    private static Class<?>[] findClassesToRetransform(Instrumentation inst, Class<?>[] loadedClasses, Set<String> classesInRuleHierarchy) {
-        Arrays.sort(loadedClasses, Comparator.comparingInt(DynamicInstrumentation::hierarchyDepth));
-
+    private static Class<?>[] findClassesToRetransform(
+        Instrumentation inst,
+        Class<?>[] loadedClasses,
+        Set<String> classesWithDirectRules
+    ) {
         List<Class<?>> retransform = new ArrayList<>();
         for (Class<?> loadedClass : loadedClasses) {
             if (loadedClass.isHidden()) {
                 continue;
             }
             String internalName = loadedClass.getName().replace('.', '/');
-            boolean directMatch = classesInRuleHierarchy.contains(internalName);
-            boolean hierarchyMatch = false;
+            boolean directMatch = classesWithDirectRules.contains(internalName);
             if (directMatch == false) {
                 ClassLoader cl = loadedClass.getClassLoader();
                 if (cl != null && cl != ClassLoader.getPlatformClassLoader()) {
                     continue;
                 }
-                hierarchyMatch = hasSupertypeInSet(loadedClass, classesInRuleHierarchy);
-                if (hierarchyMatch == false) {
+                if (hasRuleInHierarchy(loadedClass, classesWithDirectRules) == false) {
                     continue;
                 }
             }
@@ -122,38 +122,37 @@ class DynamicInstrumentation {
                     directMatch,
                     loadedClass.getClassLoader(),
                     loadedClass.getSuperclass(),
-                    Arrays.toString(loadedClass.getInterfaces())
+                    List.of(loadedClass.getInterfaces())
                 );
                 continue;
-            }
-            if (hierarchyMatch) {
-                classesInRuleHierarchy.add(internalName);
             }
             retransform.add(loadedClass);
         }
         return retransform.toArray(new Class<?>[0]);
     }
 
-    private static boolean hasSupertypeInSet(Class<?> clazz, Set<String> classNames) {
+    private static boolean hasRuleInHierarchy(Class<?> clazz, Set<String> classesWithDirectRules) {
+        Set<Class<?>> visited = new HashSet<>();
+        Deque<Class<?>> queue = new ArrayDeque<>();
         Class<?> sup = clazz.getSuperclass();
-        if (sup != null && classNames.contains(sup.getName().replace('.', '/'))) {
-            return true;
+        if (sup != null) {
+            queue.add(sup);
         }
-        for (Class<?> iface : clazz.getInterfaces()) {
-            if (classNames.contains(iface.getName().replace('.', '/'))) {
+        Collections.addAll(queue, clazz.getInterfaces());
+        while (queue.isEmpty() == false) {
+            Class<?> current = queue.poll();
+            if (visited.add(current) == false) {
+                continue;
+            }
+            if (classesWithDirectRules.contains(current.getName().replace('.', '/'))) {
                 return true;
             }
+            sup = current.getSuperclass();
+            if (sup != null) {
+                queue.add(sup);
+            }
+            Collections.addAll(queue, current.getInterfaces());
         }
         return false;
-    }
-
-    private static int hierarchyDepth(Class<?> clazz) {
-        int depth = 0;
-        Class<?> c = clazz;
-        while (c != null) {
-            depth++;
-            c = c.getSuperclass();
-        }
-        return depth;
     }
 }

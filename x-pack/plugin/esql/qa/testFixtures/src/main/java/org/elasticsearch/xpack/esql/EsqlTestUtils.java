@@ -51,6 +51,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -64,11 +65,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -124,6 +127,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
 import java.util.zip.ZipEntry;
 
@@ -200,6 +204,27 @@ public final class EsqlTestUtils {
         return new GreaterThanOrEqual(EMPTY, left, right, ESTestCase.randomZone());
     }
 
+    public static FieldAttribute findFieldAttribute(LogicalPlan plan, String name) {
+        return findFieldAttribute(plan, name, (unused) -> true);
+    }
+
+    public static FieldAttribute findFieldAttribute(LogicalPlan plan, String name, Predicate<EsRelation> inThisRelation) {
+        Holder<FieldAttribute> result = new Holder<>();
+        plan.forEachDown(EsRelation.class, relation -> {
+            if (inThisRelation.test(relation) == false) {
+                return;
+            }
+            for (Attribute attr : relation.output()) {
+                if (attr.name().equals(name)) {
+                    assertNull("Multiple matching field attributes found", result.get());
+                    result.set((FieldAttribute) attr);
+                    return;
+                }
+            }
+        });
+        return result.get();
+    }
+
     public static FieldAttribute getFieldAttribute() {
         return getFieldAttribute("a");
     }
@@ -240,6 +265,14 @@ public final class EsqlTestUtils {
 
     public static ReferenceAttribute referenceAttribute(String name, DataType type) {
         return new ReferenceAttribute(EMPTY, name, type);
+    }
+
+    public static Alias alias(String name, Expression child) {
+        return new Alias(EMPTY, name, child);
+    }
+
+    public static Mul mul(Expression left, Expression right) {
+        return new Mul(EMPTY, left, right);
     }
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {

@@ -491,7 +491,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 out.writeBoolean(true);
                 writeTopDocs(out, topDocsAndMaxScore);
             } else {
-                assert isPartiallyReduced();
                 out.writeBoolean(false);
             }
         } else {

@@ -1372,6 +1372,112 @@ public class SamlRealmTests extends SamlTestCase {
         return new TestsSSLService(TestEnvironment.newEnvironment(settings));
     }
 
+    public void testHttpMetadataWithCustomTimeouts() throws Exception {
+        final Path path = getDataPath("idp1.xml");
+        final String body = Files.readString(path);
+        TestsSSLService sslService = buildTestSslService();
+        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
+            proxyServer.start();
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
+
+            final TimeValue customConnectTimeout = TimeValue.timeValueSeconds(3);
+            final TimeValue customReadTimeout = TimeValue.timeValueSeconds(15);
+
+            Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort(), builder -> {
+                builder.put(
+                    getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT),
+                    customConnectTimeout.getStringRep()
+                );
+                builder.put(
+                    getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT),
+                    customReadTimeout.getStringRep()
+                );
+            });
+
+            // Verify settings are correctly configured
+            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT), equalTo(customConnectTimeout));
+            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT), equalTo(customReadTimeout));
+
+            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
+            Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
+                logger,
+                config.v1(),
+                config.v2(),
+                watcherService
+            );
+
+            try {
+                assertThat(proxyServer.requests().size(), greaterThanOrEqualTo(1));
+                assertIdp1MetadataParsedCorrectly(tuple.v2().get());
+            } finally {
+                tuple.v1().destroy();
+            }
+        }
+    }
+
+    public void testHttpMetadataWithDefaultTimeouts() throws Exception {
+        final Path path = getDataPath("idp1.xml");
+        final String body = Files.readString(path);
+        TestsSSLService sslService = buildTestSslService();
+        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
+            proxyServer.start();
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
+
+            Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort());
+
+            // Verify default timeout values are used
+            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT), equalTo(TimeValue.timeValueSeconds(5)));
+            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT), equalTo(TimeValue.timeValueSeconds(10)));
+
+            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
+            Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
+                logger,
+                config.v1(),
+                config.v2(),
+                watcherService
+            );
+
+            try {
+                assertThat(proxyServer.requests().size(), greaterThanOrEqualTo(1));
+                assertIdp1MetadataParsedCorrectly(tuple.v2().get());
+            } finally {
+                tuple.v1().destroy();
+            }
+        }
+    }
+
+    public void testHttpMetadataConnectionTimeout() throws Exception {
+        // Use a non-routable IP address to simulate connection timeout
+        // 192.0.2.1 is reserved for documentation and will not be routable
+        final String unreachableUrl = "https://192.0.2.1:9999/metadata.xml";
+        final TimeValue shortConnectTimeout = TimeValue.timeValueMillis(100);
+
+        Tuple<RealmConfig, SSLService> config = buildConfig(unreachableUrl, builder -> {
+            builder.put(
+                getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT),
+                shortConnectTimeout.getStringRep()
+            );
+            builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR), false);
+        });
+
+        final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
+
+        // initialization should complete even though the connection fails
+        Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
+            logger,
+            config.v1(),
+            config.v2(),
+            watcherService
+        );
+
+        try {
+            EntityDescriptor descriptor = tuple.v2().get();
+            assertThat(descriptor, instanceOf(UnresolvedEntity.class));
+        } finally {
+            tuple.v1().destroy();
+        }
+    }
+
     private void assertIdp1MetadataParsedCorrectly(EntityDescriptor descriptor) {
         try {
             IDPSSODescriptor idpssoDescriptor = descriptor.getIDPSSODescriptor(SAMLConstants.SAML20P_NS);

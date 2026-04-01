@@ -37,7 +37,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
@@ -79,15 +78,6 @@ public class TransportService extends AbstractLifecycleComponent
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
 
-    /**
-     * A feature flag enabling transport upgrades for serverless.
-     */
-    static final String SERVERLESS_TRANSPORT_SYSTEM_PROPERTY = "es.serverless_transport";
-    private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG = Booleans.parseBoolean(
-        System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY),
-        false
-    );
-
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
@@ -128,8 +118,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
     });
 
-    public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {
-    };
+    public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {};
 
     // tracer log
 
@@ -672,7 +661,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private void maybeThrowOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
-            if (SERVERLESS_TRANSPORT_FEATURE_FLAG == false && isIncompatibleBuild(version, buildHash)) {
+            if (isIncompatibleBuild(version, buildHash)) {
                 throwOnIncompatibleBuild(node, e);
             }
         }

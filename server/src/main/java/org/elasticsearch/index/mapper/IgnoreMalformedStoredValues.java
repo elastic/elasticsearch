@@ -26,6 +26,9 @@ import static java.util.Collections.emptyList;
  * {@code _source}.
  */
 public abstract class IgnoreMalformedStoredValues {
+
+    public static final String IGNORE_MALFORMED_FIELD_NAME_SUFFIX = "._ignore_malformed";
+
     /**
      * Creates a stored field that stores malformed data to be used in synthetic source.
      * Name of the stored field is original name of the field with added conventional suffix.
@@ -143,6 +146,6 @@ public abstract class IgnoreMalformedStoredValues {
     }
 
     public static String name(String fieldName) {
-        return fieldName + "._ignore_malformed";
+        return fieldName + IGNORE_MALFORMED_FIELD_NAME_SUFFIX;
     }
 }

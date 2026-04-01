@@ -76,7 +76,8 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             shardId,
             Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY
+            Strings.EMPTY_ARRAY,
+            Map.of()
         );
         var result = executor.getAssignment(params, Set.of(node), clusterState);
         assertThat(result.getExecutorNode(), equalTo(node.getId()));
@@ -106,7 +107,8 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             missingShardId,
             Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY
+            Strings.EMPTY_ARRAY,
+            Map.of()
         );
         var result = executor.getAssignment(params, Set.of(node), clusterState);
         assertThat(result.getExecutorNode(), equalTo(node.getId()));

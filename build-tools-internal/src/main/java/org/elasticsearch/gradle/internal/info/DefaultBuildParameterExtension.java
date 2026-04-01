@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 
 public abstract class DefaultBuildParameterExtension implements BuildParameterExtension {
     private final Provider<Boolean> inFipsJvm;
+    private final Provider<String> fipsMode;
     private final Provider<File> runtimeJavaHome;
     private final RuntimeJava runtimeJava;
     private final List<JavaHome> javaVersions;
@@ -65,6 +66,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         Provider<BwcVersions> bwcVersions
     ) {
         this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(DefaultBuildParameterExtension::parseBoolean);
+        this.fipsMode = providers.systemProperty("tests.fips.mode");
         this.runtimeJava = runtimeJava;
         this.runtimeJavaHome = cache(providers, runtimeJava.getJavahome());
         this.javaToolChainSpec = cache(providers, javaToolChainSpec);
@@ -99,6 +101,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     @Override
     public boolean getInFipsJvm() {
         return inFipsJvm.getOrElse(false);
+    }
+
+    @Override
+    public String getFipsMode() {
+        return fipsMode.getOrNull();
     }
 
     @Override

@@ -10,21 +10,26 @@ steps:
             image:
               - debian-11
               - debian-12
+              - debian-13
               - opensuse-leap-15
               - oraclelinux-7
               - oraclelinux-8
               - oraclelinux-9
+              - oraclelinux-10
               - sles-12
               - sles-15
               - ubuntu-2204
               - ubuntu-2404
               - rocky-8
               - rocky-9
+              - rocky-10
               - rhel-7
               - rhel-8
               - rhel-9
+              - rhel-10
               - almalinux-8
               - almalinux-9
+              - almalinux-10
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -305,8 +310,8 @@ steps:
         env:
           BWC_VERSION: 7.16.3
 
-      - label: "{{matrix.image}} / 7.17.30 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v7.17.30
+      - label: "{{matrix.image}} / 7.17.29 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v7.17.29
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -319,7 +324,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 7.17.30
+          BWC_VERSION: 7.17.29
 
       - label: "{{matrix.image}} / 8.0.1 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.0.1
@@ -609,8 +614,8 @@ steps:
         env:
           BWC_VERSION: 8.17.10
 
-      - label: "{{matrix.image}} / 8.18.9 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.18.9
+      - label: "{{matrix.image}} / 8.18.8 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.18.8
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -623,10 +628,10 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.18.9
+          BWC_VERSION: 8.18.8
 
-      - label: "{{matrix.image}} / 8.19.6 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.6
+      - label: "{{matrix.image}} / 8.19.14 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.14
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -639,7 +644,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.19.6
+          BWC_VERSION: 8.19.14
 
   - group: packaging-tests-windows
     steps:

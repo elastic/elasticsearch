@@ -191,7 +191,9 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
         private static float generateEmbedding(String input, int position) {
             // Ensure non-negative and non-zero values for features
-            return Math.abs(input.hashCode()) + 1 + position;
+            int hash = input.hashCode();
+            int absHash = (hash == Integer.MIN_VALUE) ? Integer.MAX_VALUE : Math.abs(hash);
+            return absHash + 1.0f + position;
         }
 
         public static class Configuration {
@@ -239,10 +241,13 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 
-            String model = (String) map.remove("model");
+            String model = (String) map.remove("model_id");
 
             if (model == null) {
-                validationException.addValidationError("missing model");
+                model = (String) map.remove("model");
+                if (model == null) {
+                    validationException.addValidationError("missing model");
+                }
             }
 
             String hiddenField = (String) map.remove("hidden_field");

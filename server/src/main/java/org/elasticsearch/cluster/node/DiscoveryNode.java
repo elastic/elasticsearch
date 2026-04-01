@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import static org.elasticsearch.TransportVersions.NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 /**
@@ -344,7 +343,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             Version version = Version.readVersion(in);
             IndexVersion minIndexVersion = IndexVersion.readVersion(in);
             IndexVersion minReadOnlyIndexVersion;
-            if (in.getTransportVersion().onOrAfter(NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 minReadOnlyIndexVersion = IndexVersion.readVersion(in);
             } else {
                 minReadOnlyIndexVersion = minIndexVersion;
@@ -389,7 +388,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             Version.writeVersion(versionInfo.nodeVersion(), out);
             IndexVersion.writeVersion(versionInfo.minIndexVersion(), out);
-            if (out.getTransportVersion().onOrAfter(NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 IndexVersion.writeVersion(versionInfo.minReadOnlyIndexVersion(), out);
             }
             IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);

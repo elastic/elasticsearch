@@ -42,7 +42,12 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "epoch",
+          "timestamp",
+          "count"
+        ]
       },
       "help": {
         "type": "boolean",

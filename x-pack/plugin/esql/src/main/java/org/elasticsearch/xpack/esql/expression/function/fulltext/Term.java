@@ -74,7 +74,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
         return new Term(source, field, query, queryBuilder);
@@ -85,7 +85,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalNamedWriteable(queryBuilder());
         }
     }

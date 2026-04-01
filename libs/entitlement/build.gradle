@@ -26,25 +26,56 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'entitlement'
   }
-
-  // guarding for intellij
-  if (sourceSets.findByName("main19")) {
-    main19CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java19')
-  }
-  if (sourceSets.findByName("main20")) {
-    main20CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java20')
-  }
-  if (sourceSets.findByName("main21")) {
-    main21CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java21')
-  }
-  if (sourceSets.findByName("main22")) {
-    main22CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java22')
-  }
-  if (sourceSets.findByName("main23")) {
-    main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
-  }
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
+  exclude 'org/elasticsearch/entitlement/config/**.class'
+}
+
+tasks.named('javadoc') {
+  // Our configuration references all kinds of nasty internal types
+  exclude 'org/elasticsearch/entitlement/config/*'
+  // Explcitly include the main entrypoint, as it's referenced in EntitlementBoostrap
+  include 'org/elasticsearch/entitlement/config/MainInstrumentationProvider.java'
+}
+
+// We need to explicitly export these packages since we directly reference classes from them in our instrumentation config
+def exportedPackages = [
+  "jdk.jlink/jdk.tools.jlink.internal",
+  "jdk.internal.vm.ci/jdk.vm.ci.services",
+  "java.base/sun.net.www",
+  "java.base/sun.net.www.protocol.ftp",
+  "java.base/sun.net.www.protocol.file",
+  "java.base/sun.net.www.protocol.jar",
+  "java.base/sun.net.www.protocol.http",
+  "java.base/sun.net.www.protocol.https",
+  "java.base/sun.net.www.protocol.mailto",
+  "java.base/sun.nio.ch",
+  "java.base/jdk.internal.foreign",
+  "java.base/jdk.internal.foreign.abi",
+  "java.base/jdk.internal.foreign.layout",
+  "java.net.http/jdk.internal.net.http",
+  "jdk.jdi/com.sun.tools.jdi"
+]
+
+// invoke using ./gradlew :libs:entitlement:dumpInstrumentedMethods --args="<output file>"
+tasks.register('dumpInstrumentedMethods', JavaExec) {
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'org.elasticsearch.entitlement.initialization.DynamicInstrumentationUtils'
+  exportedPackages.each { jvmArgs("--add-opens", "${it}=ALL-UNNAMED")}
+}
+
+tasks.named('compileJava') {
+  options.release.unset()
+  exportedPackages.each { options.compilerArgs.addAll(["--add-exports", "${it}=org.elasticsearch.entitlement"])}
+}
+
+tasks.named({ name -> name ==~ /compileMain[0-9]+Java/}).configureEach {
+  options.release.unset()
+  exportedPackages.each { options.compilerArgs.addAll(["--add-exports", "${it}=ALL-UNNAMED"])}
+}
+
+tasks.named('test') {
+  exportedPackages.each { jvmArgs("--add-opens", "${it}=ALL-UNNAMED")}
 }

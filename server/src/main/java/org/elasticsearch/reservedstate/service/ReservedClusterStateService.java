@@ -166,7 +166,7 @@ public class ReservedClusterStateService {
                 namespace,
                 emptyState,
                 ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
-                Map.of(),
+                handlers,
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
                 errorState -> { throw new AssertionError(); },
@@ -196,7 +196,7 @@ public class ReservedClusterStateService {
 
         LinkedHashSet<String> orderedHandlers;
         try {
-            orderedHandlers = orderedStateHandlers(reservedState.keySet());
+            orderedHandlers = ReservedStateUpdateTask.orderedStateHandlers(reservedState.keySet(), handlers);
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(
                 namespace,
@@ -356,62 +356,6 @@ public class ReservedClusterStateService {
         }
 
         return errors;
-    }
-
-    /**
-     * Returns an ordered set ({@link LinkedHashSet}) of the cluster state handlers that need to
-     * execute for a given list of handler names supplied through the {@link ReservedStateChunk}.
-     * @param handlerNames Names of handlers found in the {@link ReservedStateChunk}
-     */
-    LinkedHashSet<String> orderedStateHandlers(Set<String> handlerNames) {
-        LinkedHashSet<String> orderedHandlers = new LinkedHashSet<>();
-        LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();
-
-        for (String key : handlerNames) {
-            addStateHandler(key, handlerNames, orderedHandlers, dependencyStack);
-        }
-
-        return orderedHandlers;
-    }
-
-    private void addStateHandler(String key, Set<String> keys, LinkedHashSet<String> ordered, LinkedHashSet<String> visited) {
-        if (visited.contains(key)) {
-            StringBuilder msg = new StringBuilder("Cycle found in settings dependencies: ");
-            visited.forEach(s -> {
-                msg.append(s);
-                msg.append(" -> ");
-            });
-            msg.append(key);
-            throw new IllegalStateException(msg.toString());
-        }
-
-        if (ordered.contains(key)) {
-            // already added by another dependent handler
-            return;
-        }
-
-        visited.add(key);
-        ReservedClusterStateHandler<?> handler = handlers.get(key);
-
-        if (handler == null) {
-            throw new IllegalStateException("Unknown handler type: " + key);
-        }
-
-        for (String dependency : handler.dependencies()) {
-            if (keys.contains(dependency) == false) {
-                throw new IllegalStateException("Missing handler dependency definition: " + key + " -> " + dependency);
-            }
-            addStateHandler(dependency, keys, ordered, visited);
-        }
-
-        for (String dependency : handler.optionalDependencies()) {
-            if (keys.contains(dependency)) {
-                addStateHandler(dependency, keys, ordered, visited);
-            }
-        }
-
-        visited.remove(key);
-        ordered.add(key);
     }
 
     /**

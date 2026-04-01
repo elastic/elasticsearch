@@ -57,6 +57,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeE
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.getContainerId;
 import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
@@ -124,13 +125,20 @@ public class DockerTests extends PackagingTestCase {
 
     @After
     public void teardownTest() {
-        removeContainer();
+        // Container cleanup is handled in PackagingTestCase.teardown() so that the TestWatcher
+        // can dump container logs before we remove the container on failures.
         rm(tempDir);
+    }
+
+    @Override
+    protected boolean shouldRemoveDockerContainerAfterTest() {
+        return true;
     }
 
     @Override
     protected void dumpDebug() {
         final Result containerLogs = getContainerLogs();
+        logger.warn("Container id for debug logs: " + getContainerId());
         logger.warn("Elasticsearch log stdout:\n" + containerLogs.stdout());
         logger.warn("Elasticsearch log stderr:\n" + containerLogs.stderr());
     }
@@ -163,6 +171,42 @@ public class DockerTests extends PackagingTestCase {
         waitForElasticsearch(installation);
         final int unauthStatusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), null, null, null);
         assertThat(unauthStatusCode, equalTo(200));
+    }
+
+    /**
+     * Checks that dotted env vars are respected
+     */
+    public void test013DottedEnvVarsPersist() throws Exception {
+        // Populate tempDir with config from the running container so the bind-mounted config has
+        // required files (e.g. log4j2.properties). Otherwise ServerCli fails with "Missing logging config file".
+        copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
+        copyFromContainer(installation.config("elasticsearch.keystore"), tempDir.resolve("elasticsearch.keystore"));
+        copyFromContainer(installation.config("log4j2.properties"), tempDir.resolve("log4j2.properties"));
+        copyFromContainer(installation.config("jvm.options"), tempDir.resolve("jvm.options"));
+        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"certs\"");
+        if (autoConfigurationDir != null) {
+            final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
+            copyFromContainer(autoConfigurationDir, tempDir.resolve(autoConfigurationDirName));
+            Files.setPosixFilePermissions(tempDir.resolve(autoConfigurationDirName), p750);
+        }
+
+        Files.setPosixFilePermissions(tempDir, fromString("rwxrwxrwx"));
+        Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.yml"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.keystore"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("log4j2.properties"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("jvm.options"), p644);
+
+        ServerUtils.removeSettingFromExistingConfiguration(tempDir, "cluster.initial_master_nodes");
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/usr/share/elasticsearch/config")
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
+                .envVar("discovery.seed_hosts", "host1")
+                .envVar("discovery.type", "single-node")
+        );
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+        Result result = sh.run("env | grep discovery");
+        assertThat(result.stdout(), containsString("discovery.seed_hosts=host1"));
     }
 
     /**
@@ -1025,8 +1069,8 @@ public class DockerTests extends PackagingTestCase {
     public void test150MachineDependentHeap() throws Exception {
         final List<String> xArgs = machineDependentHeapTest("1536m", List.of());
 
-        // This is roughly 0.5 * 1536
-        assertThat(xArgs, hasItems("-Xms768m", "-Xmx768m"));
+        // This is roughly 0.5 * (1536 - 100) where 100 MB is the server-cli overhead
+        assertThat(xArgs, hasItems("-Xms718m", "-Xmx718m"));
     }
 
     /**
@@ -1037,12 +1081,12 @@ public class DockerTests extends PackagingTestCase {
     public void test151MachineDependentHeapWithSizeOverride() throws Exception {
         final List<String> xArgs = machineDependentHeapTest(
             "942m",
-            // 799014912 = 762m
-            List.of("-Des.total_memory_bytes=799014912")
+            // 799014912 = 762m, 52428800 = 50m
+            List.of("-Des.total_memory_bytes=799014912", "-Des.total_memory_overhead_bytes=52428800")
         );
 
-        // This is roughly 0.4 * 762, in particular it's NOT 0.4 * 942
-        assertThat(xArgs, hasItems("-Xms304m", "-Xmx304m"));
+        // This is roughly 0.4 * (762 - 50)
+        assertThat(xArgs, hasItems("-Xms284m", "-Xmx284m"));
     }
 
     private List<String> machineDependentHeapTest(final String containerMemory, final List<String> extraJvmOptions) throws Exception {
@@ -1217,7 +1261,6 @@ public class DockerTests extends PackagingTestCase {
             builder().envVar("readiness.port", "9399").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node")
         );
         waitForElasticsearch(installation);
-        dumpDebug();
         // readiness may still take time as file settings are applied into cluster state (even non-existent file settings)
         assertBusy(() -> assertTrue(readinessProbe(9399)));
     }

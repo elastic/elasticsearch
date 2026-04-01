@@ -7,7 +7,7 @@ required_capability: join_planning_v1
 // tag::max-languages[]
 FROM employees
 | KEEP emp_no, languages
-| INLINESTATS max_lang = MAX(languages) 
+| INLINESTATS max_lang = MAX(languages)
 | WHERE max_lang == languages
 | SORT emp_no ASC
 | LIMIT 5
@@ -29,7 +29,7 @@ required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, languages, gender
-| INLINESTATS max_lang = MAX(languages) BY gender 
+| INLINESTATS max_lang = MAX(languages) BY gender
 | WHERE max_lang == languages
 | SORT emp_no ASC
 | LIMIT 5;
@@ -47,7 +47,7 @@ required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
-| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY gender 
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY gender
 | WHERE max_avg_worked_seconds == avg_worked_seconds
 | SORT emp_no ASC;
 
@@ -62,7 +62,7 @@ required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
-| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) 
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds)
 | WHERE max_avg_worked_seconds == avg_worked_seconds
 | SORT emp_no ASC;
 
@@ -118,7 +118,7 @@ required_capability: join_planning_v1
 FROM employees
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l = SUBSTRING(last_name, 0, 1)
 | WHERE max_avg_worked_seconds == avg_worked_seconds
-| KEEP emp_no, avg_worked_seconds, last_name, max_avg_worked_seconds  
+| KEEP emp_no, avg_worked_seconds, last_name, max_avg_worked_seconds
 | SORT last_name ASC
 | LIMIT 5
 ;
@@ -137,7 +137,7 @@ required_capability: join_planning_v1
 FROM employees
 | EVAL l = SUBSTRING(last_name, 0, 1)
 | KEEP emp_no, avg_worked_seconds, l
-| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l 
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l
 | WHERE max_avg_worked_seconds == avg_worked_seconds
 | SORT l ASC
 | LIMIT 5
@@ -360,7 +360,7 @@ FROM airports
 | LIMIT 3
 ;
 
-abbrev:keyword | city:keyword |       region:text | "COUNT(*)":long 
+abbrev:keyword | city:keyword |       region:text | "COUNT(*)":long
            ALA |       Almaty |     Жетісу ауданы | 2
            BXJ |       Almaty |     Жетісу ауданы | 2
            FUK |      Fukuoka |             中央区 | 2
@@ -433,7 +433,7 @@ FROM airports
 | INLINESTATS COUNT(*) BY type
 | ENRICH city_names ON city WITH region
 | WHERE MV_COUNT(region) == 1
-| INLINESTATS count_region=COUNT(*) BY region 
+| INLINESTATS count_region=COUNT(*) BY region
 | SORT abbrev ASC
 | LIMIT 3
 ;
@@ -505,7 +505,7 @@ required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, languages
-| INLINESTATS max_lang = MAX(languages) BY y=1 
+| INLINESTATS max_lang = MAX(languages) BY y=1
 | WHERE max_lang == languages
 | SORT emp_no ASC
 | LIMIT 5
@@ -658,4 +658,16 @@ emp_no:integer | salary:integer |  hire_date:datetime  | avg_salary:double
          10002 |          56371 | 1985-01-01T00:00:00Z | 51831.818181818184
          10003 |          61805 | 1986-01-01T00:00:00Z | 43869.63636363636
          10005 |          63528 | 1989-01-01T00:00:00Z | 53487.07692307692
+;
+
+fixClassCastBugWithSeveralCounts
+required_capability: inlinestats_v7
+required_capability: fix_stats_classcast_exception
+
+FROM sample_data, sample_data_str
+| EVAL one_ip = client_ip::ip
+| INLINESTATS count1=count(client_ip::ip), count2=count(one_ip)
+| SORT @timestamp
+| KEEP count1, count2
+| LIMIT 3
 ;

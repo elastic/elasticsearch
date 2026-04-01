@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,7 +61,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
 
-    public ElasticInferenceServiceCompletionServiceSettings(String modelId, RateLimitSettings rateLimitSettings) {
+    public ElasticInferenceServiceCompletionServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
@@ -86,7 +87,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION;
+        return TransportVersions.V_8_18_0;
     }
 
     @Override

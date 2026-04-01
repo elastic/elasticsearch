@@ -17,14 +17,17 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
@@ -49,11 +52,16 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.common.SemanticTextInfoExtractor.getModelSettingsForIndicesReferencingInferenceEndpoints;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.canMergeModelSettings;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
@@ -181,7 +189,15 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, request.getTimeout(), listener);
+        parseAndStoreModel(
+            service.get(),
+            request.getInferenceEntityId(),
+            resolvedTaskType,
+            requestAsMap,
+            request.getTimeout(),
+            state.metadata(),
+            listener
+        );
     }
 
     private void parseAndStoreModel(
@@ -190,6 +206,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         TaskType taskType,
         Map<String, Object> config,
         TimeValue timeout,
+        Metadata metadata,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
@@ -212,7 +229,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             )
         );
 
-        ActionListener<Model> parsedModelListener = listener.delegateFailureAndWrap((delegate, model) -> {
+        ActionListener<Model> modelValidatingListener = listener.delegateFailureAndWrap((delegate, model) -> {
             if (skipValidationAndStart) {
                 storeModelListener.onResponse(model);
             } else {
@@ -221,7 +238,51 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             }
         });
 
-        service.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
+        ActionListener<Model> existingUsesListener = listener.delegateFailureAndWrap((delegate, model) -> {
+            // Execute in another thread because checking for existing uses requires reading from indices
+            threadPool.executor(UTILITY_THREAD_POOL_NAME)
+                .execute(() -> checkForExistingUsesOfInferenceId(metadata, model, modelValidatingListener));
+        });
+
+        service.parseRequestConfig(inferenceEntityId, taskType, config, existingUsesListener);
+    }
+
+    private void checkForExistingUsesOfInferenceId(Metadata metadata, Model model, ActionListener<Model> modelValidatingListener) {
+        Set<String> inferenceEntityIdSet = Set.of(model.getInferenceEntityId());
+        Set<String> indicesWithIncompatibleMappings = findIndicesWithIncompatibleMappings(model, metadata, inferenceEntityIdSet);
+
+        if (indicesWithIncompatibleMappings.isEmpty()) {
+            modelValidatingListener.onResponse(model);
+        } else {
+            modelValidatingListener.onFailure(
+                new ElasticsearchStatusException(
+                    buildErrorString(model.getInferenceEntityId(), indicesWithIncompatibleMappings),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+    }
+
+    private Set<String> findIndicesWithIncompatibleMappings(Model model, Metadata metadata, Set<String> inferenceEntityIdSet) {
+        var serviceSettingsMap = getModelSettingsForIndicesReferencingInferenceEndpoints(metadata, inferenceEntityIdSet);
+        var incompatibleIndices = new HashSet<String>();
+        if (serviceSettingsMap.isEmpty() == false) {
+            MinimalServiceSettings newSettings = new MinimalServiceSettings(model);
+            serviceSettingsMap.forEach((indexName, existingSettings) -> {
+                if (canMergeModelSettings(existingSettings, newSettings, new FieldMapper.Conflicts("")) == false) {
+                    incompatibleIndices.add(indexName);
+                }
+            });
+        }
+        return incompatibleIndices;
+    }
+
+    private static String buildErrorString(String inferenceId, Set<String> indicesWithIncompatibleMappings) {
+        return "Inference endpoint ["
+            + inferenceId
+            + "] could not be created because the inference_id is being used in mappings with incompatible settings for indices: "
+            + indicesWithIncompatibleMappings
+            + ". Please either use a different inference_id or update the index mappings to refer to a different inference_id.";
     }
 
     private void startInferenceEndpoint(

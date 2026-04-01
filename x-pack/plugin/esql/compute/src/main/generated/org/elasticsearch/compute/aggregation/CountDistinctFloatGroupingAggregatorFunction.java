@@ -47,7 +47,7 @@ public final class CountDistinctFloatGroupingAggregatorFunction implements Group
 
   public static CountDistinctFloatGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, int precision) {
-    return new CountDistinctFloatGroupingAggregatorFunction(channels, CountDistinctFloatAggregator.initGrouping(driverContext.bigArrays(), precision), driverContext, precision);
+    return new CountDistinctFloatGroupingAggregatorFunction(channels, CountDistinctFloatAggregator.initGrouping(driverContext, precision), driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

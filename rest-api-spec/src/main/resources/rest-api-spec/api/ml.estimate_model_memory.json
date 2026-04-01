@@ -24,7 +24,6 @@
         }
       ]
     },
-    "params": {},
     "body": {
       "description": "The analysis config, plus cardinality estimates for fields it references",
       "required": true

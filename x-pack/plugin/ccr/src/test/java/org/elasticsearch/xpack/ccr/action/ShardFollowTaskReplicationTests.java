@@ -435,8 +435,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
                     recoveryFuture = group.asyncRecoverReplica(
                         newReplica,
-                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, 0L, null, null, recoveryListener) {
-                        }
+                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, 0L, null, null, recoveryListener) {}
                     );
                 }
             }

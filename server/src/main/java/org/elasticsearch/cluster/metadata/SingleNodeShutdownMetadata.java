@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.NODE_SHUTDOWN_EPHEMERAL_ID_ADDED;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -45,7 +44,10 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
-    public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
+    public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(
+        STARTED_AT_READABLE_FIELD + "_millis",
+        STARTED_AT_READABLE_FIELD + "millis"
+    );
     public static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
     public static final ParseField NODE_SEEN_FIELD = new ParseField("node_seen");
     public static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");
@@ -170,7 +172,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
         this.nodeId = in.readString();
-        if (in.getTransportVersion().onOrAfter(NODE_SHUTDOWN_EPHEMERAL_ID_ADDED)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             this.nodeEphemeralId = in.readOptionalString();
         } else {
             this.nodeEphemeralId = null; // empty when talking to old nodes, meaning the persistent node id is the only differentiator
@@ -268,7 +270,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
-        if (out.getTransportVersion().onOrAfter(NODE_SHUTDOWN_EPHEMERAL_ID_ADDED)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalString(nodeEphemeralId);
         }
         if ((out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE)

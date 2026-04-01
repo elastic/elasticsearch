@@ -285,8 +285,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
     private void initMapping(String indexKey) throws IOException {
         TestIndexMappingConfig indexMappingConfig = INDICES.get(indexKey);
-        mapperServices.put(indexKey, new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperServices.put(indexKey, new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "key", "integer"); // unique key per-index to use for looking up test values to compare to
             fieldExamples(b, "indexKey", "keyword");  // index name (can be used to choose index-specific test values)
             fieldExamples(b, "int", "integer");
@@ -1271,8 +1270,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
     public void testWithNulls() throws IOException {
         String indexKey = "index1";
-        mapperServices.put(indexKey, new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperServices.put(indexKey, new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "i", "integer");
             fieldExamples(b, "j", "long");
             fieldExamples(b, "d", "double");

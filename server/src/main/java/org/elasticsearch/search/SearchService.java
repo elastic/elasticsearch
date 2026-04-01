@@ -19,6 +19,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -159,7 +160,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.ERROR_TRACE_IN_TRANSPORT_HEADER;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -220,9 +220,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
-    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = Setting.boolSetting(
+
+    public static final boolean DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = true;
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING = Setting.boolSetting(
         "search.default_allow_partial_results",
-        true,
+        DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -286,7 +288,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
-    private static final boolean BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase").isEnabled();
+    public static final boolean BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase").isEnabled();
 
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
@@ -365,12 +367,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.bigArrays = bigArrays;
         this.rankFeatureShardPhase = rankFeatureShardPhase;
         this.fetchPhase = fetchPhase;
-        circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
-        this.multiBucketConsumerService = new MultiBucketConsumerService(
-            clusterService,
-            settings,
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
-        );
+        this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.tracer = tracer;
 
@@ -392,9 +390,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         minimumDocsPerSlice = MINIMUM_DOCS_PER_SLICE.get(settings);
 
-        defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
+        defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING.get(settings);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, this::setDefaultAllowPartialSearchResults);
+            .addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING, this::setDefaultAllowPartialSearchResults);
 
         maxOpenScrollContext = MAX_OPEN_SCROLL_CONTEXT.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_SCROLL_CONTEXT, this::setMaxOpenScrollContext);
@@ -578,7 +576,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ThreadPool threadPool
     ) {
         final boolean header;
-        if (version.onOrAfter(ERROR_TRACE_IN_TRANSPORT_HEADER) && threadPool.getThreadContext() != null) {
+        if (version.supports(TransportVersions.V_8_18_0) && threadPool.getThreadContext() != null) {
             header = Boolean.parseBoolean(threadPool.getThreadContext().getHeaderOrDefault("error_trace", "false"));
         } else {
             header = true;
@@ -1278,6 +1276,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         checkCancelled(task);
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType);
         resultsType.addResultsObject(context);
+
+        // Release the memory used for query construction once the search context is closed.
+        context.addReleasable(context.getSearchExecutionContext()::releaseQueryConstructionMemory);
+
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
@@ -1310,6 +1312,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
             DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.NONE);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
+            searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
             return searchContext;
         }
     }
@@ -1340,13 +1343,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchExecutor,
                 resultsType,
                 enableQueryPhaseParallelCollection,
-                minimumDocsPerSlice
+                minimumDocsPerSlice,
+                circuitBreaker
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
             SearchExecutionContext context = new SearchExecutionContext(searchContext.getSearchExecutionContext());
+
             Rewriteable.rewrite(request.getRewriteable(), context, true);
+            assert context.getQueryConstructionMemoryUsed() == 0
+                : "rewrite phase should not build queries; found " + context.getQueryConstructionMemoryUsed() + " bytes tracked";
+
             assert searchContext.getSearchExecutionContext().isCacheable();
             success = true;
         } finally {
@@ -2084,6 +2092,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Rewriteable.rewriteAndFetch(
             request.getRewriteable(),
             indicesService.getDataRewriteContext(request::nowInMillis),
+            threadPool.executor(Names.SEARCH),
             request.readerId() == null
                 ? listener.delegateFailureAndWrap((l, r) -> shard.ensureShardSearchActive(b -> l.onResponse(request)))
                 : listener.safeMap(r -> request)
@@ -2094,7 +2103,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return getRewriteContext(nowInMillis, resolvedIndices, pit, false);
+        return getRewriteContext(nowInMillis, resolvedIndices, pit, false, DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS);
     }
 
     /**
@@ -2104,9 +2113,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         LongSupplier nowInMillis,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean allowPartialSearchResults
     ) {
-        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, isExplain);
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, isExplain, allowPartialSearchResults);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
@@ -2145,4 +2155,5 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         };
     }
+
 }

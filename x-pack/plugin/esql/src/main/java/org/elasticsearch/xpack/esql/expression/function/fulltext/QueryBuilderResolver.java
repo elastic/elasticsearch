@@ -12,6 +12,7 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -44,6 +45,7 @@ public final class QueryBuilderResolver {
             Rewriteable.rewriteAndFetch(
                 new FullTextFunctionsRewritable(plan),
                 queryRewriteContext(services, indexNames(plan)),
+                services.transportService().getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION),
                 listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.plan))
             );
         } else {

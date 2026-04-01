@@ -29,6 +29,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -58,7 +59,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -574,7 +574,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
         }
 
-        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, emptyList());
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, List.of(), randomFrom(IndexMode.values()));
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

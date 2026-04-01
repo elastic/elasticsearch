@@ -1704,6 +1704,30 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testConditionalFunctionsWithSupportedNonNumericTypes() {
+        for (String functionName : List.of("greatest", "least")) {
+            // Keyword
+            query("from test | eval x = " + functionName + "(\"a\", \"b\")");
+            query("from test | eval x = " + functionName + "(first_name, last_name)");
+            query("from test | eval x = " + functionName + "(first_name, \"b\")");
+
+            // Text
+            // Note: In ESQL text fields are not optimized for sorting/aggregation but Greatest/Least should work if they implement
+            // BytesRefEvaluator
+            query("from test | eval x = " + functionName + "(title, \"b\")", fullTextAnalyzer);
+
+            // IP
+            query("from test | eval x = " + functionName + "(to_ip(\"127.0.0.1\"), to_ip(\"127.0.0.2\"))");
+
+            // Version
+            query("from test | eval x = " + functionName + "(to_version(\"1.0.0\"), to_version(\"1.1.0\"))");
+
+            // Date
+            query("from test | eval x = " + functionName + "(\"2023-01-01\" :: datetime, \"2023-01-02\" :: datetime)");
+            query("from test | eval x = " + functionName + "(\"2023-01-01\" :: date_nanos, \"2023-01-02\" :: date_nanos)");
+        }
+    }
+
     public void testToDatePeriodTimeDurationInInvalidPosition() {
         // arithmetic operations in eval
         assertEquals(

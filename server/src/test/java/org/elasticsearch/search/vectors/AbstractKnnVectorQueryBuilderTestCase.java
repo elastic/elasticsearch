@@ -389,7 +389,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_8_8_1,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.KNN_QUERY_RESCORE_OVERSAMPLE)
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_18_0)
         );
         VectorData vectorData = version.onOrAfter(TransportVersions.V_8_14_0)
             ? query.queryVector()

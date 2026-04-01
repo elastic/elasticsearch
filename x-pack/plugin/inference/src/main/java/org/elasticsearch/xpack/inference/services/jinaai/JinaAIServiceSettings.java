@@ -131,7 +131,7 @@ public class JinaAIServiceSettings extends FilteredXContentObject implements Ser
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+        return TransportVersions.V_8_18_0;
     }
 
     @Override

@@ -85,6 +85,7 @@ public enum ReferenceDocs {
     SECURE_SETTINGS,
     CLUSTER_SHARD_LIMIT,
     DELETE_INDEX_BLOCK,
+    ARCHIVED_SETTINGS,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

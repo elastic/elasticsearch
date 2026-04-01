@@ -144,7 +144,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         out.writeVInt(id);
         out.writeOptionalString(uuid);
         out.writeString(description);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeEnumSet(levels);
         } else {
             // do not send ClusterBlockLevel.REFRESH to old nodes

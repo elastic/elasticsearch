@@ -24,8 +24,7 @@
           "parts": {
             "model_id": {
               "type": "string",
-              "description": "The unique identifier of the trained model.",
-              "required": true
+              "description": "The unique identifier of the trained model."
             }
           }
         },

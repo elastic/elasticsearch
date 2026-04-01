@@ -92,8 +92,6 @@ import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
-    public static final String RANDOM_SNAPSHOT_NAME_PREFIX = "snap-";
-
     public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
     protected static final int LARGE_POOL_SIZE = 10;
@@ -701,7 +699,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = new PlainActionFuture<>();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(count, allSnapshotsDone);
         final List<String> snapshotNames = new ArrayList<>(count);
-        final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + randomIdentifier() + "-";
+        final String prefix = randomSnapshotName() + "-";
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);

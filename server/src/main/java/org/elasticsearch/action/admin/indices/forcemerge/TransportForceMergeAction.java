@@ -38,7 +38,8 @@ import java.io.IOException;
 public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     ForceMergeRequest,
     BroadcastResponse,
-    TransportBroadcastByNodeAction.EmptyResult> {
+    TransportBroadcastByNodeAction.EmptyResult,
+    Void> {
 
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
@@ -89,7 +90,8 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         ForceMergeRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<TransportBroadcastByNodeAction.EmptyResult> listener
+        Void nodeContext,
+        ActionListener<EmptyResult> listener
     ) {
         assert (task instanceof CancellableTask) == false; // TODO: add cancellation handling here once the task supports it
         threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(listener, () -> {

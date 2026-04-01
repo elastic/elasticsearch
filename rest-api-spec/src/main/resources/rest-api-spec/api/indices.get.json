@@ -44,7 +44,7 @@
         "description": "Ignore if a wildcard expression resolves to no concrete indices (default: false)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -56,13 +56,13 @@
         "description": "Whether wildcard expressions should get expanded to open or closed indices (default: open)"
       },
       "features": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "aliases",
           "mappings",
           "settings"
         ],
-        "default": "aliases,mappings,settings",
+        "default": "['aliases', 'mappings', 'settings']",
         "description": "Return only information on specified index features"
       },
       "flat_settings": {

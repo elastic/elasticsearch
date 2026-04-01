@@ -1444,8 +1444,7 @@ class NodeConstruction {
         // to resort to some evil casting.
         @SuppressWarnings("rawtypes")
         Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-            forciblyCast(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-            }));
+            forciblyCast(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}));
 
         client.initialize(
             actions,

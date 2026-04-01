@@ -13,6 +13,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -20,6 +21,7 @@ import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
+@ESTestCase.WithoutEntitlements // run commands without entitlements enforced
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeRepurposeCommandIT extends ESIntegTestCase {
 

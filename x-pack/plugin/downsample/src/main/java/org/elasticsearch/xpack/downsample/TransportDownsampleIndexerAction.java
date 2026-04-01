@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -143,6 +144,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             request.getMetricFields(),
             request.getLabelFields(),
             request.getDimensionFields(),
+            Map.of(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
         return indexer.execute();

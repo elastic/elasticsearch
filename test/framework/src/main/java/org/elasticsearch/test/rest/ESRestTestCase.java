@@ -2552,6 +2552,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void waitForActiveLicense(final RestClient restClient) throws Exception {
         assertBusy(() -> {
             final Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");
+            request.addParameter("categories", "license");
             request.setOptions(RequestOptions.DEFAULT.toBuilder());
 
             final Response response = restClient.performRequest(request);

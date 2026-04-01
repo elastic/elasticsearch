@@ -13,6 +13,8 @@ Nested documents and queries are typically expensive, so using the `flattened` d
 
 WARNING: Nested fields have incomplete support in Kibana. While they are visible and searchable in Discover, they cannot be used to build visualizations in Lens.
 
+WARNING: If a parent object field mapping has `subobject` set to `false` or the root object `subobject` set to `false`, then nested field mappings are also auto flattened and only leaf field mappings are retained. This means that the nested field mapping's functionality is disabled.
+
 [[nested-arrays-flattening-objects]]
 ==== How arrays of objects are flattened
 

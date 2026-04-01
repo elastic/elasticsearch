@@ -235,7 +235,7 @@ public class Node implements Closeable {
                     "\\" + File.separator,
                     ".*modules",
                     "apm",
-                    "elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar"
+                    "elastic-apm-agent-java8-\\d+\\.\\d+\\.\\d+\\.jar"
                 );
                 if (parts[0].matches(APM_AGENT_CONFIG_FILE_REGEX)) {
                     if (parts.length == 2 && parts[1].startsWith("c=")) {
@@ -293,9 +293,6 @@ public class Node implements Closeable {
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
-        if (ReadinessService.enabled(environment)) {
-            injector.getInstance(ReadinessService.class).start();
-        }
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -425,6 +422,9 @@ public class Node implements Closeable {
         }
 
         injector.getInstance(HttpServerTransport.class).start();
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).start();
+        }
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
             TransportService transport = injector.getInstance(TransportService.class);

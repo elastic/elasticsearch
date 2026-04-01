@@ -25,10 +25,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -73,13 +73,14 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
+public class TimeSeriesLifecycleActionsIT extends IlmESRestTestCase {
     private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
     private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
 
@@ -105,7 +106,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", "javaRestTest-0")
+                .put("index.routing.allocation.include._name", "test-cluster-0")
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
@@ -216,7 +217,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        String allocateNodeName = "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3";
+        String allocateNodeName = "test-cluster-0,test-cluster-1,test-cluster-2,test-cluster-3";
         AllocateAction allocateAction = new AllocateAction(null, null, Map.of("_name", allocateNodeName), null, null);
         String endPhase = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, endPhase, allocateAction);
@@ -252,6 +253,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    @SuppressWarnings("unchecked")
     public void testWaitForSnapshot() throws Exception {
         createIndexWithSettings(
             client(),
@@ -272,7 +274,19 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
-            assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
+            if (indexILMState.containsKey("failed_step")) {
+                assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
+            } else {
+                // The failed step gets reset every time ILM retries, so we introduce an alternative check
+                // We check that ILM is re-trying the wait-for-snapshot step
+                assertThat(indexILMState.get("step"), is("wait-for-snapshot"));
+                assertThat(indexILMState.get(FAILED_STEP_RETRY_COUNT_FIELD), notNullValue());
+                assertThat((int) indexILMState.get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThan(0));
+                // And that the previous step failed because the SLM policy was missing
+                assertThat(indexILMState.get("previous_step_info"), notNullValue());
+                Map<String, Object> previousStepInfo = (Map<String, Object>) indexILMState.get("previous_step_info");
+                assertThat(previousStepInfo.get("reason"), equalTo("configured policy '" + slmPolicy + "' not found"));
+            }
         }, slmPolicy);
         createSlmPolicy(slmPolicy, snapshotRepo); // put the slm policy back
         assertBusy(() -> {
@@ -441,7 +455,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                     .field("type", "fs")
                     .startObject("settings")
                     .field("compress", randomBoolean())
-                    .field("location", System.getProperty("tests.path.repo"))
+                    .field("location", repoDir.getRoot().getAbsolutePath())
                     .field("max_snapshot_bytes_per_sec", "256b")
                     .endObject()
                     .endObject()

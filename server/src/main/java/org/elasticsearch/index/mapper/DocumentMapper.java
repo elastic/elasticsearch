@@ -50,7 +50,8 @@ public class DocumentMapper {
             mapping.toCompressedXContent(),
             IndexVersion.current(),
             mapperService.getMapperMetrics(),
-            mapperService.index().getName()
+            mapperService.index().getName(),
+            mapperService.getIndexMode()
         );
     }
 
@@ -60,11 +61,12 @@ public class DocumentMapper {
         CompressedXContent source,
         IndexVersion version,
         MapperMetrics mapperMetrics,
-        String indexName
+        String indexName,
+        IndexMode indexMode
     ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().fullPath();
-        this.mappingLookup = MappingLookup.fromMapping(mapping);
+        this.mappingLookup = MappingLookup.fromMapping(mapping, indexMode);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
         this.indexVersion = version;
@@ -78,8 +80,6 @@ public class DocumentMapper {
     private void maybeLog(Exception ex) {
         if (logger.isDebugEnabled()) {
             logger.debug("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
-        } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {
-            logger.info("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
         }
     }
 

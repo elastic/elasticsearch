@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN;
 import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT;
 
 /**
@@ -67,7 +66,7 @@ public final class RRFRankDoc extends RankDoc {
     public RRFRankDoc(StreamInput in) throws IOException {
         super(in);
         rank = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             if (in.readBoolean()) {
                 positions = in.readIntArray();
             } else {
@@ -135,7 +134,7 @@ public final class RRFRankDoc extends RankDoc {
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(rank);
-        if (out.getTransportVersion().onOrAfter(RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             if (positions != null) {
                 out.writeBoolean(true);
                 out.writeIntArray(positions);

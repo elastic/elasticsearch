@@ -48,12 +48,12 @@
         "description": "specifies a max number of records to get"
       },
       "start": {
-        "type": "string",
+        "type": "date",
         "default": "-1",
         "description": "Start time filter for records"
       },
       "end": {
-        "type": "string",
+        "type": "date",
         "default": "-1",
         "description": "End time filter for records"
       },

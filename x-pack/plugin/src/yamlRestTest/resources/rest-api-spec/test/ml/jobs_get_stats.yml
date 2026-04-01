@@ -440,7 +440,7 @@ setup:
 
   # With the index closed the low level ML API reports a problem
   - do:
-      catch: /type=cluster_block_exception, reason=index \[.ml-anomalies-shared\] blocked by. \[FORBIDDEN\/.\/index closed\]/
+      catch: /type=cluster_block_exception, reason=index \[.ml-anomalies-shared.*?\] blocked by. \[FORBIDDEN\/.\/index closed\]/
       ml.get_job_stats: {}
 
   # But the high level X-Pack API returns what it can - we do this

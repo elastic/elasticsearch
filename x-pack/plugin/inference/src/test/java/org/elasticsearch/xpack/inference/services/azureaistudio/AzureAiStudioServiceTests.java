@@ -82,6 +82,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRequestFields.API_KEY_HEADER;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1059,6 +1060,27 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             null
         );
         testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = AzureAiStudioEmbeddingsModelTests.createModel(
+            "id",
+            getUrl(webServer),
+            AzureAiStudioProvider.OPENAI,
+            AzureAiStudioEndpointType.TOKEN,
+            "apikey"
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            List<ChunkInferenceInput> input = List.of();
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
     }
 
     private void testChunkedInfer(AzureAiStudioEmbeddingsModel model) throws IOException {

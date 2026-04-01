@@ -32,6 +32,7 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -92,7 +93,9 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
                 databaseNames,
                 containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
             );
-        });
+            // Downloading all four databases may take some time, so we set a longer timeout here.
+            // If 20 seconds prove insufficient, we should first investigate whether we can speed up the database downloader.
+        }, 20, TimeUnit.SECONDS);
     }
 
     /**

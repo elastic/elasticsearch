@@ -62,6 +62,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
             true,
             true,
             true,
+            false,
             null,
             null,
             new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0),

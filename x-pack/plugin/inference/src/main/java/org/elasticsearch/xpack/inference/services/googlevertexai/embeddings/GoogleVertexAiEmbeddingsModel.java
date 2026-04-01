@@ -67,7 +67,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
     }
 
     // Should only be used directly for testing
-    GoogleVertexAiEmbeddingsModel(
+    public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

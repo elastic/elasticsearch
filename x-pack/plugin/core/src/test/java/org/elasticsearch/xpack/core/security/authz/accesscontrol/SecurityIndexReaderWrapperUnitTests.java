@@ -17,6 +17,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
@@ -86,7 +87,14 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     }
 
     public void testDefaultMetaFields() throws Exception {
-        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
+        var searchExecutionContext = mock(SearchExecutionContext.class);
+        securityIndexReaderWrapper = new SecurityIndexReaderWrapper(
+            id -> searchExecutionContext,
+            null,
+            securityContext,
+            licenseState,
+            scriptService
+        ) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(

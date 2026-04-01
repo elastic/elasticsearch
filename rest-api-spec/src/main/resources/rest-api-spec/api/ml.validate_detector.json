@@ -1,7 +1,7 @@
 {
   "ml.validate_detector": {
     "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/v8",
+      "url": null,
       "description": "Validate an anomaly detection job"
     },
     "stability": "stable",
@@ -24,7 +24,6 @@
         }
       ]
     },
-    "params": {},
     "body": {
       "description": "The detector",
       "required": true

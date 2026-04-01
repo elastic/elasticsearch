@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -67,7 +68,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -521,6 +521,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
+        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, List.of(), randomFrom(IndexMode.values()));
     }
 }

@@ -235,7 +235,7 @@ public class TransportVersionTests extends ESTestCase {
         Set<Integer> missingVersions = new TreeSet<>();
         TransportVersion previous = null;
         for (var tv : TransportVersion.getAllVersions()) {
-            if (tv.before(TransportVersions.V_8_16_0)) {
+            if (tv.before(TransportVersions.V_8_18_0)) {
                 continue;
             }
             if (previous == null) {

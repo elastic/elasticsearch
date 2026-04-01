@@ -1,0 +1,49 @@
+[[release-notes-8.19.11]]
+== {es} version 8.19.11
+
+coming[8.19.11]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.11]]
+[float]
+=== Bug fixes
+
+EQL::
+* Fix `_index` on missing events in CCS {es-pull}140886[#140886]
+
+Inference::
+* [Inference API] Include rerank in supported tasks for IBM watsonx integration {es-pull}140331[#140331] (issue: {es-issue}140328[#140328])
+
+Machine Learning::
+* Disallow `max_number_of_allocations` > 1 for low priority model deployments {es-pull}140163[#140163] (issue: {es-issue}111227[#111227])
+
+Packaging::
+* Fix stderr leak in Docker ES process detection {es-pull}140701[#140701]
+
+Reindex::
+* Disable `_delete_by_query` and `_update_by_query` for CCS/stateful {es-pull}140301[#140301]
+
+Search::
+* Fix date fields sort formatting with missing values {es-pull}135899[#135899] (issue: {es-issue}81960[#81960])
+
+Transform::
+* Reduce task match load {es-pull}139857[#139857] (issue: {es-issue}139252[#139252])
+
+[[enhancement-8.19.11]]
+[float]
+=== Enhancements
+
+ILM::
+* Optimize usage calculation in ILM policies retrieval API {es-pull}106953[#106953] (issue: {es-issue}105773[#105773])
+
+IdentityProvider::
+* Support `LimitedRole` in idp role resolution {es-pull}140536[#140536]
+
+Inference::
+* Add `max_batch_size` setting to EIS dense and sparse service settings {es-pull}141185[#141185]
+
+Security::
+* Shadow plugin-cli JAR to avoid conflicts with BC FIPS classes {es-pull}138949[#138949]
+
+

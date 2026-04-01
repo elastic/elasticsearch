@@ -23,9 +23,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.IlmESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DownsampleActionIT extends ESRestTestCase {
+public class DownsampleActionIT extends IlmESRestTestCase {
 
     private String index;
     private String policy;
@@ -378,15 +378,16 @@ public class DownsampleActionIT extends ESRestTestCase {
         rolloverMaxOneDocCondition(client(), dataStream);
 
         assertBusy(() -> {
+            Map<String, Object> explainResponse = explainIndex(client(), backingIndexName);
             assertThat(
                 "index must wait in the " + WaitUntilTimeSeriesEndTimePassesStep.NAME + " until its end time lapses",
-                explainIndex(client(), backingIndexName).get("step"),
+                explainResponse.get("step"),
                 is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
             );
 
-            assertThat(explainIndex(client(), backingIndexName).get("step_info"), is(notNullValue()));
+            assertThat(explainResponse.get("step_info"), is(notNullValue()));
             assertThat(
-                (String) ((Map<String, Object>) explainIndex(client(), backingIndexName).get("step_info")).get("message"),
+                (String) ((Map<String, Object>) explainResponse.get("step_info")).get("message"),
                 containsString("Waiting until the index's time series end time lapses")
             );
         }, 30, TimeUnit.SECONDS);
@@ -565,8 +566,9 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertThat(indexExists(downsampleIndexName), is(true));
             assertThat(indexExists(firstBackingIndex), is(false));
 
-            assertThat(explainIndex(client(), downsampleIndexName).get("step"), is(PhaseCompleteStep.NAME));
-            assertThat(explainIndex(client(), downsampleIndexName).get("phase"), is("warm"));
+            Map<String, Object> explainResponse = explainIndex(client(), downsampleIndexName);
+            assertThat(explainResponse.get("step"), is(PhaseCompleteStep.NAME));
+            assertThat(explainResponse.get("phase"), is("warm"));
 
             Map<String, Object> settings = getOnlyIndexSettings(client(), downsampleIndexName);
             assertEquals(firstBackingIndex, settings.get(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey()));
@@ -606,8 +608,9 @@ public class DownsampleActionIT extends ESRestTestCase {
         // reach the cold/complete/complete step
         assertBusy(() -> {
             assertThat(indexExists(downsampleIndexName), is(true));
-            assertThat(explainIndex(client(), downsampleIndexName).get("step"), is(PhaseCompleteStep.NAME));
-            assertThat(explainIndex(client(), downsampleIndexName).get("phase"), is("cold"));
+            Map<String, Object> explainResponse = explainIndex(client(), downsampleIndexName);
+            assertThat(explainResponse.get("step"), is(PhaseCompleteStep.NAME));
+            assertThat(explainResponse.get("phase"), is("cold"));
         }, 60, TimeUnit.SECONDS);
     }
 

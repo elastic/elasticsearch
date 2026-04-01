@@ -235,8 +235,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
 
     private AbstractLookupService.LookupShardContextFactory lookupShardContextFactory() {
         return shardId -> {
-            MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-            };
+            MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
             MapperService mapperService = mapperHelper.createMapperService("""
                 {
                     "doc": { "properties": {

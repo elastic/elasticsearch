@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew spotlessApply:*)",
+      "Bash(./gradlew :qa:vector:checkVec:*)",
+      "Bash(find:*)",
+      "Bash(./gradlew :server:compileJava:*)",
+      "Bash(grep:*)",
+      "Bash(./gradlew :server:test:*)",
+      "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && grep -o \"\"java\\\\.[a-zA-Z]*Exception[^<]*\"\" {} | head -3')",
+      "Bash(./gradlew:*)",
+      "Bash(gh pr view:*)",
+      "Bash(git stash:*)",
+      "Bash(git checkout:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:patch-diff.githubusercontent.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git log:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -25,8 +25,16 @@ public class IndexFeatures implements FeatureSpecification {
 
     private static final NodeFeature SYNONYMS_SET_LENIENT_ON_NON_EXISTING = new NodeFeature("index.synonyms_set_lenient_on_non_existing");
 
+    private static final NodeFeature SHADOWING_DIMENSIONS_AND_METRICS_IS_VALID_IN_NON_TSDB = new NodeFeature(
+        "index.shadowing_dimensions_and_metrics_is_valid_in_non_tsdb"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(LOGSDB_NO_HOST_NAME_FIELD, SYNONYMS_SET_LENIENT_ON_NON_EXISTING);
+        return Set.of(
+            LOGSDB_NO_HOST_NAME_FIELD,
+            SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
+            SHADOWING_DIMENSIONS_AND_METRICS_IS_VALID_IN_NON_TSDB
+        );
     }
 }

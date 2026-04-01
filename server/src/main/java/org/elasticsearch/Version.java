@@ -130,7 +130,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_7_17_27 = new Version(7_17_27_99);
     public static final Version V_7_17_28 = new Version(7_17_28_99);
     public static final Version V_7_17_29 = new Version(7_17_29_99);
-    public static final Version V_7_17_30 = new Version(7_17_30_99);
 
     public static final Version V_8_0_0 = new Version(8_00_00_99);
     public static final Version V_8_0_1 = new Version(8_00_01_99);
@@ -220,7 +219,6 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_18_6 = new Version(8_18_06_99);
     public static final Version V_8_18_7 = new Version(8_18_07_99);
     public static final Version V_8_18_8 = new Version(8_18_08_99);
-    public static final Version V_8_18_9 = new Version(8_18_09_99);
     public static final Version V_8_19_0 = new Version(8_19_00_99);
     public static final Version V_8_19_1 = new Version(8_19_01_99);
     public static final Version V_8_19_2 = new Version(8_19_02_99);
@@ -228,7 +226,15 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_19_4 = new Version(8_19_04_99);
     public static final Version V_8_19_5 = new Version(8_19_05_99);
     public static final Version V_8_19_6 = new Version(8_19_06_99);
-    public static final Version CURRENT = V_8_19_6;
+    public static final Version V_8_19_7 = new Version(8_19_07_99);
+    public static final Version V_8_19_8 = new Version(8_19_08_99);
+    public static final Version V_8_19_9 = new Version(8_19_09_99);
+    public static final Version V_8_19_10 = new Version(8_19_10_99);
+    public static final Version V_8_19_11 = new Version(8_19_11_99);
+    public static final Version V_8_19_12 = new Version(8_19_12_99);
+    public static final Version V_8_19_13 = new Version(8_19_13_99);
+    public static final Version V_8_19_14 = new Version(8_19_14_99);
+    public static final Version CURRENT = V_8_19_14;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;

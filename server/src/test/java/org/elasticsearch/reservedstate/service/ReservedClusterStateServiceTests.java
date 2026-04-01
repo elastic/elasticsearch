@@ -38,6 +38,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -127,6 +128,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         public TransformState transform(Object source, TransformState prevState) throws Exception {
             ClusterState newState = new ClusterState.Builder(prevState.state()).build();
             return new TransformState(newState, prevState.keys());
+        }
+
+        @Override
+        public ClusterState remove(TransformState prevState) throws Exception {
+            return transform(null, prevState).state();
         }
 
         @Override
@@ -236,6 +242,138 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         );
     }
 
+    public void testTransformAndRemoveGetCalled() throws Exception {
+        // TODO: Ought to do this for project state updates too.
+
+        // This records the calls made to the handler
+        ArrayList<Operation> operations = new ArrayList<>();
+        var handler = new TestStateHandler("test_cluster_state_handler") {
+            @Override
+            public TransformState transform(Object sourceObj, TransformState prevState) throws Exception {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> source = (Map<String, Object>) sourceObj;
+                operations.add(new Operation.Transform(source, prevState.keys()));
+                return new TransformState(prevState.state(), source.keySet());
+            }
+
+            @Override
+            public ClusterState remove(TransformState prevState) {
+                operations.add(new Operation.Remove(prevState.keys()));
+                return prevState.state();
+            }
+        };
+
+        ClusterState state1 = ClusterState.EMPTY_STATE;
+
+        // 1. Add our section to the reserved state chunk
+        ReservedStateChunk initialStateChunk = new ReservedStateChunk(
+            Map.of("test_handler_name", Map.of("key1", "value1")),
+            new ReservedStateVersion(1L, Version.CURRENT)
+        );
+        ReservedStateUpdateTask addTask = new ReservedStateUpdateTask(
+            "test_namespace",
+            initialStateChunk,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of("test_handler_name", handler),
+            List.copyOf(initialStateChunk.state().keySet()),
+            Assert::assertNull,
+            ActionListener.noop()
+        );
+        ClusterState state2 = addTask.execute(state1);
+
+        assertEquals(List.of(new Operation.Transform(Map.of("key1", "value1"), Set.of())), operations);
+        var expected2 = Map.of(
+            "test_namespace",
+            new ReservedStateMetadata(
+                "test_namespace",
+                initialStateChunk.metadata().version(),
+                Map.of("test_handler_name", new ReservedStateHandlerMetadata("test_handler_name", Set.of("key1"))),
+                null
+            )
+        );
+        assertEquals("Our section of the reserved state has been added", expected2, state2.metadata().reservedStateMetadata());
+
+        operations.clear();
+
+        // 2. Change our section of the reserved state
+        ReservedStateChunk changedStateChunk = new ReservedStateChunk(
+            Map.of("test_handler_name", Map.of("key2", "value2")),
+            new ReservedStateVersion(2L, Version.CURRENT)
+        );
+        ReservedStateUpdateTask changeTask = new ReservedStateUpdateTask(
+            "test_namespace",
+            changedStateChunk,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of("test_handler_name", handler),
+            List.copyOf(changedStateChunk.state().keySet()),
+            Assert::assertNull,
+            ActionListener.noop()
+        );
+        ClusterState state3 = changeTask.execute(state2);
+
+        assertEquals(List.of(new Operation.Transform(Map.of("key2", "value2"), Set.of("key1"))), operations);
+        var expected3 = Map.of(
+            "test_namespace",
+            new ReservedStateMetadata(
+                "test_namespace",
+                changedStateChunk.metadata().version(),
+                Map.of("test_handler_name", new ReservedStateHandlerMetadata("test_handler_name", Set.of("key2"))),
+                null
+            )
+        );
+        assertEquals("Our section of the removed state is updated", expected3, state3.metadata().reservedStateMetadata());
+
+        operations.clear();
+
+        // 3. Remove our section of the state chunk
+        ReservedStateChunk removedStateChunk = new ReservedStateChunk(Map.of(), new ReservedStateVersion(3L, Version.CURRENT));
+        ReservedStateUpdateTask removeTask = new ReservedStateUpdateTask(
+            "test_namespace",
+            removedStateChunk,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of("test_handler_name", handler),
+            List.copyOf(removedStateChunk.state().keySet()),
+            Assert::assertNull,
+            ActionListener.noop()
+        );
+        var state4 = removeTask.execute(state3);
+
+        assertEquals(List.of(new Operation.Remove(Set.of("key2"))), operations);
+        var expected4 = Map.of(
+            "test_namespace",
+            new ReservedStateMetadata("test_namespace", removedStateChunk.metadata().version(), Map.of(), null)
+        );
+        assertEquals("Our section of the removed state is gone", expected4, state4.metadata().reservedStateMetadata());
+
+        operations.clear();
+
+        // 4. Resubmit without our section and make sure it's a no-op
+        ReservedStateChunk stillGoneStateChunk = new ReservedStateChunk(Map.of(), new ReservedStateVersion(4L, Version.CURRENT));
+        ReservedStateUpdateTask noopTask = new ReservedStateUpdateTask(
+            "test_namespace",
+            stillGoneStateChunk,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of("test_handler_name", handler),
+            List.copyOf(stillGoneStateChunk.state().keySet()),
+            Assert::assertNull,
+            ActionListener.noop()
+        );
+        var state5 = noopTask.execute(state4);
+
+        assertEquals(List.of(), operations);
+        var expected5 = Map.of(
+            "test_namespace",
+            new ReservedStateMetadata("test_namespace", stillGoneStateChunk.metadata().version(), Map.of(), null)
+        );
+        assertEquals("Our section of the removed state is still gone", expected5, state5.metadata().reservedStateMetadata());
+    }
+
+    private sealed interface Operation {
+        record Transform(Object source, Set<String> prevKeys) implements Operation {}
+
+        record Remove(Set<String> prevKeys) implements Operation {}
+    }
+
     public void testUpdateStateTasks() throws Exception {
         RerouteService rerouteService = mock(RerouteService.class);
 
@@ -248,7 +386,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ReservedStateUpdateTask task = spy(
             new ReservedStateUpdateTask(
                 "test",
-                null,
+                new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, Version.CURRENT)),
                 ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
                 Map.of(),
                 Set.of(),
@@ -560,19 +698,24 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         final var controller = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(oh1, oh2, oh3));
-        Collection<String> ordered = controller.orderedStateHandlers(Set.of("one", "two", "three"));
+        Collection<String> ordered = ReservedStateUpdateTask.orderedStateHandlers(Set.of("one", "two", "three"), controller.handlers);
         assertThat(ordered, contains("two", "three", "one"));
 
         // assure that we bail on unknown handler
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two", "three", "four")))
-                .getMessage(),
+            expectThrows(
+                IllegalStateException.class,
+                () -> ReservedStateUpdateTask.orderedStateHandlers(Set.of("one", "two", "three", "four"), controller.handlers)
+            ).getMessage(),
             is("Unknown handler type: four")
         );
 
         // assure that we bail on missing dependency link
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
+            expectThrows(
+                IllegalStateException.class,
+                () -> ReservedStateUpdateTask.orderedStateHandlers(Set.of("one", "two"), controller.handlers)
+            ).getMessage(),
             is("Missing handler dependency definition: one -> three")
         );
 
@@ -582,7 +725,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         final var controller1 = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of(oh1, oh2));
 
         assertThat(
-            expectThrows(IllegalStateException.class, () -> controller1.orderedStateHandlers(Set.of("one", "two"))).getMessage(),
+            expectThrows(
+                IllegalStateException.class,
+                () -> ReservedStateUpdateTask.orderedStateHandlers(Set.of("one", "two"), controller1.handlers)
+            ).getMessage(),
             anyOf(
                 is("Cycle found in settings dependencies: one -> two -> one"),
                 is("Cycle found in settings dependencies: two -> one -> two")

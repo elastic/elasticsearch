@@ -935,8 +935,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         var modifiedKeys = putTemplateAction.modifiedKeys(pr);
         assertEquals(1, modifiedKeys.size());
 
-        var fakeAction = new ActionWithReservedState<TransportPutComposableIndexTemplateAction.Request>() {
-        };
+        var fakeAction = new ActionWithReservedState<TransportPutComposableIndexTemplateAction.Request>() {};
         assertEquals(
             "Failed to process request [validate_template] with errors: "
                 + "[[composable_index_template:validate_template] set as read-only by [file_settings]]",

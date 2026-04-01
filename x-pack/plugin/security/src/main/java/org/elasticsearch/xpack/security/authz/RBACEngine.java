@@ -42,6 +42,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -77,6 +78,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
@@ -89,6 +91,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
@@ -724,13 +727,17 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
+    public void getUserPrivileges(
+        AuthorizationInfo authorizationInfo,
+        RoleReference.ApiKeyRoleType unwrapLimitedRole,
+        ActionListener<GetUserPrivilegesResponse> listener
+    ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
             );
         } else {
-            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            final Role role = getEffectiveRole((RBACAuthorizationInfo) authorizationInfo, unwrapLimitedRole);
             final GetUserPrivilegesResponse getUserPrivilegesResponse;
             try {
                 getUserPrivilegesResponse = buildUserPrivilegesResponseObject(role);
@@ -746,6 +753,22 @@ public class RBACEngine implements AuthorizationEngine {
             }
             listener.onResponse(getUserPrivilegesResponse);
         }
+    }
+
+    private static Role getEffectiveRole(
+        RBACAuthorizationInfo authorizationInfo,
+        @Nullable RoleReference.ApiKeyRoleType unwrapLimitedRole
+    ) {
+        Role role = authorizationInfo.getRole();
+        if (unwrapLimitedRole != null) {
+            while (role instanceof LimitedRole limitedRole) {
+                role = switch (unwrapLimitedRole) {
+                    case ASSIGNED -> limitedRole.getBaseRole();
+                    case LIMITED_BY -> limitedRole.getLimitedByRole();
+                };
+            }
+        }
+        return role;
     }
 
     @Override

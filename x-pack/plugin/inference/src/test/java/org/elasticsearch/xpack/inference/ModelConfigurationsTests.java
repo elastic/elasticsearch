@@ -7,18 +7,20 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankTaskSettingsTests;
 
-public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<ModelConfigurations> {
+public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCase<ModelConfigurations> {
 
     public static ModelConfigurations createRandomInstance() {
         var taskType = randomFrom(TaskType.values());
@@ -27,45 +29,86 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
             taskType,
             randomAlphaOfLength(6),
             randomServiceSettings(),
-            randomTaskSettings(taskType),
+            randomTaskSettings(),
             randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
         );
     }
 
     public static ModelConfigurations mutateTestInstance(ModelConfigurations instance) {
-        switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 5)) {
             case 0 -> new ModelConfigurations(
                 instance.getInferenceEntityId() + "foo",
                 instance.getTaskType(),
                 instance.getService(),
                 instance.getServiceSettings(),
-                instance.getTaskSettings()
+                instance.getTaskSettings(),
+                instance.getChunkingSettings()
             );
             case 1 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
                 TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
                 instance.getService(),
                 instance.getServiceSettings(),
-                instance.getTaskSettings()
+                instance.getTaskSettings(),
+                instance.getChunkingSettings()
             );
             case 2 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
                 instance.getTaskType(),
                 instance.getService() + "bar",
                 instance.getServiceSettings(),
-                instance.getTaskSettings()
+                instance.getTaskSettings(),
+                instance.getChunkingSettings()
             );
+            case 3 -> new ModelConfigurations(
+                instance.getInferenceEntityId(),
+                instance.getTaskType(),
+                instance.getService(),
+                randomValueOtherThan(instance.getServiceSettings(), ModelConfigurationsTests::randomServiceSettings),
+                instance.getTaskSettings(),
+                instance.getChunkingSettings()
+            );
+            case 4 -> new ModelConfigurations(
+                instance.getInferenceEntityId(),
+                instance.getTaskType(),
+                instance.getService(),
+                instance.getServiceSettings(),
+                randomValueOtherThan(instance.getTaskSettings(), ModelConfigurationsTests::randomTaskSettings),
+                instance.getChunkingSettings()
+            );
+            case 5 -> {
+                var chunkingSettings = instance.getChunkingSettings();
+                // Mutate chunkingSettings: if null, create a random one; if non-null, toggle to null or create a different one
+                if (chunkingSettings == null) {
+                    chunkingSettings = ChunkingSettingsTests.createRandomChunkingSettings();
+                } else {
+                    chunkingSettings = randomBoolean()
+                        ? null
+                        : randomValueOtherThan(chunkingSettings, ChunkingSettingsTests::createRandomChunkingSettings);
+                }
+                yield new ModelConfigurations(
+                    instance.getInferenceEntityId(),
+                    instance.getTaskType(),
+                    instance.getService(),
+                    instance.getServiceSettings(),
+                    instance.getTaskSettings(),
+                    chunkingSettings
+                );
+            }
             default -> throw new IllegalStateException();
-        }
-        return null;
+        };
     }
 
     private static ServiceSettings randomServiceSettings() {
-        return ElserInternalServiceSettingsTests.createRandom();
+        // This used to be ElserInternalServiceSettings::createRandom but that would generate an invalid num allocations because it can
+        // generate null for the field. That fails the ElasticsearchInternalServiceSettings writeTo
+        // serialization (in 8.16 and previous the field is required). So I'm switching to a simpler implementation since this is mainly
+        // to test the serialization of ModelConfigurations and not the individual service settings implementations
+        return JinaAIRerankServiceSettingsTests.createRandom();
     }
 
-    private static TaskSettings randomTaskSettings(TaskType taskType) {
-        return ElserMlNodeTaskSettings.DEFAULT; // only 1 implementation
+    private static TaskSettings randomTaskSettings() {
+        return JinaAIRerankTaskSettingsTests.createRandom();
     }
 
     @Override
@@ -86,5 +129,21 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
     @Override
     protected ModelConfigurations mutateInstance(ModelConfigurations instance) {
         return mutateTestInstance(instance);
+    }
+
+    @Override
+    protected ModelConfigurations mutateInstanceForVersion(ModelConfigurations instance, TransportVersion version) {
+        if (version.onOrAfter(TransportVersions.V_8_16_0)) {
+            return instance;
+        }
+
+        return new ModelConfigurations(
+            instance.getInferenceEntityId(),
+            instance.getTaskType(),
+            instance.getService(),
+            instance.getServiceSettings(),
+            instance.getTaskSettings(),
+            null  // chunkingSettings not serialized in pre-8.16
+        );
     }
 }

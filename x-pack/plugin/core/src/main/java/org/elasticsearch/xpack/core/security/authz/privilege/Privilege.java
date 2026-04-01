@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -19,6 +20,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 
@@ -30,6 +32,7 @@ public class Privilege {
     protected final Set<String> name;
     protected final Automaton automaton;
     protected final Predicate<String> predicate;
+    protected final Supplier<Boolean> grantsAll;
 
     public Privilege(String name, String... patterns) {
         this(Collections.singleton(name), patterns);
@@ -43,6 +46,7 @@ public class Privilege {
         this.name = name;
         this.automaton = automaton;
         this.predicate = Automatons.predicate(automaton);
+        this.grantsAll = CachedSupplier.wrap(() -> Operations.isTotal(automaton));
     }
 
     public Set<String> name() {
@@ -79,6 +83,13 @@ public class Privilege {
 
     public Automaton getAutomaton() {
         return automaton;
+    }
+
+    /**
+     * Returns true if this privilege grants all names.
+     */
+    public boolean grantsAll() {
+        return grantsAll.get();
     }
 
     /**

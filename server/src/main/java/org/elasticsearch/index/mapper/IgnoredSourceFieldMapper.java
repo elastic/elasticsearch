@@ -259,6 +259,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static MappedNameValue decodeAsMap(byte[] value) throws IOException {
         BytesRef bytes = new BytesRef(value);
         IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(bytes);
+        if (nameValue.hasValue() == false) {
+            return null;
+        }
         XContentBuilder xContentBuilder = XContentBuilder.builder(XContentDataHelper.getXContentType(nameValue.value()).xContent());
         xContentBuilder.startObject().field(nameValue.name());
         XContentDataHelper.decodeAndWrite(xContentBuilder, nameValue.value());

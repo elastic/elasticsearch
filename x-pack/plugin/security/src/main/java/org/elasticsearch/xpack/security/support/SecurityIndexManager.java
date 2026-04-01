@@ -44,10 +44,12 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
+import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 
@@ -341,6 +343,9 @@ public class SecurityIndexManager implements ClusterStateListener {
             event.state(),
             migrationsVersion
         );
+        var persistentTaskCustomMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(event.state());
+        final boolean securityMigrationRunning = persistentTaskCustomMetadata != null
+            && persistentTaskCustomMetadata.getTask(SecurityMigrationTaskParams.TASK_NAME) != null;
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(event.state());
         final int indexMappingVersion = loadIndexMappingVersion(systemIndexDescriptor.getAliasName(), event.state());
@@ -370,6 +375,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexAvailableForWrite,
             mappingIsUpToDate,
             createdOnLatestVersion,
+            securityMigrationRunning,
             roleMappingsCleanupMigrationStatus,
             migrationsVersion,
             minClusterMappingVersion,
@@ -384,10 +390,29 @@ public class SecurityIndexManager implements ClusterStateListener {
         );
         this.state = newState;
 
-        if (newState.equals(previousState) == false) {
+        if (shouldNotifyListeners(newState, previousState)) {
             for (BiConsumer<State, State> listener : stateChangeListeners) {
                 listener.accept(previousState, newState);
             }
+        }
+    }
+
+    private static boolean shouldNotifyListeners(State newState, State previousState) {
+        if (newState.equals(previousState)) {
+            // If we add a new migration (in code), but don't change anything internal to the index state then the `IndexState`` will never
+            // change (unless the index health changes) but we do want to treat changes to "is-up-to-date-with-migrations" as a state change
+            // However we can't do that (easily) with a flag in `IndexState` because that flag wouldn't change - as soon as the new version
+            // of the code was deployed it would think that the state was "not-up-to-date" and wouldn't detect a change.
+            // Instead we just handle it as a special case here.
+            // But, this class manages multiple different indices, not all of which have migrations defined. So we only trigger this is
+            // the index has had at least 1 migration before (if the index is entirely new then it will be picked up by other state changes)
+            return newState.indexExists()
+                && newState.securityMigrationRunning == false
+                && newState.migrationsVersion != null
+                && newState.migrationsVersion > 0
+                && newState.migrationsVersion < SecurityMigrations.highestMigrationVersion();
+        } else {
+            return true;
         }
     }
 
@@ -774,6 +799,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             false,
             false,
             false,
+            false,
             null,
             null,
             null,
@@ -790,6 +816,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final boolean indexAvailableForWrite;
         public final boolean mappingUpToDate;
         public final boolean createdOnLatestVersion;
+        public final boolean securityMigrationRunning;
         public final RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus;
         public final Integer migrationsVersion;
         // Min mapping version supported by the descriptors in the cluster
@@ -809,6 +836,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean indexAvailableForWrite,
             boolean mappingUpToDate,
             boolean createdOnLatestVersion,
+            boolean securityMigrationRunning,
             RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus,
             Integer migrationsVersion,
             SystemIndexDescriptor.MappingsVersion minClusterMappingVersion,
@@ -826,6 +854,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.mappingUpToDate = mappingUpToDate;
             this.migrationsVersion = migrationsVersion;
             this.createdOnLatestVersion = createdOnLatestVersion;
+            this.securityMigrationRunning = securityMigrationRunning;
             this.roleMappingsCleanupMigrationStatus = roleMappingsCleanupMigrationStatus;
             this.minClusterMappingVersion = minClusterMappingVersion;
             this.indexMappingVersion = indexMappingVersion;
@@ -847,6 +876,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && indexAvailableForWrite == state.indexAvailableForWrite
                 && mappingUpToDate == state.mappingUpToDate
                 && createdOnLatestVersion == state.createdOnLatestVersion
+                && securityMigrationRunning == state.securityMigrationRunning
                 && roleMappingsCleanupMigrationStatus == state.roleMappingsCleanupMigrationStatus
                 && Objects.equals(indexMappingVersion, state.indexMappingVersion)
                 && Objects.equals(migrationsVersion, state.migrationsVersion)
@@ -870,6 +900,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexAvailableForWrite,
                 mappingUpToDate,
                 createdOnLatestVersion,
+                securityMigrationRunning,
                 roleMappingsCleanupMigrationStatus,
                 migrationsVersion,
                 minClusterMappingVersion,
@@ -895,6 +926,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + mappingUpToDate
                 + ", createdOnLatestVersion="
                 + createdOnLatestVersion
+                + ", securityMigrationRunning="
+                + securityMigrationRunning
                 + ", roleMappingsCleanupMigrationStatus="
                 + roleMappingsCleanupMigrationStatus
                 + ", migrationsVersion="

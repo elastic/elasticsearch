@@ -91,7 +91,6 @@ public class WindowsServiceTests extends PackagingTestCase {
             logger.error("---- Unexpected exit code (expected " + exitCode + ", got " + result.exitCode() + ") for script: " + script);
             logger.error(result);
             logger.error("Dumping log files\n");
-            dumpDebug();
             fail();
         } else {
             logger.info("\nscript: " + script + "\nstdout: " + result.stdout() + "\nstderr: " + result.stderr());

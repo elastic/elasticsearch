@@ -2,8 +2,8 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-}
 
-tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('ccr'))
 }

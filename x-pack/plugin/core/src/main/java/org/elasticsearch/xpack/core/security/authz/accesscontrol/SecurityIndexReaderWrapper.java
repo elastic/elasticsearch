@@ -96,7 +96,10 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
                 }
             }
 
-            return permissions.getFieldPermissions().filter(wrappedReader);
+            var searchContext = searchExecutionContextProvider.apply(shardId);
+            Function<String, Boolean> isMapped = searchContext::isFieldMapped;
+
+            return permissions.getFieldPermissions().filter(wrappedReader, isMapped);
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);

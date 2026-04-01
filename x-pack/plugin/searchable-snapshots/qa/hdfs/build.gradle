@@ -14,7 +14,7 @@ apply plugin: 'elasticsearch.internal-available-ports'
 configurations {
   javaRestTestRuntimeClasspath {
     attributes {
-      attribute(Attribute.of('hdfs.major.version', Integer), 2)
+      attribute(Attribute.of('hdfs.major.version', Integer), 3)
     }
   }
 }

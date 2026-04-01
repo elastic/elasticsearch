@@ -207,7 +207,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                     store.getClientWithOrigin(),
                     nodeClient.threadPool(),
                     isCancelled -> () -> searchService.aggReduceContextBuilder(isCancelled, originalSearchRequest.source().aggregations())
-                        .forFinalReduction()
+                        .forFinalReduction(),
+                    store
                 );
             }
         };

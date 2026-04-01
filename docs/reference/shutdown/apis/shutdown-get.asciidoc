@@ -81,7 +81,7 @@ including the status of shard migration, task migration, and plugin cleanup:
             "node_ephemeral_id": null,
             "type": "RESTART",
             "reason": "Demonstrating how the node shutdown API works",
-            "shutdown_startedmillis": 1624406108685,
+            "shutdown_started_millis": 1624406108685,
             "allocation_delay": "10m",
             "status": "COMPLETE",
             "shard_migration": {
@@ -99,5 +99,5 @@ including the status of shard migration, task migration, and plugin cleanup:
     ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/1624406108685/$body.nodes.0.shutdown_startedmillis/]
+// TESTRESPONSE[s/1624406108685/$body.nodes.0.shutdown_started_millis/]
 // TESTRESPONSE[s/USpTGYaBSIKbgSUJR2Z9lg/$body.nodes.0.node_id/]

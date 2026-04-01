@@ -83,6 +83,11 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
     }
 
     @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(List.of(), prevState).state();
+    }
+
+    @Override
     public List<PutAutoscalingPolicyAction.Request> fromXContent(XContentParser parser) throws IOException {
         List<PutAutoscalingPolicyAction.Request> result = new ArrayList<>();
 

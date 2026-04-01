@@ -47,7 +47,24 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "id",
+          "action",
+          "task_id",
+          "parent_task_id",
+          "type",
+          "start_time",
+          "timestamp",
+          "running_time_ns",
+          "running_time",
+          "node_id",
+          "ip",
+          "port",
+          "node",
+          "version",
+          "x_opaque_id"
+        ]
       },
       "help": {
         "type": "boolean",

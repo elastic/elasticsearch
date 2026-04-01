@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public record DownsampleShardTaskParams(
@@ -34,8 +35,11 @@ public record DownsampleShardTaskParams(
     ShardId shardId,
     String[] metrics,
     String[] labels,
-    String[] dimensions
+    String[] dimensions,
+    Map<String, String> multiFieldSources
 ) implements PersistentTaskParams {
+
+    public static TransportVersion DOWNSAMPLED_ADD_MULTI_FIELDS_SOURCES = TransportVersion.fromName("downsample_add_multi_field_sources");
 
     public static final String NAME = DownsampleShardTask.TASK_NAME;
     private static final ParseField DOWNSAMPLE_CONFIG = new ParseField("downsample_config");
@@ -46,6 +50,7 @@ public record DownsampleShardTaskParams(
     private static final ParseField METRICS = new ParseField("metrics");
     private static final ParseField LABELS = new ParseField("labels");
     private static final ParseField DIMENSIONS = new ParseField("dimensions");
+    private static final ParseField MULTI_FIELD_SOURCES = new ParseField("multi_field_sources");
     public static final ObjectParser<DownsampleShardTaskParams.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
@@ -61,6 +66,7 @@ public record DownsampleShardTaskParams(
         PARSER.declareStringArray(DownsampleShardTaskParams.Builder::metrics, METRICS);
         PARSER.declareStringArray(DownsampleShardTaskParams.Builder::labels, LABELS);
         PARSER.declareStringArray(DownsampleShardTaskParams.Builder::dimensions, DIMENSIONS);
+        PARSER.declareObject(DownsampleShardTaskParams.Builder::alternativeSources, (p, c) -> p.map(), MULTI_FIELD_SOURCES);
     }
 
     DownsampleShardTaskParams(final StreamInput in) throws IOException {
@@ -72,7 +78,8 @@ public record DownsampleShardTaskParams(
             new ShardId(in),
             in.readStringArray(),
             in.readStringArray(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readOptionalStringArray() : new String[] {}
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readOptionalStringArray() : new String[] {},
+            in.getTransportVersion().supports(DOWNSAMPLED_ADD_MULTI_FIELDS_SOURCES) ? in.readMap(StreamInput::readString) : Map.of()
         );
     }
 
@@ -88,6 +95,10 @@ public record DownsampleShardTaskParams(
         builder.array(LABELS.getPreferredName(), labels);
         if (dimensions.length > 0) {
             builder.array(DIMENSIONS.getPreferredName(), dimensions);
+        }
+        if (multiFieldSources != null && multiFieldSources.isEmpty() == false) {
+            builder.field(MULTI_FIELD_SOURCES.getPreferredName());
+            builder.map(multiFieldSources);
         }
         return builder.endObject();
     }
@@ -114,6 +125,9 @@ public record DownsampleShardTaskParams(
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalStringArray(dimensions);
         }
+        if (out.getTransportVersion().supports(DOWNSAMPLED_ADD_MULTI_FIELDS_SOURCES)) {
+            out.writeMap(multiFieldSources, StreamOutput::writeString, StreamOutput::writeString);
+        }
     }
 
     public static DownsampleShardTaskParams fromXContent(XContentParser parser) throws IOException {
@@ -135,7 +149,8 @@ public record DownsampleShardTaskParams(
             && Objects.equals(shardId.getIndexName(), that.shardId.getIndexName())
             && Arrays.equals(metrics, that.metrics)
             && Arrays.equals(labels, that.labels)
-            && Arrays.equals(dimensions, that.dimensions);
+            && Arrays.equals(dimensions, that.dimensions)
+            && Objects.equals(multiFieldSources, that.multiFieldSources);
     }
 
     @Override
@@ -146,7 +161,8 @@ public record DownsampleShardTaskParams(
             indexStartTimeMillis,
             indexEndTimeMillis,
             shardId.id(),
-            shardId.getIndexName()
+            shardId.getIndexName(),
+            multiFieldSources
         );
         result = 31 * result + Arrays.hashCode(metrics);
         result = 31 * result + Arrays.hashCode(labels);
@@ -163,6 +179,7 @@ public record DownsampleShardTaskParams(
         String[] metrics;
         String[] labels;
         String[] dimensions = Strings.EMPTY_ARRAY;
+        Map<String, String> alternativeSources = Map.of();
 
         public Builder downsampleConfig(final DownsampleConfig downsampleConfig) {
             this.downsampleConfig = downsampleConfig;
@@ -204,6 +221,12 @@ public record DownsampleShardTaskParams(
             return this;
         }
 
+        @SuppressWarnings("unchecked")
+        public Builder alternativeSources(final Map<String, ?> alternativeSources) {
+            this.alternativeSources = (Map<String, String>) alternativeSources;
+            return this;
+        }
+
         public DownsampleShardTaskParams build() {
             return new DownsampleShardTaskParams(
                 downsampleConfig,
@@ -213,7 +236,8 @@ public record DownsampleShardTaskParams(
                 shardId,
                 metrics,
                 labels,
-                dimensions
+                dimensions,
+                alternativeSources
             );
         }
     }

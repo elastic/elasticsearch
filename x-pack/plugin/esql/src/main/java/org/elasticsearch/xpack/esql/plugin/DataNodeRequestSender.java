@@ -28,6 +28,8 @@ import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
@@ -63,6 +65,8 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  * and executing these computes on the data nodes.
  */
 abstract class DataNodeRequestSender {
+
+    private static final Logger LOGGER = LogManager.getLogger(DataNodeRequestSender.class);
 
     /**
      * Query order according to the
@@ -275,38 +279,52 @@ abstract class DataNodeRequestSender {
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
         final ActionListener<DriverCompletionInfo> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
-            void onAfter(DriverCompletionInfo info) {
+
+            void onAfterRequest() {
                 nodePermits.get(request.node).release();
                 if (concurrentRequests != null) {
                     concurrentRequests.release();
                 }
                 trySendingRequestsForPendingShards(targetShards, computeListener);
-                listener.onResponse(info);
             }
 
             @Override
             public void onResponse(DataNodeComputeResponse response) {
-                // remove failures of successful shards
-                for (ShardId shardId : request.shardIds()) {
-                    if (response.shardLevelFailures().containsKey(shardId) == false) {
-                        shardFailures.remove(shardId);
+                try {
+                    // remove failures of successful shards
+                    for (ShardId shardId : request.shardIds()) {
+                        if (response.shardLevelFailures().containsKey(shardId) == false) {
+                            shardFailures.remove(shardId);
+                        }
                     }
+                    for (var entry : response.shardLevelFailures().entrySet()) {
+                        final ShardId shardId = entry.getKey();
+                        trackShardLevelFailure(shardId, false, entry.getValue());
+                        pendingShardIds.add(shardId);
+                    }
+                    onAfterRequest();
+                } catch (Exception ex) {
+                    expectNoFailure("expect no failure while handling data node response", ex);
+                    listener.onFailure(ex);
+                    return;
                 }
-                for (Map.Entry<ShardId, Exception> e : response.shardLevelFailures().entrySet()) {
-                    final ShardId shardId = e.getKey();
-                    trackShardLevelFailure(shardId, false, e.getValue());
-                    pendingShardIds.add(shardId);
-                }
-                onAfter(response.completionInfo());
+                listener.onResponse(response.completionInfo());
             }
 
             @Override
             public void onFailure(Exception e, boolean receivedData) {
-                for (ShardId shardId : request.shardIds) {
-                    trackShardLevelFailure(shardId, receivedData, e);
-                    pendingShardIds.add(shardId);
+                try {
+                    for (ShardId shardId : request.shardIds) {
+                        trackShardLevelFailure(shardId, receivedData, e);
+                        pendingShardIds.add(shardId);
+                    }
+                    onAfterRequest();
+                } catch (Exception ex) {
+                    expectNoFailure("expect no failure while handling failure of data node request", ex);
+                    listener.onFailure(ex);
+                    return;
                 }
-                onAfter(DriverCompletionInfo.EMPTY);
+                listener.onResponse(DriverCompletionInfo.EMPTY);
             }
 
             @Override
@@ -317,6 +335,11 @@ abstract class DataNodeRequestSender {
                 } else {
                     onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
                 }
+            }
+
+            private void expectNoFailure(String message, Exception e) {
+                LOGGER.error(message, e);
+                assert false : new AssertionError(message, e);
             }
         });
     }
@@ -506,15 +529,21 @@ abstract class DataNodeRequestSender {
         var state = clusterService.state();
         var nodes = Maps.<ShardId, List<DiscoveryNode>>newMapWithExpectedSize(shardIds.size());
         for (var shardId : shardIds) {
-            nodes.put(
-                shardId,
-                state.routingTable()
+            List<DiscoveryNode> allocatedNodes;
+            try {
+                allocatedNodes = state.routingTable()
                     .shardRoutingTable(shardId)
                     .allShards()
                     .filter(shard -> shard.active() && shard.isSearchable())
                     .map(shard -> state.nodes().get(shard.currentNodeId()))
-                    .toList()
-            );
+                    .toList();
+
+            } catch (Exception ignored) {
+                // If the target index is deleted or the target shard is not found after the query has started,
+                // we skip resolving its new shard routing, and that shard will not be retried.
+                continue;
+            }
+            nodes.put(shardId, allocatedNodes);
         }
         return nodes;
     }

@@ -141,7 +141,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             maxSamplesPerKey = in.readInt();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
             allowPartialSequenceResults = in.readOptionalBoolean();
         } else {
@@ -505,7 +505,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeInt(maxSamplesPerKey);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
             out.writeOptionalBoolean(allowPartialSequenceResults);
         }

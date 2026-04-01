@@ -7,9 +7,7 @@ config:
 steps:
   - label: example-plugins
     command: |-
-      cd $$WORKSPACE/plugins/examples
-
-      $$WORKSPACE/.ci/scripts/run-gradle.sh -Dorg.gradle.jvmargs=-Xmx8g build --include-build $$WORKSPACE
+      ./.ci/scripts/example-plugins.sh -Dorg.gradle.jvmargs=-Xmx8g build --include-build $$WORKSPACE
     timeout_in_minutes: 300
     agents:
       provider: gcp

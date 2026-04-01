@@ -100,7 +100,12 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices, null), rewriteListener);
+        Rewriteable.rewriteAndFetch(
+            request.query(),
+            searchService.getRewriteContext(timeProvider, resolvedIndices, null),
+            threadPool.executor(ThreadPool.Names.GET),
+            rewriteListener
+        );
     }
 
     @Override

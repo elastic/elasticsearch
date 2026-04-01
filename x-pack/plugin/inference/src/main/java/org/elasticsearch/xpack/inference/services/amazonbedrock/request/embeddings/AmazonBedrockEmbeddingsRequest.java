@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
@@ -68,7 +67,7 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
                 .body(SdkBytes.fromString(bodyAsString, StandardCharsets.UTF_8))
                 .build();
 
-            SocketAccess.doPrivileged(() -> client.invokeModel(invokeModelRequest, listener));
+            client.invokeModel(invokeModelRequest, listener);
         } catch (IOException e) {
             listener.onFailure(new RuntimeException(e));
         }

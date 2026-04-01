@@ -118,7 +118,7 @@ public class ExchangeSourceOperator extends SourceOperator {
             pagesWaiting = in.readVInt();
             pagesEmitted = in.readVInt();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 rowsEmitted = in.readVLong();
             } else {
                 rowsEmitted = 0;
@@ -130,7 +130,7 @@ public class ExchangeSourceOperator extends SourceOperator {
             out.writeVInt(pagesWaiting);
             out.writeVInt(pagesEmitted);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
                 out.writeVLong(rowsEmitted);
             }
         }

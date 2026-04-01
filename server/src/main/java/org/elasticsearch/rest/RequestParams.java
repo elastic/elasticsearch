@@ -118,8 +118,29 @@ public final class RequestParams extends AbstractMap<String, String> {
         return new RequestParams(wrapped);
     }
 
+    /**
+     * Returns an independent copy of {@code source}, preserving all multi-values.
+     *
+     * @param source the {@code RequestParams} to copy
+     * @return a new mutable {@code RequestParams} with the same contents as {@code source}
+     */
+    public static RequestParams copyOf(RequestParams source) {
+        LinkedHashMap<String, List<String>> copy = Maps.newLinkedHashMapWithExpectedSize(source.map.size());
+        source.map.forEach((k, v) -> copy.put(k, List.copyOf(v)));
+        return new RequestParams(copy);
+    }
+
     private RequestParams(Map<String, List<String>> map) {
         this.map = map;
+    }
+
+    /**
+     * Copies all entries from {@code source} into this map, preserving all multi-values.
+     * Unlike the inherited {@link #putAll(Map)}, which only sees the last value per key,
+     * this overload copies every value in each key's list.
+     */
+    public void putAll(RequestParams source) {
+        source.map.forEach(map::put);
     }
 
     /**

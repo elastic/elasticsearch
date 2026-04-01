@@ -515,9 +515,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
                 }
-                if (logical instanceof LogicalTypeAnnotation.StringLogicalTypeAnnotation) {
-                    yield DataType.TEXT;
-                }
                 yield DataType.KEYWORD;
             }
             default -> DataType.UNSUPPORTED;

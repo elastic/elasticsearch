@@ -583,12 +583,12 @@ Warn on no stats
 required_capability: approximation_v6
 
 SET approximation=true\;
-FROM many_numbers | KEEP mv | MV_EXPAND mv | SORT mv | LIMIT 5
+FROM many_numbers | KEEP sv | SORT sv | LIMIT 5
 ;
 
 warning:line 2:1: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated
 
-mv:integer
+sv:integer
 1
 2
 2

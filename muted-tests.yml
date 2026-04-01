@@ -369,6 +369,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidBigDecimalFromDoubleWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145372
+- class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
+  method: testKnnVectors
+  issue: https://github.com/elastic/elasticsearch/issues/145377
 
 # Examples:
 #

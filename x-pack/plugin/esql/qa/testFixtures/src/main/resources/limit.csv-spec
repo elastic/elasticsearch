@@ -404,6 +404,7 @@ Mayumi             | Schueller         | 65367          | 4                 | M
 
 sortLimitByQualifiedName
 required_capability: esql_topn_by
+required_capability: name_qualifiers
 
 FROM employees
 | SORT salary DESC

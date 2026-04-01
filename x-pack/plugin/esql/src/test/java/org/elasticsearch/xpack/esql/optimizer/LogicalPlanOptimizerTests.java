@@ -11092,6 +11092,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTopNByWorksWithQualifiedNames() {
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
         var query = """
             FROM employees
             | SORT salary DESC

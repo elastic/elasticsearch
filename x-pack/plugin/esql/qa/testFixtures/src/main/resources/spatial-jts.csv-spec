@@ -238,3 +238,289 @@ ROW geom = TO_CARTESIANSHAPE("MULTIPOLYGON (((90 110, 80 180, 50 160, 10 170, 10
 result:cartesian_shape
 POLYGON ((40.0 80.0, 79.0 110.0, 20.0 110.0, 10.0 170.0, 80.0 180.0, 88.91089108910892 117.62376237623762, 170.0 180.0, 156.93726937269372 105.97785977859779, 142.5 128.5, 90.0 60.0, 150.0 66.66666666666667, 140.0 10.0, 40.0 80.0))
 ;
+
+###############################################
+# Tests for ST_SIMPLIFYPRESERVETOPOLOGY
+###############################################
+
+stSimplifyPreserveTopologyLiteralPolygon
+required_capability: fn_st_simplifypreservetopology
+
+// tag::st_simplifypreservetopology[]
+ROW wkt = "POLYGON ((7.998 53.827, 9.470 53.068, 15.754 53.801, 16.523 57.160, 11.162 57.868, 8.064 57.445, 6.219 55.317, 7.998 53.827))"
+| EVAL simplified = ST_SIMPLIFYPRESERVETOPOLOGY(TO_GEOSHAPE(wkt), 0.7)
+// end::st_simplifypreservetopology[]
+;
+
+// tag::st_simplifypreservetopology-result[]
+wkt:keyword                                                                                                                   | simplified:geo_shape
+POLYGON ((7.998 53.827, 9.470 53.068, 15.754 53.801, 16.523 57.160, 11.162 57.868, 8.064 57.445, 6.219 55.317, 7.998 53.827)) | POLYGON ((6.219 55.317, 9.47 53.068, 15.754 53.801, 16.523 57.16, 8.064 57.445, 6.219 55.317))
+// end::st_simplifypreservetopology-result[]
+;
+
+stSimplifyPreserveTopologyNoSimplification
+required_capability: fn_st_simplifypreservetopology
+
+ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))")
+| EVAL result = ST_SIMPLIFYPRESERVETOPOLOGY(geo_shape, 0.01)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 1.0 0.1, 2.0 0.0, 2.0 2.0, 1.0 1.9, 0.0 2.0, 0.0 0.0))
+;
+
+stSimplifyPreserveTopologyWithSimplification
+required_capability: fn_st_simplifypreservetopology
+
+ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))")
+| EVAL result = ST_SIMPLIFYPRESERVETOPOLOGY(geo_shape, 0.2)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 2.0 0.0, 2.0 2.0, 0.0 2.0, 0.0 0.0))
+;
+
+stSimplifyPreserveTopologyFoldable
+required_capability: fn_st_simplifypreservetopology
+
+ROW result = ST_SIMPLIFYPRESERVETOPOLOGY(TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))"), 0.2)
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 2.0 0.0, 2.0 2.0, 0.0 2.0, 0.0 0.0))
+;
+
+stSimplifyPreserveTopologyPreservesTopology
+required_capability: fn_st_simplifypreservetopology
+
+ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))")
+| EVAL result = ST_SIMPLIFYPRESERVETOPOLOGY(geo_shape, 2.0)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 2.0, 2.0 0.0, 2.0 2.0, 0.0 2.0))
+;
+
+stSimplifyPreserveTopologyNull
+required_capability: fn_st_simplifypreservetopology
+
+ROW geo_shape = NULL
+| EVAL result = ST_SIMPLIFYPRESERVETOPOLOGY(geo_shape, 2.0)
+| KEEP result
+;
+
+result:null
+NULL
+;
+
+stSimplifyPreserveTopologyEmptyPolygon
+required_capability: fn_st_simplifypreservetopology
+
+ROW geo_shape = TO_GEOSHAPE("POLYGON EMPTY")
+| EVAL result = ST_SIMPLIFYPRESERVETOPOLOGY(geo_shape, 0.5)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;
+
+stSimplifyPreserveTopologyCartesianShape
+required_capability: fn_st_simplifypreservetopology
+
+ROW wkt = "POLYGON ((2 3, 4 8, 7 6, 6 2, 2 3))"
+| EVAL result = ST_SIMPLIFYPRESERVETOPOLOGY(TO_CARTESIANSHAPE(wkt), 0.5)
+| KEEP result
+;
+
+result:cartesian_shape
+POLYGON ((2.0 3.0, 4.0 8.0, 7.0 6.0, 6.0 2.0, 2.0 3.0))
+;
+
+stSimplifyPreserveTopologyWithIntegerTolerance
+required_capability: fn_st_simplifypreservetopology
+
+ROW geo_shape = TO_GEOSHAPE("POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0))")
+| EVAL result = ST_SIMPLIFYPRESERVETOPOLOGY(geo_shape, 2)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 2.0, 2.0 0.0, 2.0 2.0, 0.0 2.0))
+;
+
+###############################################
+# Tests for ST_BUFFER
+###############################################
+
+stBufferNegativeDistance
+required_capability: fn_st_buffer
+
+// tag::st_buffer[]
+ROW wkt = "POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0))"
+| EVAL buffered = ST_BUFFER(TO_GEOSHAPE(wkt), -1)
+// end::st_buffer[]
+;
+
+// tag::st_buffer-result[]
+wkt:keyword                                | buffered:geo_shape
+POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0))       | POLYGON ((1.0 1.0, 1.0 3.0, 3.0 3.0, 3.0 1.0, 1.0 1.0))
+// end::st_buffer-result[]
+;
+
+stBufferCartesianSquareNegative
+required_capability: fn_st_buffer
+
+ROW geom = TO_CARTESIANSHAPE("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
+| EVAL result = ST_BUFFER(geom, -2)
+| KEEP result
+;
+
+result:cartesian_shape
+POLYGON ((2.0 2.0, 2.0 8.0, 8.0 8.0, 8.0 2.0, 2.0 2.0))
+;
+
+stBufferEmptyGeometry
+required_capability: fn_st_buffer
+
+ROW geom = TO_GEOSHAPE("POLYGON EMPTY")
+| EVAL result = ST_BUFFER(geom, 1.0)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON EMPTY
+;
+
+stBufferNull
+required_capability: fn_st_buffer
+
+ROW geom = NULL
+| EVAL result = ST_BUFFER(geom, 1.0)
+| KEEP result
+;
+
+result:null
+NULL
+;
+
+stBufferZeroDistancePoint
+required_capability: fn_st_buffer
+
+ROW geom = TO_GEOSHAPE("POINT(0 0)")
+| EVAL result = ST_BUFFER(geom, 0)
+| KEEP result
+;
+
+result:geo_shape
+POINT (0.0 0.0)
+;
+
+stBufferZeroDistanceLineString
+required_capability: fn_st_buffer
+
+ROW geom = TO_GEOSHAPE("LINESTRING(0 0, 1 1)")
+| EVAL result = ST_BUFFER(geom, 0)
+| KEEP result
+;
+
+result:geo_shape
+LINESTRING (0.0 0.0, 1.0 1.0)
+;
+
+stBufferZeroDistancePolygon
+required_capability: fn_st_buffer
+
+ROW geom = TO_GEOSHAPE("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))")
+| EVAL result = ST_BUFFER(geom, 0)
+| KEEP result
+;
+
+result:geo_shape
+POLYGON ((0.0 0.0, 1.0 0.0, 1.0 1.0, 0.0 1.0, 0.0 0.0))
+;
+
+stBufferFoldable
+required_capability: fn_st_buffer
+
+ROW result = ST_BUFFER(TO_CARTESIANSHAPE("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))"), -2)
+;
+
+result:cartesian_shape
+POLYGON ((2.0 2.0, 2.0 8.0, 8.0 8.0, 8.0 2.0, 2.0 2.0))
+;
+
+stBufferWithIntegerDistance
+required_capability: fn_st_buffer
+
+ROW geom = TO_CARTESIANSHAPE("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
+| EVAL result = ST_BUFFER(geom, -2)
+| KEEP result
+;
+
+result:cartesian_shape
+POLYGON ((2.0 2.0, 2.0 8.0, 8.0 8.0, 8.0 2.0, 2.0 2.0))
+;
+
+stBufferCartesianPoint
+required_capability: fn_st_buffer
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+
+ROW geom = TO_CARTESIANSHAPE("POINT(5 5)")
+| EVAL buffered = ST_BUFFER(geom, 2)
+| EVAL geom_type = ST_GEOMETRYTYPE(buffered), npoints = ST_NPOINTS(buffered)
+| KEEP geom_type, npoints
+;
+
+geom_type:keyword | npoints:integer
+ST_Polygon        | 33
+;
+
+stBufferGeoPoint
+required_capability: fn_st_buffer
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+
+ROW geom = TO_GEOSHAPE("POINT(0 0)")
+| EVAL buffered = ST_BUFFER(geom, 1)
+| EVAL geom_type = ST_GEOMETRYTYPE(buffered), npoints = ST_NPOINTS(buffered)
+| KEEP geom_type, npoints
+;
+
+geom_type:keyword | npoints:integer
+ST_Polygon        | 33
+;
+
+stBufferCartesianLineString
+required_capability: fn_st_buffer
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+
+ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0)")
+| EVAL buffered = ST_BUFFER(geom, 5)
+| EVAL geom_type = ST_GEOMETRYTYPE(buffered), npoints = ST_NPOINTS(buffered)
+| KEEP geom_type, npoints
+;
+
+geom_type:keyword | npoints:integer
+ST_Polygon        | 35
+;
+
+stBufferGeoLineString
+required_capability: fn_st_buffer
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+
+ROW geom = TO_GEOSHAPE("LINESTRING(0 0, 1 0)")
+| EVAL buffered = ST_BUFFER(geom, 0.5)
+| EVAL geom_type = ST_GEOMETRYTYPE(buffered), npoints = ST_NPOINTS(buffered)
+| KEEP geom_type, npoints
+;
+
+geom_type:keyword | npoints:integer
+ST_Polygon        | 35
+;

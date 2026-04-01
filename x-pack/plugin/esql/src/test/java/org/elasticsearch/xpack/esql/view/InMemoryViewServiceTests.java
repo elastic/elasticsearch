@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -1251,6 +1252,51 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(
             replaceViews(query("FROM employees_extra | STATS count=COUNT()")),
             matchesPlan(query("FROM employees, (FROM employees) | STATS count=COUNT()"))
+        );
+    }
+
+    /**
+     * Reproduces a bug in {@code mergeUnresolvedRelationEntries} where {@code hasPatternDuplicates}
+     * only checks whole-pattern equality, not individual index name overlap. Two inner VUAs can each
+     * contribute a bare UR with different whole patterns (e.g. "emp1,emp2" vs "emp1,emp3") that share
+     * an individual index ("emp1"). After flattening, {@code mergeUnresolvedRelationEntries} merges
+     * them into "emp1,emp2,emp1,emp3" because the whole patterns differ — but IndexResolution would
+     * then deduplicate "emp1", losing data.
+     */
+    public void testFlattenedViewUnionAllWithOverlappingIndices() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        // Non-compactable views (have WHERE) that force NamedSubquery branches
+        addView("view_x", "FROM emp1 | WHERE emp.age > 30");
+        addView("view_y", "FROM emp1 | WHERE emp.salary > 50000");
+        // Each of these resolves to a VUA with a bare UR("emp1,emp2") or UR("emp1,emp3")
+        // plus a NamedSubquery for the non-compactable view
+        addView("view_a", "FROM emp2, emp1, view_x");
+        addView("view_b", "FROM emp3, emp1, view_y");
+        addIndex("emp1");
+        addIndex("emp2");
+        addIndex("emp3");
+
+        // Query FROM view_a, view_b produces a VUA with two inner VUAs.
+        // tryFlattenViewUnionAll lifts the entries. The bare URs "emp1,emp2" and "emp1,emp3"
+        // share "emp1" — merging them would lose data.
+        LogicalPlan result = replaceViews(query("FROM view_a, view_b"));
+        assertThat(result, instanceOf(ViewUnionAll.class));
+        ViewUnionAll vua = (ViewUnionAll) result;
+
+        // Count how many branches resolve to a bare UR containing "emp1"
+        // If the bug is present, the URs get merged into one, losing the second copy of emp1
+        long urBranchesWithEmp1 = vua.namedSubqueries().values().stream()
+            .filter(p -> p instanceof UnresolvedRelation)
+            .map(p -> ((UnresolvedRelation) p).indexPattern().indexPattern())
+            .filter(pattern -> Arrays.asList(pattern.split(",")).contains("emp1"))
+            .count();
+
+        assertThat(
+            "emp1 should appear in at least 2 separate UR branches to preserve view semantics, "
+                + "but mergeUnresolvedRelationEntries merged them because hasPatternDuplicates only checks whole patterns. "
+                + "VUA entries: " + vua.namedSubqueries(),
+            urBranchesWithEmp1,
+            greaterThanOrEqualTo(2L)
         );
     }
 

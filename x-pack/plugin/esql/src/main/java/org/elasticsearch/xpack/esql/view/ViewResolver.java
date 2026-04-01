@@ -678,44 +678,35 @@ public class ViewResolver {
     }
 
     /**
-     * Merge all bare UnresolvedRelation entries in the map into a single entry, unless doing so
-     * would create duplicate index patterns (which IndexResolution would deduplicate, losing data).
-     * When duplicates exist, the URs are kept as separate entries.
+     * Merges bare UnresolvedRelation entries in the map into a single entry where possible.
+     * URs that share individual index names with the merged result are kept as separate entries
+     * to prevent IndexResolution from deduplicating them and losing data.
+     * Uses the same per-index-name overlap check as {@link #mergeIfPossible}.
      */
     private static void mergeUnresolvedRelationEntries(LinkedHashMap<String, LogicalPlan> flat) {
         List<String> urKeys = new ArrayList<>();
-        List<UnresolvedRelation> urs = new ArrayList<>();
         for (Map.Entry<String, LogicalPlan> entry : flat.entrySet()) {
-            if (entry.getValue() instanceof UnresolvedRelation ur) {
+            if (entry.getValue() instanceof UnresolvedRelation) {
                 urKeys.add(entry.getKey());
-                urs.add(ur);
             }
         }
-        if (urs.size() <= 1 || hasPatternDuplicates(urs)) {
-            return; // nothing to merge, or merging would lose duplicates
+        if (urKeys.size() <= 1) {
+            return;
         }
-        // Remove individual UR entries and replace with a single merged one
-        for (String key : urKeys) {
-            flat.remove(key);
-        }
-        flat.putFirst("main", mergeUnresolvedRelations(urs));
-    }
 
-    /**
-     * Checks whether the list of UnresolvedRelations contains any whose complete index pattern
-     * is a duplicate of another's. Individual index names within different patterns may overlap
-     * (e.g. "emp1,emp2" and "emp1,emp3" share "emp1") — that is fine because each UR is resolved
-     * independently. We only prevent merging when the entire pattern string repeats, because
-     * IndexResolution would deduplicate "employees,employees" into a single "employees".
-     */
-    private static boolean hasPatternDuplicates(Collection<UnresolvedRelation> unresolvedRelations) {
-        HashSet<String> seen = new HashSet<>();
-        for (UnresolvedRelation ur : unresolvedRelations) {
-            if (seen.add(ur.indexPattern().indexPattern()) == false) {
-                return true;
+        String firstKey = urKeys.getFirst();
+        UnresolvedRelation merged = (UnresolvedRelation) flat.get(firstKey);
+
+        for (int i = 1; i < urKeys.size(); i++) {
+            String key = urKeys.get(i);
+            UnresolvedRelation ur = (UnresolvedRelation) flat.get(key);
+            UnresolvedRelation result = mergeIfPossible(merged, ur);
+            if (result != null) {
+                merged = result;
+                flat.remove(key);
             }
         }
-        return false;
+        flat.put(firstKey, merged);
     }
 
     private static UnresolvedRelation mergeUnresolvedRelations(Collection<UnresolvedRelation> unresolvedRelations) {

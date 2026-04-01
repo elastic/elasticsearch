@@ -51,7 +51,7 @@ public class DlmFrozenTransitionExecutorTests extends ESTestCase {
             this.clusterService.close();
         }
         if (this.threadPool != null) {
-            this.threadPool.shutdownNow();
+            terminate(threadPool);
         }
         super.tearDown();
     }

@@ -229,7 +229,7 @@ public class ClearScrollControllerTests extends ESTestCase {
 
     private static String buildScrollId(AtomicArray<SearchPhaseResult> array) {
         try (var recycler = new MockBytesRefRecycler()) {
-            return TransportSearchHelper.buildScrollId(array, recycler);
+            return TransportSearchHelper.buildScrollId(array, recycler, true);
         }
     }
 }

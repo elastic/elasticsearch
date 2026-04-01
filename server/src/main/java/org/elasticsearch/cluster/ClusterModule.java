@@ -197,7 +197,8 @@ public class ClusterModule extends AbstractModule {
             shardsAllocator,
             clusterInfoService,
             snapshotsInfoService,
-            shardRoutingRoleStrategy
+            shardRoutingRoleStrategy,
+            telemetryProvider.getMeterRegistry()
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);

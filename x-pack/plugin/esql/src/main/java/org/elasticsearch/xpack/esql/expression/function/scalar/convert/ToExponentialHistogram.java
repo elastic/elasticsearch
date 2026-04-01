@@ -60,8 +60,7 @@ public class ToExponentialHistogram extends AbstractConvertFunction {
         returnType = "exponential_histogram",
         description = "Converts histogram-like values to an exponential histogram.",
         examples = { @Example(file = "exponential_histogram", tag = "to_exponential_histogram") },
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") }
     )
     public ToExponentialHistogram(
         Source source,

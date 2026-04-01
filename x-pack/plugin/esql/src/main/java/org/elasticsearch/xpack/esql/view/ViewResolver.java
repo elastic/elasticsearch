@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
@@ -51,6 +52,7 @@ public class ViewResolver {
     protected Logger log = LogManager.getLogger(getClass());
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
+    private final CrossProjectModeDecider crossProjectModeDecider;
     private volatile int maxViewDepth;
     private final Client client;
     public static final Setting<Integer> MAX_VIEW_DEPTH_SETTING = Setting.intSetting(
@@ -68,13 +70,20 @@ public class ViewResolver {
     public ViewResolver() {
         this.clusterService = null;
         this.projectResolver = null;
+        this.crossProjectModeDecider = CrossProjectModeDecider.NOOP;
         this.maxViewDepth = 0;
         this.client = null;
     }
 
-    public ViewResolver(ClusterService clusterService, ProjectResolver projectResolver, Client client) {
+    public ViewResolver(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Client client,
+        CrossProjectModeDecider crossProjectModeDecider
+    ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
+        this.crossProjectModeDecider = crossProjectModeDecider;
         this.client = client;
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_DEPTH_SETTING, v -> this.maxViewDepth = v);
     }
@@ -310,8 +319,11 @@ public class ViewResolver {
                 unresolvedPatterns.add(resolvedIndexExpression.original());
                 continue;
             }
-            // If any of the concrete resources were not views, pass them along as an unresolved relation
-            if (resolvedIndexExpression.localExpressions().indices().stream().anyMatch(index -> seenViews.contains(index) == false)) {
+            // If any of the concrete resources were not views, pass them along as an unresolved relation.
+            // When CPS is enabled, also keep wildcard patterns because they may match remote indexes
+            // in other projects (unlike CCS, CPS does not require explicit remote references).
+            if (resolvedIndexExpression.localExpressions().indices().stream().anyMatch(index -> seenViews.contains(index) == false)
+                || (crossProjectModeDecider.crossProjectEnabled() && Regex.isSimpleMatchPattern(resolvedIndexExpression.original()))) {
                 unresolvedPatterns.add(resolvedIndexExpression.original());
             }
         }

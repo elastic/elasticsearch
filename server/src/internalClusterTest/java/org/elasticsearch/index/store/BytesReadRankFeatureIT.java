@@ -9,50 +9,37 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.FieldBasedRerankerIT;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
-import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.index.store.BytesReadHeaderIT.assertBytesReadHeader;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests that the bytes-read response header is set when the rank feature phase is exercised.
@@ -95,7 +82,7 @@ public class BytesReadRankFeatureIT extends ESIntegTestCase {
             ).rankBuilder(new FieldBasedRerankerIT.FieldBasedRankBuilder(10, "rankFeatureField")).size(5)
         );
 
-        long bytesRead = extractBytesReadHeader(request);
+        long bytesRead = assertBytesReadHeader(request);
         assertThat(bytesRead, greaterThan(0L));
     }
 
@@ -172,24 +159,5 @@ public class BytesReadRankFeatureIT extends ESIntegTestCase {
                 rankResult.decRef();
             }
         }
-    }
-
-    private long extractBytesReadHeader(SearchRequest searchRequest) throws InterruptedException {
-        SetOnce<Long> bytesRead = new SetOnce<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
-        final Client client = client();
-        client.search(searchRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(searchResponse -> {
-            Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
-            assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
-            List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
-            assertThat("expected a single accumulated header value", values.size(), equalTo(1));
-            long total = Long.parseLong(values.get(0));
-            assertThat(total, greaterThan(0L));
-            bytesRead.set(total);
-        }, e -> fail("no error expected"))), latch));
-        assertTrue("search did not complete in time", latch.await(30, TimeUnit.SECONDS));
-        assertThat(bytesRead.get(), notNullValue());
-        return bytesRead.get();
     }
 }

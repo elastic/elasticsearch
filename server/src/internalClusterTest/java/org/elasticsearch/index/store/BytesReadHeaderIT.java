@@ -11,6 +11,7 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -106,7 +108,7 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         assertThat(biggerBytesRead, greaterThan(smallerBytesRead));
     }
 
-    public void testBytesReadNotLeakedAcrossRequests() throws InterruptedException {
+    public void testLargerResultSizeReportsMoreBytesRead() throws InterruptedException {
         String indexName = randomIndexName();
         createIndex(indexName, 1, 0);
         int numDocs = atLeast(200);
@@ -146,27 +148,8 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         CountDownLatch initialLatch = new CountDownLatch(1);
 
         final Client client = client();
-        client.search(request, ActionListener.assertOnce(new ActionListener<>() {
-            @Override
-            public void onResponse(SearchResponse searchResponse) {
-                try {
-                    Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
-                    assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
-                    List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
-                    assertThat(values.size(), equalTo(1));
-                    initialBytesRead.set(Long.parseLong(values.get(0)));
-                    scrollId.set(searchResponse.getScrollId());
-                } finally {
-                    initialLatch.countDown();
-                }
-            }
+        assertBytesReadHeader(request, searchResponse -> scrollId.set(searchResponse.getScrollId()));
 
-            @Override
-            public void onFailure(Exception e) {
-                initialLatch.countDown();
-                fail("no error expected");
-            }
-        }));
         assertTrue("initial search did not complete in time", initialLatch.await(30, TimeUnit.SECONDS));
         assertThat(initialBytesRead.get(), greaterThan(0L));
         assertThat(scrollId.get(), notNullValue());
@@ -176,26 +159,11 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
             CountDownLatch scrollLatch = new CountDownLatch(1);
 
             SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId.get()).scroll(TimeValue.timeValueMinutes(1));
-            client.searchScroll(scrollRequest, ActionListener.assertOnce(new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    try {
-                        Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
-                        assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
-                        List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
-                        assertThat(values.size(), equalTo(1));
-                        scrollBytesRead.set(Long.parseLong(values.get(0)));
-                    } finally {
-                        scrollLatch.countDown();
-                    }
-                }
+            client.searchScroll(scrollRequest, new LatchedActionListener<>(ActionListener.assertOnce(ActionListener.wrap(
+                searchResponse -> scrollBytesRead.set(extractBytesReadHeader(client)),
+                e -> fail("no error expected")
+            )), scrollLatch));
 
-                @Override
-                public void onFailure(Exception e) {
-                    scrollLatch.countDown();
-                    fail("no error expected");
-                }
-            }));
             assertTrue("scroll search did not complete in time", scrollLatch.await(30, TimeUnit.SECONDS));
             assertThat(scrollBytesRead.get(), greaterThan(0L));
         } finally {
@@ -223,35 +191,42 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         return indexName;
     }
 
-    private long assertBytesReadHeader(SearchRequest searchRequest) throws InterruptedException {
+    public static long assertBytesReadHeader(SearchRequest searchRequest) throws InterruptedException {
+        return assertBytesReadHeader(searchRequest, null);
+    }
+
+    public static long assertBytesReadHeader(SearchRequest searchRequest, Consumer<SearchResponse> searchResponseConsumer)
+        throws InterruptedException {
         SetOnce<Long> bytesRead = new SetOnce<>();
         CountDownLatch latch = new CountDownLatch(1);
 
         final Client client = client();
-        client.search(searchRequest, ActionListener.assertOnce(new ActionListener<>() {
+        client.search(searchRequest, new LatchedActionListener<>(ActionListener.assertOnce(new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
-                try {
-                    Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
-                    assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
-                    List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
-                    assertThat("expected a single accumulated header value", values.size(), equalTo(1));
-                    long total = Long.parseLong(values.get(0));
-                    assertThat(total, greaterThan(0L));
-                    bytesRead.set(total);
-                } finally {
-                    latch.countDown();
+                bytesRead.set(extractBytesReadHeader(client));
+                if (searchResponseConsumer != null) {
+                    searchResponseConsumer.accept(searchResponse);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                latch.countDown();
                 fail("no error expected");
             }
-        }));
+        }), latch));
         assertTrue("search did not complete in time", latch.await(30, TimeUnit.SECONDS));
         assertThat(bytesRead.get(), notNullValue());
         return bytesRead.get();
+    }
+
+    public static long extractBytesReadHeader(Client client) {
+        Map<String, List<String>> responseHeaders = client.threadPool().getThreadContext().getResponseHeaders();
+        assertThat(responseHeaders, hasKey(StoreMetrics.BYTES_READ_RESPONSE_HEADER));
+        List<String> values = responseHeaders.get(StoreMetrics.BYTES_READ_RESPONSE_HEADER);
+        assertThat("expected a single accumulated header value", values.size(), equalTo(1));
+        long total = Long.parseLong(values.get(0));
+        assertThat(total, greaterThan(0L));
+        return total;
     }
 }

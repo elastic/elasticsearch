@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -344,6 +346,33 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                 }]""";
             assertNotNull(leaf.get());
             assertThat(leaf.get().stat().toString(), equalTo(expectedStats));
+        }
+    }
+
+    /**
+     * Keyword MV field: detectSingleValue has a false positive when terms.size() == terms.getDocCount().
+     * See SearchContextStats.detectSingleValue(IndexReader, MappedFieldType, String) where this check was wrong for KeywordFieldType.
+     *
+     * doc1: first_name=["A","B"]
+     * doc2: first_name=["A"]
+     * segment has terms.size()=2, getDocCount()=2 which wrongly reported the field as being single-valued.
+     */
+    public void testCountPushDownFor_SpecificDistributionOfMVValues() throws IOException {
+        String properties = EsqlTestUtils.loadUtf8TextFile("/index/mappings/mapping-basic.json");
+        String mapping = "{\"mappings\": " + properties + "}";
+        String keywordQuery = """
+            from test
+            | stats c = count(first_name)
+            """;
+        List<List<String>> keywordMvCasesWithoutPushdown = List.of(
+            List.of("{ \"first_name\" : [\"A\", \"B\"] }", "{ \"first_name\" : [\"A\"] }")
+        );
+
+        PhysicalPlan plan;
+        for (List<String> docs : keywordMvCasesWithoutPushdown) {
+            plan = planWithMappingAndDocs(keywordQuery, mapping, docs);
+            // No EsSatsQueryExec as leaf of the plan.
+            assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
         }
     }
 

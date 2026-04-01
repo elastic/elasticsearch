@@ -9,7 +9,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 
 versions << [
-  'hadoop' : '3.4.2',
+  'hadoop' : '3.4.3',
   'orc'    : '2.3.0',
 ]
 
@@ -33,10 +33,11 @@ dependencies {
 
   implementation("org.apache.orc:orc-core:${versions.orc}") {
     exclude group: 'org.slf4j', module: 'slf4j-api'
-    // Compression libraries provided by esql-datasource-compression-libs parent plugin
+    // Compression libraries provided by esql-datasource-compression-libs parent plugin or server
     exclude group: 'io.airlift', module: 'aircompressor'
     exclude group: 'com.github.luben', module: 'zstd-jni'
     exclude group: 'org.xerial.snappy', module: 'snappy-java'
+    // lz4-java is provided by the server (libs/lz4); exclude to prevent jar hell
     exclude group: 'at.yawk.lz4', module: 'lz4-java'
     exclude group: 'com.aayushatharva.brotli4j', module: 'brotli4j'
   }
@@ -52,10 +53,10 @@ dependencies {
 
   // Hadoop dependencies - required because ORC's Reader API uses Hadoop Configuration,
   // Path, and FileSystem in its public interfaces.
-  implementation('org.apache.hadoop:hadoop-client-api:3.4.2') {
+  implementation('org.apache.hadoop:hadoop-client-api:3.4.3') {
     exclude group: 'org.slf4j', module: 'slf4j-api'
   }
-  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.2') {
+  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.3') {
     exclude group: 'org.slf4j', module: 'slf4j-api'
   }
 
@@ -66,14 +67,14 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   // At runtime these are provided by esql-datasource-compression-libs parent plugin;
   // at test time we need them explicitly since there's no parent plugin classloader.
+  // lz4-java is already on the test classpath via server → libs/lz4.
   testImplementation "io.airlift:aircompressor:${versions.aircompressor}"
   testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
   testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
-  testImplementation "at.yawk.lz4:lz4-java:${versions.lz4Java}"
 }
 
-// Compression libraries (aircompressor, zstd-jni, snappy-java, lz4-java) are provided by
-// esql-datasource-compression-libs parent plugin; transitive copies excluded from orc-core above.
+// Compression libraries (aircompressor, zstd-jni, snappy-java) are provided by
+// esql-datasource-compression-libs parent plugin; lz4-java by the server (libs/lz4).
 
 tasks.named("javadoc").configure {
   // ORC/Hadoop dependency tree causes javadoc issues (unnamed vs named module conflicts)

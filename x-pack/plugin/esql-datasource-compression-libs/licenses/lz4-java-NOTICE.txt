@@ -1,8 +1,0 @@
-lz4-java
-Copyright 2020 Adrien Grand
-Copyright 2023 Jonas Konrad (yawk)
-https://github.com/yawk/lz4-java
-
-LZ4 Library
-Copyright (c) 2011-2016, Yann Collet
-All rights reserved.

@@ -33,22 +33,18 @@ dependencies {
   // codec). aircompressor also provides a Snappy impl for ORC's LZO fallback and file-level
   // .snappy decompression; the two libraries have incompatible Java APIs.
   implementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
-  // lz4-java — used by ORC 2.3+ for LZ4 compression (replacing aircompressor's LZ4)
-  implementation "at.yawk.lz4:lz4-java:${versions.lz4Java}"
+  // lz4-java is provided by the server (libs/lz4) — ORC 2.3+ and Parquet use it at runtime
 }
 
 tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
   mapping from: /aircompressor-.*/, to: 'aircompressor'
   mapping from: /zstd-jni-.*/, to: 'zstd-jni'
   mapping from: /snappy-java-.*/, to: 'snappy-java'
-  mapping from: /lz4-java-.*/, to: 'lz4-java'
 }
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
   ignoreViolations(
-    // lz4-java uses sun.misc.Unsafe for fast memory access
-    'net.jpountz.util.UnsafeUtils',
     // aircompressor uses sun.misc.Unsafe throughout for optimized compression/decompression
     'io.airlift.compress.lz4.Lz4Compressor',
     'io.airlift.compress.lz4.Lz4Decompressor',

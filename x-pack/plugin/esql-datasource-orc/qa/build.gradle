@@ -23,7 +23,6 @@ configurations {
 configurations.all {
   resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
   resolutionStrategy.force "org.xerial.snappy:snappy-java:${versions.snappyJava}"
-  resolutionStrategy.force "at.yawk.lz4:lz4-java:${versions.lz4Java}"
 }
 
 // OrcFixtureGenerator lives in its own source set so TestingConventions doesn't load it

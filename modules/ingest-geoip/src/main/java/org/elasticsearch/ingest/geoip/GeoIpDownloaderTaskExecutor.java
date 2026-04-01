@@ -267,6 +267,12 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     ///
     /// TODO (See #144443 discussion): The current implementation has a potential race condition where the master
     /// may trigger the index cleanup before the downloader task has finished.
+    @FixForMultiProject(
+        description = "When a project is deleted, the onRemove callback (this method) is never invoked because "
+            + "PersistentTaskLifecycleManager only reconciles projects that still exist in cluster state. "
+            + "As a result, the .geoip_databases index is left behind as an orphan. "
+            + "See https://elasticco.atlassian.net/browse/ES-12054"
+    )
     void deleteGeoIpDatabasesIndex(ProjectId projectId) {
         ProjectMetadata project = clusterService.state().metadata().projects().get(projectId);
         if (project == null) {

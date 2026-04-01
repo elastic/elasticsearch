@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -53,6 +52,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     private final TimeValue tickInterval;
     private final Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();
+    private final Map<String, ActiveSchedule> recentlyAddedSchedules = new ConcurrentHashMap<>();
     private final Ticker ticker;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
@@ -65,20 +65,24 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Override
     public synchronized void start(Collection<Watch> jobs) {
         long startTime = clock.millis();
-        isRunning.set(true);
         logger.info("Starting watcher engine at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
-        Map<String, ActiveSchedule> startingSchedules = Maps.newMapWithExpectedSize(jobs.size());
+        schedules.clear();
         for (Watch job : jobs) {
             if (job.trigger() instanceof ScheduleTrigger trigger) {
-                if (trigger.getSchedule() instanceof IntervalSchedule) {
-                    startingSchedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), calculateLastStartTime(job)));
-                } else {
-                    startingSchedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), startTime));
-                }
+                schedules.put(job.id(), createSchedule(job, trigger, startTime));
             }
         }
-        this.schedules.clear();
-        this.schedules.putAll(startingSchedules);
+        schedules.putAll(recentlyAddedSchedules);
+        recentlyAddedSchedules.clear();
+        isRunning.set(true);
+    }
+
+    private ActiveSchedule createSchedule(Watch job, ScheduleTrigger trigger, long currentTimeInMillis) {
+        return new ActiveSchedule(
+            job.id(),
+            trigger.getSchedule(),
+            trigger.getSchedule() instanceof IntervalSchedule ? calculateLastStartTime(job) : currentTimeInMillis
+        );
     }
 
     @Override
@@ -107,12 +111,14 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         // watcher indexing listener
         // this also means that updating an existing watch would not retrigger the schedule time, if it remains the same schedule
         if (currentSchedule == null || currentSchedule.schedule.equals(trigger.getSchedule()) == false) {
-            if (trigger.getSchedule() instanceof IntervalSchedule) {
-                schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), calculateLastStartTime(watch)));
-            } else {
-                schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), clock.millis()));
+            synchronized (this) {
+                ActiveSchedule schedule = createSchedule(watch, trigger, clock.millis());
+                if (isRunning.get() == false) {
+                    recentlyAddedSchedules.put(watch.id(), schedule);
+                } else {
+                    schedules.put(watch.id(), schedule);
+                }
             }
-
         }
     }
 
@@ -223,6 +229,11 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             long prevScheduledTime = scheduledTime == 0 ? time : scheduledTime;
             scheduledTime = schedule.nextScheduledTimeAfter(startTime, time);
             return prevScheduledTime;
+        }
+
+        // visible for testing
+        Schedule getSchedule() {
+            return schedule;
         }
     }
 

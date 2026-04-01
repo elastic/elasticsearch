@@ -325,7 +325,7 @@ The following mapping parameters are accepted:
 :   A string value which is substituted for any explicit `null` values within the flattened object field. Defaults to `null`, which means null fields are treated as if they were missing.
 
 `passthrough`
-:   (Optional, object) When set, the typed sub-fields defined in `properties` become queryable at the root level without a prefix. Requires a `priority` field (non-negative integer) used to resolve conflicts when multiple passthrough sources expose a sub-field with the same name; the higher priority wins, and root-level concrete fields always take precedence. Omitting this parameter disables passthrough behavior. See [Passthrough sub-fields](#flattened-passthrough).
+:   (Optional, object) When set, the typed sub-fields defined in `properties` become queryable at the root level without a prefix. Requires a `priority` field (non-negative integer) used to resolve conflicts when multiple passthrough sources expose a sub-field with the same name; the higher priority wins, and root-level concrete fields always take precedence. Omitting this parameter disables passthrough behavior. Refer to [Passthrough sub-fields](#flattened-passthrough).
 
 `properties`
 :   (Optional, object) A map of key names to field mappings. Allows specific keys within the flattened object to be mapped as typed sub-fields. Each entry maps a key (using dot notation for nested keys) to a leaf field type definition. See [Mapped sub-fields](#flattened-properties).

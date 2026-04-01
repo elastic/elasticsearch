@@ -11,6 +11,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -643,6 +644,60 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             removeListener.getAndSet(null).onResponse(null);
             assertThat("onRemove should be called after successful remove", onRemove.get(), notNullValue());
         }
+    }
+
+    public void testNeedsReconciliation() {
+        final var projectId = randomUniqueProjectId();
+        final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
+        final var nodeSettings = Settings.EMPTY;
+        final var clusterSettings = new ClusterSettings(nodeSettings, allSettings);
+
+        try (var clusterService = ClusterServiceUtils.createClusterService(threadPool, LOCAL_NODE, nodeSettings, clusterSettings)) {
+            final var manager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+            manager.start();
+
+            final var masterWithProject = masterStateWithProjects(Set.of(projectId));
+            final var masterWithProjectAndClusterTask = stateWithClusterTask(masterWithProject);
+            final var masterWithProjectAndProjectTask = stateWithProjectTask(masterWithProject, projectId, TASK_NAME);
+            final var masterWithDifferentProject = masterStateWithProjects(
+                Set.of(randomValueOtherThan(projectId, ESTestCase::randomUniqueProjectId))
+            );
+            final var settingsEnabled = stateWithPersistentSetting(masterWithProject, TASK_ENABLED_SETTING.getKey(), true);
+            final var settingsDisabled = stateWithPersistentSetting(masterWithProject, TASK_ENABLED_SETTING.getKey(), false);
+            final var nonMasterWithProject = nonMasterStateWithProjects(Set.of(projectId));
+
+            // Nothing changed, already master -> skip
+            assertFalse(manager.needsReconciliation(clusterChangedEvent(masterWithProject, masterWithProject)));
+
+            // Cluster persistent tasks changed -> reconcile
+            assertTrue(manager.needsReconciliation(clusterChangedEvent(masterWithProject, masterWithProjectAndClusterTask)));
+            assertTrue(manager.needsReconciliation(clusterChangedEvent(masterWithProjectAndClusterTask, masterWithProject)));
+            assertFalse(manager.needsReconciliation(clusterChangedEvent(masterWithProject, masterWithProject)));
+            assertFalse(manager.needsReconciliation(clusterChangedEvent(masterWithProjectAndClusterTask, masterWithProjectAndClusterTask)));
+
+            // Project persistent tasks changed -> reconcile
+            assertTrue(manager.needsReconciliation(clusterChangedEvent(masterWithProject, masterWithProjectAndProjectTask)));
+            assertTrue(manager.needsReconciliation(clusterChangedEvent(masterWithProjectAndProjectTask, masterWithProject)));
+            assertFalse(manager.needsReconciliation(clusterChangedEvent(masterWithProjectAndProjectTask, masterWithProjectAndProjectTask)));
+            assertFalse(manager.needsReconciliation(clusterChangedEvent(masterWithProject, masterWithProject)));
+
+            // Project set changed -> reconcile
+            assertTrue(manager.needsReconciliation(clusterChangedEvent(masterWithProject, masterWithDifferentProject)));
+            assertTrue(manager.needsReconciliation(clusterChangedEvent(masterWithProject, masterStateWithProjects(Set.of()))));
+
+            // Persistent settings changed -> reconcile
+            assertTrue(manager.needsReconciliation(clusterChangedEvent(settingsEnabled, settingsDisabled)));
+            assertTrue(manager.needsReconciliation(clusterChangedEvent(settingsDisabled, settingsEnabled)));
+            assertFalse(manager.needsReconciliation(clusterChangedEvent(settingsEnabled, settingsEnabled)));
+            assertFalse(manager.needsReconciliation(clusterChangedEvent(settingsDisabled, settingsDisabled)));
+
+            // Just became master (previous was not master) -> reconcile
+            assertTrue(manager.needsReconciliation(clusterChangedEvent(masterWithProject, nonMasterWithProject)));
+        }
+    }
+
+    private static ClusterChangedEvent clusterChangedEvent(ClusterState current, ClusterState previous) {
+        return new ClusterChangedEvent("test", current, previous);
     }
 
     public void testNonMasterNeverStartsOrStopsTask() {

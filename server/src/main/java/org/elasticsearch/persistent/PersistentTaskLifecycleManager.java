@@ -159,12 +159,13 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
     // Failed requests always retry immediately via the runAfter callback, which calls reconcile directly and
     // bypasses this check. The requests logic also ensures that after a request completes we re-check the latest
     // state, so an in-flight request never freezes reconciliation at a stale view.
-    private boolean needsReconciliation(ClusterChangedEvent event) {
+    // visible for testing
+    boolean needsReconciliation(ClusterChangedEvent event) {
         return event.changedCustomClusterMetadataSet().contains(ClusterPersistentTasksCustomMetadata.TYPE)
             || event.changedCustomProjectMetadataSet().contains(PersistentTasksCustomMetadata.TYPE)
             || event.state().metadata().projects().keySet().equals(event.previousState().metadata().projects().keySet()) == false
-            || event.state().metadata().persistentSettings() == event.previousState().metadata().persistentSettings() == false
-            || event.previousState().nodes().isLocalNodeElectedMaster();
+            || event.state().metadata().persistentSettings() != event.previousState().metadata().persistentSettings()
+            || event.previousState().nodes().isLocalNodeElectedMaster() == false;
     }
 
     private void reconcile(ClusterState state) {

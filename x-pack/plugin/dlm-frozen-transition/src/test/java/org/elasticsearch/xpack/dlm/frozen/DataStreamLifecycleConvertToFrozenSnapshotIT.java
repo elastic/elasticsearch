@@ -85,8 +85,9 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         ProjectState projectState = getProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectState.projectId(),
             client(),
-            projectState,
+            internalCluster().clusterService(),
             licenseState,
             Clock.systemUTC()
         );
@@ -128,8 +129,9 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         ProjectState projectState = getProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectState.projectId(),
             client(),
-            projectState,
+            internalCluster().clusterService(),
             licenseState,
             Clock.systemUTC()
         );
@@ -137,11 +139,11 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
 
         // Second call — should skip since the snapshot already exists and is valid
         // Get a fresh project state
-        ProjectState projectState2 = getProjectState();
         DataStreamLifecycleConvertToFrozen converter2 = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectState.projectId(),
             client(),
-            projectState2,
+            internalCluster().clusterService(),
             licenseState,
             Clock.systemUTC()
         );
@@ -168,8 +170,9 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         ProjectState projectState = getProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectState.projectId(),
             client(),
-            projectState,
+            internalCluster().clusterService(),
             licenseState,
             Clock.systemUTC()
         );
@@ -206,8 +209,9 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         ProjectState projectState = getProjectState();
         DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
             indexName,
+            projectState.projectId(),
             client(),
-            projectState,
+            internalCluster().clusterService(),
             licenseState,
             Clock.systemUTC()
         );

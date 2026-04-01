@@ -29,17 +29,22 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -55,6 +60,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -68,6 +75,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
     private String indexName;
     private XPackLicenseState licenseState;
     private ThreadPool threadPool;
+    private ClusterService clusterService;
 
     private AtomicReference<GetSnapshotsRequest> capturedGetSnapshotsRequest;
     private AtomicReference<GetSnapshotsResponse> mockGetSnapshotsResponse;
@@ -86,6 +94,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getTestName());
+        clusterService = createClusterService(threadPool);
         projectId = randomProjectIdOrDefault();
         indexName = randomAlphaOfLength(10);
         licenseState = new XPackLicenseState(
@@ -109,330 +118,8 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
 
     @After
     public void cleanup() {
+        clusterService.close();
         threadPool.shutdownNow();
-    }
-
-    public void testStartsNewSnapshotWhenNoSnapshotExistsInRepoAndNoneInProgress() {
-        ProjectState projectState = createProjectState();
-        // GetSnapshots returns empty (no existing snapshot)
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(), null, 0, 0));
-        // CreateSnapshot succeeds
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        // Should have checked for existing snapshots
-        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
-        // Should have created a new snapshot
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get().repository(), is(REPO_NAME));
-        assertThat(capturedCreateSnapshotRequest.get().snapshot(), is(DataStreamLifecycleConvertToFrozen.snapshotName(indexName)));
-        assertThat(capturedCreateSnapshotRequest.get().indices(), is(new String[] { indexName }));
-        assertTrue(capturedCreateSnapshotRequest.get().waitForCompletion());
-        assertFalse(capturedCreateSnapshotRequest.get().includeGlobalState());
-    }
-
-    public void testStartsNewSnapshotWhenSnapshotMissingExceptionOnGet() {
-        ProjectState projectState = createProjectState();
-        // GetSnapshots throws SnapshotMissingException
-        mockGetSnapshotsFailure.set(new SnapshotMissingException(REPO_NAME, "not-found"));
-        // CreateSnapshot succeeds
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        // Should have tried to create a new snapshot
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
-    }
-
-    public void testSkipsSnapshotWhenValidOrphanedSnapshotExists() {
-        ProjectState projectState = createProjectState();
-        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
-        // GetSnapshots returns a successful snapshot with 0 failed shards
-        SnapshotInfo successfulSnapshot = new SnapshotInfo(
-            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            List.of(indexName),
-            List.of(),
-            List.of(),
-            SnapshotState.SUCCESS
-        );
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(successfulSnapshot), null, 1, 0));
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        // Should have checked for existing snapshots
-        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
-        // Should NOT have tried to create a new snapshot (valid one already exists)
-        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
-        // Should NOT have tried to delete
-        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-    }
-
-    public void testDeletesAndRestartsWhenOrphanedSnapshotIsFailed() {
-        ProjectState projectState = createProjectState();
-        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
-        // GetSnapshots returns a FAILED snapshot
-        SnapshotInfo failedSnapshot = new SnapshotInfo(
-            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            List.of(indexName),
-            List.of(),
-            List.of(),
-            SnapshotState.FAILED
-        );
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(failedSnapshot), null, 1, 0));
-        // Delete succeeds
-        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
-        // CreateSnapshot succeeds
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        // Should have deleted the failed snapshot
-        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteSnapshotRequest.get().snapshots(), is(new String[] { snapshotName }));
-        // Should have created a new snapshot
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
-    }
-
-    public void testDeletesAndRestartsWhenOrphanedSnapshotIsPartial() {
-        ProjectState projectState = createProjectState();
-        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
-        // GetSnapshots returns a PARTIAL snapshot
-        SnapshotInfo partialSnapshot = new SnapshotInfo(
-            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            List.of(indexName),
-            List.of(),
-            List.of(),
-            SnapshotState.PARTIAL
-        );
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(partialSnapshot), null, 1, 0));
-        // Delete succeeds
-        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
-        // CreateSnapshot succeeds
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        // Should have deleted the partial snapshot and created a new one
-        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
-    }
-
-    public void testLeavesSnapshotAloneWhenInProgressAndNotTimedOut() {
-        // Snapshot started 1 minute ago — well within the 12-hour timeout
-        long snapshotStartTime = clock.millis() - 60_000;
-        ProjectState projectState = createProjectStateWithInProgressSnapshot(snapshotStartTime);
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        // Should NOT have tried to get, delete, or create snapshots (just leave the in-progress one alone)
-        assertThat(capturedGetSnapshotsRequest.get(), is(nullValue()));
-        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
-    }
-
-    public void testDeletesAndRestartsSnapshotWhenInProgressAndTimedOut() {
-        // Snapshot started more than 12 hours ago
-        long snapshotStartTime = clock.millis() - (13 * 60 * 60 * 1000L);
-        ProjectState projectState = createProjectStateWithInProgressSnapshot(snapshotStartTime);
-
-        // Delete succeeds
-        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
-        // CreateSnapshot succeeds
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        // Should have deleted the timed-out snapshot and started a new one
-        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
-    }
-
-    public void testThrowsWhenCreateSnapshotFails() {
-        ProjectState projectState = createProjectState();
-        // GetSnapshots returns empty
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(), null, 0, 0));
-        // CreateSnapshot fails
-        mockCreateSnapshotFailure.set(new ElasticsearchException("snapshot creation failed"));
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeTakeSnapshot(indexName));
-        assertThat(exception.getMessage(), containsString("snapshot creation failed"));
-    }
-
-    public void testThrowsWhenCreateSnapshotHasFailedShards() {
-        ProjectState projectState = createProjectState();
-        // GetSnapshots returns empty
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(), null, 0, 0));
-        // CreateSnapshot returns with failed shards
-        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
-        SnapshotInfo snapshotInfoWithFailures = new SnapshotInfo(
-            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            List.of(indexName),
-            List.of(),
-            List.of(),
-            null,
-            0L,
-            1,
-            List.of(),
-            false,
-            null,
-            0L,
-            Map.of()
-        );
-        mockCreateSnapshotResponse.set(new CreateSnapshotResponse(snapshotInfoWithFailures));
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeTakeSnapshot(indexName));
-        assertThat(exception.getMessage(), containsString("failed shards"));
-    }
-
-    public void testThrowsWhenGetSnapshotsFails() {
-        ProjectState projectState = createProjectState();
-        // GetSnapshots fails with a non-SnapshotMissing exception
-        mockGetSnapshotsFailure.set(new ElasticsearchException("get snapshots failed"));
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeTakeSnapshot(indexName));
-        assertThat(exception.getMessage(), containsString("get snapshots failed"));
-    }
-
-    public void testThrowsWhenDeleteSnapshotIsNotAcknowledged() {
-        ProjectState projectState = createProjectState();
-        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
-        // GetSnapshots returns a FAILED snapshot
-        SnapshotInfo failedSnapshot = new SnapshotInfo(
-            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            List.of(indexName),
-            List.of(),
-            List.of(),
-            SnapshotState.FAILED
-        );
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(failedSnapshot), null, 1, 0));
-        // Delete is not acknowledged
-        mockDeleteSnapshotResponse.set(AcknowledgedResponse.FALSE);
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeTakeSnapshot(indexName));
-        assertThat(exception.getMessage(), containsString("Failed to acknowledge delete of snapshot"));
-    }
-
-    public void testDeleteAndRestartHandlesSnapshotMissingOnDelete() {
-        ProjectState projectState = createProjectState();
-        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
-        // GetSnapshots returns a FAILED snapshot
-        SnapshotInfo failedSnapshot = new SnapshotInfo(
-            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            List.of(indexName),
-            List.of(),
-            List.of(),
-            SnapshotState.FAILED
-        );
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(failedSnapshot), null, 1, 0));
-        // Delete throws SnapshotMissing (already deleted)
-        mockDeleteSnapshotFailure.set(new SnapshotMissingException(REPO_NAME, snapshotName));
-        // CreateSnapshot succeeds
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        // Should have attempted to delete, then started a new snapshot after SnapshotMissingException
-        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
-    }
-
-    public void testThrowsWhenDeleteSnapshotFails() {
-        ProjectState projectState = createProjectState();
-        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
-        SnapshotInfo failedSnapshot = new SnapshotInfo(
-            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            List.of(indexName),
-            List.of(),
-            List.of(),
-            SnapshotState.FAILED
-        );
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(failedSnapshot), null, 1, 0));
-        // Delete fails with generic exception
-        mockDeleteSnapshotFailure.set(new ElasticsearchException("delete snapshot failed"));
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeTakeSnapshot(indexName));
-        assertThat(exception.getMessage(), containsString("delete snapshot failed"));
-    }
-
-    public void testCreateSnapshotResponseWithNullSnapshotInfoThrows() {
-        ProjectState projectState = createProjectState();
-        // GetSnapshots returns empty
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(), null, 0, 0));
-        // CreateSnapshot returns null snapshotInfo (waitForCompletion=true should not do this, but testing defensively)
-        mockCreateSnapshotResponse.set(new CreateSnapshotResponse((SnapshotInfo) null));
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeTakeSnapshot(indexName));
-        assertThat(exception.getMessage(), containsString("failed shards"));
-    }
-
-    public void testSnapshotNameFormat() {
-        String name = DataStreamLifecycleConvertToFrozen.snapshotName("my-index");
-        assertThat(name, is("dlm-frozen-my-index"));
-    }
-
-    public void testCreateSnapshotRequestHasCorrectMetadata() {
-        ProjectState projectState = createProjectState();
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(), null, 0, 0));
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        CreateSnapshotRequest req = capturedCreateSnapshotRequest.get();
-        assertThat(req, is(notNullValue()));
-        Map<String, Object> userMetadata = req.userMetadata();
-        assertThat(userMetadata, is(notNullValue()));
-        assertThat(userMetadata.get("dlm-managed"), is(Boolean.TRUE));
-    }
-
-    public void testSnapshotAtExactTimeoutBoundaryIsNotTimedOut() {
-        // Snapshot started exactly 12 hours ago — at the boundary, (clock - start) == timeout, NOT > timeout
-        long exactlyAtTimeout = clock.millis() - (12 * 60 * 60 * 1000L);
-        ProjectState projectState = createProjectStateWithInProgressSnapshot(exactlyAtTimeout);
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        // Should NOT delete or restart — the condition is strictly > timeout
-        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
-    }
-
-    public void testSnapshotOneMillisOverTimeoutIsTimedOut() {
-        // Snapshot started 12h + 1ms ago
-        long oneMillisOverTimeout = clock.millis() - (12 * 60 * 60 * 1000L + 1);
-        ProjectState projectState = createProjectStateWithInProgressSnapshot(oneMillisOverTimeout);
-
-        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DataStreamLifecycleConvertToFrozen converter = createConverter(projectState);
-        converter.maybeTakeSnapshot(indexName);
-
-        // Should have deleted and restarted
-        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
     }
 
     private NoOpClient createMockClient() {
@@ -470,8 +157,13 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         };
     }
 
-    private DataStreamLifecycleConvertToFrozen createConverter(ProjectState projectState) {
-        return new DataStreamLifecycleConvertToFrozen(indexName, createMockClient(), projectState, licenseState, clock);
+    private DataStreamLifecycleConvertToFrozen createConverter() {
+        return new DataStreamLifecycleConvertToFrozen(indexName, projectId, createMockClient(), clusterService, licenseState, clock) {
+            @Override
+            void sleepBeforePoll(String snapshotName, String indexName) {
+                // no-op in tests to avoid 30s Thread.sleep
+            }
+        };
     }
 
     private CreateSnapshotResponse createSuccessfulSnapshotResponse() {
@@ -506,17 +198,20 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
      */
     private ProjectState createProjectStateWithInProgressSnapshot(long snapshotStartTime) {
         String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        IndexId indexId = new IndexId(indexName, randomAlphaOfLength(10));
+        ShardId shardId = new ShardId(new Index(indexName, indexId.getId()), 0);
+        SnapshotsInProgress.ShardSnapshotStatus initStatus = new SnapshotsInProgress.ShardSnapshotStatus(randomAlphaOfLength(10), null);
         SnapshotsInProgress.Entry entry = SnapshotsInProgress.Entry.snapshot(
             new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
             false,
             false,
             SnapshotsInProgress.State.STARTED,
-            Map.of(),
+            Map.of(indexName, indexId),
             List.of(),
             List.of(),
             snapshotStartTime,
             randomNonNegativeLong(),
-            Map.of(),
+            Map.of(shardId, initStatus),
             null,
             Map.of("dlm-managed", true),
             IndexVersion.current()
@@ -554,5 +249,316 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
             .build();
 
         return clusterState.projectState(projectId);
+    }
+
+    private void setClusterState(ProjectState projectState) {
+        setState(clusterService, projectState.cluster());
+    }
+
+    private SnapshotInfo createSnapshotInfo(SnapshotState state, int failedShards) {
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        List<SnapshotShardFailure> shardFailures = new java.util.ArrayList<>();
+        for (int i = 0; i < failedShards; i++) {
+            shardFailures.add(new SnapshotShardFailure(null, new ShardId(indexName, randomAlphaOfLength(10), i), "test failure"));
+        }
+        int totalShards = Math.max(1, failedShards);
+        return new SnapshotInfo(
+            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
+            List.of(indexName),
+            List.of(),
+            List.of(),
+            state == SnapshotState.FAILED ? "simulated failure" : null,
+            IndexVersion.current(),
+            clock.millis(),
+            clock.millis(),
+            totalShards,
+            totalShards - failedShards,
+            shardFailures,
+            false,
+            null,
+            state,
+            Map.of()
+        );
+    }
+
+    private GetSnapshotsResponse emptyGetSnapshotsResponse() {
+        return new GetSnapshotsResponse(List.of(), null, 0, 0);
+    }
+
+    private GetSnapshotsResponse getSnapshotsResponseWith(SnapshotInfo info) {
+        return new GetSnapshotsResponse(List.of(info), null, 1, 0);
+    }
+
+    // --- checkSnapshotInfoSuccess tests ---
+
+    public void testCheckSnapshotInfoSuccess_succeeds() {
+        SnapshotInfo info = createSnapshotInfo(SnapshotState.SUCCESS, 0);
+        // Should not throw
+        DataStreamLifecycleConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", info);
+    }
+
+    public void testCheckSnapshotInfoSuccess_failsWithFailedShards() {
+        SnapshotInfo info = createSnapshotInfo(SnapshotState.SUCCESS, 2);
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> DataStreamLifecycleConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", info)
+        );
+        assertThat(e.getMessage(), containsString("failed shards"));
+    }
+
+    public void testCheckSnapshotInfoSuccess_failsWithNull() {
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> DataStreamLifecycleConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", null)
+        );
+        assertThat(e.getMessage(), containsString("failed shards"));
+    }
+
+    // --- createSnapshot tests ---
+
+    public void testCreateSnapshot_success() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        converter.createSnapshot(indexName, REPO_NAME, snapshotName);
+
+        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertThat(capturedCreateSnapshotRequest.get().snapshot(), is(snapshotName));
+        assertThat(capturedCreateSnapshotRequest.get().repository(), is(REPO_NAME));
+        assertThat(capturedCreateSnapshotRequest.get().indices(), is(new String[] { indexName }));
+    }
+
+    public void testCreateSnapshot_failureThrows() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        mockCreateSnapshotFailure.set(new RuntimeException("snapshot failed"));
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> converter.createSnapshot(indexName, REPO_NAME, snapshotName)
+        );
+        assertThat(e.getMessage(), containsString("DLM failed to start snapshot"));
+        assertThat(e.getCause().getMessage(), containsString("snapshot failed"));
+    }
+
+    // --- deleteAndRestartSnapshot tests ---
+
+    public void testDeleteAndRestartSnapshot_deleteThenCreates() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName);
+
+        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
+        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+    }
+
+    public void testDeleteAndRestartSnapshot_deleteNotAcknowledgedThrows() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        mockDeleteSnapshotResponse.set(AcknowledgedResponse.FALSE);
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName)
+        );
+        assertThat(e.getMessage(), containsString("Failed to acknowledge delete"));
+    }
+
+    public void testDeleteAndRestartSnapshot_snapshotMissingStillCreates() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        mockDeleteSnapshotFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName);
+
+        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+    }
+
+    // --- checkForOrphanedSnapshotAndStart tests ---
+
+    public void testCheckForOrphanedSnapshot_noExistingSnapshot_createsNew() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
+
+        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
+        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
+    }
+
+    public void testCheckForOrphanedSnapshot_validOrphaned_skipsCreate() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        SnapshotInfo validSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
+        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(validSnapshot));
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
+
+        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
+        // Valid orphaned snapshot: no delete, no create
+        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
+        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
+    }
+
+    public void testCheckForOrphanedSnapshot_invalidOrphaned_deletesAndRecreates() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        SnapshotInfo failedSnapshot = createSnapshotInfo(SnapshotState.FAILED, 1);
+        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(failedSnapshot));
+        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
+
+        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
+        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+    }
+
+    public void testCheckForOrphanedSnapshot_snapshotMissing_createsNew() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        mockGetSnapshotsFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
+
+        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+    }
+
+    public void testCheckForOrphanedSnapshot_getFailure_throws() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        mockGetSnapshotsFailure.set(new RuntimeException("get failed"));
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName)
+        );
+        assertThat(e.getMessage(), containsString("DLM failed while checking snapshots for index"));
+        assertThat(e.getCause().getMessage(), containsString("get failed"));
+    }
+
+    // --- handleInProgressSnapshot tests ---
+
+    public void testHandleInProgressSnapshot_withinTimeout_waitsForCompletion() {
+        // Snapshot started recently (within timeout) - converter should poll and find completed snapshot
+        long recentStartTime = clock.millis() - 1000; // 1 second ago
+        ProjectState projectState = createProjectStateWithInProgressSnapshot(recentStartTime);
+        setClusterState(projectState);
+
+        // When polling, return a completed snapshot
+        SnapshotInfo completedSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
+        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(completedSnapshot));
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        converter.handleInProgressSnapshot(indexName, REPO_NAME, snapshotName, recentStartTime);
+
+        // Should have polled via GetSnapshots, but not deleted or created
+        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
+        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
+    }
+
+    public void testHandleInProgressSnapshot_exceededTimeout_deletesAndRestarts() {
+        // Snapshot started longer ago than SNAPSHOT_TIMEOUT (12h)
+        long oldStartTime = clock.millis() - (13 * 60 * 60 * 1000); // 13 hours ago
+        ProjectState projectState = createProjectStateWithInProgressSnapshot(oldStartTime);
+        setClusterState(projectState);
+
+        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        converter.handleInProgressSnapshot(indexName, REPO_NAME, snapshotName, oldStartTime);
+
+        // Should have deleted and recreated
+        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
+        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+    }
+
+    // --- maybeTakeSnapshot tests ---
+
+    public void testMaybeTakeSnapshot_noInProgress_noExisting_createsNew() {
+        ProjectState projectState = createProjectState();
+        setClusterState(projectState);
+        mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        converter.maybeTakeSnapshot(indexName);
+
+        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
+    }
+
+    public void testMaybeTakeSnapshot_inProgressWithinTimeout_waits() {
+        long recentStartTime = clock.millis() - 1000;
+        ProjectState projectState = createProjectStateWithInProgressSnapshot(recentStartTime);
+        setClusterState(projectState);
+
+        SnapshotInfo completedSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
+        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(completedSnapshot));
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        converter.maybeTakeSnapshot(indexName);
+
+        // Waited and polled - no delete, no create
+        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
+        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
+    }
+
+    public void testMaybeTakeSnapshot_inProgressExceededTimeout_deletesAndRestarts() {
+        long oldStartTime = clock.millis() - (13 * 60 * 60 * 1000);
+        ProjectState projectState = createProjectStateWithInProgressSnapshot(oldStartTime);
+        setClusterState(projectState);
+
+        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
+        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+
+        DataStreamLifecycleConvertToFrozen converter = createConverter();
+        converter.maybeTakeSnapshot(indexName);
+
+        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
+        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+    }
+
+    // --- snapshotName tests ---
+
+    public void testSnapshotName() {
+        assertThat(DataStreamLifecycleConvertToFrozen.snapshotName("my-index"), is("dlm-frozen-my-index"));
     }
 }

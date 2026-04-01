@@ -74,7 +74,9 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
@@ -145,10 +147,13 @@ import static org.mockito.Mockito.when;
 public class SemanticTextFieldMapperTests extends MapperTestCase {
     private final boolean useLegacyFormat;
 
+    private final License.OperationMode operationMode;
+
     private TestThreadPool threadPool;
 
-    public SemanticTextFieldMapperTests(boolean useLegacyFormat) {
+    public SemanticTextFieldMapperTests(boolean useLegacyFormat, License.OperationMode operationMode) {
         this.useLegacyFormat = useLegacyFormat;
+        this.operationMode = operationMode;
     }
 
     ModelRegistry globalModelRegistry;
@@ -175,17 +180,27 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(new Object[] { true }, new Object[] { false });
+        return List.of(new Object[] {true, License.OperationMode.BASIC}, new Object[] {true, License.OperationMode.ENTERPRISE},
+            new Object[] {false, License.OperationMode.BASIC}, new Object[] {false, License.OperationMode.ENTERPRISE});
     }
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new InferencePlugin(Settings.EMPTY) {
-            @Override
-            protected Supplier<ModelRegistry> getModelRegistry() {
-                return () -> globalModelRegistry;
-            }
-        }, new XPackClientPlugin(), VariableLicenseDiskBBQPlugin.trial(Settings.EMPTY));
+        if (operationMode == License.OperationMode.ENTERPRISE) {
+            return List.of(new InferencePlugin(Settings.EMPTY) {
+                @Override
+                protected Supplier<ModelRegistry> getModelRegistry() {
+                    return () -> globalModelRegistry;
+                }
+            }, new XPackClientPlugin(), VariableLicenseDiskBBQPlugin.enterprise(Settings.EMPTY));
+        } else {
+            return List.of(new InferencePlugin(Settings.EMPTY) {
+                @Override
+                protected Supplier<ModelRegistry> getModelRegistry() {
+                    return () -> globalModelRegistry;
+                }
+            }, new XPackClientPlugin());
+        }
     }
 
     private void registerDefaultEisEndpoint() {
@@ -2050,17 +2065,14 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private static class VariableLicenseDiskBBQPlugin extends DiskBBQPlugin {
         private final XPackLicenseState licenseState;
 
-        public VariableLicenseDiskBBQPlugin(Settings settings) {
-            this(settings, null);
-        }
-
-        public VariableLicenseDiskBBQPlugin(Settings settings, XPackLicenseState licenseState) {
+        VariableLicenseDiskBBQPlugin(Settings settings, XPackLicenseState licenseState) {
             super(settings);
             this.licenseState = licenseState;
         }
 
-        public static VariableLicenseDiskBBQPlugin trial(Settings settings) {
-            return new VariableLicenseDiskBBQPlugin(settings, new XPackLicenseState(() -> 0L));
+        static VariableLicenseDiskBBQPlugin enterprise(Settings settings) {
+            return new VariableLicenseDiskBBQPlugin(settings, new XPackLicenseState(() -> 0L,
+                new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null)));
         }
 
         @Override
@@ -2104,6 +2116,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    // TODO: Check for license mode License.OperationMode.ENTERPRISE
     private SemanticTextIndexOptions getExpectedDefaultIndexOptions(
         TaskType taskType,
         DenseVectorFieldMapper.ElementType elementType,

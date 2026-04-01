@@ -393,6 +393,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:spatial-jts.stBufferFoldable}
   issue: https://github.com/elastic/elasticsearch/issues/145483
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testScalarOnDates_DateNanos
+  issue: https://github.com/elastic/elasticsearch/issues/145485
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testMultiValueFieldWithMultiValueLeniencyEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/145486
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:tdigest.ungroupedPercentiles}
+  issue: https://github.com/elastic/elasticsearch/issues/145495
+- class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
+  method: testCancelOnExpiry
+  issue: https://github.com/elastic/elasticsearch/issues/145502
 
 # Examples:
 #

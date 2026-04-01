@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
-import java.time.Duration;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
@@ -45,7 +45,7 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
             if (resources == null) {
                 resources = createMeteringResources();
             }
-            return resources.meterProvider().get("elasticsearch");
+            return resources.systemMeterProvider().get("elasticsearch");
         }
     }
 
@@ -54,19 +54,19 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
 
         // Reader to collect metrics about OTLPExporter
         var metricHealthReader = PeriodicMetricReader.builder(createOTLPExporter(MeterProvider.noop()))
-            .setInterval(Duration.ofMillis(intervalTimeValue.millis()))
+            .setInterval(intervalTimeValue.toDuration())
             .build();
         var metricHealthProvider = sdkMeterProvider(metricHealthReader);
 
         var reader = PeriodicMetricReader.builder(createOTLPExporter(metricHealthProvider))
-            .setInterval(Duration.ofMillis(intervalTimeValue.millis()))
+            .setInterval(intervalTimeValue.toDuration())
             .build();
-        var meterProvider = sdkMeterProvider(reader);
-        var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
+        var systemMeterProvider = sdkMeterProvider(reader);
+        var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(systemMeterProvider).build();
 
         // RuntimeTelemetry uses JMX (Java 8+) and JFR (Java 17+) to collect JVM metrics. See https://ela.st/otel-runtime-telemetry
         var runtimeTelemetry = OTelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED.get(settings) ? RuntimeTelemetry.create(otelSdk) : null;
-        return new OTelMetricsResources(meterProvider, metricHealthProvider, runtimeTelemetry);
+        return new OTelMetricsResources(systemMeterProvider, metricHealthProvider, runtimeTelemetry);
     }
 
     private static SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
@@ -76,7 +76,7 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
             .build();
     }
 
-    private OtlpHttpMetricExporter createOTLPExporter(MeterProvider meterProvider) {
+    private OtlpHttpMetricExporter createOTLPExporter(MeterProvider healthExportMeterProvider) {
         String endpoint = OTelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalStateException(
@@ -85,7 +85,7 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
         }
         OtlpHttpMetricExporterBuilder builder = OtlpHttpMetricExporter.builder()
             .setEndpoint(endpoint)
-            .setMeterProvider(() -> meterProvider)
+            .setMeterProvider(() -> healthExportMeterProvider)
             .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST);
         String authHeader = getAuthorizationHeader();
@@ -114,7 +114,10 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
         synchronized (mutex) {
             if (resources != null) {
                 // If the timeout expires, this quietly returns, which is ok in this context.
-                resources.meterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
             }
         }
     }
@@ -130,17 +133,22 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
     }
 
     private record OTelMetricsResources(
-        SdkMeterProvider meterProvider,
+        SdkMeterProvider systemMeterProvider,
         SdkMeterProvider meterHealthMeterProvider,
         RuntimeTelemetry runtimeTelemetry
     ) implements AutoCloseable {
+
+        OTelMetricsResources {
+            Objects.requireNonNull(systemMeterProvider, "systemMeterProvider");
+            Objects.requireNonNull(meterHealthMeterProvider, "meterHealthMeterProvider");
+        }
 
         @Override
         public void close() {
             if (runtimeTelemetry != null) {
                 runtimeTelemetry.close();
             }
-            meterProvider.close();
+            systemMeterProvider.close();
             meterHealthMeterProvider.close();
         }
     }

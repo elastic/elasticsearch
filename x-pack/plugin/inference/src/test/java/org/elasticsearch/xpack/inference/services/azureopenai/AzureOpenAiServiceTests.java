@@ -313,7 +313,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> { fail("Expected exception, but got model: " + model); },
+                model -> fail("Expected exception, but got model: " + model),
                 e -> {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
@@ -343,7 +343,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> { fail("Expected exception, but got model: " + model); },
+                model -> fail("Expected exception, but got model: " + model),
                 e -> {
                     assertThat(e, instanceOf(XContentParseException.class));
                     assertThat(e.getMessage(), containsString("unknown field [extra_key]"));
@@ -370,7 +370,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
-                model -> { fail("Expected exception, but got model: " + model); },
+                model -> fail("Expected exception, but got model: " + model),
                 e -> {
                     assertThat(e, instanceOf(ElasticsearchStatusException.class));
                     assertThat(
@@ -1099,10 +1099,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = AzureOpenAiCompletionModelTests.createModelWithRandomValues(threadPool);
-            assertThrows(
-                ElasticsearchStatusException.class,
-                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
-            );
+            assertThrows(ElasticsearchStatusException.class, () -> service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()));
         }
     }
 

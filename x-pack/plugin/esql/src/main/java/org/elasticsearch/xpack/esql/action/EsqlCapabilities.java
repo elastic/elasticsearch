@@ -2398,6 +2398,12 @@ public class EsqlCapabilities {
         UNMAPPED_FIELDS_DEFAULT_SETTING_RENAME,
 
         /**
+         * Support window durations that are larger than but not exact multiples of the time bucket
+         * for time-series aggregations (e.g., rate(counter, 7 minutes) with TBUCKET(5 minutes)).
+         */
+        TIME_SERIES_WINDOW_NON_MULTIPLE,
+
+        /**
          * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.
          * See https://github.com/elastic/elasticsearch/issues/144914
          */

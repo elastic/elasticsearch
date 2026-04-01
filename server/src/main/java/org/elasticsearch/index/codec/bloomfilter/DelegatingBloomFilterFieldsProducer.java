@@ -62,7 +62,7 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
 
     @Override
     public void close() throws IOException {
-        if (logger.isTraceEnabled()) {
+        if (logger.isTraceEnabled() && checks != NO_OP) {
             long totalChecks = checks.sum();
             long totalFalsePositives = falsePositives.sum();
             logger.trace(

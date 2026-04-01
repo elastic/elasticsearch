@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.BytesRefHashTable;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.LongLongHash;
@@ -27,9 +26,8 @@ import org.elasticsearch.swisshash.SwissHashFactory;
  */
 public class HashImplFactory {
 
-    public static final FeatureFlag SWISS_TABLES_HASHING = new FeatureFlag("swiss_table_hashing");
-
-    private static final SwissHashFactory SWISS_HASH_FACTORY = SWISS_TABLES_HASHING.isEnabled() ? SwissHashFactory.getInstance() : null;
+    private static final SwissHashFactory SWISS_HASH_FACTORY = SwissHashFactory.getInstance();
+    public static final boolean SWISS_HASH_AVAILABLE = SWISS_HASH_FACTORY != null;
 
     private HashImplFactory() {}
 

@@ -259,7 +259,8 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
         AggregatorMode mode = AggregatorMode.SINGLE;
         return new TimeSeriesAggregationOperator.Factory(
             timeBucket,
-            false,
+            DateFieldMapper.Resolution.MILLISECONDS,
+            TimeSeriesAggregationOperator.evaluationContextFactory(false),
             List.of(
                 new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
                 new BlockHash.GroupSpec(1, ElementType.LONG, null, null)

@@ -234,7 +234,8 @@ public class MapperUtils {
                 intermediateAttributes,
                 null,
                 ts.timeBucket(),
-                ts.outputTimeBucket()
+                ts.outputTimeBucket(),
+                ts.isBackwardBucketIntervalConvention()
             );
             case SampledAggregate sample -> new SampledAggregateExec(
                 sample.source(),

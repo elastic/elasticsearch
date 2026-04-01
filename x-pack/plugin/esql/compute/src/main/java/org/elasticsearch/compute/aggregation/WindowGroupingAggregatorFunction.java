@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
@@ -19,6 +20,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
 /**
@@ -87,14 +89,14 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         if (endTime - startTime == window.toMillis()) {
             return next.prepareEvaluateFinal(selectedGroups, ctx);
         }
-        // When output filtering is active, allGroupIds contains every group (including sub-bucket
-        // groups that won't appear in the final output). We need all of them for evaluateIntermediate
-        // so that neighbor data is available during the window merge. When null, selected already
-        // contains every group.
+
+        // Output filtering keeps only output-aligned groups in selectedGroups.
+        // Window merges still need intermediate state for all groups.
         IntVector allGroups = ctx.allGroupIds();
         if (allGroups == null) {
             allGroups = selectedGroups;
         }
+
         int blockCount = next.intermediateBlockCount();
         List<Integer> channels = IntStream.range(0, blockCount).boxed().toList();
         GroupingAggregator.Factory aggregatorFactory = supplier.groupingAggregatorFactory(AggregatorMode.FINAL, channels);
@@ -102,9 +104,14 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         try {
             Block[] intermediateBlocks = new Block[blockCount];
             int[] backwards = new int[allGroups.getPositionCount()];
+            Arrays.fill(backwards, -1);
             for (int i = 0; i < allGroups.getPositionCount(); i++) {
                 int gid = allGroups.getInt(i);
+                int prevLength = backwards.length;
                 backwards = ArrayUtil.grow(backwards, gid + 1);
+                if (backwards.length > prevLength) {
+                    Arrays.fill(backwards, prevLength, backwards.length, -1);
+                }
                 backwards[gid] = i;
             }
             try {
@@ -138,6 +145,11 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
 
                     @Override
                     public void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void forEachBucketInWindow(long groupId, Duration window, TimeSeriesBlockHash tsBlockHash, LongConsumer action) {
                         throw new UnsupportedOperationException();
                     }
 
@@ -186,11 +198,11 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         int[] singlePosition = new int[1];
         try (var oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
             context.forEachGroupInWindow(startingGroupId, window, groupId -> {
-                if (groupId == startingGroupId) {
+                if (groupId == startingGroupId || groupId < 0 || groupId >= groupIdToPositions.length) {
                     return;
                 }
                 int position = groupIdToPositions[groupId];
-                if (hasIntermediateState(page, position)) {
+                if (position >= 0 && hasIntermediateState(page, position)) {
                     singlePosition[0] = position;
                     addIntermediateInputWithFilter(fn, page, singlePosition, oneGroup);
                 }

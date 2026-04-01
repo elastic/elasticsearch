@@ -377,7 +377,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             AggregatorMode.SINGLE,
             List.of(),
             10,
-            null
+            null,
+            false
         );
         PlannerSettings plannerSettings = new PlannerSettings(
             DataPartitioning.AUTO,

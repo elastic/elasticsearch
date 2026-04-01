@@ -584,8 +584,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             && internalRounding != null
             && outputRounding.getUnprepared().equals(internalRounding.getUnprepared()) == false;
         return new TimeSeriesAggregationOperator.Factory(
-            internalRounding,
-            ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
+            ts.timeBucketRounding(context.foldCtx()),
+            ts.timeResolution(),
+            TimeSeriesAggregationOperator.evaluationContextFactory(ts.isBackwardBucketIntervalConvention()),
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,

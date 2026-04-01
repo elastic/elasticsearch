@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -19,12 +20,14 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
@@ -39,6 +42,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
 
     private final Bucket timeBucket;
     private final Bucket outputTimeBucket;
+    private final boolean isBackwardBucketIntervalConvention;
 
     public TimeSeriesAggregateExec(
         Source source,
@@ -50,7 +54,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         Integer estimatedRowSize,
         Bucket timeBucket
     ) {
-        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, timeBucket);
+        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, timeBucket, false);
     }
 
     public TimeSeriesAggregateExec(
@@ -62,16 +66,48 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         List<Attribute> intermediateAttributes,
         Integer estimatedRowSize,
         Bucket timeBucket,
-        Bucket outputTimeBucket
+        boolean isBackwardBucketIntervalConvention
+    ) {
+        this(
+            source,
+            child,
+            groupings,
+            aggregates,
+            mode,
+            intermediateAttributes,
+            estimatedRowSize,
+            timeBucket,
+            timeBucket,
+            isBackwardBucketIntervalConvention
+        );
+    }
+
+    public TimeSeriesAggregateExec(
+        Source source,
+        PhysicalPlan child,
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        AggregatorMode mode,
+        List<Attribute> intermediateAttributes,
+        Integer estimatedRowSize,
+        Bucket timeBucket,
+        Bucket outputTimeBucket,
+        boolean isBackwardBucketIntervalConvention
     ) {
         super(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         this.timeBucket = timeBucket;
         this.outputTimeBucket = outputTimeBucket;
+        this.isBackwardBucketIntervalConvention = isBackwardBucketIntervalConvention;
     }
 
     private TimeSeriesAggregateExec(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        if (in.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_AGGREGATE_BUCKET_INTERVAL_CONVENTION)) {
+            this.isBackwardBucketIntervalConvention = in.readBoolean();
+        } else {
+            this.isBackwardBucketIntervalConvention = false;
+        }
         if (in.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_OUTPUT_BUCKET)) {
             this.outputTimeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
         } else {
@@ -83,6 +119,9 @@ public class TimeSeriesAggregateExec extends AggregateExec {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
+        if (out.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_AGGREGATE_BUCKET_INTERVAL_CONVENTION)) {
+            out.writeBoolean(isBackwardBucketIntervalConvention);
+        }
         if (out.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_OUTPUT_BUCKET)) {
             out.writeOptionalWriteable(outputTimeBucket);
         }
@@ -105,7 +144,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket
+            outputTimeBucket,
+            isBackwardBucketIntervalConvention
         );
     }
 
@@ -120,7 +160,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket
+            outputTimeBucket,
+            isBackwardBucketIntervalConvention
         );
     }
 
@@ -135,7 +176,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket
+            outputTimeBucket,
+            isBackwardBucketIntervalConvention
         );
     }
 
@@ -150,7 +192,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize(),
             timeBucket,
-            outputTimeBucket
+            outputTimeBucket,
+            isBackwardBucketIntervalConvention
         );
     }
 
@@ -165,7 +208,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             intermediateAttributes(),
             estimatedRowSize,
             timeBucket,
-            outputTimeBucket
+            outputTimeBucket,
+            isBackwardBucketIntervalConvention
         );
     }
 
@@ -177,15 +221,34 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         return outputTimeBucket;
     }
 
+    public boolean isBackwardBucketIntervalConvention() {
+        return isBackwardBucketIntervalConvention;
+    }
+
     public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {
-        if (timeBucket == null) {
-            return null;
+        return timeBucket == null ? null : timeBucket.getDateRoundingOrNull(foldContext);
+    }
+
+    public DateFieldMapper.Resolution timeResolution() {
+        return timeBucket != null && timeBucket.dataType() == DataType.DATE_NANOS
+            ? DateFieldMapper.Resolution.NANOSECONDS
+            : DateFieldMapper.Resolution.MILLISECONDS;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), timeBucket, outputTimeBucket, isBackwardBucketIntervalConvention);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
         }
-        Rounding.Prepared rounding = timeBucket.getDateRoundingOrNull(foldContext);
-        if (rounding == null) {
-            throw new EsqlIllegalArgumentException("expected TBUCKET; got ", timeBucket);
-        }
-        return rounding;
+        TimeSeriesAggregateExec other = (TimeSeriesAggregateExec) obj;
+        return Objects.equals(timeBucket, other.timeBucket)
+            && Objects.equals(outputTimeBucket, other.outputTimeBucket)
+            && isBackwardBucketIntervalConvention == other.isBackwardBucketIntervalConvention;
     }
 
     public Rounding.Prepared outputTimeBucketRounding(FoldContext foldContext) {

@@ -59,8 +59,7 @@ public class PrometheusLabelsRestAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String matchParam = request.param(MATCH_PARAM);
-        List<String> matchSelectors = matchParam != null ? List.of(matchParam) : List.of();
+        List<String> matchSelectors = request.repeatedParamAsList(MATCH_PARAM);
 
         // Time range
         String endParam = request.param(END_PARAM);

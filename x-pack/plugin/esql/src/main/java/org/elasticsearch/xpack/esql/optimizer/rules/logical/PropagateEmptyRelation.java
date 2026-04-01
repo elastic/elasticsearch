@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -92,11 +93,9 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
         // look for count(literal) with literal != null
         Object value;
         if (aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null)) {
-            value = switch (aggFunc.dataType()) {
-                case LONG -> 0L;     // Count
-                case DOUBLE -> 0.0;  // CountApproximate
-                default -> throw new EsqlIllegalArgumentException("Unexpected COUNT return type [{}]", aggFunc.dataType());
-            };
+            value = 0L;
+        } else if (aggFunc instanceof CountApproximate count && (count.foldable() == false || count.fold(foldCtx) != null)) {
+            value = 0.0;
         } else {
             value = null;
         }

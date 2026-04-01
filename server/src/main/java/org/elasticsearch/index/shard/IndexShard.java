@@ -61,6 +61,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
@@ -3384,9 +3385,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 doCheckIndex();
             } catch (IOException e) {
-                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null || isRejectedDueToShutdown(e)) {
                     // Cache-based read operations on Lucene files can throw an AlreadyClosedException wrapped into an IOException in case
-                    // of evictions. We don't want to mark the store as corrupted for this.
+                    // of evictions, or the read might be rejected if the node is shutting down. We don't want to mark the store as
+                    // corrupted for this.
                 } else {
                     store.markStoreCorrupted(e);
                 }
@@ -4935,5 +4937,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + Thread.currentThread()
                 + "] to not hold the engine write lock (lock ordering should be: engineMutex -> engineResetLock -> mutex)";
         return true;
+    }
+
+    private static boolean isRejectedDueToShutdown(IOException e) {
+        var rejected = ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class);
+        return rejected instanceof EsRejectedExecutionException esRejected && esRejected.isExecutorShutdown();
     }
 }

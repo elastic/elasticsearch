@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.dlm.frozen;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -42,8 +44,17 @@ class DlmFrozenTransitionExecutor implements Closeable {
     private final ExecutorService executor;
     private final int maxConcurrency;
     private final int maxQueueSize;
+    private final ClusterService clusterService;
+    private final DataStreamLifecycleErrorStore errorStore;
+    private volatile int errorRetryInterval;
 
-    DlmFrozenTransitionExecutor(int maxConcurrency, int maxQueueSize, Settings settings) {
+    DlmFrozenTransitionExecutor(
+        ClusterService clusterService,
+        int maxConcurrency,
+        int maxQueueSize,
+        Settings settings,
+        DataStreamLifecycleErrorStore errorStore
+    ) {
         this.maxConcurrency = maxConcurrency;
         this.maxQueueSize = maxQueueSize;
         this.submittedTransitions = new ConcurrentHashMap<>(maxQueueSize);
@@ -56,6 +67,21 @@ class DlmFrozenTransitionExecutor implements Closeable {
             }
             return thread;
         }, new ThreadContext(settings), EsExecutors.TaskTrackingConfig.DEFAULT);
+        this.clusterService = clusterService;
+        this.errorStore = errorStore;
+        this.errorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
+    }
+
+    public void init() {
+        this.clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,
+                this::updateErrorInterval
+            );
+    }
+
+    private void updateErrorInterval(int newInterval) {
+        this.errorRetryInterval = newInterval;
     }
 
     public boolean transitionSubmitted(String indexName) {
@@ -112,7 +138,13 @@ class DlmFrozenTransitionExecutor implements Closeable {
                 task.run();
                 logger.debug("Transition completed for index [{}]", indexName);
             } catch (Exception ex) {
-                logger.error(() -> Strings.format("Error executing transition for index [%s]", indexName), ex);
+                errorStore.recordAndLogError(
+                    task.getProjectId(),
+                    indexName,
+                    ex,
+                    Strings.format("Error executing transition for index [%s]", indexName),
+                    errorRetryInterval
+                );
             } finally {
                 submittedTransitions.remove(indexName);
             }

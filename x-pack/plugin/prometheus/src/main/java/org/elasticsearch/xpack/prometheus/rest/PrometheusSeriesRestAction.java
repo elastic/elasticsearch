@@ -57,12 +57,10 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        // TODO: support multiple match[] values once multi-value query param support lands
-        String matchSelector = request.param(MATCH_PARAM);
-        if (matchSelector == null) {
+        List<String> matchSelectors = request.repeatedParamAsList(MATCH_PARAM);
+        if (matchSelectors.isEmpty()) {
             throw new IllegalArgumentException("At least one [match[]] selector is required");
         }
-        List<String> matchSelectors = List.of(matchSelector);
 
         // Time range
         String endParam = request.param(END_PARAM);

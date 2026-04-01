@@ -119,7 +119,7 @@ static inline int32_t dot7u_inner_avx512(const int8_t* a, const int8_t* b, const
 EXPORT int32_t vec_dot7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
+    if (dims >= STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = dot7u_inner_avx512(a, b, i);
     }
@@ -139,6 +139,7 @@ static inline void dot7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
+    constexpr int batches = 4;
     const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
@@ -148,27 +149,33 @@ static inline void dot7u_inner_bulk(
     const int8_t* a2 = count > 2 ? mapper(a, 2, offsets, pitch) : nullptr;
     const int8_t* a3 = count > 3 ? mapper(a, 3, offsets, pitch) : nullptr;
 
-    // Process a batch of 4 vectors at a time, after instructing the CPU to
-    // prefetch the next batch.
+    // Process a batch of `batches` vectors at a time, after instructing the
+    // CPU to prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
-    for (; c + 7 < count; c += 4) {
-        const int8_t* next_a0 = mapper(a, c + 4, offsets, pitch);
-        const int8_t* next_a1 = mapper(a, c + 5, offsets, pitch);
-        const int8_t* next_a2 = mapper(a, c + 6, offsets, pitch);
-        const int8_t* next_a3 = mapper(a, c + 7, offsets, pitch);
-
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-        prefetch(next_a2, lines_to_fetch);
-        prefetch(next_a3, lines_to_fetch);
+    for (; c + batches - 1 < count; c += batches) {
+        const bool has_next = c + 2 * batches - 1 < count;
+        const int8_t* next_a0;
+        const int8_t* next_a1;
+        const int8_t* next_a2;
+        const int8_t* next_a3;
+        if (has_next) {
+            next_a0 = mapper(a, c + batches, offsets, pitch);
+            next_a1 = mapper(a, c + batches + 1, offsets, pitch);
+            next_a2 = mapper(a, c + batches + 2, offsets, pitch);
+            next_a3 = mapper(a, c + batches + 3, offsets, pitch);
+            prefetch(next_a0, lines_to_fetch);
+            prefetch(next_a1, lines_to_fetch);
+            prefetch(next_a2, lines_to_fetch);
+            prefetch(next_a3, lines_to_fetch);
+        }
 
         int32_t res0 = 0;
         int32_t res1 = 0;
         int32_t res2 = 0;
         int32_t res3 = 0;
         int i = 0;
-        if (dims > STRIDE_BYTES_LEN) {
+        if (dims >= STRIDE_BYTES_LEN) {
             i = blk;
             res0 = dot7u_inner_avx512(a0, b, i);
             res1 = dot7u_inner_avx512(a1, b, i);
@@ -186,10 +193,12 @@ static inline void dot7u_inner_bulk(
         results[c + 1] = (f32_t)res1;
         results[c + 2] = (f32_t)res2;
         results[c + 3] = (f32_t)res3;
-        a0 = next_a0;
-        a1 = next_a1;
-        a2 = next_a2;
-        a3 = next_a3;
+        if (has_next) {
+            a0 = next_a0;
+            a1 = next_a1;
+            a2 = next_a2;
+            a3 = next_a3;
+        }
     }
 
     // Tail-handling: remaining vectors
@@ -284,7 +293,7 @@ static inline int32_t sqr7u_inner_avx512(const int8_t* a, const int8_t* b, const
 EXPORT int32_t vec_sqr7u_2(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > STRIDE_BYTES_LEN) {
+    if (dims >= STRIDE_BYTES_LEN) {
         i += dims & ~(STRIDE_BYTES_LEN - 1);
         res = sqr7u_inner_avx512(a, b, i);
     }
@@ -305,6 +314,7 @@ static inline void sqr7u_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
+    constexpr int batches = 4;
     const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
@@ -314,27 +324,33 @@ static inline void sqr7u_inner_bulk(
     const int8_t* a2 = count > 2 ? mapper(a, 2, offsets, pitch) : nullptr;
     const int8_t* a3 = count > 3 ? mapper(a, 3, offsets, pitch) : nullptr;
 
-    // Process a batch of 4 vectors at a time, after instructing the CPU to
-    // prefetch the next batch.
+    // Process a batch of `batches` vectors at a time, after instructing the
+    // CPU to prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
-    for (; c + 7 < count; c += 4) {
-        const int8_t* next_a0 = mapper(a, c + 4, offsets, pitch);
-        const int8_t* next_a1 = mapper(a, c + 5, offsets, pitch);
-        const int8_t* next_a2 = mapper(a, c + 6, offsets, pitch);
-        const int8_t* next_a3 = mapper(a, c + 7, offsets, pitch);
-
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-        prefetch(next_a2, lines_to_fetch);
-        prefetch(next_a3, lines_to_fetch);
+    for (; c + batches - 1 < count; c += batches) {
+        const bool has_next = c + 2 * batches - 1 < count;
+        const int8_t* next_a0;
+        const int8_t* next_a1;
+        const int8_t* next_a2;
+        const int8_t* next_a3;
+        if (has_next) {
+            next_a0 = mapper(a, c + batches, offsets, pitch);
+            next_a1 = mapper(a, c + batches + 1, offsets, pitch);
+            next_a2 = mapper(a, c + batches + 2, offsets, pitch);
+            next_a3 = mapper(a, c + batches + 3, offsets, pitch);
+            prefetch(next_a0, lines_to_fetch);
+            prefetch(next_a1, lines_to_fetch);
+            prefetch(next_a2, lines_to_fetch);
+            prefetch(next_a3, lines_to_fetch);
+        }
 
         int32_t res0 = 0;
         int32_t res1 = 0;
         int32_t res2 = 0;
         int32_t res3 = 0;
         int i = 0;
-        if (dims > STRIDE_BYTES_LEN) {
+        if (dims >= STRIDE_BYTES_LEN) {
             i = blk;
             res0 = sqr7u_inner_avx512(a0, b, i);
             res1 = sqr7u_inner_avx512(a1, b, i);
@@ -357,10 +373,12 @@ static inline void sqr7u_inner_bulk(
         results[c + 1] = (f32_t)res1;
         results[c + 2] = (f32_t)res2;
         results[c + 3] = (f32_t)res3;
-        a0 = next_a0;
-        a1 = next_a1;
-        a2 = next_a2;
-        a3 = next_a3;
+        if (has_next) {
+            a0 = next_a0;
+            a1 = next_a1;
+            a2 = next_a2;
+            a3 = next_a3;
+        }
     }
 
     // Tail-handling: remaining vectors

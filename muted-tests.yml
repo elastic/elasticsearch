@@ -345,9 +345,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/145377
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:approximation.Exact stats by on small single-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/145399
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionToFieldLoadGoldenTests
   issue: https://github.com/elastic/elasticsearch/issues/145381
 - class: org.elasticsearch.xpack.esql.CsvTests
@@ -371,24 +368,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/145437
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Exact stats by on small multi-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/145250
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Exact stats on small multi-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/145251
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Warn on max}
-  issue: https://github.com/elastic/elasticsearch/issues/145218
 - class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
   method: testOverflowInGroupingProducesNullAndWarning
   issue: https://github.com/elastic/elasticsearch/issues/145438
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:convert.convertToGeoPoint}
   issue: https://github.com/elastic/elasticsearch/issues/145439
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Approximated column and null}
-  issue: https://github.com/elastic/elasticsearch/issues/145248
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:spatial-grid.gridGeohexByBounds}
   issue: https://github.com/elastic/elasticsearch/issues/145449

@@ -62,6 +62,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpClient;
@@ -564,7 +565,8 @@ public class ReindexerTests extends ESTestCase {
                 null,
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
-                featureService
+                featureService,
+                mock(TaskResultsService.class)
             );
 
             final ReindexRequest request = new ReindexRequest();
@@ -633,7 +635,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -711,7 +714,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -783,7 +787,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -857,7 +862,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -931,7 +937,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1216,7 +1223,8 @@ public class ReindexerTests extends ESTestCase {
                 null,
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
-                featureService
+                featureService,
+                mock(TaskResultsService.class)
             );
 
             BulkByScrollTask task = new BulkByScrollTask(
@@ -1355,7 +1363,8 @@ public class ReindexerTests extends ESTestCase {
             transportService,
             mock(ReindexRelocationNodePicker.class),
             // Will default REINDEX_PIT_SEARCH_FEATURE to false
-            mock(FeatureService.class)
+            mock(FeatureService.class),
+            mock(TaskResultsService.class)
         );
     }
 

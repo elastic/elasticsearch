@@ -28,6 +28,11 @@ public class TaskRelocatedException extends ElasticsearchException {
         super("Task was relocated");
     }
 
+    public TaskRelocatedException(TaskId originalTaskId, TaskId relocatedTaskId) {
+        super("Task was relocated");
+        setOriginalAndRelocatedTaskIdMetadata(originalTaskId, relocatedTaskId);
+    }
+
     /** Returns the relocated task ID if the map is a serialized {@link TaskRelocatedException}. */
     public static Optional<TaskId> relocatedTaskIdFromErrorMap(final Map<String, Object> errorMap) {
         if ("task_relocated_exception".equals(errorMap.get("type"))

@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -257,13 +258,12 @@ public class AnalyticsProcessManager {
         long rowsProcessed = 0;
 
         while (dataExtractor.hasNext()) {
-            Optional<SearchHit[]> rows = dataExtractor.next();
-            if (rows.isPresent()) {
-                SearchHit[] batch = rows.get();
-                int nextToRelease = 0;
+            Optional<SearchHits> batchOpt = dataExtractor.next();
+            if (batchOpt.isPresent()) {
+                SearchHits searchHits = batchOpt.get();
+                SearchHit[] batch = searchHits.getHits();
                 try {
-                    while (nextToRelease < batch.length) {
-                        SearchHit searchHit = batch[nextToRelease];
+                    for (SearchHit searchHit : batch) {
                         if (dataExtractor.isCancelled()) {
                             break;
                         }
@@ -280,13 +280,9 @@ public class AnalyticsProcessManager {
                                 process.writeRecord(record);
                             }
                         }
-                        searchHit.decRef();
-                        nextToRelease++;
                     }
                 } finally {
-                    while (nextToRelease < batch.length) {
-                        batch[nextToRelease++].decRef();
-                    }
+                    searchHits.decRef();
                 }
                 progressTracker.updateLoadingDataProgress(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }

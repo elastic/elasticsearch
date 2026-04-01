@@ -101,12 +101,8 @@ class DataFrameRowsJoiner implements AutoCloseable {
                 }
                 RowResults result = currentResults.pop();
                 DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
-                try {
-                    checkChecksumsMatch(row, result);
-                    bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row));
-                } finally {
-                    row.getHit().decRef();
-                }
+                checkChecksumsMatch(row, result);
+                bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row));
             }
         }
 
@@ -165,12 +161,8 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private void consumeDataExtractor() throws IOException {
         dataExtractor.cancel();
         while (dataExtractor.hasNext()) {
-            Optional<SearchHit[]> rows = dataExtractor.next();
-            if (rows.isPresent()) {
-                for (SearchHit hit : rows.get()) {
-                    hit.decRef();
-                }
-            }
+            Optional<SearchHits> rows = dataExtractor.next();
+            rows.ifPresent(SearchHits::decRef);
         }
     }
 
@@ -178,6 +170,8 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
         private SearchHit[] currentDataFrameRows = SearchHits.EMPTY;
         private int currentDataFrameRowsIndex;
+        @Nullable
+        private SearchHits currentBatchSearchHits;
 
         @Override
         public boolean hasNext() {
@@ -190,9 +184,6 @@ class DataFrameRowsJoiner implements AutoCloseable {
             while (hasNoMatch(row) && hasNext()) {
                 advanceToNextBatchIfNecessary();
                 row = dataExtractor.createRow(currentDataFrameRows[currentDataFrameRowsIndex++]);
-                if (hasNoMatch(row)) {
-                    row.getHit().decRef();
-                }
             }
 
             if (hasNoMatch(row)) {
@@ -202,12 +193,12 @@ class DataFrameRowsJoiner implements AutoCloseable {
         }
 
         /**
-         * Releases pooled refs for hits in the current batch that were not consumed by {@link #next()}.
-         * Called when the joiner closes while the iterator may still point into a partially read batch.
+         * Releases the current batch's {@link SearchHits} if still held (partially consumed batch on close).
          */
         void releaseRemainingHitsInCurrentBatch() {
-            while (currentDataFrameRowsIndex < currentDataFrameRows.length) {
-                currentDataFrameRows[currentDataFrameRowsIndex++].decRef();
+            if (currentBatchSearchHits != null) {
+                currentBatchSearchHits.decRef();
+                currentBatchSearchHits = null;
             }
             currentDataFrameRows = SearchHits.EMPTY;
             currentDataFrameRowsIndex = 0;
@@ -219,12 +210,22 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
         private void advanceToNextBatchIfNecessary() {
             if (currentDataFrameRowsIndex >= currentDataFrameRows.length) {
-                currentDataFrameRows = getNextDataRowsBatch().orElse(SearchHits.EMPTY);
+                if (currentBatchSearchHits != null) {
+                    currentBatchSearchHits.decRef();
+                    currentBatchSearchHits = null;
+                }
+                Optional<SearchHits> nextBatch = getNextDataRowsBatch();
+                if (nextBatch.isPresent()) {
+                    currentBatchSearchHits = nextBatch.get();
+                    currentDataFrameRows = currentBatchSearchHits.getHits();
+                } else {
+                    currentDataFrameRows = SearchHits.EMPTY;
+                }
                 currentDataFrameRowsIndex = 0;
             }
         }
 
-        private Optional<SearchHit[]> getNextDataRowsBatch() {
+        private Optional<SearchHits> getNextDataRowsBatch() {
             try {
                 return dataExtractor.next();
             } catch (IOException e) {

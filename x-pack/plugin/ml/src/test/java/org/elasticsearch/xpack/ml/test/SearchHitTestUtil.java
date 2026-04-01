@@ -21,8 +21,8 @@ import static org.mockito.Mockito.spy;
  * Pooled hits are {@link org.elasticsearch.transport.LeakTracker}-tracked: each {@code new SearchHit(...)} starts with
  * ref count 1. {@link SearchHits#decRef()} runs {@link SearchHit#decRef()} on each hit when the container is released.
  * Mock {@link SearchResponse} must stub {@link SearchResponse#decRef()} to call {@link SearchHits#decRef()} on the
- * backing hits, matching production behavior. Batches from {@code DataFrameDataExtractor#next()} still require one
- * {@link SearchHit#decRef()} per hit when the caller is done (balances {@code mustIncRef} in the extractor).
+ * backing hits, matching production behavior. Batches from {@code DataFrameDataExtractor#next()} are the top-level
+ * {@link SearchHits}; the caller must {@link SearchHits#decRef()} that instance once per batch when done.
  */
 public final class SearchHitTestUtil {
 
@@ -71,7 +71,8 @@ public final class SearchHitTestUtil {
     }
 
     /**
-     * DecRefs every non-null hit (e.g. batches returned from {@code DataFrameDataExtractor#next()}).
+     * DecRefs every non-null hit in an array. Not used for {@code DataFrameDataExtractor#next()} batches
+     * (those use {@link SearchHits#decRef()} on the container).
      */
     public static void decRefHits(SearchHit[] hits) {
         if (hits == null) {

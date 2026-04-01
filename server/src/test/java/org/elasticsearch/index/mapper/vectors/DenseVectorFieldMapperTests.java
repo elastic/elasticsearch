@@ -131,7 +131,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         if ((indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_INT8)
             || indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ))
             && indexed
-            && elementType.equals(ElementType.FLOAT)
+            && DenseVectorFieldMapperTestUtils.elementTypesWithDefaultIndexOptions(indexVersion).contains(elementType)
             && indexOptionsSet == false) {
             if (indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ)
                 && dims >= DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD) {

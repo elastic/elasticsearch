@@ -53,7 +53,7 @@ class TSDBSyntheticIdSegmentDetailsLogger {
      * @param state the segment read state containing segment info and field infos
      * @param docValuesProducer the doc values producer to read timestamp and tsid values
      */
-    public void maybeLogSegmentDetails(SegmentReadState state, DocValuesProducer docValuesProducer) {
+    public static void maybeLogSegmentDetails(SegmentReadState state, DocValuesProducer docValuesProducer) {
         final boolean isTraceEnabled = logger.isTraceEnabled();
         if (isTraceEnabled == false && logger.isDebugEnabled() == false) {
             return;

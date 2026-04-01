@@ -56,7 +56,7 @@ public class TSDBSyntheticIdSegmentDetailsLoggerTests extends ESTestCase {
                     "*TSDB segment [test_segment]*source=[flush]*"
                 )
             );
-            new TSDBSyntheticIdSegmentDetailsLogger().maybeLogSegmentDetails(segmentState, docValuesProducer);
+            TSDBSyntheticIdSegmentDetailsLogger.maybeLogSegmentDetails(segmentState, docValuesProducer);
             mockLog.assertAllExpectationsMatched();
         }
     }
@@ -75,7 +75,7 @@ public class TSDBSyntheticIdSegmentDetailsLoggerTests extends ESTestCase {
                     "*TSDB segment [test_segment]*source=[merge]*"
                 )
             );
-            new TSDBSyntheticIdSegmentDetailsLogger().maybeLogSegmentDetails(segmentState, docValuesProducer);
+            TSDBSyntheticIdSegmentDetailsLogger.maybeLogSegmentDetails(segmentState, docValuesProducer);
             mockLog.assertAllExpectationsMatched();
         }
     }
@@ -89,7 +89,7 @@ public class TSDBSyntheticIdSegmentDetailsLoggerTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation("no DEBUG log for merged segment", LOGGER_NAME, Level.DEBUG, "*TSDB segment*")
             );
-            new TSDBSyntheticIdSegmentDetailsLogger().maybeLogSegmentDetails(segmentState, docValuesProducer);
+            TSDBSyntheticIdSegmentDetailsLogger.maybeLogSegmentDetails(segmentState, docValuesProducer);
             mockLog.assertAllExpectationsMatched();
         }
     }

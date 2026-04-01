@@ -37,11 +37,8 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
     public static final String FORMAT_NAME = "TSDBSyntheticId";
     public static final String SUFFIX = "0";
 
-    private final TSDBSyntheticIdSegmentDetailsLogger segmentDetailsLogger;
-
     public TSDBSyntheticIdPostingsFormat() {
         super(FORMAT_NAME);
-        this.segmentDetailsLogger = new TSDBSyntheticIdSegmentDetailsLogger();
     }
 
     @Override
@@ -55,7 +52,7 @@ public class TSDBSyntheticIdPostingsFormat extends PostingsFormat {
 
             BloomFilter bloomFilter = BloomFilter.getBloomFilterForId(segmentReadState);
             docValuesProducer = codec.docValuesFormat().fieldsProducer(segmentReadState);
-            var fieldsProducer = new TSDBSyntheticIdFieldsProducer(state, docValuesProducer, segmentDetailsLogger);
+            var fieldsProducer = new TSDBSyntheticIdFieldsProducer(state, docValuesProducer);
             success = true;
             return new DelegatingBloomFilterFieldsProducer(fieldsProducer, bloomFilter);
         } finally {

@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.field;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SparklineErrorTests extends ESTestCase {
+public class SparklineValidationTests extends ESTestCase {
 
     public void testFieldNotAggregateFunction() {
         Sparkline s = sparkline(

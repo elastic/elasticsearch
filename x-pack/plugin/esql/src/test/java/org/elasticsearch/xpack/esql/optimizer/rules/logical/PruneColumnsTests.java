@@ -1282,10 +1282,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(fork.output().size(), equalTo(1));
         assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("a"));
         for (LogicalPlan branch : fork.children()) {
-            var branchProject = as(branch, Project.class);
-            assertThat(branchProject.projections().size(), equalTo(1));
-            assertThat(Expressions.names(branchProject.projections()), contains("a"));
-            var aggregateInBranch = as(branchProject.child(), Aggregate.class);
+            var aggregateInBranch = as(branch, Aggregate.class);
             assertThat(aggregateInBranch.aggregates().size(), equalTo(1));
             assertThat(Expressions.names(aggregateInBranch.aggregates()), contains("a"));
             var relation = as(aggregateInBranch.child(), EsRelation.class);

@@ -454,7 +454,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
-            boolean isExcludeSourceVectorsFinal = context.isSourceSynthetic() == false
+            boolean excludeSourceVectors = context.isSourceSynthetic() == false
                 && indexed.getValue()
                 && INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings());
             IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -474,6 +474,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexSettings,
+                excludeSourceVectors,
                 vectorsFormatProviders
             );
         }
@@ -3361,6 +3362,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private final DenseVectorIndexOptions indexOptions;
     private final IndexSettings indexSettings;
+    private final boolean excludeSourceVectors;
     private final List<VectorsFormatProvider> extraVectorsFormatProviders;
 
     private DenseVectorFieldMapper(
@@ -3369,11 +3371,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
         IndexSettings indexSettings,
+        boolean excludeSourceVectors,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexSettings = indexSettings;
+        this.excludeSourceVectors = excludeSourceVectors;
         this.extraVectorsFormatProviders = vectorsFormatProviders;
     }
 
@@ -3618,7 +3622,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(indexSettings.getSettings())) {
+        if (excludeSourceVectors) {
             return new SyntheticVectorsPatchFieldLoader<>(
                 // Recreate the object for each leaf so that different segments can be searched concurrently.
                 () -> new IndexedSyntheticFieldLoader(indexSettings.getIndexVersionCreated(), fieldType().similarity),

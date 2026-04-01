@@ -31,7 +31,7 @@ bash.exe -c "nohup bash .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/
 REM =============================================================================
 REM PART 1: Test seed retrieval for ANY retry
 REM =============================================================================
-REM When a job is retried (regardless of SMART_RETRIES setting), retrieve and use
+REM When a job is retried, retrieve and use
 REM the same test seed from the original job to ensure reproducible test failures.
 REM =============================================================================
 set ORIGIN_JOB_ID=
@@ -93,7 +93,7 @@ if defined BUILDKITE_RETRY_COUNT (
 )
 
 REM =============================================================================
-REM PART 2: Smart retry test filtering (only when SMART_RETRIES=true)
+REM PART 2: Smart retry test filtering
 REM =============================================================================
 REM Extracted to .buildkite\scripts\smart-retry.bat for single responsibility.
 REM The script is called (not executed separately) so it shares the SETLOCAL
@@ -101,11 +101,9 @@ REM environment — it can read ORIGIN_JOB_ID, BUILD_SCAN_ID, BUILD_SCAN_URL,
 REM TESTS_SEED, and .build-info.json set by PART 1 above, and set
 REM SMART_RETRY_STATUS, FILTERED_WORK_UNITS, etc. back in this scope.
 REM =============================================================================
-if "%SMART_RETRIES%"=="true" (
-  if defined BUILDKITE_RETRY_COUNT (
-    if %BUILDKITE_RETRY_COUNT% GTR 0 (
-      call .buildkite\scripts\smart-retry.bat
-    )
+if defined BUILDKITE_RETRY_COUNT (
+  if %BUILDKITE_RETRY_COUNT% GTR 0 (
+    call .buildkite\scripts\smart-retry.bat
   )
 )
 

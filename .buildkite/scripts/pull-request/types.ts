@@ -6,7 +6,7 @@ export type EsPipelineConfig = {
     "excluded-regions"?: string | string[];
     "trigger-phrase"?: string;
     "skip-target-branches"?: string | string[];
-    "smart-retries"?: boolean;
+    "auto-retry"?: boolean;
   };
 };
 

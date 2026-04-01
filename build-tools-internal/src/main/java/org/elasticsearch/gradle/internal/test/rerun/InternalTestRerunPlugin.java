@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  * Gradle plugin that implements smart test retries by filtering test execution based on
  * historical failure data from Develocity (Gradle Enterprise).
  * <p>
- * When a Buildkite job is retried with SMART_RETRIES=true, the pre-command hook fetches
+ * When a Buildkite job is retried, the pre-command hook fetches
  * failed test information from the Develocity API and creates a .failed-test-history.json file.
  * This plugin reads that file and configures test tasks to run only the tests that failed
  * in the previous attempt, significantly reducing retry time.
@@ -49,7 +49,7 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
 
     /**
      * File name for failed test history created by Buildkite pre-command hook.
-     * This file is populated from Develocity API during job retries when SMART_RETRIES=true.
+     * This file is populated from Develocity API during job retries.
      */
     public static final String FAILED_TEST_HISTORY_FILENAME = ".failed-test-history.json";
 

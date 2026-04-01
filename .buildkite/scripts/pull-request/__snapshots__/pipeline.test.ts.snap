@@ -5,9 +5,6 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
   {
     "name": "bwc-snapshots",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "group": "bwc-snapshots",
@@ -65,9 +62,6 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
   {
     "name": "existing-retry",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "command": "echo 'existing retry'",
@@ -85,12 +79,12 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
     },
   },
   {
-    "name": "no-smart-retries",
+    "name": "no-auto-retry",
     "pipeline": {
       "steps": [
         {
           "command": "echo 'no retries'",
-          "label": "no-smart-retries",
+          "label": "no-auto-retry",
         },
       ],
     },
@@ -100,7 +94,6 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
-        "SMART_RETRIES": "true",
       },
       "steps": [
         {
@@ -163,9 +156,6 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
   {
     "name": "existing-retry",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "command": "echo 'existing retry'",
@@ -185,9 +175,6 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
   {
     "name": "full-bwc",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "group": "bwc",
@@ -383,12 +370,12 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
     },
   },
   {
-    "name": "no-smart-retries",
+    "name": "no-auto-retry",
     "pipeline": {
       "steps": [
         {
           "command": "echo 'no retries'",
-          "label": "no-smart-retries",
+          "label": "no-auto-retry",
         },
       ],
     },
@@ -398,7 +385,6 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
-        "SMART_RETRIES": "true",
       },
       "steps": [
         {
@@ -438,9 +424,6 @@ exports[`generatePipelines should generate correct pipelines with a different br
   {
     "name": "bwc-snapshots",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "group": "bwc-snapshots",
@@ -498,9 +481,6 @@ exports[`generatePipelines should generate correct pipelines with a different br
   {
     "name": "existing-retry",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "command": "echo 'existing retry'",
@@ -518,12 +498,12 @@ exports[`generatePipelines should generate correct pipelines with a different br
     },
   },
   {
-    "name": "no-smart-retries",
+    "name": "no-auto-retry",
     "pipeline": {
       "steps": [
         {
           "command": "echo 'no retries'",
-          "label": "no-smart-retries",
+          "label": "no-auto-retry",
         },
       ],
     },
@@ -531,9 +511,6 @@ exports[`generatePipelines should generate correct pipelines with a different br
   {
     "name": "skip-branch",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "command": "echo 1",
@@ -569,7 +546,6 @@ exports[`generatePipelines should generate correct pipelines with a different br
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
-        "SMART_RETRIES": "true",
       },
       "steps": [
         {
@@ -611,7 +587,6 @@ exports[`generatePipelines should generate correct pipeline when using a trigger
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
-        "SMART_RETRIES": "true",
       },
       "steps": [
         {
@@ -651,9 +626,6 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
   {
     "name": "bwc-snapshots",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "group": "bwc-snapshots",
@@ -711,9 +683,6 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
   {
     "name": "existing-retry",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "command": "echo 'existing retry'",
@@ -731,12 +700,12 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
     },
   },
   {
-    "name": "no-smart-retries",
+    "name": "no-auto-retry",
     "pipeline": {
       "steps": [
         {
           "command": "echo 'no retries'",
-          "label": "no-smart-retries",
+          "label": "no-auto-retry",
         },
       ],
     },
@@ -746,7 +715,6 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
-        "SMART_RETRIES": "true",
       },
       "steps": [
         {
@@ -786,9 +754,6 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
   {
     "name": "bwc-snapshots",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "group": "bwc-snapshots",
@@ -846,9 +811,6 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
   {
     "name": "existing-retry",
     "pipeline": {
-      "env": {
-        "SMART_RETRIES": "true",
-      },
       "steps": [
         {
           "command": "echo 'existing retry'",
@@ -866,12 +828,12 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
     },
   },
   {
-    "name": "no-smart-retries",
+    "name": "no-auto-retry",
     "pipeline": {
       "steps": [
         {
           "command": "echo 'no retries'",
-          "label": "no-smart-retries",
+          "label": "no-auto-retry",
         },
       ],
     },
@@ -881,7 +843,6 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
-        "SMART_RETRIES": "true",
       },
       "steps": [
         {

@@ -1,5 +1,0 @@
-config:
-  smart-retries: false
-steps:
-  - label: no-smart-retries
-    command: echo 'no retries'

@@ -155,7 +155,7 @@ fi
 # =============================================================================
 # PART 1: Test seed retrieval for ANY retry
 # =============================================================================
-# When a job is retried (regardless of SMART_RETRIES setting), retrieve and use
+# When a job is retried, retrieve and use
 # the same test seed from the original job to ensure reproducible test failures.
 # =============================================================================
 
@@ -207,14 +207,14 @@ if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
 fi
 
 # =============================================================================
-# PART 2: Smart retry test filtering (only when SMART_RETRIES=true)
+# PART 2: Smart retry test filtering
 # =============================================================================
 # Extracted to .buildkite/scripts/smart-retry.sh for single responsibility.
 # The script is sourced (not executed) so it can read BUILD_JSON, ORIGIN_JOB_ID,
 # BUILD_SCAN_ID, BUILD_SCAN_URL, and TESTS_SEED set by PART 1 above, and export
 # SMART_RETRY_STATUS, FILTERED_WORK_UNITS, etc. back to the caller.
 # =============================================================================
-if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
+if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
   source .buildkite/scripts/smart-retry.sh
 fi
 

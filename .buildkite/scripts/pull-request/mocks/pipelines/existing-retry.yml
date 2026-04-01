@@ -1,5 +1,5 @@
 config:
-  smart-retries: true
+  auto-retry: true
 steps:
   - label: has-existing-retry
     command: echo 'existing retry'

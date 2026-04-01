@@ -6,11 +6,11 @@ import { execSync } from "child_process";
 import { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types";
 import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
 
-// Smart retry configuration matching periodic pipeline conventions.
+// Auto-retry configuration matching periodic pipeline conventions.
 // - exit_status "-1": Agent/infrastructure failures (3 retries)
 // - signal_reason agent_stop: Agent stops (3 retries)
 // - exit_status "1": Test/build failures (1 retry with smart filtering)
-const SMART_RETRY_CONFIG: BuildkiteRetry = {
+const AUTO_RETRY_CONFIG: BuildkiteRetry = {
   automatic: [
     { exit_status: "-1", limit: 3, signal_reason: "none" },
     { signal_reason: "agent_stop", limit: 3 },
@@ -112,18 +112,16 @@ const injectRetryIntoSteps = (steps: BuildkiteStep[]) => {
     if (step.steps?.length) {
       injectRetryIntoSteps(step.steps);
     } else if (step.command && !step.retry) {
-      step.retry = SMART_RETRY_CONFIG;
+      step.retry = AUTO_RETRY_CONFIG;
     }
   }
 };
 
-// Inject SMART_RETRIES env and retry blocks into a pipeline when smart-retries config is enabled (default: true)
-const injectSmartRetries = (pipeline: EsPipeline) => {
-  if (pipeline.config?.["smart-retries"] === false) {
+// Inject retry blocks into a pipeline when auto-retry config is explicitly enabled
+const injectAutoRetry = (pipeline: EsPipeline) => {
+  if (pipeline.config?.["auto-retry"] === false) {
     return;
   }
-
-  pipeline.env = { ...(pipeline.env || {}), SMART_RETRIES: "true" };
 
   if (pipeline.steps) {
     injectRetryIntoSteps(pipeline.steps);
@@ -211,7 +209,7 @@ export const generatePipelines = (
 
   for (const pipeline of pipelines) {
     doBwcTransforms(pipeline);
-    injectSmartRetries(pipeline);
+    injectAutoRetry(pipeline);
   }
 
   pipelines.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));

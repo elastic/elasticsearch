@@ -1,5 +1,5 @@
 config:
-  smart-retries: false
+  auto-retry: false
   allow-labels: build-benchmark
   trigger-phrase: '.*run\W+elasticsearch-ci/build-bench.*'
 steps:

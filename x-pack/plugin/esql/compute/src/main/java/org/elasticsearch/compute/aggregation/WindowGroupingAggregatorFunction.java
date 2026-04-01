@@ -17,6 +17,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 
 /**
@@ -123,16 +124,16 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                     // expand the window to cover the new range
                     @Override
                     public long rangeStartInMillis(int groupId) {
-                        return ctx.rangeStartInMillis(groupId);
+                        return rangeEndInMillis(groupId) - window.toMillis();
                     }
 
                     @Override
                     public long rangeEndInMillis(int groupId) {
-                        return rangeStartInMillis(groupId) + window.toMillis();
+                        return ctx.rangeEndInMillis(groupId);
                     }
 
                     @Override
-                    public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
+                    public void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action) {
                         throw new UnsupportedOperationException();
                     }
 
@@ -178,16 +179,13 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
         GroupingAggregatorFunction fn,
         TimeSeriesGroupingAggregatorEvaluationContext context
     ) {
-        var groupIds = context.groupIdsFromWindow(startingGroupId, window);
-        if (groupIds.size() > 1) {
-            try (IntVector oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
-                for (int g : groupIds) {
-                    if (g != startingGroupId) {
-                        int position = groupIdToPositions[g];
-                        fn.addIntermediateInput(position, oneGroup, page);
-                    }
+        try (IntVector oneGroup = context.driverContext().blockFactory().newConstantIntVector(startingGroupId, 1)) {
+            context.forEachGroupInWindow(startingGroupId, window, g -> {
+                if (g != startingGroupId) {
+                    int position = groupIdToPositions[g];
+                    fn.addIntermediateInput(position, oneGroup, page);
                 }
-            }
+            });
         }
     }
 

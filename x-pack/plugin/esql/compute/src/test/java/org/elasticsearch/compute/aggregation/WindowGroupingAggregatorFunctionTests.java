@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.LongConsumer;
 
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
@@ -84,10 +85,12 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         // original groups
         long oneMinute = TimeValue.timeValueMinutes(1).millis();
         long smallestBucket = Long.MAX_VALUE;
+        long largestBucket = Long.MIN_VALUE;
         for (Page page : input) {
             LongBlock timestamp = page.getBlock(1);
             for (int p = 0; p < timestamp.getPositionCount(); p++) {
                 smallestBucket = Math.min(timestamp.getLong(p), smallestBucket);
+                largestBucket = Math.max(timestamp.getLong(p), largestBucket);
             }
         }
         for (Page page : input) {
@@ -98,16 +101,12 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             for (int p = 0; p < page.getPositionCount(); p++) {
                 long bucket = timestamp.getLong(p);
                 var tsid = tsids.getBytesRef(p, scratch).utf8ToString();
-                // slide the window over the last 5 minutes
-                // bucket = 00:06 -> it should generate buckets at 00:02, 00:03, 00:04, 00:05, 00:06
-                for (int i = 0; i < 5; i++) {
-                    if (bucket >= smallestBucket) {
-                        Key key = new Key(tsid, bucket);
-                        long val = values.getInt(p);
-                        expected.merge(key, val, Long::sum);
-                    }
-                    bucket = bucket - oneMinute;
-                }
+                Key key = new Key(tsid, bucket);
+                long val = values.getInt(p);
+                expected.merge(key, val, Long::sum);
+                forEachExpandedBucket(bucket, Duration.ofMinutes(5), smallestBucket, largestBucket, expandedBucket -> {
+                    expected.merge(new Key(tsid, expandedBucket), val, Long::sum);
+                });
             }
         }
         Map<Key, Long> actual = new TreeMap<>(Comparator.comparing(Key::tsid).thenComparingLong(Key::bucket));
@@ -148,6 +147,28 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
 
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), Duration.ofMinutes(5));
+    }
+
+    protected boolean backwardBucketIntervalConvention() {
+        return true;
+    }
+
+    protected void forEachExpandedBucket(long bucket, Duration window, long minTimestamp, long maxTimestamp, LongConsumer action) {
+        if (backwardBucketIntervalConvention()) {
+            long nextBucket = timeBucket.nextRoundingValue(bucket);
+            long endTimestamp = bucket + DateFieldMapper.Resolution.MILLISECONDS.convert(window.toMillis());
+            while (nextBucket < endTimestamp && nextBucket <= maxTimestamp) {
+                action.accept(nextBucket);
+                nextBucket = timeBucket.nextRoundingValue(nextBucket);
+            }
+            return;
+        }
+        long earliestBucket = timeBucket.nextRoundingValue(bucket - DateFieldMapper.Resolution.MILLISECONDS.convert(window.toMillis()));
+        earliestBucket = Math.max(earliestBucket, minTimestamp);
+        while (earliestBucket < bucket) {
+            action.accept(earliestBucket);
+            earliestBucket = timeBucket.nextRoundingValue(earliestBucket);
+        }
     }
 
     protected String expectedToStringOfSimpleAggregator() {
@@ -255,17 +276,18 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         for (OutputRow row : outputRows) {
             assertThat("output timestamp should be aligned to 5-minute boundary", fiveMinBucket.round(row.bucket()), equalTo(row.bucket()));
         }
-        // We expect 3 output rows: at baseTime+0, baseTime+5m, baseTime+10m
-        assertThat("expected 3 output rows at 5-minute boundaries", outputRows.size(), equalTo(3));
+        // With backward-looking semantics and start-side trimming, only the first fully covered
+        // 5-minute-aligned bucket remains in range.
+        assertThat("expected 1 output row at 5-minute boundaries", outputRows.size(), equalTo(1));
 
-        // Verify the sums:
-        // bucket at baseTime+0: window covers [0,7m) → minutes 0..6 → 7 points → sum=7
-        // bucket at baseTime+5m: window covers [5m,12m) → minutes 5..11 → 7 points → sum=7
-        // bucket at baseTime+10m: window covers [10m,17m) → minutes 10..14 → 5 points → sum=5
+        // bucket at baseTime+10m uses the previous 7 one-minute buckets (minutes 4..10) -> sum=7
         outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
-        assertThat("sum at baseTime+0m", outputRows.get(0).value(), equalTo(7L));
-        assertThat("sum at baseTime+5m", outputRows.get(1).value(), equalTo(7L));
-        assertThat("sum at baseTime+10m", outputRows.get(2).value(), equalTo(5L));
+        assertThat(
+            "bucket should be baseTime+10m",
+            outputRows.get(0).bucket(),
+            equalTo(baseTime + TimeValue.timeValueMinutes(10).millis())
+        );
+        assertThat("sum at baseTime+10m", outputRows.get(0).value(), equalTo(7L));
     }
 
     /**
@@ -350,33 +372,21 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
 
         outputRows.sort(Comparator.comparing(OutputRow::tsid).thenComparingLong(OutputRow::bucket));
 
-        // TSID "a" (value=1, 10 minutes of data): output at 0, 5m
-        // bucket 0: [0,7m) → min(7,10)=7 points → sum=7
-        // bucket 5m: [5m,12m) → minutes 5..9 → 5 points → sum=5
+        // TSID "a" (value=1, 10 minutes of data): only bucket 10m survives start-side trim.
+        // bucket 10m: previous 7 one-minute buckets -> minutes 4..10, but "a" has 4..9 -> sum=6
         List<OutputRow> aRows = outputRows.stream().filter(r -> r.tsid().equals("a")).toList();
-        assertThat(aRows.size(), equalTo(2));
-        assertThat(aRows.get(0).value(), equalTo(7L));
-        assertThat(aRows.get(1).value(), equalTo(5L));
+        assertThat(aRows.size(), equalTo(1));
+        assertThat(aRows.get(0).value(), equalTo(6L));
 
-        // TSID "b" (value=2, 15 minutes of data): output at 0, 5m, 10m
-        // bucket 0: [0,7m) → 7 points → sum=14
-        // bucket 5m: [5m,12m) → 7 points → sum=14
-        // bucket 10m: [10m,17m) → 5 points → sum=10
+        // TSID "b" (value=2, 15 minutes of data): only bucket 10m survives, 7 points -> sum=14
         List<OutputRow> bRows = outputRows.stream().filter(r -> r.tsid().equals("b")).toList();
-        assertThat(bRows.size(), equalTo(3));
+        assertThat(bRows.size(), equalTo(1));
         assertThat(bRows.get(0).value(), equalTo(14L));
-        assertThat(bRows.get(1).value(), equalTo(14L));
-        assertThat(bRows.get(2).value(), equalTo(10L));
 
-        // TSID "c" (value=100, sparse at 0, 5, 10): output at 0, 5m, 10m
-        // bucket 0: [0,7m) → points at 0 and 5 → sum=200
-        // bucket 5m: [5m,12m) → points at 5 and 10 → sum=200
-        // bucket 10m: [10m,17m) → point at 10 → sum=100
+        // TSID "c" (value=100, sparse at 0, 5, 10): at 10m points at 5 and 10 -> sum=200
         List<OutputRow> cRows = outputRows.stream().filter(r -> r.tsid().equals("c")).toList();
-        assertThat(cRows.size(), equalTo(3));
+        assertThat(cRows.size(), equalTo(1));
         assertThat(cRows.get(0).value(), equalTo(200L));
-        assertThat(cRows.get(1).value(), equalTo(200L));
-        assertThat(cRows.get(2).value(), equalTo(100L));
     }
 
     /**
@@ -447,15 +457,15 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         }
 
         outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
-        // 10m window over 5m buckets: each bucket merges itself + the next bucket
-        // bucket 0: [0,10m) → points at 0 and 5m → sum=20
-        // bucket 5m: [5m,15m) → points at 5m and 10m → sum=20
-        // bucket 10m: [10m,20m) → points at 10m and 15m → sum=20
-        // bucket 15m: [15m,25m) → point at 15m → sum=10
+        // 10m backward-looking window over 5m buckets.
+        // bucket 0: partial window -> point at 0 -> sum=10
+        // bucket 5m: points at 0 and 5m -> sum=20
+        // bucket 10m: points at 5m and 10m -> sum=20
+        // bucket 15m: points at 10m and 15m -> sum=20
         assertThat(outputRows.size(), equalTo(4));
-        assertThat(outputRows.get(0).value(), equalTo(20L));
+        assertThat(outputRows.get(0).value(), equalTo(10L));
         assertThat(outputRows.get(1).value(), equalTo(20L));
         assertThat(outputRows.get(2).value(), equalTo(20L));
-        assertThat(outputRows.get(3).value(), equalTo(10L));
+        assertThat(outputRows.get(3).value(), equalTo(20L));
     }
 }

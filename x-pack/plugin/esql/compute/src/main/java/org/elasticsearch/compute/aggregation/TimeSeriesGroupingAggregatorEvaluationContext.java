@@ -11,7 +11,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.time.Duration;
-import java.util.List;
+import java.util.function.IntConsumer;
 
 public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends GroupingAggregatorEvaluationContext {
     private IntVector allGroupIds;
@@ -51,22 +51,22 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
     public abstract long rangeEndInMillis(int groupId);
 
     /**
-     * Returns the group IDs of subsequent groups that belong to the window starting with the {@code startingGroupId}.
-     * The time ranges of returned group IDs are within the interval
-     * {@code [rangeStartInMillis(startingGroupId), rangeStartInMillis(startingGroupId) + window.toMillis())}.
+     * Calls {@code action} for each group ID that participates in the specified window anchored at
+     * {@code startingGroupId}. The traversal order follows time order for the effective bucket semantics,
+     * and the starting group ID is included.
      *
-     * @param startingGroupId the starting group ID
+         * @param startingGroupId the starting group ID
      * @param window          the window duration
-     * @return a list of group IDs within the window
+     * @param action          called for each group ID within the window
      */
-    public abstract List<Integer> groupIdsFromWindow(int startingGroupId, Duration window);
+    public abstract void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action);
 
     public abstract int previousGroupId(int currentGroupId);
 
     public abstract int nextGroupId(int currentGroupId);
 
     /**
-     * Computes and caches the adjacent group IDs. They weill be used in #previousGroupId and #nextGroupId.
+     * Computes and caches the adjacent group IDs. They will be used in #previousGroupId and #nextGroupId.
      */
     public abstract void computeAdjacentGroupIds();
 }

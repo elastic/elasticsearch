@@ -92,14 +92,14 @@ cost:double | step:datetime            | cluster:keyword
 range_selector_different_from_step
 required_capability: promql_command_v0
 required_capability: time_series_window_v1
-PROMQL index=k8s step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" sum by (pod) (avg_over_time(events_received[10m]))
+PROMQL index=k8s step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:20:00.000Z" sum by (pod) (avg_over_time(events_received[10m]))
 | SORT pod
 ;
 
 sum by (pod) (avg_over_time(events_received[10m])):double | step:datetime            | pod:keyword
-23.25                                                     | 2024-05-10T00:10:00.000Z | one
-9.0                                                       | 2024-05-10T00:10:00.000Z | three
-26.5                                                      | 2024-05-10T00:10:00.000Z | two
+14.6                                                      | 2024-05-10T00:20:00.000Z | one
+17.357142857142858                                        | 2024-05-10T00:20:00.000Z | three
+14.742857142857144                                        | 2024-05-10T00:20:00.000Z | two
 ;
 
 // value transformation functions
@@ -804,4 +804,3 @@ PROMQL index=k8s step=1h result=(scalar(sum(network.cost)) + 1);
 result:double | step:datetime
 62.0          | 2024-05-10T00:00:00.000Z
 ;
-

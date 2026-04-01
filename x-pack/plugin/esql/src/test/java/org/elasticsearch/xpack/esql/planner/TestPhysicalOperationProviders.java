@@ -39,6 +39,7 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
@@ -159,7 +160,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),
-            ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
+            ts.timeResolution() == DateFieldMapper.Resolution.NANOSECONDS,
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,

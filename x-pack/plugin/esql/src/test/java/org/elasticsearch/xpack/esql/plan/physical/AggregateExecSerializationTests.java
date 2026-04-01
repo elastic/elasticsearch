@@ -12,15 +12,20 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.BucketSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.AggregateSerializationTests;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests.randomFieldAttributes;
-
 public class AggregateExecSerializationTests extends AbstractPhysicalPlanSerializationTests<AggregateExec> {
     public static AggregateExec randomAggregateExec(int depth) {
+        return randomAggregateExec(depth, null);
+    }
+
+    private static AggregateExec randomAggregateExec(int depth, Configuration configuration) {
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
@@ -31,13 +36,25 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         if (randomBoolean()) {
             return new AggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         } else {
-            return new TimeSeriesAggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, null);
+            Bucket timeBucket = configuration != null && randomBoolean()
+                ? BucketSerializationTests.createRandomBucket(configuration)
+                : null;
+            return new TimeSeriesAggregateExec(
+                source,
+                child,
+                groupings,
+                aggregates,
+                mode,
+                intermediateAttributes,
+                estimatedRowSize,
+                timeBucket
+            );
         }
     }
 
     @Override
     protected AggregateExec createTestInstance() {
-        return randomAggregateExec(0);
+        return randomAggregateExec(0, configuration());
     }
 
     @Override
@@ -48,7 +65,9 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         List<Attribute> intermediateAttributes = instance.intermediateAttributes();
         AggregatorMode mode = instance.getMode();
         Integer estimatedRowSize = instance.estimatedRowSize();
-        switch (between(0, 5)) {
+        Bucket timeBucket = instance instanceof TimeSeriesAggregateExec ts ? ts.timeBucket() : null;
+        int maxMutationCase = instance instanceof TimeSeriesAggregateExec ? 6 : 5;
+        switch (between(0, maxMutationCase)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(groupings, () -> randomFieldAttributes(0, 5, false));
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
@@ -58,6 +77,11 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
                 estimatedRowSize,
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
+            case 6 -> {
+                if (instance instanceof TimeSeriesAggregateExec) {
+                    timeBucket = randomValueOtherThan(timeBucket, () -> BucketSerializationTests.createRandomBucket(configuration()));
+                }
+            }
             default -> throw new IllegalStateException();
         }
         if (instance instanceof TimeSeriesAggregateExec) {
@@ -69,7 +93,7 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
                 mode,
                 intermediateAttributes,
                 estimatedRowSize,
-                null
+                timeBucket
             );
         } else {
             return new AggregateExec(instance.source(), child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);

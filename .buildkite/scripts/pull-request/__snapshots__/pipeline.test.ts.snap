@@ -63,6 +63,28 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
     },
   },
   {
+    "name": "existing-retry",
+    "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
+      "steps": [
+        {
+          "command": "echo 'existing retry'",
+          "label": "has-existing-retry",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "2",
+                "limit": 5,
+              },
+            ],
+          },
+        },
+      ],
+    },
+  },
+  {
     "name": "no-smart-retries",
     "pipeline": {
       "steps": [
@@ -138,6 +160,28 @@ exports[`generatePipelines should generate correct pipelines with only docs chan
 
 exports[`generatePipelines should generate correct pipelines with full BWC expansion 1`] = `
 [
+  {
+    "name": "existing-retry",
+    "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
+      "steps": [
+        {
+          "command": "echo 'existing retry'",
+          "label": "has-existing-retry",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "2",
+                "limit": 5,
+              },
+            ],
+          },
+        },
+      ],
+    },
+  },
   {
     "name": "full-bwc",
     "pipeline": {
@@ -452,6 +496,28 @@ exports[`generatePipelines should generate correct pipelines with a different br
     },
   },
   {
+    "name": "existing-retry",
+    "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
+      "steps": [
+        {
+          "command": "echo 'existing retry'",
+          "label": "has-existing-retry",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "2",
+                "limit": 5,
+              },
+            ],
+          },
+        },
+      ],
+    },
+  },
+  {
     "name": "no-smart-retries",
     "pipeline": {
       "steps": [
@@ -643,6 +709,28 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
     },
   },
   {
+    "name": "existing-retry",
+    "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
+      "steps": [
+        {
+          "command": "echo 'existing retry'",
+          "label": "has-existing-retry",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "2",
+                "limit": 5,
+              },
+            ],
+          },
+        },
+      ],
+    },
+  },
+  {
     "name": "no-smart-retries",
     "pipeline": {
       "steps": [
@@ -751,6 +839,28 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
               "timeout_in_minutes": 300,
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "existing-retry",
+    "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
+      "steps": [
+        {
+          "command": "echo 'existing retry'",
+          "label": "has-existing-retry",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "2",
+                "limit": 5,
+              },
+            ],
+          },
         },
       ],
     },

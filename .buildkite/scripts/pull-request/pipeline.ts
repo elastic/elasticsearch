@@ -123,7 +123,7 @@ const injectSmartRetries = (pipeline: EsPipeline) => {
     return;
   }
 
-  pipeline.env = { SMART_RETRIES: "true", ...(pipeline.env || {}) };
+  pipeline.env = { ...(pipeline.env || {}), SMART_RETRIES: "true" };
 
   if (pipeline.steps) {
     injectRetryIntoSteps(pipeline.steps);

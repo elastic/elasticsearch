@@ -98,6 +98,19 @@ describe("generatePipelines", () => {
     expect(group.steps[0].retry.automatic).toHaveLength(3);
   });
 
+  test("should not overwrite pre-existing retry config on steps", () => {
+    const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+    const existingRetry = pipelines.find((p) => p.name === "existing-retry");
+
+    expect(existingRetry).toBeDefined();
+    expect(existingRetry!.pipeline.env?.["SMART_RETRIES"]).toBe("true");
+    // The step already has a retry config — it should be preserved, not overwritten
+    const step = existingRetry!.pipeline.steps![0] as any;
+    expect(step.retry.automatic).toHaveLength(1);
+    expect(step.retry.automatic[0].exit_status).toBe("2");
+    expect(step.retry.automatic[0].limit).toBe(5);
+  });
+
   test("should preserve existing env vars when injecting SMART_RETRIES", () => {
     const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
     const usingDefaults = pipelines.find((p) => p.name === "using-defaults");

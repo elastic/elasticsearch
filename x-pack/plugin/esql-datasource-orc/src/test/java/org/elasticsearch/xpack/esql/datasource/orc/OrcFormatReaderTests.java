@@ -111,7 +111,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals(DataType.LONG, attributes.get(0).dataType());
 
         assertEquals("name", attributes.get(1).name());
-        assertEquals(DataType.TEXT, attributes.get(1).dataType());
+        assertEquals(DataType.KEYWORD, attributes.get(1).dataType());
 
         assertEquals("age", attributes.get(2).name());
         assertEquals(DataType.INTEGER, attributes.get(2).dataType());
@@ -614,7 +614,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         SourceMetadata metadata = reader.metadata(storageObject);
         List<Attribute> attributes = metadata.schema();
-        assertEquals(DataType.TEXT, attributes.get(1).dataType());
+        assertEquals(DataType.KEYWORD, attributes.get(1).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
             assertTrue(iterator.hasNext());

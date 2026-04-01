@@ -97,6 +97,19 @@ public final class CsvSpecReader {
                     } else if ("false".equals(value) == false) {
                         throw new IllegalArgumentException("Invalid value for ignoreOrder: [" + value + "], it can only be true or false");
                     }
+                } else if (lower.startsWith("timestamp_bounds:")) {
+                    String rest = line.substring("timestamp_bounds:".length()).trim();
+                    int comma = rest.indexOf(',');
+                    if (comma < 0) {
+                        throw new IllegalArgumentException(
+                            "timestamp_bounds must be two ISO-8601 instants separated by a comma: [" + line + "]"
+                        );
+                    }
+                    testCase.timestampBoundsGte = rest.substring(0, comma).trim();
+                    testCase.timestampBoundsLte = rest.substring(comma + 1).trim();
+                    if (testCase.timestampBoundsGte.isEmpty() || testCase.timestampBoundsLte.isEmpty()) {
+                        throw new IllegalArgumentException("timestamp_bounds values must not be empty: [" + line + "]");
+                    }
                 } else if (line.startsWith(";")) {
                     testCase.expectedResults = data.toString();
                     // clean-up and emit
@@ -130,6 +143,12 @@ public final class CsvSpecReader {
          */
         public WhenLoadsRequestedToStored requestStored;
         public List<String> requiredCapabilities = List.of();
+        /**
+         * When set from a {@code timestamp_bounds:} line in the expected-results section, the REST request includes
+         * a Query DSL range on {@code @timestamp} with these bounds (inclusive).
+         */
+        public String timestampBoundsGte;
+        public String timestampBoundsLte;
 
         /**
          * Returns the warning headers expected to be added by the test. To declare such a header, use the `warning:definition` format

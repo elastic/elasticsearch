@@ -409,6 +409,33 @@ public class Configuration implements Writeable {
     }
 
     /**
+     * Returns a new Configuration with the given zone id.
+     */
+    public Configuration withZoneId(ZoneId newZoneId) {
+        return new Configuration(
+            newZoneId,
+            now,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
+            query,
+            profile,
+            tables,
+            queryStartTimeNanos,
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries,
+            projectRouting,
+            approximationSettings,
+            viewQueries,
+            explainOnly
+        );
+    }
+
+    /**
      * Returns a new Configuration with the given view queries added.
      */
     public Configuration withViewQueries(Map<String, String> viewQueries) {

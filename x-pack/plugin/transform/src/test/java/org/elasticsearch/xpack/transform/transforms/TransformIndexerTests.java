@@ -932,7 +932,8 @@ public class TransformIndexerTests extends ESTestCase {
                 auditor,
                 new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
-                mock(CrossProjectModeDecider.class)
+                mock(CrossProjectModeDecider.class),
+                projectId -> false
             );
 
             WriteActionTransformIndexer indexer = new WriteActionTransformIndexer(

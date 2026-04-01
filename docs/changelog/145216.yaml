@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 145216
+summary: Enable large binary doc values blocks by default
+type: enhancement

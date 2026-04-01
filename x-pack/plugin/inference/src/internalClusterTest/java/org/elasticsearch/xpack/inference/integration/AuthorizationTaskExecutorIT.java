@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.StatusHeuristic;
@@ -60,7 +61,9 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -443,6 +446,67 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         // Abort the task and ensure it is restarted
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
+    }
+
+    public void testDeletesRemovedEndpoints_GivenMultipleEndpointsAreRemoved() throws Exception {
+        testDeletesRemovedEndpoints(Set.of(RAINBOW_SPRINKLES_ENDPOINT_ID, JINA_EMBED_V3_ENDPOINT_ID), 2);
+    }
+
+    public void testDeletesRemovedEndpoints_GivenSingleEndpointIsRemoved() throws Exception {
+        testDeletesRemovedEndpoints(Set.of(JINA_EMBED_V3_ENDPOINT_ID), 1);
+    }
+
+    public void testDeletesRemovedEndpoints_GivenNoEndpointIsRemoved() throws Exception {
+        testDeletesRemovedEndpoints(Set.of(), 0);
+    }
+
+    public void testDeletesRemovedEndpoints_IgnoresRemovedEndpointsNotPresent() throws Exception {
+        testDeletesRemovedEndpoints(Set.of(RAINBOW_SPRINKLES_ENDPOINT_ID, "random-endpoint-id-1", "random-endpoint-id-2"), 1);
+    }
+
+    private void testDeletesRemovedEndpoints(Set<String> removedEndpoints, int expectedDeletions) throws Exception {
+        assertNoAuthorizedEisEndpoints();
+
+        resetWebServerQueues();
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
+
+        restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
+        resetWebServerQueues();
+
+        var jinaEmbedResponseBody = ElasticInferenceServiceAuthorizationResponseEntityTests.getEisJinaTextEmbedAuthorizationResponse(
+            gatewayUrl
+        ).responseJson();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(jinaEmbedResponseBody));
+
+        restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
+        resetWebServerQueues();
+
+        // Wait for both endpoints to be created
+        assertBusy(() -> assertThat(getEisEndpoints(), hasSize(2)));
+
+        var eisEndpoints = getEisEndpoints().stream().map(UnparsedModel::inferenceEntityId).collect(Collectors.toSet());
+        assertThat(eisEndpoints, containsInAnyOrder(RAINBOW_SPRINKLES_ENDPOINT_ID, JINA_EMBED_V3_ENDPOINT_ID));
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(Strings.format("""
+            {
+              "inference_endpoints": [],
+              "removed_endpoints": [%s]
+            }
+            """, removedEndpoints.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(",")))));
+
+        restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
+
+        assertBusy(() -> assertThat(getEisEndpoints(), hasSize(2 - expectedDeletions)));
+
+        Set<String> remainingEndpoints = getEisEndpoints().stream().map(UnparsedModel::inferenceEntityId).collect(Collectors.toSet());
+        assertThat(
+            remainingEndpoints,
+            equalTo(Sets.difference(Set.of(RAINBOW_SPRINKLES_ENDPOINT_ID, JINA_EMBED_V3_ENDPOINT_ID), removedEndpoints))
+        );
     }
 
     private static String createJsonResponseForSemiRandomEndpoint(String endpointId, @Nullable String fingerprint) {

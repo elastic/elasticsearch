@@ -481,7 +481,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileSet());
+            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileList());
         }
 
         private String extractTablePath(Expression tablePath) {
@@ -1092,7 +1092,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             }
                         }
                     }
-                    logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), UnmappedResolution.DEFAULT);
+                    if (forkColumns.isEmpty()) {
+                        // When forkColumns is empty (all branches only have no-fields), resolveKeep with empty
+                        // projections would resolve to all child output including no-fields. Create a Project with
+                        // empty output directly so the no-fields marker doesn't leak into the fork branch output.
+                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, List.of());
+                    } else {
+                        logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), UnmappedResolution.DEFAULT);
+                    }
                 }
 
                 newSubPlans.add(logicalPlan);
@@ -2646,23 +2653,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // unsupported / unresolved fields can be explicitly retained
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::checkUnresolved)
+                p -> p.transformExpressionsOnly(FieldAttribute.class, FieldAttribute::checkUnresolved)
             );
-        }
-
-        static Attribute checkUnresolved(FieldAttribute fa) {
-            if (fa.field() instanceof InvalidMappedField imf) {
-                String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-                List<String> types = imf.getTypesToIndices().keySet().stream().toList();
-                return new UnsupportedAttribute(
-                    fa.source(),
-                    fa.name(),
-                    new UnsupportedEsField(imf.getName(), types),
-                    unresolvedMessage,
-                    fa.id()
-                );
-            }
-            return fa;
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {

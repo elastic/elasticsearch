@@ -29,10 +29,14 @@ setup:
                 dims: 1024
                 index: true
                 similarity: dot_product
+                index_options:
+                  type: bbq_hnsw
               vector_int8_hnsw_default:
                 type: dense_vector
                 dims: 100
                 index: true
+                index_options:
+                  type: int8_hnsw
               vector_no_index:
                 type: dense_vector
                 dims: 100
@@ -51,6 +55,8 @@ setup:
                 dims: 768
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: bbq_hnsw
 
 ---
 "Field mapping stats":

@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.prometheus;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.compression.Snappy;
-
 import org.apache.http.HttpHeaders;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
@@ -34,8 +30,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
-
-    private static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -233,14 +227,6 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         return builder.build();
     }
 
-    private static RemoteWrite.Label label(String name, String value) {
-        return RemoteWrite.Label.newBuilder().setName(name).setValue(value).build();
-    }
-
-    private static RemoteWrite.Sample sample(double value, long timestamp) {
-        return RemoteWrite.Sample.newBuilder().setValue(value).setTimestamp(timestamp).build();
-    }
-
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest) throws IOException {
         sendAndAssertSuccess(writeRequest, "/_prometheus/api/v1/write");
     }
@@ -334,20 +320,6 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
                 return false;
             }
             throw e;
-        }
-    }
-
-    private static byte[] snappyEncode(byte[] input) {
-        ByteBuf in = Unpooled.wrappedBuffer(input);
-        ByteBuf out = Unpooled.buffer(input.length);
-        try {
-            new Snappy().encode(in, out, input.length);
-            byte[] result = new byte[out.readableBytes()];
-            out.readBytes(result);
-            return result;
-        } finally {
-            in.release();
-            out.release();
         }
     }
 

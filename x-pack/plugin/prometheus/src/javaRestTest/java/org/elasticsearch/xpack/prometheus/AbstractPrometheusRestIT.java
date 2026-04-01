@@ -7,15 +7,24 @@
 
 package org.elasticsearch.xpack.prometheus;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.compression.Snappy;
+
+import org.apache.http.HttpHeaders;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Base class for Prometheus REST integration tests.
@@ -34,6 +43,7 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
 
     protected static final String USER = "test_admin";
     protected static final String PASS = "x-pack-test-password";
+    protected static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
 
     protected String writeApiKey;
     protected String readApiKey;
@@ -65,6 +75,55 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     protected void addReadAuth(Request request) {
         request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + readApiKey).build());
     }
+
+    // --- sample data helpers ---
+
+    /**
+     * Writes a single metric sample via remote write and refreshes {@link #DEFAULT_DATA_STREAM}.
+     * Uses the write API key.
+     */
+    protected void writeMetric(String metricName, Map<String, String> labels) throws IOException {
+        writeMetric(metricName, labels, 1.0);
+    }
+
+    protected void writeMetric(String metricName, Map<String, String> labels, double value) throws IOException {
+        RemoteWrite.TimeSeries.Builder ts = RemoteWrite.TimeSeries.newBuilder().addLabels(label("__name__", metricName));
+        labels.forEach((k, v) -> ts.addLabels(label(k, v)));
+        ts.addSamples(sample(value, System.currentTimeMillis()));
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder().addTimeseries(ts.build()).build();
+
+        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
+        addWriteAuth(request);
+        client().performRequest(request);
+        client().performRequest(new Request("POST", "/" + DEFAULT_DATA_STREAM + "/_refresh"));
+    }
+
+    protected static RemoteWrite.Label label(String name, String value) {
+        return RemoteWrite.Label.newBuilder().setName(name).setValue(value).build();
+    }
+
+    protected static RemoteWrite.Sample sample(double value, long timestamp) {
+        return RemoteWrite.Sample.newBuilder().setValue(value).setTimestamp(timestamp).build();
+    }
+
+    protected static byte[] snappyEncode(byte[] input) {
+        ByteBuf in = Unpooled.wrappedBuffer(input);
+        ByteBuf out = Unpooled.buffer(input.length);
+        try {
+            new Snappy().encode(in, out, input.length);
+            byte[] result = new byte[out.readableBytes()];
+            out.readBytes(result);
+            return result;
+        } finally {
+            in.release();
+            out.release();
+        }
+    }
+
+    // --- security helpers ---
 
     protected static String createApiKey(String name, String indexPattern, String... privileges) throws IOException {
         StringBuilder privilegeArray = new StringBuilder();

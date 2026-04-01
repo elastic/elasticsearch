@@ -7,20 +7,12 @@
 
 package org.elasticsearch.xpack.prometheus;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.compression.Snappy;
-
-import org.apache.http.HttpHeaders;
 import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -40,8 +32,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * Detailed plan-building and response-parsing logic is covered by unit tests.
  */
 public class PrometheusLabelsRestIT extends AbstractPrometheusRestIT {
-
-    private static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -169,40 +159,4 @@ public class PrometheusLabelsRestIT extends AbstractPrometheusRestIT {
         return (List<String>) body.get("data");
     }
 
-    private void writeMetric(String metricName, Map<String, String> labels) throws IOException {
-        RemoteWrite.TimeSeries.Builder ts = RemoteWrite.TimeSeries.newBuilder().addLabels(label("__name__", metricName));
-        labels.forEach((k, v) -> ts.addLabels(label(k, v)));
-        ts.addSamples(sample(1.0, System.currentTimeMillis()));
-
-        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder().addTimeseries(ts.build()).build();
-
-        Request request = new Request("POST", "/_prometheus/api/v1/write");
-        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
-        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
-        addWriteAuth(request);
-        client().performRequest(request);
-        client().performRequest(new Request("POST", "/" + DEFAULT_DATA_STREAM + "/_refresh"));
-    }
-
-    private static RemoteWrite.Label label(String name, String value) {
-        return RemoteWrite.Label.newBuilder().setName(name).setValue(value).build();
-    }
-
-    private static RemoteWrite.Sample sample(double value, long timestamp) {
-        return RemoteWrite.Sample.newBuilder().setValue(value).setTimestamp(timestamp).build();
-    }
-
-    private static byte[] snappyEncode(byte[] input) {
-        ByteBuf in = Unpooled.wrappedBuffer(input);
-        ByteBuf out = Unpooled.buffer(input.length);
-        try {
-            new Snappy().encode(in, out, input.length);
-            byte[] result = new byte[out.readableBytes()];
-            out.readBytes(result);
-            return result;
-        } finally {
-            in.release();
-            out.release();
-        }
-    }
 }

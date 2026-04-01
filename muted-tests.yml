@@ -374,6 +374,14 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/145377
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   issue: https://github.com/elastic/elasticsearch/issues/145395
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:approximation.Exact stats by on small single-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/145399
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionToFieldLoadGoldenTests
+  issue: https://github.com/elastic/elasticsearch/issues/145381
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:spatial.twoCitiesPointDistanceGeo}
+  issue: https://github.com/elastic/elasticsearch/issues/145406
 
 # Examples:
 #

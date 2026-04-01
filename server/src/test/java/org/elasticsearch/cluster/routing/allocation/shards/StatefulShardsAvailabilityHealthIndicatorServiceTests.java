@@ -1045,11 +1045,13 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         if (primaryReason.isExpectedTransient()) {
-            assertThat(result.status(), equalTo(YELLOW));
-            assertThat(result.symptom(), equalTo("This cluster has 1 creating primary shard, 1 unavailable replica shard."));
+            // Primary is in grace period; replica is eligible for its own grace period
+            assertThat(result.status(), equalTo(GREEN));
+            assertThat(result.symptom(), equalTo("This cluster has 1 creating primary shard, 1 creating replica shard."));
         } else {
+            // Primary is genuinely unavailable; replica is blocked from grace period
             assertThat(result.status(), equalTo(RED));
-            assertThat(result.symptom(), equalTo("This cluster has 1 unavailable primary shard, 1 creating replica shard."));
+            assertThat(result.symptom(), equalTo("This cluster has 1 unavailable primary shard, 1 unavailable replica shard."));
         }
     }
 

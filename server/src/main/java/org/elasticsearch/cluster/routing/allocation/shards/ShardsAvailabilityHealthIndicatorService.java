@@ -451,8 +451,8 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     /// Returns `true` if the shard is unassigned within the grace period and the reason it is unassigned
     /// is eligible for a grace period.
     ///
-    /// For replica shards, the grace period does not apply when the primary is itself within its grace period
-    /// (i.e. creating). If the primary is genuinely unavailable (outside its own grace period), the replica
+    /// For replica shards, the grace period does not apply when the primary is genuinely unavailable
+    /// (outside its own grace period). If the primary is itself within its grace period, the replica
     /// is still eligible for its own grace period.
     ///
     /// @param projectId the project owning the shard
@@ -473,7 +473,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         }
         if (routing.primary() == false) {
             ShardRouting primary = state.routingTable(projectId).shardRoutingTable(routing.shardId()).primaryShard();
-            if (primary.active() == false && isUnassignedWithinGracePeriod(projectId, primary, state, gracePeriodCutoffTime)) {
+            if (primary.active() == false && isUnassignedWithinGracePeriod(projectId, primary, state, gracePeriodCutoffTime) == false) {
                 return false;
             }
         }

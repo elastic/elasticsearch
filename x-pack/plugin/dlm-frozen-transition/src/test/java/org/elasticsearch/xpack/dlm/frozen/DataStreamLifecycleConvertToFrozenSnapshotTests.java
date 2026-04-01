@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
@@ -281,6 +282,30 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         );
     }
 
+    private void assertGetSnapshotsRequest(String expectedRepo, String expectedSnapshotName) {
+        GetSnapshotsRequest request = capturedGetSnapshotsRequest.get();
+        assertThat(request, is(notNullValue()));
+        assertThat(request.repositories(), is(new String[] { expectedRepo }));
+        assertThat(request.snapshots(), is(new String[] { expectedSnapshotName }));
+    }
+
+    private void assertDeleteSnapshotRequest(String expectedRepo, String expectedSnapshotName) {
+        DeleteSnapshotRequest request = capturedDeleteSnapshotRequest.get();
+        assertThat(request, is(notNullValue()));
+        assertThat(request.repository(), is(expectedRepo));
+        assertThat(request.snapshots(), is(new String[] { expectedSnapshotName }));
+    }
+
+    private void assertCreateSnapshotRequest(String expectedRepo, String expectedSnapshotName, String expectedIndex) {
+        CreateSnapshotRequest request = capturedCreateSnapshotRequest.get();
+        assertThat(request, is(notNullValue()));
+        assertThat(request.repository(), is(expectedRepo));
+        assertThat(request.snapshot(), is(expectedSnapshotName));
+        assertThat(request.indices(), is(new String[] { expectedIndex }));
+        assertThat(request.includeGlobalState(), is(false));
+        assertThat(request.waitForCompletion(), is(true));
+    }
+
     private GetSnapshotsResponse emptyGetSnapshotsResponse() {
         return new GetSnapshotsResponse(List.of(), null, 0, 0);
     }
@@ -325,10 +350,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.createSnapshot(indexName, REPO_NAME, snapshotName);
 
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get().snapshot(), is(snapshotName));
-        assertThat(capturedCreateSnapshotRequest.get().repository(), is(REPO_NAME));
-        assertThat(capturedCreateSnapshotRequest.get().indices(), is(new String[] { indexName }));
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
     public void testCreateSnapshot_failureThrows() {
@@ -359,8 +381,8 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName);
 
-        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
     public void testDeleteAndRestartSnapshot_deleteNotAcknowledgedThrows() {
@@ -388,7 +410,8 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName);
 
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
     // --- checkForOrphanedSnapshotAndStart tests ---
@@ -403,8 +426,8 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
 
-        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
         assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
     }
 
@@ -418,8 +441,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
 
-        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
-        // Valid orphaned snapshot: no delete, no create
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
         assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
         assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
     }
@@ -436,8 +458,9 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
 
-        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
+        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
     public void testCheckForOrphanedSnapshot_snapshotMissing_createsNew() {
@@ -450,7 +473,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
 
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
     public void testCheckForOrphanedSnapshot_getFailure_throws() {
@@ -485,15 +508,14 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.handleInProgressSnapshot(indexName, REPO_NAME, snapshotName, recentStartTime);
 
-        // Should have polled via GetSnapshots, but not deleted or created
-        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
         assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
         assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
     }
 
     public void testHandleInProgressSnapshot_exceededTimeout_deletesAndRestarts() {
         // Snapshot started longer ago than SNAPSHOT_TIMEOUT (12h)
-        long oldStartTime = clock.millis() - (13 * 60 * 60 * 1000); // 13 hours ago
+        long oldStartTime = clock.millis() - TimeValue.timeValueHours(13).millis(); // exceeds 12h SNAPSHOT_TIMEOUT
         ProjectState projectState = createProjectStateWithInProgressSnapshot(oldStartTime);
         setClusterState(projectState);
 
@@ -504,9 +526,8 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.handleInProgressSnapshot(indexName, REPO_NAME, snapshotName, oldStartTime);
 
-        // Should have deleted and recreated
-        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
     // --- maybeTakeSnapshot tests ---
@@ -518,9 +539,11 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
 
         DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.maybeTakeSnapshot(indexName);
 
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
         assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
     }
 
@@ -533,16 +556,16 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         mockGetSnapshotsResponse.set(getSnapshotsResponseWith(completedSnapshot));
 
         DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.maybeTakeSnapshot(indexName);
 
-        // Waited and polled - no delete, no create
-        assertThat(capturedGetSnapshotsRequest.get(), is(notNullValue()));
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
         assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
         assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
     }
 
     public void testMaybeTakeSnapshot_inProgressExceededTimeout_deletesAndRestarts() {
-        long oldStartTime = clock.millis() - (13 * 60 * 60 * 1000);
+        long oldStartTime = clock.millis() - TimeValue.timeValueHours(13).millis();
         ProjectState projectState = createProjectStateWithInProgressSnapshot(oldStartTime);
         setClusterState(projectState);
 
@@ -550,10 +573,11 @@ public class DataStreamLifecycleConvertToFrozenSnapshotTests extends ESTestCase 
         mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
 
         DataStreamLifecycleConvertToFrozen converter = createConverter();
+        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
         converter.maybeTakeSnapshot(indexName);
 
-        assertThat(capturedDeleteSnapshotRequest.get(), is(notNullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(notNullValue()));
+        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
+        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
     // --- snapshotName tests ---

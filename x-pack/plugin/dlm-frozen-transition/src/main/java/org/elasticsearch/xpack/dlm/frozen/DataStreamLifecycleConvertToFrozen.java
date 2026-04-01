@@ -675,8 +675,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
 
     /**
      * No snapshot is currently running for this index. Check whether a completed snapshot already
-     * exists in the repository (without the completion setting on the index). If a valid, successful
-     * snapshot exists, just mark the completion setting directly rather than deleting and recreating.
+     * exists in the repository. If a valid successful snapshot exists, returns.
      * If the snapshot exists but is invalid (e.g. partial or failed), delete and recreate it.
      * Otherwise, start a fresh snapshot.
      */
@@ -765,7 +764,7 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
 
     /**
      * Unwraps an {@link ExecutionException} to its cause, since {@code Future.get()} wraps
-     * listener failures. Returns the original exception if it is not an {@code ExecutionException}.
+     * failures. Returns the original exception if it is not an {@code ExecutionException}.
      */
     private static Throwable unwrapExecutionException(Exception e) {
         return e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;

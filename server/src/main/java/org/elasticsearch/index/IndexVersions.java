@@ -248,6 +248,7 @@ public class IndexVersions {
     public static final IndexVersion DENSE_VECTOR_BFLOAT16_DEFAULT_INDEX_OPTIONS = def(9_086_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_BBQ_DISK = def(9_087_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16 = def(9_088_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion STORE_IGNORED_FLATTENED_FIELDS_IN_BINARY_DOC_VALUES = def(9_089_0_00, Version.LUCENE_10_4_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145464
+summary: "Prefer cast error over ambiguity error in ESQL union-type conflicts"
+type: bug

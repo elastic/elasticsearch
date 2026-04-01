@@ -70,6 +70,7 @@ public final class ResponseCollectorService implements ClusterStateListener {
                 ns.queueSize.addValue((double) queueSize);
                 ns.responseTime.addValue((double) responseTimeNanos);
                 ns.serviceTime = avgServiceTimeNanos;
+                ns.responseCount++;
                 return ns;
             }
         });
@@ -95,6 +96,15 @@ public final class ResponseCollectorService implements ClusterStateListener {
     public Optional<ComputedNodeStats> getNodeStatistics(final String nodeId) {
         final int clientNum = nodeIdToStats.size();
         return Optional.ofNullable(nodeIdToStats.get(nodeId)).map(ns -> new ComputedNodeStats(clientNum, ns));
+    }
+
+    /**
+     * Returns the number of responses received from the given node, or 0 if the node has no stats.
+     * Used by ARS exploration to determine whether a node has completed its warmup period.
+     */
+    public int getResponseCount(final String nodeId) {
+        NodeStatistics ns = nodeIdToStats.get(nodeId);
+        return ns != null ? ns.responseCount : 0;
     }
 
     /**
@@ -214,6 +224,7 @@ public final class ResponseCollectorService implements ClusterStateListener {
         final ExponentiallyWeightedMovingAverage queueSize;
         final ExponentiallyWeightedMovingAverage responseTime;
         double serviceTime;
+        int responseCount;
 
         NodeStatistics(
             String nodeId,
@@ -225,6 +236,7 @@ public final class ResponseCollectorService implements ClusterStateListener {
             this.queueSize = queueSizeEWMA;
             this.responseTime = responseTimeEWMA;
             this.serviceTime = serviceTimeEWMA;
+            this.responseCount = 1;
         }
     }
 }

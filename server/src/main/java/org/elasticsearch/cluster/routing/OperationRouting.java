@@ -43,12 +43,46 @@ public class OperationRouting {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Double> ARS_EXPLORATION_PROBABILITY = Setting.doubleSetting(
+        "cluster.routing.ars_exploration_probability",
+        0.1,
+        0.0,
+        1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Long> ARS_INFLIGHT_CAP = Setting.longSetting(
+        "cluster.routing.ars_inflight_cap",
+        32,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> ARS_WARMUP_RESPONSES = Setting.intSetting(
+        "cluster.routing.ars_warmup_responses_threshold",
+        30,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private boolean useAdaptiveReplicaSelection;
+    private volatile double explorationProbability;
+    private volatile long inflightCap;
+    private volatile int warmupResponsesCountThreshold;
 
     @SuppressWarnings("this-escape")
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
+        this.explorationProbability = ARS_EXPLORATION_PROBABILITY.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(ARS_EXPLORATION_PROBABILITY, v -> this.explorationProbability = v);
+        this.inflightCap = ARS_INFLIGHT_CAP.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(ARS_INFLIGHT_CAP, v -> this.inflightCap = v);
+        this.warmupResponsesCountThreshold = ARS_WARMUP_RESPONSES.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(ARS_WARMUP_RESPONSES, v -> this.warmupResponsesCountThreshold = v);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -69,13 +103,13 @@ public class OperationRouting {
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(projectState.metadata(), index));
         IndexShardRoutingTable shards = projectState.routingTable().shardRoutingTable(index, indexRouting.getShard(id, routing));
         DiscoveryNodes nodes = projectState.cluster().nodes();
-        return preferenceActiveShardIterator(shards, nodes.getLocalNodeId(), nodes, preference, null, null);
+        return preferenceActiveShardIterator(shards, nodes.getLocalNodeId(), nodes, preference, null, null, null);
     }
 
     public ShardIterator getShards(ProjectState projectState, String index, int shardId, @Nullable String preference) {
         IndexShardRoutingTable indexShard = projectState.routingTable().shardRoutingTable(index, shardId);
         DiscoveryNodes nodes = projectState.cluster().nodes();
-        return preferenceActiveShardIterator(indexShard, nodes.getLocalNodeId(), nodes, preference, null, null);
+        return preferenceActiveShardIterator(indexShard, nodes.getLocalNodeId(), nodes, preference, null, null, null);
     }
 
     public List<SearchShardRouting> searchShards(
@@ -84,7 +118,7 @@ public class OperationRouting {
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference
     ) {
-        return searchShards(projectState, concreteIndices, routing, preference, null, null, true);
+        return searchShards(projectState, concreteIndices, routing, preference, null, null, null, true);
     }
 
     public List<SearchShardRouting> searchShards(
@@ -94,6 +128,7 @@ public class OperationRouting {
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts,
+        @Nullable Map<String, Long> liveInflightRequests,
         boolean shouldSort
     ) {
         final Set<SearchTargetShard> shards = computeTargetedShards(projectState, concreteIndices, routing);
@@ -106,7 +141,8 @@ public class OperationRouting {
                 nodes,
                 preference,
                 collectorService,
-                nodeCounts
+                nodeCounts,
+                liveInflightRequests
             );
             if (iterator != null) {
                 res.add(
@@ -248,10 +284,11 @@ public class OperationRouting {
         DiscoveryNodes nodes,
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        @Nullable Map<String, Long> liveInflightRequests
     ) {
         if (preference == null || preference.isEmpty()) {
-            return shardRoutings(indexShard, collectorService, nodeCounts);
+            return shardRoutings(indexShard, collectorService, nodeCounts, liveInflightRequests);
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
@@ -278,7 +315,7 @@ public class OperationRouting {
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    return shardRoutings(indexShard, collectorService, nodeCounts);
+                    return shardRoutings(indexShard, collectorService, nodeCounts, liveInflightRequests);
                 } else {
                     // update the preference and continue
                     preference = preference.substring(index + 1);
@@ -312,10 +349,18 @@ public class OperationRouting {
     private ShardIterator shardRoutings(
         IndexShardRoutingTable indexShard,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        @Nullable Map<String, Long> liveInflightRequests
     ) {
         if (useAdaptiveReplicaSelection) {
-            return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
+            return indexShard.activeInitializingShardsRankedIt(
+                collectorService,
+                nodeCounts,
+                explorationProbability,
+                liveInflightRequests,
+                inflightCap,
+                warmupResponsesCountThreshold
+            );
         } else {
             return indexShard.activeInitializingShardsRandomIt();
         }

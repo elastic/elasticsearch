@@ -2528,7 +2528,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 routingMap,
                 searchRequest.preference(),
                 responseCollectorService,
-                searchTransportService.getPendingSearchRequests(),
+                searchTransportService.snapshotInflightRequests(),
+                searchTransportService.liveInflightRequests(),
                 shouldSort
             );
         final Map<String, OriginalIndices> originalIndices = buildPerIndexOriginalIndices(

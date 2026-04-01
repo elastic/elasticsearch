@@ -195,7 +195,7 @@ public class NodeService implements Closeable {
             script ? scriptService.stats() : null,
             discoveryStats ? coordinator.stats() : null,
             ingest ? ingestService.stats() : null,
-            adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
+            adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.snapshotInflightRequests()) : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressure.stats() : null,
             repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null,

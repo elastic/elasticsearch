@@ -78,6 +78,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -433,11 +434,29 @@ public class SearchTransportService {
     }
 
     /**
-     * Return a map of nodeId to pending number of search requests.
-     * This is a snapshot of the current pending search and not a live map.
+     * Returns a point-in-time copy of in-flight request counts per node.
+     * Used by ARS ranking to compute the concurrency compensation term in the C3 formula.
+     * The snapshot is taken once per search request and mutated locally as shard winners
+     * are selected (to account for within-request concurrency across shards).
+     * It does NOT reflect dispatches from other concurrent requests.
      */
-    public Map<String, Long> getPendingSearchRequests() {
+    public Map<String, Long> snapshotInflightRequests() {
         return new HashMap<>(clientConnections);
+    }
+
+    /**
+     * Returns a live read-through view of in-flight request counts per node.
+     * Reads on this map see real-time increments from shard requests dispatched by
+     * other concurrent search requests on this coordinator (incremented in
+     * {@link ConnectionCountingHandler}'s constructor at dispatch time).
+     * <p>
+     * Note: within a single request, this offers no advantage over the snapshot
+     * because all shard routing decisions happen before any dispatches. This helps
+     * only when a different concurrent request has already dispatched
+     * (incrementing the live map) while this request is still in its routing phase.
+     */
+    public Map<String, Long> liveInflightRequests() {
+        return Collections.unmodifiableMap(clientConnections);
     }
 
     static class ScrollFreeContextRequest extends AbstractTransportRequest {

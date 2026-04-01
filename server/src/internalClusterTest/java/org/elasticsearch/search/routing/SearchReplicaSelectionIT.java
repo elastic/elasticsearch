@@ -24,14 +24,17 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(numClientNodes = 1, numDataNodes = 3)
 public class SearchReplicaSelectionIT extends ESIntegTestCase {
+
+    private static void setTransientSettings(Settings settings) {
+        assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setTransientSettings(settings).get());
+    }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -42,7 +45,6 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
     }
 
     public void testNodeSelection() throws Exception {
-        // We grab a client directly to avoid using a randomizing client that might set a search preference.
         Client client = internalCluster().coordOnlyNodeClient();
 
         client.admin().indices().prepareCreate("test").setSettings(indexSettings(1, 2)).get();
@@ -51,21 +53,27 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         client.prepareIndex("test").setSource("field", "value").get();
         refresh();
 
-        // Before we've gathered stats for all nodes, we should try each node once.
-        Set<String> nodeIds = new HashSet<>();
-        assertResponses(response -> {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-        },
-            client.prepareSearch().setQuery(matchAllQuery()),
-            client.prepareSearch().setQuery(matchAllQuery()),
-            client.prepareSearch().setQuery(matchAllQuery())
-        );
-        assertEquals(3, nodeIds.size());
+        // Set exploration probability to 1.0 so every search explores a warming node.
+        // With the default warmup threshold (30 responses), nodes stay as exploration candidates
+        // for many searches, giving the random selection enough tries to hit all 3.
+        setTransientSettings(Settings.builder().put(OperationRouting.ARS_EXPLORATION_PROBABILITY.getKey(), 1.0).build());
 
-        // After more searches, all replicas have computed stats; rankNodes no longer synthesizes ranks for
-        // unknown replicas, so the chosen replica should match the lowest ARS rank from the formula.
-        for (int i = 0; i < 5; i++) {
+        try {
+            Set<String> nodeIds = new HashSet<>();
+            for (int i = 0; i < 50; i++) {
+                assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
+                    nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
+                });
+                if (nodeIds.size() == 3) break;
+            }
+            assertEquals("all 3 nodes should have been explored", 3, nodeIds.size());
+        } finally {
+            setTransientSettings(Settings.builder().putNull(OperationRouting.ARS_EXPLORATION_PROBABILITY.getKey()).build());
+        }
+
+        // After enough searches, all replicas have computed stats and the chosen replica
+        // should match the lowest ARS rank from the formula.
+        for (int i = 0; i < 50; i++) {
             client.prepareSearch().setQuery(matchAllQuery()).get().decRef();
         }
 
@@ -96,28 +104,23 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
     }
 
     /**
-     * Verifies that when a new node joins a cluster that already has ARS stats, the probe cap
-     * bounds how many shards the new node wins within a single search. Uses a multi-shard index
-     * so that rankShardsAndUpdateStats is called once per shard and the local nodeSearchCounts
-     * increment triggers the cap.
+     * Verifies that when a new node joins a cluster that already has ARS stats, probabilistic
+     * exploration gives the new node some traffic without flooding it.
      */
-    public void testNewNodeProbedButNotFlooded() {
+    public void testWarmingNodeExploredButNotFlooded() {
         Client client = internalCluster().coordOnlyNodeClient();
 
         // 10 shards, 2 replicas across the initial 3 data nodes
         client.admin().indices().prepareCreate("probe_test").setSettings(indexSettings(10, 2)).get();
         ensureGreen("probe_test");
 
-        // Index documents so that most shards have at least one hit. Not all shards are guaranteed
-        // to have a document, but that only undercounts the new node's shards — making the
-        // assertion more lenient, not flaky.
         for (int i = 0; i < 100; i++) {
             client.prepareIndex("probe_test").setSource("field", "value" + i).get();
         }
         refresh("probe_test");
 
         // Build ARS stats on the existing 3 nodes
-        for (int i = 0; i < 30; i++) {
+        for (int i = 0; i < 50; i++) {
             client.prepareSearch("probe_test").setQuery(matchAllQuery()).get().decRef();
         }
 
@@ -139,19 +142,31 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         }
         assertNotNull("new node should be in cluster state", newNodeId);
 
-        // Send a search requesting all hits and count how many distinct shards were routed to
-        // the new node. With 10 shards and a probe cap of 8, the new node should win at most
-        // 8 shards within a single search before the local nodeSearchCounts increment triggers
-        // the cap.
+        // Send several searches and count how many distinct shards are routed to the new node.
         final String targetNodeId = newNodeId;
-        assertResponse(client.prepareSearch("probe_test").setQuery(matchAllQuery()).setSize(100), response -> {
-            long newNodeShards = java.util.Arrays.stream(response.getHits().getHits())
-                .filter(hit -> targetNodeId.equals(hit.getShard().getNodeId()))
-                .map(hit -> hit.getShard().getShardId())
-                .distinct()
-                .count();
-            // PROBE_INFLIGHT_CAP is 8 when the ars_probing feature flag is enabled
-            assertThat("new node should not win more shards than the probe cap", newNodeShards, lessThanOrEqualTo(8L));
-        });
+        int totalShardDecisions = 0;
+        int newNodeShardDecisions = 0;
+        for (int i = 0; i < 10; i++) {
+            var response = client.prepareSearch("probe_test").setQuery(matchAllQuery()).setSize(100).get();
+            try {
+                Set<String> countedShards = new HashSet<>();
+                for (var hit : response.getHits().getHits()) {
+                    if (hit.getShard() != null) {
+                        String shardKey = hit.getShard().getShardId() + ":" + hit.getShard().getNodeId();
+                        if (countedShards.add(shardKey)) {
+                            totalShardDecisions++;
+                            if (targetNodeId.equals(hit.getShard().getNodeId())) {
+                                newNodeShardDecisions++;
+                            }
+                        }
+                    }
+                }
+            } finally {
+                response.decRef();
+            }
+        }
+
+        assertThat("warming node should receive some traffic from exploration", newNodeShardDecisions, greaterThanOrEqualTo(1));
+        assertThat("warming node should not dominate shard routing", newNodeShardDecisions, lessThan(totalShardDecisions / 2));
     }
 }

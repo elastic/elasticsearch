@@ -14,6 +14,11 @@ setup:
               event_rate:
                 type: integer
 
+  # dest.op_type create skips auto-create; transforms with that setting require the destination to exist up front.
+  - do:
+      indices.create:
+        index: dest-airline-data
+
 ---
 "Test get all transforms when there are none":
   - do:

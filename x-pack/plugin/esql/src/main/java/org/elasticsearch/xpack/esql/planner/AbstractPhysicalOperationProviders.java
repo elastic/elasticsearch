@@ -13,7 +13,9 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FilteredAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.WindowEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
@@ -48,6 +50,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 
 import static java.util.Collections.emptyList;
 
@@ -333,7 +337,31 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     // apply the grouping window in the final phase
                     if (mode.isOutputPartial() == false && aggregateFunction.hasWindow()) {
                         Duration windowInterval = (Duration) aggregateFunction.window().fold(foldContext);
-                        aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, windowInterval);
+                        aggSupplier = new WindowAggregatorFunctionSupplier(
+                            aggSupplier,
+                            windowInterval,
+                            aggCtx -> new WindowEvaluationContext() {
+                                @Override
+                                public void forEachGroupInWindow(int startingGroupId, IntConsumer action) {
+                                    aggCtx.forEachGroupInWindow(startingGroupId, windowInterval, action);
+                                }
+
+                                @Override
+                                public void forEachBucketInWindow(long groupId, TimeSeriesBlockHash tsBlockHash, LongConsumer action) {
+                                    aggCtx.forEachBucketInWindow(groupId, windowInterval, tsBlockHash, action);
+                                }
+
+                                @Override
+                                public long rangeStartInMillis(int groupId) {
+                                    return aggCtx.rangeStartInMillis(groupId);
+                                }
+
+                                @Override
+                                public long rangeEndInMillis(int groupId) {
+                                    return aggCtx.rangeStartInMillis(groupId) + windowInterval.toMillis();
+                                }
+                            }
+                        );
                     }
                     consumer.accept(new AggFunctionSupplierContext(aggSupplier, inputChannels, mode));
                 }

@@ -15,7 +15,11 @@ import java.util.List;
 /**
  * A {@link AggregatorFunctionSupplier} that wraps another, and apply a window function on the final aggregation.
  */
-public record WindowAggregatorFunctionSupplier(AggregatorFunctionSupplier supplier, Duration window) implements AggregatorFunctionSupplier {
+public record WindowAggregatorFunctionSupplier(
+    AggregatorFunctionSupplier supplier,
+    Duration window,
+    WindowEvaluationContext.Factory windowContextFactory
+) implements AggregatorFunctionSupplier {
 
     @Override
     public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
@@ -35,7 +39,7 @@ public record WindowAggregatorFunctionSupplier(AggregatorFunctionSupplier suppli
     @Override
     public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
         GroupingAggregatorFunction fn = supplier.groupingAggregator(driverContext, channels);
-        return new WindowGroupingAggregatorFunction(fn, supplier, window);
+        return new WindowGroupingAggregatorFunction(fn, supplier, window, windowContextFactory);
     }
 
     @Override

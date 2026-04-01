@@ -339,9 +339,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingBooleanValuesFromUnsignedLong
   issue: https://github.com/elastic/elasticsearch/issues/145358
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testMeta
-  issue: https://github.com/elastic/elasticsearch/issues/145370
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidBigDecimalFromDoubleWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145372
@@ -394,6 +391,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:convert.convertToGeoPoint}
   issue: https://github.com/elastic/elasticsearch/issues/145439
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Approximated column and null}
+  issue: https://github.com/elastic/elasticsearch/issues/145248
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:spatial-grid.gridGeohexByBounds}
+  issue: https://github.com/elastic/elasticsearch/issues/145449
 
 # Examples:
 #

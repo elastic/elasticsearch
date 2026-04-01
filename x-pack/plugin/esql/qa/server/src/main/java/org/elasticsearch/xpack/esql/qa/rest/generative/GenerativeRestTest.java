@@ -228,12 +228,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
                     final boolean hasException = result.exception() != null;
                     if (hasException
-                        || checkResults(previousCommands, generator, current, previousResult, result, currentSchema).success() == false) {
+                        || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema).success()
+                            == false) {
                         if (hasException) {
                             List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
                             commands.addAll(previousCommands);
                             commands.add(current);
-                            checkException(result, commands, currentSchema);
+                            checkPipelineException(result, commands, currentSchema);
                         }
                         continueExecuting = false;
                         currentSchema = List.of();
@@ -322,6 +323,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return EsqlQueryGenerator.sourceCommand();
     }
 
+    protected CommandGenerator.ValidationResult checkPipelineResults(
+        List<CommandGenerator.CommandDescription> previousCommands,
+        CommandGenerator commandGenerator,
+        CommandGenerator.CommandDescription commandDescription,
+        QueryExecuted previousResult,
+        QueryExecuted result,
+        List<Column> currentSchema
+    ) {
+        return checkResults(previousCommands, commandGenerator, commandDescription, previousResult, result, currentSchema);
+    }
+
+    protected void checkPipelineException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        checkException(query, previousCommands, currentSchema);
+    }
+
     private record FailureContext(
         String errorMessage,
         String query,
@@ -403,11 +423,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      */
     private static final Pattern ERROR_MESSAGE_LINE_BREAK = Pattern.compile("\\\\\r?\n\\s*\\\\");
 
-    private static String normalizeErrorMessage(String errorMessage) {
+    protected static String normalizeErrorMessage(String errorMessage) {
         return ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
     }
 
-    private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+    protected static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
         return allowedPattern.matcher(errorWithoutLineBreaks).matches();
     }

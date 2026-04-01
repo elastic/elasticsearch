@@ -10,65 +10,46 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
-import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
- * Generative REST tests with {@code SET unmapped_fields="load"} on the source command. Concrete IT classes
- * extend this base and supply cluster wiring like {@link GenerativeRestTest}.
+ * Generative REST tests that always prepend {@code SET unmapped_fields="load"} to queries.
+ * Lives in a separate class hierarchy from {@link GenerativeRestTest} so that CI muting
+ * of these tests does not affect the main generative test suite.
+ *
+ * <p>Load-specific allowed errors track known limitations:
+ * <ul>
+ *   <li>{@code missing references} — optimizer bugs with partial mappings
+ *       (<a href="https://github.com/elastic/elasticsearch/issues/141995">#141995</a>,
+ *        <a href="https://github.com/elastic/elasticsearch/issues/141990">#141990</a>)</li>
+ *   <li>{@code column already resolved} — LOOKUP JOIN issues
+ *       (<a href="https://github.com/elastic/elasticsearch/issues/142026">#142026</a>)</li>
+ *   <li>{@code cannot use [SET unmapped_fields] with FORK} — branching commands
+ *       (<a href="https://github.com/elastic/elasticsearch/issues/142033">#142033</a>)</li>
+ *   <li>{@code type [null]} — null type propagation from loaded-as-null fields</li>
+ * </ul>
  */
 public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest {
 
-    public static final Set<String> LOAD_ALLOWED_ERRORS = Set.of(
+    protected static final Set<String> LOAD_ALLOWED_ERRORS = Set.of(
+        // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
         "missing references \\[.*\\]",
+        // https://github.com/elastic/elasticsearch/issues/142026
         "column \\[.*\\] already resolved",
+        // https://github.com/elastic/elasticsearch/issues/142033
         "cannot use \\[SET unmapped_fields\\] with FORK",
-        "Unknown column \\[.*\\]",
-        "first argument of \\[.*\\] is \\[null\\]",
-        "type \\[null\\] .* not supported",
-        "Rule execution limit \\[100\\] reached",
-        "requires the \\[@timestamp\\] field"
+        "type \\[null\\] .* not supported"
     );
 
-    public static final Set<Pattern> LOAD_ALLOWED_ERROR_PATTERNS;
-
-    static {
-        Set<Pattern> patterns = new HashSet<>();
-        for (String x : LOAD_ALLOWED_ERRORS) {
-            patterns.add(Pattern.compile(".*" + x + ".*", Pattern.DOTALL));
-        }
-        LOAD_ALLOWED_ERROR_PATTERNS = Set.copyOf(patterns);
-    }
-
-    private static final Pattern FULL_TEXT_AFTER_SORT_PATTERN = Pattern.compile(
-        ".*\\[(KQL|QSTR)] function cannot be used after SORT.*",
-        Pattern.DOTALL
-    );
-
-    private static final Pattern UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN = Pattern.compile(
-        ".*Unknown column \\[([^]]+)], did you mean \\[([^]]+)]\\?.*",
-        Pattern.DOTALL
-    );
-
-    private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(".*Unknown column \\[([^]]+)].*", Pattern.DOTALL);
-
-    private static final Pattern NULL_TYPE_MISMATCH_PATTERN = Pattern.compile(
-        ".*first argument of \\[([^]]+)] is \\[null] so second argument must also be \\[null] but was \\[.*].*",
-        Pattern.DOTALL
-    );
-
-    private static final Pattern ANY_TYPE_MISMATCH_PATTERN = Pattern.compile(
-        ".*argument of \\[([^]]+)] must be \\[.*], found value \\[([^]]+)] type \\[.*].*",
-        Pattern.DOTALL
-    );
-
-    private static final Set<String> UNMAPPED_NAMES = Set.of(KeepGenerator.UNMAPPED_FIELD_NAMES);
+    protected static final Set<Pattern> LOAD_ALLOWED_ERROR_PATTERNS = LOAD_ALLOWED_ERRORS.stream()
+        .map(x -> ".*" + x + ".*")
+        .map(x -> Pattern.compile(x, Pattern.DOTALL))
+        .collect(Collectors.toSet());
 
     @Override
     protected CommandGenerator sourceCommand() {
@@ -87,8 +68,7 @@ public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest 
                 return;
             }
         }
-        String normalized = normalizeErrorMessage(errorMessage);
-        if (query.query().startsWith(FromLoadGenerator.SET_LOAD_PREFIX) && isUnmappedFieldLoadModeError(normalized, query.query())) {
+        if (isUnmappedFieldPrefixError(errorMessage, query.query(), FromLoadGenerator.SET_LOAD_PREFIX)) {
             return;
         }
         super.checkPipelineException(query, previousCommands, currentSchema);
@@ -120,68 +100,9 @@ public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest 
                 return outputValidation;
             }
         }
-        String normalized = normalizeErrorMessage(errorMsg);
-        if (result.query().startsWith(FromLoadGenerator.SET_LOAD_PREFIX) && isUnmappedFieldLoadModeError(normalized, result.query())) {
+        if (isUnmappedFieldPrefixError(errorMsg, result.query(), FromLoadGenerator.SET_LOAD_PREFIX)) {
             return outputValidation;
         }
-        return GenerativeRestTest.checkResults(
-            previousCommands,
-            commandGenerator,
-            commandDescription,
-            previousResult,
-            result,
-            currentSchema
-        );
-    }
-
-    private static boolean isUnmappedFieldLoadModeError(String errorMessage, String query) {
-        if (query.startsWith(FromLoadGenerator.SET_LOAD_PREFIX) == false) {
-            return false;
-        }
-        if (errorMessage.contains("Rule execution limit [100] reached")) {
-            return true;
-        }
-
-        Matcher matcher = FULL_TEXT_AFTER_SORT_PATTERN.matcher(errorMessage);
-        if (matcher.matches()) {
-            return true;
-        }
-
-        matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorMessage);
-        if (matcher.matches()) {
-            String unknownColumn = matcher.group(1);
-            String suggestedColumn = matcher.group(2);
-            return UNMAPPED_NAMES.contains(unknownColumn) && UNMAPPED_NAMES.contains(suggestedColumn);
-        }
-
-        matcher = UNKNOWN_COLUMN_PATTERN.matcher(errorMessage);
-        if (matcher.matches()) {
-            String unknownColumn = matcher.group(1);
-            return UNMAPPED_NAMES.contains(unknownColumn);
-        }
-
-        matcher = NULL_TYPE_MISMATCH_PATTERN.matcher(errorMessage);
-        if (matcher.matches()) {
-            String expression = matcher.group(1);
-            for (String name : UNMAPPED_NAMES) {
-                if (expression.contains(name)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        matcher = ANY_TYPE_MISMATCH_PATTERN.matcher(errorMessage);
-        if (matcher.matches()) {
-            String functionExpression = matcher.group(1);
-            String foundValue = matcher.group(2);
-            for (String name : UNMAPPED_NAMES) {
-                if (functionExpression.contains(name) || foundValue.contains(name)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return super.checkPipelineResults(previousCommands, commandGenerator, commandDescription, previousResult, result, currentSchema);
     }
 }

@@ -131,7 +131,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
 
-    private static final Pattern FULL_TEXT_AFTER_SORT_PATTERN = Pattern.compile(
+    protected static final Pattern FULL_TEXT_AFTER_SORT_PATTERN = Pattern.compile(
         ".*\\[(KQL|QSTR)] function cannot be used after SORT.*",
         Pattern.DOTALL
     );
@@ -142,17 +142,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * We only allow this error when the unknown column is an unmapped field name, and if a suggestion is present,
      * the suggested column must also be an unmapped field name.
      */
-    private static final Pattern UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN = Pattern.compile(
+    protected static final Pattern UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN = Pattern.compile(
         ".*Unknown column \\[([^]]+)], did you mean \\[([^]]+)]\\?.*",
         Pattern.DOTALL
     );
-    private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(".*Unknown column \\[([^]]+)].*", Pattern.DOTALL);
+    protected static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(".*Unknown column \\[([^]]+)].*", Pattern.DOTALL);
     /**
      * Matches "first argument of [X] is [null] so second argument must also be [null] but was [Y]" errors.
      * This happens when an unmapped field (which resolves to DataType.NULL) is used in a binary operation
      * with a non-null typed field. See https://github.com/elastic/elasticsearch/issues/142115
      */
-    private static final Pattern NULL_TYPE_MISMATCH_PATTERN = Pattern.compile(
+    protected static final Pattern NULL_TYPE_MISMATCH_PATTERN = Pattern.compile(
         ".*first argument of \\[([^]]+)] is \\[null] so second argument must also be \\[null] but was \\[.*].*",
         Pattern.DOTALL
     );
@@ -161,7 +161,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * This happens when an unmapped field ends up with a different data type that doesn't match the one of the function's argument(s).
      * The unmapped field name may appear either in the function expression(group 1) or in the found-value position (group 2).
      */
-    private static final Pattern ANY_TYPE_MISMATCH_PATTERN = Pattern.compile(
+    protected static final Pattern ANY_TYPE_MISMATCH_PATTERN = Pattern.compile(
         ".*argument of \\[([^]]+)] must be \\[.*], found value \\[([^]]+)] type \\[.*].*",
         Pattern.DOTALL
     );
@@ -175,7 +175,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Pattern.DOTALL
     );
 
-    private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
+    protected static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
     @Before
     public void setup() throws IOException {
@@ -446,7 +446,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * </ul>
      */
     private static boolean isUnmappedFieldError(String errorMessage, String query) {
-        if (query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) == false) {
+        return isUnmappedFieldPrefixError(errorMessage, query, SET_UNMAPPED_FIELDS_PREFIX);
+    }
+
+    protected static boolean isUnmappedFieldPrefixError(String errorMessage, String query, String prefix) {
+        if (query.startsWith(prefix) == false) {
             return false;
         }
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);

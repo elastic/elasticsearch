@@ -1851,6 +1851,45 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(e.getIndex().getName(), equalTo("foobarfoo"));
     }
 
+    public void testGetAliasesWithIgnoreUnavailableSurvivesAliasRemoval() {
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
+        request.aliases("foofoobar");
+        request.indicesOptions(
+            IndicesOptions.builder(GetAliasesRequest.DEFAULT_INDICES_OPTIONS)
+                .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                .build()
+        );
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
+        resolveIndices(request, authorizedIndices);
+
+        assertThat(Arrays.asList(request.indices()), hasItem("foobarfoo"));
+
+        ProjectMetadata modifiedMetadata = ProjectMetadata.builder(projectMetadata)
+            .put(IndexMetadata.builder(projectMetadata.index("foobar")).removeAlias("foobarfoo"))
+            .build();
+
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+        String[] resolved = resolver.concreteIndexNamesWithSystemIndexAccess(modifiedMetadata, request);
+        assertThat(resolved.length, Matchers.greaterThan(0));
+    }
+
+    public void testGetAliasesWithIgnoreUnavailableStill404sForNonExistentAlias() {
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
+        request.aliases("no_such_alias");
+        request.indicesOptions(
+            IndicesOptions.builder(GetAliasesRequest.DEFAULT_INDICES_OPTIONS)
+                .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                .build()
+        );
+        final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME);
+        resolveIndices(request, authorizedIndices);
+
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+        String[] resolved = resolver.concreteIndexNamesWithSystemIndexAccess(projectMetadata, request);
+        Map<String, List<AliasMetadata>> aliases = projectMetadata.findAliases(new String[] { "no_such_alias" }, resolved);
+        assertTrue("findAliases should return empty for a non-existent alias", aliases.isEmpty());
+    }
+
     public void testResolveAllGetAliasesRequestExpandWildcardsOpenOnly() {
         GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         // set indices options to have wildcards resolved to open indices only (default is open and closed)

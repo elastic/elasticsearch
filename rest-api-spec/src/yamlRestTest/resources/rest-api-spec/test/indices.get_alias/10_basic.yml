@@ -281,6 +281,17 @@ setup:
   - match: { test_index.aliases.test_alias: { } }
 
 ---
+"Non-existent alias with ignore_unavailable still returns 404":
+  - do:
+      catch: missing
+      indices.get_alias:
+        name: non-existent
+        ignore_unavailable: true
+
+  - match: { 'status': 404 }
+  - match: { 'error': 'alias [non-existent] missing' }
+
+---
 "Getting alias on an non-existent index should return 404":
 
   - do:

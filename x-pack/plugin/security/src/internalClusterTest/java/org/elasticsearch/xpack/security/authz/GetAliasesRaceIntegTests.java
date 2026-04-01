@@ -10,6 +10,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -51,6 +52,25 @@ public class GetAliasesRaceIntegTests extends SecurityIntegTestCase {
     }
 
     public void testGetAliasesFailsWhenConcurrentAliasRemoval() throws Exception {
+        CopyOnWriteArrayList<Exception> failures = runAliasRace(null);
+
+        assertFalse("Expected at least one IndexNotFoundException from the reader thread", failures.isEmpty());
+        for (Exception e : failures) {
+            assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("churn_alias_"));
+        }
+    }
+
+    public void testGetAliasesWithIgnoreUnavailableSurvivesConcurrentAliasRemoval() throws Exception {
+        IndicesOptions withIgnoreUnavailable = IndicesOptions.builder(GetAliasesRequest.DEFAULT_INDICES_OPTIONS)
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+            .build();
+
+        CopyOnWriteArrayList<Exception> failures = runAliasRace(withIgnoreUnavailable);
+
+        assertTrue("ignore_unavailable=true should prevent IndexNotFoundException, but got: " + failures, failures.isEmpty());
+    }
+
+    private CopyOnWriteArrayList<Exception> runAliasRace(IndicesOptions readerOptions) throws Exception {
         Map<String, String> authHeaders = Collections.singletonMap(
             BASIC_AUTH_HEADER,
             basicAuthHeaderValue("race_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
@@ -70,8 +90,11 @@ public class GetAliasesRaceIntegTests extends SecurityIntegTestCase {
             try {
                 while (stop.get() == false) {
                     try {
-                        authedClient.execute(GetAliasesAction.INSTANCE, new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "target_alias"))
-                            .actionGet();
+                        GetAliasesRequest req = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "target_alias");
+                        if (readerOptions != null) {
+                            req.indicesOptions(readerOptions);
+                        }
+                        authedClient.execute(GetAliasesAction.INSTANCE, req).actionGet();
                     } catch (IndexNotFoundException e) {
                         failures.add(e);
                     }
@@ -119,13 +142,6 @@ public class GetAliasesRaceIntegTests extends SecurityIntegTestCase {
         stop.set(true);
         latch.await(10, TimeUnit.SECONDS);
 
-        assertFalse(
-            "Expected at least one IndexNotFoundException from the GetAliases reader thread, "
-                + "triggered by security's index expansion racing with alias removal",
-            failures.isEmpty()
-        );
-        for (Exception e : failures) {
-            assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("churn_alias_"));
-        }
+        return failures;
     }
 }

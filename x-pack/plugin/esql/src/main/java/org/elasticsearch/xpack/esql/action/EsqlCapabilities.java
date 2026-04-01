@@ -255,7 +255,7 @@ public class EsqlCapabilities {
          * V5: Support for rejecting partially unmapped non-keywords unless cast or projected
          *     Support for rejecting loading subfields of flattened fields
          */
-        OPTIONAL_FIELDS_V5(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V5,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -2055,6 +2055,11 @@ public class EsqlCapabilities {
         FIX_AGG_ON_NULL_BY_REPLACING_WITH_EVAL,
 
         /**
+         * Makes SUM(long) agg return null+warning instead of a 500 overflow.
+         */
+        FIX_SUM_AGG_LONG_OVERFLOW,
+
+        /**
          * Support for requesting the "_tier" metadata field.
          */
         METADATA_TIER_FIELD(Build.current().isSnapshot()),
@@ -2391,6 +2396,12 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/144833
          */
         UNMAPPED_FIELDS_DEFAULT_SETTING_RENAME,
+
+        /**
+         * Support window durations that are larger than but not exact multiples of the time bucket
+         * for time-series aggregations (e.g., rate(counter, 7 minutes) with TBUCKET(5 minutes)).
+         */
+        TIME_SERIES_WINDOW_NON_MULTIPLE,
 
         /**
          * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.

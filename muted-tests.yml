@@ -339,9 +339,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingBooleanValuesFromUnsignedLong
   issue: https://github.com/elastic/elasticsearch/issues/145358
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testMeta
-  issue: https://github.com/elastic/elasticsearch/issues/145370
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidBigDecimalFromDoubleWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145372

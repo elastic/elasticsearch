@@ -140,13 +140,17 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
             }
             """;
 
-        // Should not throw even though dummy.setting2 was previously reserved but no longer exists
+        // Without the fix, this would throw:
+        //   IllegalArgumentException: persistent setting [dummy.setting2], not recognized
         TransformState newState = processJSON(action, prevState, json);
 
         // dummy.setting2 should be dropped from reserved state keys
         assertThat(newState.keys(), containsInAnyOrder("dummy.setting1"));
         // dummy.setting1 should have the new value
         assertThat(newState.state().metadata().persistentSettings().get("dummy.setting1"), is("new-value1"));
+        // dummy.setting2 is also absent from persistent settings: SettingsUpdater validates
+        // the final settings against the registry and drops keys it does not recognize
+        assertNull(newState.state().metadata().persistentSettings().get("dummy.setting2"));
     }
 
     public void testSettingNameNormalization() throws Exception {

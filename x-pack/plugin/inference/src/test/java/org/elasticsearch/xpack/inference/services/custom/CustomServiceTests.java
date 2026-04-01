@@ -703,9 +703,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
 
             assertThat(chunkingSettings, instanceOf(SentenceBoundaryChunkingSettings.class));
             assertThat(chunkingSettings.getChunkingStrategy(), equalTo(ChunkingStrategy.SENTENCE));
-            Map<String, Object> actualChunkingSettings = chunkingSettings.asMap();
-            assertThat(actualChunkingSettings.get(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString()), equalTo(40));
-            assertThat(actualChunkingSettings.get(ChunkingSettingsOptions.SENTENCE_OVERLAP.toString()), equalTo(0));
+            assertThat(chunkingSettings.asMap().get(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString()), equalTo(40));
+            assertThat(chunkingSettings.asMap().get(ChunkingSettingsOptions.SENTENCE_OVERLAP.toString()), equalTo(0));
         }
     }
 

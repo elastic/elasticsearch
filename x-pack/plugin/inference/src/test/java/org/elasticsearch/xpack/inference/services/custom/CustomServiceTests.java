@@ -705,16 +705,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 )
             );
 
-            Map<String, Object> chunkingSettingsMap = new HashMap<>(
-                Map.of(
-                    ChunkingSettingsOptions.STRATEGY.toString(),
-                    "sentence",
-                    ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
-                    40,
-                    ChunkingSettingsOptions.SENTENCE_OVERLAP.toString(),
-                    0
-                )
-            );
+            Map<String, Object> chunkingSettingsMap = new HashMap<>();
+            chunkingSettingsMap.put(ChunkingSettingsOptions.STRATEGY.toString(), "sentence");
+            chunkingSettingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), 40);
+            chunkingSettingsMap.put(ChunkingSettingsOptions.SENTENCE_OVERLAP.toString(), 0);
 
             var config = getRequestConfigMap(serviceSettingsMap, createTaskSettingsMap(), chunkingSettingsMap, createSecretSettingsMap());
             var listener = new PlainActionFuture<Model>();

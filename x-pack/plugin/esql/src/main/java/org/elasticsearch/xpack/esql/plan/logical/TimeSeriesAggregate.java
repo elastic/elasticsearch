@@ -44,9 +44,13 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         TimeSeriesAggregate::new
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
+    public static final TransportVersion TIME_SERIES_AGGREGATE_BUCKET_INTERVAL_CONVENTION = TransportVersion.fromName(
+        "time_series_aggregate_bucket_interval_convention"
+    );
 
     private final Bucket timeBucket;
     private final Expression timestamp;
+    private final boolean isBackwardBucketIntervalConvention;
 
     public TimeSeriesAggregate(
         Source source,
@@ -56,14 +60,32 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         Bucket timeBucket,
         Expression timestamp
     ) {
+        this(source, child, groupings, aggregates, timeBucket, timestamp, false);
+    }
+
+    public TimeSeriesAggregate(
+        Source source,
+        LogicalPlan child,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        Bucket timeBucket,
+        Expression timestamp,
+        boolean isBackwardBucketIntervalConvention
+    ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
         this.timestamp = timestamp;
+        this.isBackwardBucketIntervalConvention = isBackwardBucketIntervalConvention;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_BUCKET_INTERVAL_CONVENTION)) {
+            this.isBackwardBucketIntervalConvention = in.readBoolean();
+        } else {
+            this.isBackwardBucketIntervalConvention = false;
+        }
         if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             this.timestamp = in.readOptionalNamedWriteable(Expression.class);
         } else {
@@ -77,6 +99,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_BUCKET_INTERVAL_CONVENTION)) {
+            out.writeBoolean(isBackwardBucketIntervalConvention);
+        }
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             out.writeOptionalNamedWriteable(timestamp);
         }
@@ -89,24 +114,57 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp);
+        return NodeInfo.create(
+            this,
+            TimeSeriesAggregate::new,
+            child(),
+            groupings,
+            aggregates,
+            timeBucket,
+            timestamp,
+            isBackwardBucketIntervalConvention
+        );
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp);
+        return new TimeSeriesAggregate(
+            source(),
+            newChild,
+            groupings,
+            aggregates,
+            timeBucket,
+            timestamp,
+            isBackwardBucketIntervalConvention
+        );
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp);
+        return new TimeSeriesAggregate(
+            source(),
+            child,
+            newGroupings,
+            newAggregates,
+            timeBucket,
+            timestamp,
+            isBackwardBucketIntervalConvention
+        );
     }
 
     public LogicalPlan withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp);
+        return new TimeSeriesAggregate(
+            source(),
+            child(),
+            groupings,
+            aggregates,
+            timeBucket,
+            newTimestamp,
+            isBackwardBucketIntervalConvention
+        );
     }
 
     @Override
@@ -124,9 +182,13 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         return timestamp;
     }
 
+    public boolean isBackwardBucketIntervalConvention() {
+        return isBackwardBucketIntervalConvention;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp, isBackwardBucketIntervalConvention);
     }
 
     @Override
@@ -144,7 +206,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
-            && Objects.equals(timestamp, other.timestamp);
+            && Objects.equals(timestamp, other.timestamp)
+            && isBackwardBucketIntervalConvention == other.isBackwardBucketIntervalConvention;
     }
 
     @Override

@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.LongConsumer;
 
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,7 +45,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
     protected Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
         return new TimeSeriesAggregationOperator.Factory(
             timeBucket,
-            false,
+            DateFieldMapper.Resolution.MILLISECONDS,
+            TimeSeriesAggregationOperator.evaluationContextFactory(backwardBucketIntervalConvention()),
             List.of(
                 new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
                 new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
@@ -98,16 +100,12 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
             for (int p = 0; p < page.getPositionCount(); p++) {
                 long bucket = timestamp.getLong(p);
                 var tsid = tsids.getBytesRef(p, scratch).utf8ToString();
-                // slide the window over the last 5 minutes
-                // bucket = 00:06 -> it should generate buckets at 00:02, 00:03, 00:04, 00:05, 00:06
-                for (int i = 0; i < 5; i++) {
-                    if (bucket >= smallestBucket) {
-                        Key key = new Key(tsid, bucket);
-                        long val = values.getInt(p);
-                        expected.merge(key, val, Long::sum);
-                    }
-                    bucket = bucket - oneMinute;
-                }
+                Key key = new Key(tsid, bucket);
+                long val = values.getInt(p);
+                expected.merge(key, val, Long::sum);
+                forEachExpandedBucket(bucket, Duration.ofMinutes(5), smallestBucket, expandedBucket -> {
+                    expected.merge(new Key(tsid, expandedBucket), val, Long::sum);
+                });
             }
         }
         Map<Key, Long> actual = new TreeMap<>(Comparator.comparing(Key::tsid).thenComparingLong(Key::bucket));
@@ -148,6 +146,28 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
 
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), Duration.ofMinutes(5));
+    }
+
+    protected boolean backwardBucketIntervalConvention() {
+        return false;
+    }
+
+    protected void forEachExpandedBucket(long bucket, Duration window, long minTimestamp, LongConsumer action) {
+        if (backwardBucketIntervalConvention()) {
+            long nextBucket = timeBucket.nextRoundingValue(bucket);
+            long endTimestamp = bucket + DateFieldMapper.Resolution.MILLISECONDS.convert(window.toMillis());
+            while (nextBucket < endTimestamp) {
+                action.accept(nextBucket);
+                nextBucket = timeBucket.nextRoundingValue(nextBucket);
+            }
+            return;
+        }
+        long earliestBucket = timeBucket.nextRoundingValue(bucket - DateFieldMapper.Resolution.MILLISECONDS.convert(window.toMillis()));
+        earliestBucket = Math.max(earliestBucket, minTimestamp);
+        while (earliestBucket < bucket) {
+            action.accept(earliestBucket);
+            earliestBucket = timeBucket.nextRoundingValue(earliestBucket);
+        }
     }
 
     protected String expectedToStringOfSimpleAggregator() {

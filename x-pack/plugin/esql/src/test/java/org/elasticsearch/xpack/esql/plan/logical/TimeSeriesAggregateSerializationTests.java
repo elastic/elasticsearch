@@ -25,13 +25,15 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
         List<? extends NamedExpression> aggregates = AggregateSerializationTests.randomAggregates();
         Bucket timeBucket = BucketSerializationTests.createRandomBucket(configuration());
+        boolean isBackwardBucketIntervalConvention = randomBoolean();
         return new TimeSeriesAggregate(
             source,
             child,
             groupings,
             aggregates,
             timeBucket,
-            AbstractExpressionSerializationTests.randomChild()
+            AbstractExpressionSerializationTests.randomChild(),
+            isBackwardBucketIntervalConvention
         );
     }
 
@@ -41,7 +43,8 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         List<Expression> groupings = instance.groupings();
         List<? extends NamedExpression> aggregates = instance.aggregates();
         Bucket timeBucket = instance.timeBucket();
-        switch (between(0, 3)) {
+        boolean isBackwardBucketIntervalConvention = instance.isBackwardBucketIntervalConvention();
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(
                 groupings,
@@ -49,8 +52,17 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             );
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
             case 3 -> timeBucket = randomValueOtherThan(timeBucket, () -> BucketSerializationTests.createRandomBucket(configuration()));
+            case 4 -> isBackwardBucketIntervalConvention = randomValueOtherThan(isBackwardBucketIntervalConvention, () -> randomBoolean());
         }
-        return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket, instance.timestamp());
+        return new TimeSeriesAggregate(
+            instance.source(),
+            child,
+            groupings,
+            aggregates,
+            timeBucket,
+            instance.timestamp(),
+            isBackwardBucketIntervalConvention
+        );
     }
 
     @Override

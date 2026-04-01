@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
@@ -19,6 +20,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 import java.util.stream.IntStream;
 
 /**
@@ -131,6 +133,11 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
 
                     @Override
                     public void forEachGroupInWindow(int startingGroupId, Duration window, IntConsumer action) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public void forEachBucketInWindow(long groupId, Duration window, TimeSeriesBlockHash tsBlockHash, LongConsumer action) {
                         throw new UnsupportedOperationException();
                     }
 

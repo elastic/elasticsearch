@@ -145,7 +145,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             oldAgg.getMode(),
             newIntermediates,
             oldAgg.estimatedRowSize(),
-            oldAgg.timeBucket()
+            oldAgg.timeBucket(),
+            oldAgg.isBackwardBucketIntervalConvention()
         );
         final EvalExec evalExec;
         if (dimensionFields.isEmpty()) {

@@ -463,11 +463,7 @@ public class DocsV3SupportTests extends ESTestCase {
     private TestCallbacks renderTestClassWithMapParamDocs() throws Exception {
         FunctionInfo info = functionInfo(TestClassWithMapParam.class);
         assert info != null;
-        FunctionDefinition definition = EsqlFunctionRegistry.def(
-            TestClassWithMapParam.class,
-            TestClassWithMapParam::new,
-            "test_map_func"
-        );
+        FunctionDefinition definition = EsqlFunctionRegistry.def(TestClassWithMapParam.class, TestClassWithMapParam::new, "test_map_func");
         TestCallbacks callbacks = new TestCallbacks();
         var docs = new DocsV3Support.FunctionDocsSupport(
             "test_map_func",
@@ -526,12 +522,23 @@ public class DocsV3SupportTests extends ESTestCase {
 
         @Override
         public Expression replaceChildren(List<Expression> newChildren) {
-            return new TestClassWithMapParam(source(), newChildren.get(0), newChildren.get(1), newChildren.size() > 2 ? newChildren.get(2) : null);
+            return new TestClassWithMapParam(
+                source(),
+                newChildren.get(0),
+                newChildren.get(1),
+                newChildren.size() > 2 ? newChildren.get(2) : null
+            );
         }
 
         @Override
         protected NodeInfo<? extends Expression> info() {
-            return NodeInfo.create(this, TestClassWithMapParam::new, children().get(0), children().get(1), children().size() > 2 ? children().get(2) : null);
+            return NodeInfo.create(
+                this,
+                TestClassWithMapParam::new,
+                children().get(0),
+                children().get(1),
+                children().size() > 2 ? children().get(2) : null
+            );
         }
 
         @Override

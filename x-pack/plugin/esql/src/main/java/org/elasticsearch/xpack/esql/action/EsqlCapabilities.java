@@ -255,7 +255,7 @@ public class EsqlCapabilities {
          * V5: Support for rejecting partially unmapped non-keywords unless cast or projected
          *     Support for rejecting loading subfields of flattened fields
          */
-        OPTIONAL_FIELDS_V5(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V5,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently

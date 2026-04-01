@@ -1285,7 +1285,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         // Count how many branches resolve to a bare UR containing "emp1"
         // If the bug is present, the URs get merged into one, losing the second copy of emp1
-        long urBranchesWithEmp1 = vua.namedSubqueries().values().stream()
+        long urBranchesWithEmp1 = vua.namedSubqueries()
+            .values()
+            .stream()
             .filter(p -> p instanceof UnresolvedRelation)
             .map(p -> ((UnresolvedRelation) p).indexPattern().indexPattern())
             .filter(pattern -> Arrays.asList(pattern.split(",")).contains("emp1"))
@@ -1294,7 +1296,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(
             "emp1 should appear in at least 2 separate UR branches to preserve view semantics, "
                 + "but mergeUnresolvedRelationEntries merged them because hasPatternDuplicates only checks whole patterns. "
-                + "VUA entries: " + vua.namedSubqueries(),
+                + "VUA entries: "
+                + vua.namedSubqueries(),
             urBranchesWithEmp1,
             greaterThanOrEqualTo(2L)
         );

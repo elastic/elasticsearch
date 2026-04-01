@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -62,6 +63,11 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
         @Override
         public String getIndexName() {
             return indexName;
+        }
+
+        @Override
+        public ProjectId getProjectId() {
+            return ProjectId.DEFAULT;
         }
 
         @Override

@@ -150,18 +150,20 @@ import static org.mockito.Mockito.when;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
     private static class VariableLicenseDiskBBQPlugin extends DiskBBQPlugin {
+        static VariableLicenseDiskBBQPlugin BASIC = new VariableLicenseDiskBBQPlugin(
+            Settings.EMPTY,
+            new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.BASIC, true, null))
+        );
+        static VariableLicenseDiskBBQPlugin ENTERPRISE = new VariableLicenseDiskBBQPlugin(
+            Settings.EMPTY,
+            new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null))
+        );
+
         private final XPackLicenseState licenseState;
 
         VariableLicenseDiskBBQPlugin(Settings settings, XPackLicenseState licenseState) {
             super(settings);
             this.licenseState = licenseState;
-        }
-
-        static VariableLicenseDiskBBQPlugin enterprise(Settings settings) {
-            return new VariableLicenseDiskBBQPlugin(
-                settings,
-                new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null))
-            );
         }
 
         @Override
@@ -215,21 +217,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        if (operationMode == License.OperationMode.ENTERPRISE) {
-            return List.of(new InferencePlugin(Settings.EMPTY) {
-                @Override
-                protected Supplier<ModelRegistry> getModelRegistry() {
-                    return () -> globalModelRegistry;
-                }
-            }, new XPackClientPlugin(), VariableLicenseDiskBBQPlugin.enterprise(Settings.EMPTY));
-        } else {
-            return List.of(new InferencePlugin(Settings.EMPTY) {
-                @Override
-                protected Supplier<ModelRegistry> getModelRegistry() {
-                    return () -> globalModelRegistry;
-                }
-            }, new XPackClientPlugin());
-        }
+        return List.of(new InferencePlugin(Settings.EMPTY) {
+            @Override
+            protected Supplier<ModelRegistry> getModelRegistry() {
+                return () -> globalModelRegistry;
+            }
+        },
+            new XPackClientPlugin(),
+            operationMode == License.OperationMode.ENTERPRISE ? VariableLicenseDiskBBQPlugin.ENTERPRISE : VariableLicenseDiskBBQPlugin.BASIC
+        );
     }
 
     private void registerDefaultEisEndpoint() {

@@ -116,8 +116,6 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
                 // If the timeout expires, this quietly returns, which is ok in this context.
                 resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
                 resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
-                resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
-                resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
             }
         }
     }

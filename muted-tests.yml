@@ -377,6 +377,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:approximation.Exact stats by on small single-valued data}
   issue: https://github.com/elastic/elasticsearch/issues/145399
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionToFieldLoadGoldenTests
+  issue: https://github.com/elastic/elasticsearch/issues/145381
 
 # Examples:
 #

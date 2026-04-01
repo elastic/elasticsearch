@@ -329,7 +329,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 () -> null,
                 (n, c, o) -> SemanticTextField.parseModelSettingsFromMap(o),
                 mapper -> ((SemanticTextFieldType) mapper.fieldType()).modelSettings,
-                XContentBuilder::field,
+                (b, n, v) -> {
+                    if (v != null) {
+                        b.field(MODEL_SETTINGS_FIELD, v.getFilteredXContentObject());
+                    }
+                },
                 Objects::toString
             ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
 
@@ -1443,14 +1447,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (indexVersionCreated.onOrAfter(NEW_SPARSE_VECTOR)) {
             SimilarityMeasure similarity = modelSettings.similarity();
             if (similarity != null) {
-                switch (similarity) {
-                    case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
-                    case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
-                    case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
-                    default -> throw new IllegalArgumentException(
-                        "Unknown similarity measure in model_settings [" + similarity.name() + "]"
-                    );
-                }
+                denseVectorMapperBuilder.similarity(similarity.vectorSimilarity());
             }
         }
 

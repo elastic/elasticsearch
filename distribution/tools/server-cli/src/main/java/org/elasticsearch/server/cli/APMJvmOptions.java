@@ -26,14 +26,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringJoiner;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
@@ -273,14 +270,13 @@ class APMJvmOptions {
      * traces still use the APM Agent through {@code GlobalOpenTelemetry}.
      */
     static void disableMetricInstrumentation(Map<String, String> propertiesMap) {
-        LinkedHashSet<String> parts = new LinkedHashSet<>();
         String existing = propertiesMap.get("disable_instrumentations");
-        for (String p : Strings.splitStringByCommaToArray(existing)) {
-            parts.add(p.trim());
+        String otelMetrics = "opentelemetry-metrics";
+        if (existing == null || existing.isBlank()) {
+            propertiesMap.put("disable_instrumentations", otelMetrics);
+        } else {
+            propertiesMap.put("disable_instrumentations", existing + "," + otelMetrics);
         }
-        parts.add("opentelemetry-metrics");
-        String newValue = parts.stream().filter(Predicate.not(String::isBlank)).collect(Collectors.joining(","));
-        propertiesMap.put("disable_instrumentations", newValue);
     }
 
     private static StringJoiner extractGlobalLabels(String prefix, Map<String, String> propertiesMap, Settings settings) {

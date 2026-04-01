@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.FieldInfo;
@@ -38,7 +37,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
@@ -65,7 +63,6 @@ import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapperTests;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
-import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -77,8 +74,8 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
@@ -91,6 +88,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -107,7 +105,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -146,33 +143,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
-    private static class TrialLicenseStateDiskBBQPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
-        @Override
-        public VectorsFormatProvider getVectorsFormatProvider() {
-            return new VectorsFormatProvider() {
-                @Override
-                public KnnVectorsFormat getKnnVectorsFormat(
-                    IndexSettings indexSettings,
-                    DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions,
-                    DenseVectorFieldMapper.VectorSimilarity similarity,
-                    DenseVectorFieldMapper.ElementType elementType,
-                    ExecutorService mergingExecutorService,
-                    int maxMergingWorkers
-                ) {
-                    return null;
-                }
-
-                @Override
-                public boolean isVectorIndexTypeAllowed(
-                    IndexVersion indexVersionCreated,
-                    DenseVectorFieldMapper.VectorIndexType indexType
-                ) {
-                    return true;
-                }
-            };
-        }
-    }
-
     private final boolean useLegacyFormat;
 
     private TestThreadPool threadPool;
@@ -215,7 +185,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             protected Supplier<ModelRegistry> getModelRegistry() {
                 return () -> globalModelRegistry;
             }
-        }, new XPackClientPlugin(), new TrialLicenseStateDiskBBQPlugin());
+        }, new XPackClientPlugin(), VariableLicenseDiskBBQPlugin.trial(Settings.EMPTY));
     }
 
     private void registerDefaultEisEndpoint() {
@@ -2075,6 +2045,28 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
             SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
         );
+    }
+
+    private static class VariableLicenseDiskBBQPlugin extends DiskBBQPlugin {
+        private final XPackLicenseState licenseState;
+
+        public VariableLicenseDiskBBQPlugin(Settings settings) {
+            this(settings, null);
+        }
+
+        public VariableLicenseDiskBBQPlugin(Settings settings, XPackLicenseState licenseState) {
+            super(settings);
+            this.licenseState = licenseState;
+        }
+
+        public static VariableLicenseDiskBBQPlugin trial(Settings settings) {
+            return new VariableLicenseDiskBBQPlugin(settings, new XPackLicenseState(() -> 0L));
+        }
+
+        @Override
+        protected XPackLicenseState getLicenseState() {
+            return licenseState != null ? licenseState : super.getLicenseState();
+        }
     }
 
     public void testDefaultIndexOptions() throws IOException {

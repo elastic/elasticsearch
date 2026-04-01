@@ -1,4 +1,5 @@
 config:
+  smart-retries: true
   allow-labels: ":Delivery/Packaging"
 steps:
   - group: packaging-tests-unix

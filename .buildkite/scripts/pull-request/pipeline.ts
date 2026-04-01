@@ -117,9 +117,9 @@ const injectRetryIntoSteps = (steps: BuildkiteStep[]) => {
   }
 };
 
-// Inject SMART_RETRIES env and retry blocks into a pipeline when smart-retries config is enabled (default: true)
+// Inject SMART_RETRIES env and retry blocks into a pipeline when smart-retries config is explicitly enabled
 const injectSmartRetries = (pipeline: EsPipeline) => {
-  if (pipeline.config?.["smart-retries"] === false) {
+  if (pipeline.config?.["smart-retries"] !== true) {
     return;
   }
 

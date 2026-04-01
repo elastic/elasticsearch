@@ -1,3 +1,5 @@
+config:
+  smart-retries: true
 steps:
   - label: part-2
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2

@@ -66,7 +66,7 @@ describe("generatePipelines", () => {
     );
   });
 
-  test("should not inject smart retries when smart-retries config is false", () => {
+  test("should not inject smart retries when smart-retries config is not explicitly enabled", () => {
     const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
     const noSmartRetries = pipelines.find((p) => p.name === "no-smart-retries");
 
@@ -75,7 +75,7 @@ describe("generatePipelines", () => {
     expect((noSmartRetries!.pipeline.steps![0] as any).retry).toBeUndefined();
   });
 
-  test("should inject smart retries by default", () => {
+  test("should inject smart retries when smart-retries config is true", () => {
     const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
     const usingDefaults = pipelines.find((p) => p.name === "using-defaults");
 

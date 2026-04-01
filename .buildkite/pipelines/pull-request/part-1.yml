@@ -1,3 +1,5 @@
+config:
+  smart-retries: true
 steps:
   - label: part-1
     command: |

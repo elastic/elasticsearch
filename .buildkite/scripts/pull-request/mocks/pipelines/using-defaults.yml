@@ -1,3 +1,5 @@
+config:
+  smart-retries: true
 env:
   CUSTOM_ENV_VAR: "value"
 steps:

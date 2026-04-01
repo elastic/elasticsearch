@@ -1,4 +1,5 @@
 config:
+  smart-retries: true
   allow-labels: test-release
 steps:
   - group: release-tests

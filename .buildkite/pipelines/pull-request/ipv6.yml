@@ -1,4 +1,5 @@
 config:
+  smart-retries: true
   allow-labels: test-ipv6
   skip-labels:
     - ">test-mute"

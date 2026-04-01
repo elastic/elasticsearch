@@ -1,4 +1,5 @@
 config:
+  smart-retries: true
   allow-labels:
     - Team:Security
     - test-fips

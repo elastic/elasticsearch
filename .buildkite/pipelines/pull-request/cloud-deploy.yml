@@ -1,5 +1,4 @@
 config:
-  smart-retries: false
   allow-labels: cloud-deploy
 steps:
   - label: cloud-deploy

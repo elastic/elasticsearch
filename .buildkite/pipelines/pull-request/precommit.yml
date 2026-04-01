@@ -1,5 +1,4 @@
 config:
-  smart-retries: false
   allow-labels: ">test-mute"
   skip-labels: []
 steps:

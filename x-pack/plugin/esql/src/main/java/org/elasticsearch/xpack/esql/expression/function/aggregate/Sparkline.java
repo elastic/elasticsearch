@@ -97,7 +97,9 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             return new Expression.TypeResolution("Unresolved children");
         }
 
-        if (field() instanceof AggregateFunction == false) {
+        if (isNotNull(field(), sourceText(), FIRST).unresolved()) {
+            return isNotNull(field(), sourceText(), FIRST);
+        } else if (field() instanceof AggregateFunction == false) {
             return new TypeResolution(
                 LoggerMessageFormat.format(
                     null,
@@ -115,12 +117,12 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             sourceText(),
             FIRST,
             "integer or long or double"
-        ).and(isNotNull(field(), sourceText(), FIRST))
+        ).and(isNotNull(key(), sourceText(), SECOND))
             .and(isType(key(), dt -> dt == DataType.DATETIME, sourceText(), SECOND, "date"))
-            .and(isNotNull(key(), sourceText(), SECOND))
-            .and(isWholeNumber(buckets(), sourceText(), THIRD))
             .and(isNotNull(buckets(), sourceText(), THIRD))
+            .and(isWholeNumber(buckets(), sourceText(), THIRD))
             .and(isFoldable(buckets(), sourceText(), THIRD))
+            .and(isNotNull(from(), sourceText(), FOURTH))
             .and(
                 isType(
                     from(),
@@ -130,8 +132,8 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
                     "date or keyword or text"
                 )
             )
-            .and(isNotNull(from(), sourceText(), FOURTH))
             .and(isFoldable(from(), sourceText(), FOURTH))
+            .and(isNotNull(to(), sourceText(), FIFTH))
             .and(
                 isType(
                     to(),
@@ -141,7 +143,6 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
                     "date or keyword or text"
                 )
             )
-            .and(isNotNull(to(), sourceText(), FIFTH))
             .and(isFoldable(to(), sourceText(), FIFTH));
 
         if (resolution.unresolved()) {

@@ -155,14 +155,9 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
         var resourceName = randomAlphaOfLength(8);
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);
+        var rateLimitSettings = RateLimitSettingsTests.createRandom();
 
-        return new AzureOpenAiCompletionServiceSettings(
-            resourceName,
-            deploymentId,
-            apiVersion,
-            RateLimitSettingsTests.createRandom(),
-            oAuth2Settings
-        );
+        return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, rateLimitSettings, oAuth2Settings);
     }
 
     public static AzureOpenAiCompletionServiceSettings createRandomWithoutOAuth2() {

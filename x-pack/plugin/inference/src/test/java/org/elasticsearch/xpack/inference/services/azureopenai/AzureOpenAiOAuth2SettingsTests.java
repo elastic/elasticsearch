@@ -39,7 +39,9 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
     public static final String INITIAL_TEST_TENANT_ID = "initial_tenant_id";
 
     public static AzureOpenAiOAuth2Settings createRandom() {
-        return new AzureOpenAiOAuth2Settings(OAuth2SettingsTests.createRandom(), randomAlphaOfLength(10));
+        var coreOAuth2Settings = OAuth2SettingsTests.createRandom();
+        var tenantId = randomAlphaOfLength(10);
+        return new AzureOpenAiOAuth2Settings(coreOAuth2Settings, tenantId);
     }
 
     public static Map<String, Object> addAzureOpenAiOAuth2FieldsToMap(

@@ -30,7 +30,8 @@ import static org.hamcrest.Matchers.is;
 public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiOAuth2Secrets> {
 
     public static AzureOpenAiOAuth2Secrets createRandom() {
-        return new AzureOpenAiOAuth2Secrets(randomSecureStringOfLength(15));
+        var clientSecret = randomSecureStringOfLength(15);
+        return new AzureOpenAiOAuth2Secrets(clientSecret);
     }
 
     public void testNewSecretSettings_ClientSecret() {

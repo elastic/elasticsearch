@@ -39,7 +39,9 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
     public static final List<String> INITIAL_TEST_SCOPES = List.of("initial_scope_1", "initial_scope_2");
 
     public static OAuth2Settings createRandom() {
-        return new OAuth2Settings(randomAlphaOfLength(10), randomList(1, 5, () -> randomAlphaOfLength(10)));
+        var clientId = randomAlphaOfLength(10);
+        var scopes = randomList(1, 5, () -> randomAlphaOfLength(10));
+        return new OAuth2Settings(clientId, scopes);
     }
 
     public static Map<String, Object> addOAuth2FieldsToMap(

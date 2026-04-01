@@ -481,19 +481,22 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);
         var dimensions = randomBoolean() ? null : randomIntBetween(128, 4096);
+        var dimensionsSetByUser = randomBoolean();
         var maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         var similarity = randomFrom(randomSimilarityMeasure(), null);
+        var rateLimitSettings = RateLimitSettingsTests.createRandom();
+        var oAuth2Settings = randomFrom(AzureOpenAiOAuth2SettingsTests.createRandom(), null);
 
         return new AzureOpenAiEmbeddingsServiceSettings(
             resourceName,
             deploymentId,
             apiVersion,
             dimensions,
-            randomBoolean(),
+            dimensionsSetByUser,
             maxInputTokens,
             similarity,
-            RateLimitSettingsTests.createRandom(),
-            randomFrom(AzureOpenAiOAuth2SettingsTests.createRandom(), null)
+            rateLimitSettings,
+            oAuth2Settings
         );
     }
 

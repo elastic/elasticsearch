@@ -26,7 +26,8 @@ public class OAuth2SecretsTests extends AbstractBWCWireSerializationTestCase<OAu
     public static final String TEST_CLIENT_SECRET = "secret";
 
     public static OAuth2Secrets createRandom() {
-        return new OAuth2Secrets(randomSecureStringOfLength(10));
+        var clientSecret = randomSecureStringOfLength(10);
+        return new OAuth2Secrets(clientSecret);
     }
 
     public void testToXContent_WritesClientSecretWhenSet() throws IOException {

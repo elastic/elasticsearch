@@ -111,9 +111,13 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BFLOAT16_DEFAULT_INDEX_OPTIONS;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ES_VERSION_94;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests.randomSparseVectorIndexOptions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
@@ -145,6 +149,27 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
+    private static class VariableLicenseDiskBBQPlugin extends DiskBBQPlugin {
+        private final XPackLicenseState licenseState;
+
+        VariableLicenseDiskBBQPlugin(Settings settings, XPackLicenseState licenseState) {
+            super(settings);
+            this.licenseState = licenseState;
+        }
+
+        static VariableLicenseDiskBBQPlugin enterprise(Settings settings) {
+            return new VariableLicenseDiskBBQPlugin(
+                settings,
+                new XPackLicenseState(() -> 0L, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null))
+            );
+        }
+
+        @Override
+        protected XPackLicenseState getLicenseState() {
+            return licenseState != null ? licenseState : super.getLicenseState();
+        }
+    }
+
     private final boolean useLegacyFormat;
 
     private final License.OperationMode operationMode;
@@ -180,8 +205,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(new Object[] {true, License.OperationMode.BASIC}, new Object[] {true, License.OperationMode.ENTERPRISE},
-            new Object[] {false, License.OperationMode.BASIC}, new Object[] {false, License.OperationMode.ENTERPRISE});
+        return List.of(
+            new Object[] { true, License.OperationMode.BASIC },
+            new Object[] { true, License.OperationMode.ENTERPRISE },
+            new Object[] { false, License.OperationMode.BASIC },
+            new Object[] { false, License.OperationMode.ENTERPRISE }
+        );
     }
 
     @Override
@@ -2005,15 +2034,73 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(parsedMapper.fieldType().getModelSettings().endpointMetadata(), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
-    private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions() {
-        // These are the default index options for dense_vector fields, and used for semantic_text fields incompatible with BBQ.
+    // this method replicates the logic used in DenseVectorFieldMapper.Builder::defaultIndexOptions as this is the best and easiest way
+    // to get expected default index options.
+    private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(
+        IndexVersion indexVersionCreated,
+        License.OperationMode operationMode,
+        Integer dims,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        if (elementType == DenseVectorFieldMapper.ElementType.BFLOAT16
+            && (indexVersionCreated.onOrAfter(BFLOAT16_DEFAULT_INDEX_OPTIONS)
+                || indexVersionCreated.between(BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT, ES_VERSION_94)) == false) {
+            return null;
+        }
+        // These are the default index options for dense_vector fields, used then semantic_text does not default to bbq_disk.
+        final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
+        final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
+        final boolean defaultBBQDisk = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK);
+
+        if (defaultBBQDisk && operationMode == License.OperationMode.ENTERPRISE) {
+            int bits = dims < BBQ_DIMS_DEFAULT_THRESHOLD ? 4 : 1;
+            return new DenseVectorFieldMapper.BBQIVFIndexOptions(
+                ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
+                -1,
+                0d,
+                false,
+                new DenseVectorFieldMapper.RescoreVector(DEFAULT_OVERSAMPLE),
+                indexVersionCreated,
+                false,
+                bits,
+                true
+            );
+        }
+
+        if (defaultBBQHnsw && dims >= BBQ_DIMS_DEFAULT_THRESHOLD) {
+            return new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
+                Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+                false,
+                new DenseVectorFieldMapper.RescoreVector(DEFAULT_OVERSAMPLE),
+                -1
+            );
+        }
+        if (defaultInt8Hnsw) {
+            return new DenseVectorFieldMapper.Int8HnswIndexOptions(
+                Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
+                Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+                false,
+                null,
+                -1
+            );
+        }
+
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
         return new DenseVectorFieldMapper.Int8HnswIndexOptions(m, efConstruction, false, null, -1);
     }
 
-    private static SemanticTextIndexOptions defaultDenseVectorSemanticIndexOptions() {
-        return new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, defaultDenseVectorIndexOptions());
+    private static SemanticTextIndexOptions defaultDenseVectorSemanticIndexOptions(
+        IndexVersion indexVersionCreated,
+        License.OperationMode operationMode,
+        Integer dims,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        return new SemanticTextIndexOptions(
+            SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+            defaultDenseVectorIndexOptions(indexVersionCreated, operationMode, dims, elementType)
+        );
     }
 
     private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
@@ -2023,35 +2110,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
     }
 
-    private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqDiskDenseVectorIndexOptions(
-        IndexVersion indexVersionCreated,
-        int dims
-    ) {
-        int bits = dims < DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD ? 4 : 1;
-        return new DenseVectorFieldMapper.BBQIVFIndexOptions(
-            ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
-            -1,
-            0d,
-            false,
-            new DenseVectorFieldMapper.RescoreVector(DenseVectorFieldMapper.DEFAULT_OVERSAMPLE),
-            indexVersionCreated,
-            false,
-            bits,
-            true
-        );
-    }
-
     private static SemanticTextIndexOptions defaultBbqHnswSemanticTextIndexOptions() {
         return new SemanticTextIndexOptions(
             SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
             defaultBbqHnswDenseVectorIndexOptions()
-        );
-    }
-
-    private static SemanticTextIndexOptions defaultBbqDiskSemanticTextIndexOptions(IndexVersion indexVersionCreated, int dims) {
-        return new SemanticTextIndexOptions(
-            SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-            defaultBbqDiskDenseVectorIndexOptions(indexVersionCreated, dims)
         );
     }
 
@@ -2062,27 +2124,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
     }
 
-    private static class VariableLicenseDiskBBQPlugin extends DiskBBQPlugin {
-        private final XPackLicenseState licenseState;
-
-        VariableLicenseDiskBBQPlugin(Settings settings, XPackLicenseState licenseState) {
-            super(settings);
-            this.licenseState = licenseState;
-        }
-
-        static VariableLicenseDiskBBQPlugin enterprise(Settings settings) {
-            return new VariableLicenseDiskBBQPlugin(settings, new XPackLicenseState(() -> 0L,
-                new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null)));
-        }
-
-        @Override
-        protected XPackLicenseState getLicenseState() {
-            return licenseState != null ? licenseState : super.getLicenseState();
-        }
-    }
-
     public void testDefaultIndexOptions() throws IOException {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 200; i++) {
             final Model model = TestModel.createRandomInstance();
             final IndexVersion indexVersion = randomBoolean()
                 ? SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
@@ -2116,7 +2159,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    // TODO: Check for license mode License.OperationMode.ENTERPRISE
     private SemanticTextIndexOptions getExpectedDefaultIndexOptions(
         TaskType taskType,
         DenseVectorFieldMapper.ElementType elementType,
@@ -2127,18 +2169,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             case TEXT_EMBEDDING -> {
                 boolean floatFamilyElementType = elementType == DenseVectorFieldMapper.ElementType.FLOAT
                     || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
-                if (indexVersion.after(DEFAULT_DENSE_VECTOR_TO_BBQ_DISK)) {
-                    // TODO: validate dimensions, we might get hnsw index
-                    // IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_DISK: default to bbq_disk
-                    yield defaultBbqDiskSemanticTextIndexOptions(indexVersion, dimensions);
-                }
-                else if (floatFamilyElementType
+                if (floatFamilyElementType
                     && SemanticTextFieldMapper.setExplicitIndexOptionsForSemanticText(indexVersion)
                     && dimensions >= DenseVectorFieldMapper.BBQ_MIN_DIMS) {
                     yield defaultBbqHnswSemanticTextIndexOptions();
-                } else if (elementType == DenseVectorFieldMapper.ElementType.FLOAT) {
-                    // Dense vector field has a bug where it won't default to INT8_HNSW with BFLOAT16 element type
-                    yield defaultDenseVectorSemanticIndexOptions();
+                } else if (floatFamilyElementType) {
+                    yield defaultDenseVectorSemanticIndexOptions(indexVersion, operationMode, dimensions, elementType);
                 } else {
                     yield null;
                 }

@@ -65,4 +65,45 @@ describe("generatePipelines", () => {
       "@elasticsearchmachine test this please"
     );
   });
+
+  test("should not inject smart retries when smart-retries config is false", () => {
+    const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+    const noSmartRetries = pipelines.find((p) => p.name === "no-smart-retries");
+
+    expect(noSmartRetries).toBeDefined();
+    expect(noSmartRetries!.pipeline.env?.["SMART_RETRIES"]).toBeUndefined();
+    expect((noSmartRetries!.pipeline.steps![0] as any).retry).toBeUndefined();
+  });
+
+  test("should inject smart retries by default", () => {
+    const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+    const usingDefaults = pipelines.find((p) => p.name === "using-defaults");
+
+    expect(usingDefaults).toBeDefined();
+    expect(usingDefaults!.pipeline.env?.["SMART_RETRIES"]).toBe("true");
+    expect((usingDefaults!.pipeline.steps![0] as any).retry).toBeDefined();
+    expect((usingDefaults!.pipeline.steps![0] as any).retry.automatic).toHaveLength(3);
+  });
+
+  test("should inject retry into nested steps within groups", () => {
+    const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+    const bwcSnapshots = pipelines.find((p) => p.name === "bwc-snapshots");
+
+    expect(bwcSnapshots).toBeDefined();
+    expect(bwcSnapshots!.pipeline.env?.["SMART_RETRIES"]).toBe("true");
+    // The group's nested step should have retry injected
+    const group = bwcSnapshots!.pipeline.steps![0] as any;
+    expect(group.group).toBe("bwc-snapshots");
+    expect(group.steps[0].retry).toBeDefined();
+    expect(group.steps[0].retry.automatic).toHaveLength(3);
+  });
+
+  test("should preserve existing env vars when injecting SMART_RETRIES", () => {
+    const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+    const usingDefaults = pipelines.find((p) => p.name === "using-defaults");
+
+    expect(usingDefaults).toBeDefined();
+    expect(usingDefaults!.pipeline.env?.["CUSTOM_ENV_VAR"]).toBe("value");
+    expect(usingDefaults!.pipeline.env?.["SMART_RETRIES"]).toBe("true");
+  });
 });

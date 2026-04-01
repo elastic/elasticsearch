@@ -5,6 +5,9 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
   {
     "name": "bwc-snapshots",
     "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
       "steps": [
         {
           "group": "bwc-snapshots",
@@ -30,9 +33,42 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                   ],
                 },
               },
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 3,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
               "timeout_in_minutes": 300,
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "no-smart-retries",
+    "pipeline": {
+      "steps": [
+        {
+          "command": "echo 'no retries'",
+          "label": "no-smart-retries",
         },
       ],
     },
@@ -42,11 +78,34 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
+        "SMART_RETRIES": "true",
       },
       "steps": [
         {
           "command": "echo 'hello world'",
           "label": "test-step",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 3,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
         },
       ],
     },
@@ -82,6 +141,9 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
   {
     "name": "full-bwc",
     "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
       "steps": [
         {
           "group": "bwc",
@@ -99,6 +161,28 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
               },
               "key": "full-bwc:7_0_0",
               "label": "7.0.0 / bwc",
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 3,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
               "timeout_in_minutes": 300,
             },
             {
@@ -114,6 +198,28 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
               },
               "key": "full-bwc:7_0_1",
               "label": "7.0.1 / bwc",
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 3,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
               "timeout_in_minutes": 300,
             },
             {
@@ -129,6 +235,28 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
               },
               "key": "full-bwc:7_1_0",
               "label": "7.1.0 / bwc",
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 3,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
               "timeout_in_minutes": 300,
             },
             {
@@ -144,6 +272,28 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
               },
               "key": "full-bwc:8_10_0",
               "label": "8.10.0 / bwc",
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 3,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
               "timeout_in_minutes": 300,
             },
             {
@@ -159,9 +309,42 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
               },
               "key": "full-bwc:8_11_0",
               "label": "8.11.0 / bwc",
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 3,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
               "timeout_in_minutes": 300,
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "no-smart-retries",
+    "pipeline": {
+      "steps": [
+        {
+          "command": "echo 'no retries'",
+          "label": "no-smart-retries",
         },
       ],
     },
@@ -171,11 +354,183 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
+        "SMART_RETRIES": "true",
       },
       "steps": [
         {
           "command": "echo 'hello world'",
           "label": "test-step",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 3,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`generatePipelines should generate correct pipelines with a different branch that is not skipped 1`] = `
+[
+  {
+    "name": "bwc-snapshots",
+    "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
+      "steps": [
+        {
+          "group": "bwc-snapshots",
+          "steps": [
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
+              "env": {
+                "BWC_VERSION": "{{matrix.BWC_VERSION}}",
+              },
+              "label": "{{matrix.BWC_VERSION}} / bwc-snapshots",
+              "matrix": {
+                "setup": {
+                  "BWC_VERSION": [
+                    "7.17.14",
+                    "8.10.3",
+                    "8.11.0",
+                  ],
+                },
+              },
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 3,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
+              "timeout_in_minutes": 300,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "no-smart-retries",
+    "pipeline": {
+      "steps": [
+        {
+          "command": "echo 'no retries'",
+          "label": "no-smart-retries",
+        },
+      ],
+    },
+  },
+  {
+    "name": "skip-branch",
+    "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
+      "steps": [
+        {
+          "command": "echo 1",
+          "label": "skip-me",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 3,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
+        },
+      ],
+    },
+  },
+  {
+    "name": "using-defaults",
+    "pipeline": {
+      "env": {
+        "CUSTOM_ENV_VAR": "value",
+        "SMART_RETRIES": "true",
+      },
+      "steps": [
+        {
+          "command": "echo 'hello world'",
+          "label": "test-step",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 3,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
         },
       ],
     },
@@ -190,11 +545,34 @@ exports[`generatePipelines should generate correct pipeline when using a trigger
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
+        "SMART_RETRIES": "true",
       },
       "steps": [
         {
           "command": "echo 'hello world'",
           "label": "test-step",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 3,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
         },
       ],
     },
@@ -207,6 +585,9 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
   {
     "name": "bwc-snapshots",
     "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
       "steps": [
         {
           "group": "bwc-snapshots",
@@ -232,9 +613,42 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                   ],
                 },
               },
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 3,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
               "timeout_in_minutes": 300,
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "no-smart-retries",
+    "pipeline": {
+      "steps": [
+        {
+          "command": "echo 'no retries'",
+          "label": "no-smart-retries",
         },
       ],
     },
@@ -244,11 +658,34 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
+        "SMART_RETRIES": "true",
       },
       "steps": [
         {
           "command": "echo 'hello world'",
           "label": "test-step",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 3,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
         },
       ],
     },
@@ -261,6 +698,9 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
   {
     "name": "bwc-snapshots",
     "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
       "steps": [
         {
           "group": "bwc-snapshots",
@@ -286,58 +726,26 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                   ],
                 },
               },
-              "timeout_in_minutes": 300,
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    "name": "using-defaults",
-    "pipeline": {
-      "env": {
-        "CUSTOM_ENV_VAR": "value",
-      },
-      "steps": [
-        {
-          "command": "echo 'hello world'",
-          "label": "test-step",
-        },
-      ],
-    },
-  },
-]
-`;
-
-exports[`generatePipelines should generate correct pipelines with a different branch that is not skipped 1`] = `
-[
-  {
-    "name": "bwc-snapshots",
-    "pipeline": {
-      "steps": [
-        {
-          "group": "bwc-snapshots",
-          "steps": [
-            {
-              "agents": {
-                "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2404",
-                "machineType": "custom-32-98304",
-                "provider": "gcp",
-              },
-              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
-              "env": {
-                "BWC_VERSION": "{{matrix.BWC_VERSION}}",
-              },
-              "label": "{{matrix.BWC_VERSION}} / bwc-snapshots",
-              "matrix": {
-                "setup": {
-                  "BWC_VERSION": [
-                    "7.17.14",
-                    "8.10.3",
-                    "8.11.0",
-                  ],
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 3,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
                 },
               },
               "timeout_in_minutes": 300,
@@ -348,12 +756,12 @@ exports[`generatePipelines should generate correct pipelines with a different br
     },
   },
   {
-    "name": "skip-branch",
+    "name": "no-smart-retries",
     "pipeline": {
       "steps": [
         {
-          "command": "echo 1",
-          "label": "skip-me",
+          "command": "echo 'no retries'",
+          "label": "no-smart-retries",
         },
       ],
     },
@@ -363,11 +771,34 @@ exports[`generatePipelines should generate correct pipelines with a different br
     "pipeline": {
       "env": {
         "CUSTOM_ENV_VAR": "value",
+        "SMART_RETRIES": "true",
       },
       "steps": [
         {
           "command": "echo 'hello world'",
           "label": "test-step",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 3,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
         },
       ],
     },

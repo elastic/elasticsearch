@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -693,7 +695,20 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
 
             // Just became master (previous was not master) -> reconcile
             assertTrue(manager.needsReconciliation(clusterChangedEvent(masterWithProject, nonMasterWithProject)));
+
+            // Cluster just recovered (previous state had STATE_NOT_RECOVERED_BLOCK) -> reconcile
+            // This is the startup case: the node was already master but clusterChanged returned early while
+            // clusterRecovered() was false, so the "just became master" condition was never reached.
+            final var notRecoveredWithProject = notRecoveredState(masterWithProject);
+            assertFalse(notRecoveredWithProject.clusterRecovered());
+            assertTrue(manager.needsReconciliation(clusterChangedEvent(masterWithProject, notRecoveredWithProject)));
         }
+    }
+
+    private static ClusterState notRecoveredState(ClusterState state) {
+        return ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+            .build();
     }
 
     private static ClusterChangedEvent clusterChangedEvent(ClusterState current, ClusterState previous) {

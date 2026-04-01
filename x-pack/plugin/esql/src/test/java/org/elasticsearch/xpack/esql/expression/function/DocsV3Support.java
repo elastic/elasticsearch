@@ -751,7 +751,11 @@ public abstract class DocsV3Support {
 
             for (Map.Entry<String, EsqlFunctionRegistry.MapEntryArgSignature> argSignatureEntry : mapArgSignature.mapParams().entrySet()) {
                 EsqlFunctionRegistry.MapEntryArgSignature arg = argSignatureEntry.getValue();
-                rendered.append("`").append(arg.name()).append("`\n:   ");
+                rendered.append("`").append(arg.name()).append("`");
+                if (arg.appliesTo() != null && arg.appliesTo().isEmpty() == false) {
+                    rendered.append(" {applies_to}`").append(arg.appliesTo()).append("`");
+                }
+                rendered.append("\n:   ");
                 var type = arg.type().replaceAll("[\\[\\]]+", "");
                 rendered.append("(").append(type).append(") ").append(arg.description()).append("\n\n");
             }
@@ -1270,6 +1274,9 @@ public abstract class DocsV3Support {
                 Collection<EsqlFunctionRegistry.MapEntryArgSignature> mapParams = arg.mapParams().values();
                 for (EsqlFunctionRegistry.MapEntryArgSignature mapArgSignature : mapParams) {
                     builder.append("- `").append(mapArgSignature.name()).append("` ");
+                    if (mapArgSignature.appliesTo() != null && mapArgSignature.appliesTo().isEmpty() == false) {
+                        builder.append("{applies_to}`").append(mapArgSignature.appliesTo()).append("` ");
+                    }
                     builder.append("(`").append(mapArgSignature.type()).append("`): ");
                     builder.append(mapArgSignature.description()).append("\n");
                 }

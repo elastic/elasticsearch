@@ -46,5 +46,7 @@ public @interface MapParam {
         String[] type() default {};
 
         String description() default "";
+
+        String applies_to() default "";
     }
 }

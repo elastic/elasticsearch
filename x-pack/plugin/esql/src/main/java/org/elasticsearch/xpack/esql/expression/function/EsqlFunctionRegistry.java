@@ -759,7 +759,7 @@ public class EsqlFunctionRegistry {
         }
     }
 
-    public record MapEntryArgSignature(String name, String valueHint, String type, String description) {
+    public record MapEntryArgSignature(String name, String valueHint, String type, String description, String appliesTo) {
         @Override
         public String toString() {
             return "name='" + name + "', values=" + valueHint + ", description='" + description + "', type=" + type;
@@ -878,7 +878,7 @@ public class EsqlFunctionRegistry {
                 ? Arrays.toString(param.valueHint())
                 : "[" + String.join(", ", param.valueHint()) + "]";
             String type = param.type().length <= 1 ? Arrays.toString(param.type()) : "[" + String.join(", ", param.type()) + "]";
-            MapEntryArgSignature mapArg = new MapEntryArgSignature(param.name(), valueHint, type, param.description());
+            MapEntryArgSignature mapArg = new MapEntryArgSignature(param.name(), valueHint, type, param.description(), param.applies_to());
             params.put(param.name(), mapArg);
         }
         return new EsqlFunctionRegistry.MapArgSignature(mapParam.name(), desc, mapParam.optional(), params);

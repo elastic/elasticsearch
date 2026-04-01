@@ -1,0 +1,2 @@
+FROM employees
+| STATS sum_a = SUM(languages.long), sum_b = SUM(emp_no) BY emp_no

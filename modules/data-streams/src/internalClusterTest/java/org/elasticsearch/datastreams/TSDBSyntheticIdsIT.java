@@ -1645,7 +1645,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      * {@link IndexShard#newChangesSnapshot}, and that GET/search by synthetic _id work correctly after each scenario.
      */
     public void testNoopTombstones() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         internalCluster().startDataOnlyNodes(2);
 
         final boolean useNestedDocs = rarely();

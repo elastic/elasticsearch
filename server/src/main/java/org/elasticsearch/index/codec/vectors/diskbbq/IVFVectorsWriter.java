@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
@@ -179,7 +180,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             }
             final float[] globalCentroid = new float[fieldWriter.fieldInfo.getVectorDimension()];
             // build a float vector values with random access
-            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc);
+            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc, sortMap);
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues, globalCentroid);
             // wrap centroids with a supplier
@@ -216,44 +217,82 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private static FloatVectorValues getFloatVectorValues(
         FieldInfo fieldInfo,
         FlatFieldVectorsWriter<float[]> fieldVectorsWriter,
-        int maxDoc
+        int maxDoc,
+        Sorter.DocMap sortMap
     ) throws IOException {
         List<float[]> vectors = fieldVectorsWriter.getVectors();
-        if (vectors.size() == maxDoc) {
+        if (vectors.size() == maxDoc && sortMap == null) {
             return FloatVectorValues.fromFloats(vectors, fieldInfo.getVectorDimension());
+        } else if (sortMap == null) {
+            final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
+            final int[] docIds = new int[vectors.size()];
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = iterator.nextDoc();
+            }
+            assert iterator.nextDoc() == NO_MORE_DOCS;
+            return new FloatVectorValues() {
+                @Override
+                public float[] vectorValue(int ord) {
+                    return vectors.get(ord);
+                }
+
+                @Override
+                public FloatVectorValues copy() {
+                    return this;
+                }
+
+                @Override
+                public int dimension() {
+                    return fieldInfo.getVectorDimension();
+                }
+
+                @Override
+                public int size() {
+                    return vectors.size();
+                }
+
+                @Override
+                public int ordToDoc(int ord) {
+                    return docIds[ord];
+                }
+            };
+        } else {
+            DocsWithFieldSet newDocsWithField = new DocsWithFieldSet();
+            final int[] ordMap = new int[fieldVectorsWriter.getDocsWithFieldSet().cardinality()]; // new ord to old ord
+            KnnVectorsWriter.mapOldOrdToNewOrd(fieldVectorsWriter.getDocsWithFieldSet(), sortMap, null, ordMap, newDocsWithField);
+            final DocIdSetIterator iterator = newDocsWithField.iterator();
+            final int[] docIds = new int[vectors.size()];
+            for (int i = 0; i < docIds.length; i++) {
+                docIds[i] = iterator.nextDoc();
+            }
+            assert iterator.nextDoc() == NO_MORE_DOCS;
+            return new FloatVectorValues() {
+                @Override
+                public float[] vectorValue(int ord) {
+                    return vectors.get(ordMap[ord]);
+                }
+
+                @Override
+                public FloatVectorValues copy() {
+                    return this;
+                }
+
+                @Override
+                public int dimension() {
+                    return fieldInfo.getVectorDimension();
+                }
+
+                @Override
+                public int size() {
+                    return vectors.size();
+                }
+
+                @Override
+                public int ordToDoc(int ord) {
+                    return docIds[ord];
+                }
+            };
         }
-        final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
-        final int[] docIds = new int[vectors.size()];
-        for (int i = 0; i < docIds.length; i++) {
-            docIds[i] = iterator.nextDoc();
-        }
-        assert iterator.nextDoc() == NO_MORE_DOCS;
-        return new FloatVectorValues() {
-            @Override
-            public float[] vectorValue(int ord) {
-                return vectors.get(ord);
-            }
-
-            @Override
-            public FloatVectorValues copy() {
-                return this;
-            }
-
-            @Override
-            public int dimension() {
-                return fieldInfo.getVectorDimension();
-            }
-
-            @Override
-            public int size() {
-                return vectors.size();
-            }
-
-            @Override
-            public int ordToDoc(int ord) {
-                return docIds[ord];
-            }
-        };
     }
 
     @Override

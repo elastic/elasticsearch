@@ -57,6 +57,102 @@ public class RestNodesActionTests extends ESTestCase {
         action.buildTable(false, new FakeRestRequest(), clusterStateResponse, nodesInfoResponse, nodesStatsResponse);
     }
 
+    public void testLoadAverage_nullArray() {
+        assertLoadAverageCells(null, null, null, null);
+    }
+
+    public void testLoadAverage_emptyArray() {
+        // length 0: accessing [0] on original code throws ArrayIndexOutOfBoundsException
+        assertLoadAverageCells(new double[0], null, null, null);
+    }
+
+    public void testLoadAverage_oneValue() {
+        // length 1: [0] present; [1] and [2] would throw on original code
+        assertLoadAverageCells(new double[] { 1.5 }, "1.50", null, null);
+    }
+
+    public void testLoadAverage_twoValues() {
+        // length 2: [0] and [1] present; [2] would throw on original code
+        assertLoadAverageCells(new double[] { 1.5, 5.0 }, "1.50", "5.00", null);
+    }
+
+    public void testLoadAverage_threeValues() {
+        // length 3: full array — happy path
+        assertLoadAverageCells(new double[] { 1.5, 5.0, 15.0 }, "1.50", "5.00", "15.00");
+    }
+
+    public void testLoadAverage_negativeOneSentinel_full() {
+        // -1 means "unavailable" (e.g. macOS for 5m/15m slots)
+        assertLoadAverageCells(new double[] { -1, -1, -1 }, null, null, null);
+    }
+
+    public void testLoadAverage_negativeOneSentinel_mixed() {
+        // some slots available, some not
+        assertLoadAverageCells(new double[] { 1.5, -1, 15.0 }, "1.50", null, "15.00");
+    }
+
+    /**
+     * Builds a table with the given load average array and asserts the three load average
+     * cell values (load_1m, load_5m, load_15m).  Pass {@code null} for an expected cell
+     * to assert the cell value is null.
+     */
+    private void assertLoadAverageCells(double[] loadAvg, String expected1m, String expected5m, String expected15m) {
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node-1")))
+            .build();
+        final var nowMillis = System.currentTimeMillis();
+        final var nodeStats = new NodeStats(
+            clusterState.nodes().get("node-1"),
+            nowMillis,
+            null,
+            new OsStats(nowMillis, new OsStats.Cpu((short) 0, loadAvg), new OsStats.Mem(0, 0, 0), new OsStats.Swap(0, 0), null),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        final var table = action.buildTable(
+            false,
+            new FakeRestRequest(),
+            new ClusterStateResponse(clusterState.getClusterName(), clusterState, false),
+            new NodesInfoResponse(clusterState.getClusterName(), List.of(), List.of()),
+            new NodesStatsResponse(clusterState.getClusterName(), List.of(nodeStats), Collections.emptyList())
+        );
+
+        final var columns = table.getAsMap();
+        final Object actual1m = columns.get("load_1m").get(0).value;
+        final Object actual5m = columns.get("load_5m").get(0).value;
+        final Object actual15m = columns.get("load_15m").get(0).value;
+
+        if (expected1m == null) {
+            assertNull("load_1m should be null", actual1m);
+        } else {
+            assertEquals("load_1m", expected1m, actual1m.toString());
+        }
+        if (expected5m == null) {
+            assertNull("load_5m should be null", actual5m);
+        } else {
+            assertEquals("load_5m", expected5m, actual5m.toString());
+        }
+        if (expected15m == null) {
+            assertNull("load_15m should be null", actual15m);
+        } else {
+            assertEquals("load_15m", expected15m, actual15m.toString());
+        }
+    }
+
     public void testFormattedNumericSort() {
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node-1")).add(DiscoveryNodeUtils.create("node-2")))

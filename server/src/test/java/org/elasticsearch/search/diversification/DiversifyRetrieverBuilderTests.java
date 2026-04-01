@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -43,7 +44,6 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.search.vectors.VectorData;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.Assert;
 
@@ -57,7 +57,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class DiversifyRetrieverBuilderTests extends ESTestCase {
+public class DiversifyRetrieverBuilderTests extends MapperServiceTestCase {
 
     public void testValidate() {
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -699,7 +699,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
     private Mapping getTestMapping() {
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc").add(
-            new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, false, List.of())
+            new DenseVectorFieldMapper.Builder("dense_vector_field", defaultIndexSettings(), List.of())
         ).build(MapperBuilderContext.root(true, false));
 
         return new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());

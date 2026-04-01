@@ -1359,16 +1359,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         );
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
         if (modelSettings != null) {
-            chunksField.add(
-                createEmbeddingsField(
-                    indexSettings.getIndexVersionCreated(),
-                    modelSettings,
-                    indexOptions,
-                    useLegacyFormat,
-                    indexSettings.getValue(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING),
-                    vectorsFormatProviders
-                )
-            );
+            chunksField.add(createEmbeddingsField(indexSettings, modelSettings, indexOptions, useLegacyFormat, vectorsFormatProviders));
         }
         if (useLegacyFormat) {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexSettings).indexed(false).docValues(false);
@@ -1380,35 +1371,36 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     private static Mapper.Builder createEmbeddingsField(
-        IndexVersion indexVersionCreated,
+        IndexSettings indexSettings,
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions,
         boolean useLegacyFormat,
-        boolean experimentalFeaturesEnabled,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> {
                 SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexVersionCreated,
-                    false
+                    indexSettings
                 ).setStored(useLegacyFormat == false);
 
-                configureSparseVectorMapperBuilder(indexVersionCreated, sparseVectorMapperBuilder, indexOptions);
+                configureSparseVectorMapperBuilder(indexSettings.getIndexVersionCreated(), sparseVectorMapperBuilder, indexOptions);
 
                 yield sparseVectorMapperBuilder;
             }
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexVersionCreated,
-                    false,
-                    experimentalFeaturesEnabled,
+                    indexSettings,
                     vectorsFormatProviders
                 );
 
-                configureDenseVectorMapperBuilder(indexVersionCreated, denseVectorMapperBuilder, modelSettings, indexOptions);
+                configureDenseVectorMapperBuilder(
+                    indexSettings.getIndexVersionCreated(),
+                    denseVectorMapperBuilder,
+                    modelSettings,
+                    indexOptions
+                );
 
                 yield denseVectorMapperBuilder;
             }

@@ -312,42 +312,18 @@ tests:
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testNoopTombstones
   issue: https://github.com/elastic/elasticsearch/issues/145217
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Warn on max}
-  issue: https://github.com/elastic/elasticsearch/issues/145218
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidShortWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145241
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Approximated column and null}
-  issue: https://github.com/elastic/elasticsearch/issues/145248
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Warn on no stats}
-  issue: https://github.com/elastic/elasticsearch/issues/145249
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Exact stats by on small multi-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/145250
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Exact stats on small multi-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/145251
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/131964
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testNoInfiniteRecursiveGetObjectCalls
   issue: https://github.com/elastic/elasticsearch/issues/145269
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Approximate stats by on large multi-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/145280
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerStatsTests
   method: testRetriesAndOperationsAreTrackedSeparately
   issue: https://github.com/elastic/elasticsearch/issues/145281
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Approximate stats on large multi-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/145282
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:approximation.Approximate stats by with zero variance}
-  issue: https://github.com/elastic/elasticsearch/issues/145287
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidShortWithCasting
   issue: https://github.com/elastic/elasticsearch/issues/145288
@@ -363,15 +339,65 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingBooleanValuesFromUnsignedLong
   issue: https://github.com/elastic/elasticsearch/issues/145358
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testMeta
-  issue: https://github.com/elastic/elasticsearch/issues/145370
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidBigDecimalFromDoubleWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145372
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/145377
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:approximation.Exact stats by on small single-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/145399
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionToFieldLoadGoldenTests
+  issue: https://github.com/elastic/elasticsearch/issues/145381
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:spatial.twoCitiesPointDistanceGeo}
+  issue: https://github.com/elastic/elasticsearch/issues/145406
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
+  method: testDatafeedTimingStats_DatafeedRecreated
+  issue: https://github.com/elastic/elasticsearch/issues/138348
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:unsigned_long.evalNullEqualsUnsignedLong}
+  issue: https://github.com/elastic/elasticsearch/issues/145426
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:inlinestats.inlineStatsAfterSortDroppedAndResort}
+  issue: https://github.com/elastic/elasticsearch/issues/145431
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:inlinestats.maxOfLongByKeyword}
+  issue: https://github.com/elastic/elasticsearch/issues/145433
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidLongWithCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145435
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats.sumWithOverflowRow}
+  issue: https://github.com/elastic/elasticsearch/issues/145437
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Exact stats by on small multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/145250
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Exact stats on small multi-valued data}
+  issue: https://github.com/elastic/elasticsearch/issues/145251
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Warn on max}
+  issue: https://github.com/elastic/elasticsearch/issues/145218
+- class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
+  method: testOverflowInGroupingProducesNullAndWarning
+  issue: https://github.com/elastic/elasticsearch/issues/145438
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:convert.convertToGeoPoint}
+  issue: https://github.com/elastic/elasticsearch/issues/145439
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:approximation.Approximated column and null}
+  issue: https://github.com/elastic/elasticsearch/issues/145248
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:spatial-grid.gridGeohexByBounds}
+  issue: https://github.com/elastic/elasticsearch/issues/145449
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:stats.filterSometimesMatches}
+  issue: https://github.com/elastic/elasticsearch/issues/145461
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/144587
 
 # Examples:
 #

@@ -102,7 +102,7 @@ In many cases, a brute-force kNN search is not efficient enough. For this reason
 
 Unmapped array fields of float elements with size between 128 and 4096 are dynamically mapped as `dense_vector` with a default similarity of `cosine`. You can override the default similarity by explicitly mapping the field as `dense_vector` with the desired similarity.
 
-Indexing is enabled by default for dense vector fields and indexed as `bbq_hnsw` if dimensions are greater than or equal to 384, otherwise they are indexed as `int8_hnsw`. {applies_to}`stack: ga 9.1`
+Indexing is enabled by default for dense vector fields. When indexing `float` vectors, {{es}} uses a [default index type](#default-quantization-types).
 
 :::{note}
 In {{stack}} 9.0, dense vector fields are always indexed as `int8_hnsw`.
@@ -387,10 +387,14 @@ When indexing `float` vectors, the default index type is `int8_hnsw`.
 
 :::{applies-item} stack: ga 9.1+
 When indexing `float` vectors, the default index type is:
-- `bbq_hnsw` for vectors with greater than or equal to 384 dimensions
-- `int8_hnsw` for vectors with less than 384 dimensions
+  - `bbq_hnsw` for vectors with greater than or equal to 384 dimensions
+  - `int8_hnsw` for vectors with less than 384 dimensions
 :::
 
+:::{applies-item} { "stack": "ga 9.4", "serverless": "ga" }
+When indexing `float` vectors, the default index type is `bbq_disk`
+when available under the current license.
+:::
 ::::
 
 ### int8 [dense-vector-quantization-int8]

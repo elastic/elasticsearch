@@ -43,6 +43,7 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -217,7 +218,8 @@ public class CsvTestsDataLoader {
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        )
+        ),
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -642,8 +644,16 @@ public class CsvTestsDataLoader {
     }
 
     public static void createInferenceEndpoints(RestClient client) throws IOException {
-        for (var config : INFERENCE_CONFIGS.values()) {
-            if (hasInferenceEndpoint(client, config) == false) {
+        createInferenceEndpoints(client, INFERENCE_CONFIGS.keySet());
+    }
+
+    /**
+     * Creates only the listed inference endpoints (by id in {@link #INFERENCE_CONFIGS}), skipping any that already exist.
+     */
+    public static void createInferenceEndpoints(RestClient client, Collection<String> inferenceIds) throws IOException {
+        for (String id : inferenceIds) {
+            InferenceConfig config = INFERENCE_CONFIGS.get(id);
+            if (config != null && hasInferenceEndpoint(client, config) == false) {
                 createInferenceEndpoint(client, config);
             }
         }

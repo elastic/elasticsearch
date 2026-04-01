@@ -104,7 +104,8 @@ public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRu
 
     public DataStreamLifecycleConvertToFrozen(
         String indexName,
-       ProjectId projectId, Client client,
+        ProjectId projectId,
+        Client client,
         ClusterService clusterService,
         XPackLicenseState licenseState,
         Clock clock

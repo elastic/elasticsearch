@@ -21,7 +21,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -697,10 +696,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     public static class PrimaryContextHandoffRequest extends AbstractTransportRequest {
 
-        private static final TransportVersion CONTEXT_HANDOFF_PREWARM_RELOCATION_ID_LOOKUP_FLAG = TransportVersion.fromName(
-            "context_handoff_prewarm_relocation_id_lookup_flag"
-        );
-
         private final long recoveryId;
         private final ShardId shardId;
         private final ReplicationTracker.PrimaryContext primaryContext;
@@ -740,11 +735,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
             latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
             otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
-            if (in.getTransportVersion().supports(CONTEXT_HANDOFF_PREWARM_RELOCATION_ID_LOOKUP_FLAG)) {
-                hasRecentIdLookup = in.readBoolean();
-            } else {
-                hasRecentIdLookup = false;
-            }
+            hasRecentIdLookup = in.readBoolean();
         }
 
         @Override
@@ -761,9 +752,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             );
             out.writeOptionalWriteable(latestBccBlob);
             out.writeCollection(otherBlobFiles);
-            if (out.getTransportVersion().supports(CONTEXT_HANDOFF_PREWARM_RELOCATION_ID_LOOKUP_FLAG)) {
-                out.writeBoolean(hasRecentIdLookup);
-            }
+            out.writeBoolean(hasRecentIdLookup);
         }
 
         public long recoveryId() {
@@ -813,10 +802,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     public static class PrewarmRelocationRequest extends AbstractTransportRequest {
 
-        private static final TransportVersion PREWARM_RELOCATION_ID_LOOKUP_FLAG = TransportVersion.fromName(
-            "prewarm_relocation_id_lookup_flag"
-        );
-
         private final ShardId shardId;
         private final BlobFileWithLength latestBccBlob;
         private final boolean hasRecentIdLookup;
@@ -831,11 +816,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             super(in);
             this.shardId = new ShardId(in);
             this.latestBccBlob = new BlobFileWithLength(in);
-            if (in.getTransportVersion().supports(PREWARM_RELOCATION_ID_LOOKUP_FLAG)) {
-                this.hasRecentIdLookup = in.readBoolean();
-            } else {
-                this.hasRecentIdLookup = false;
-            }
+            this.hasRecentIdLookup = in.readBoolean();
         }
 
         @Override
@@ -843,9 +824,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             super.writeTo(out);
             shardId.writeTo(out);
             latestBccBlob.writeTo(out);
-            if (out.getTransportVersion().supports(PREWARM_RELOCATION_ID_LOOKUP_FLAG)) {
-                out.writeBoolean(hasRecentIdLookup);
-            }
+            out.writeBoolean(hasRecentIdLookup);
         }
 
         public ShardId shardId() {

@@ -761,9 +761,7 @@ public class ReshardIndexService {
             final ProjectMetadata project = clusterState.metadata().projectFor(index);
 
             var routingTable = clusterState.routingTable(project.id()).shardRoutingTable(shardId);
-            /// Input allocation id may not be present due to BWC,
-            /// see [TransportUpdateSplitSourceShardStateAction.RESHARD_SPLIT_ALLOCATION_ID_IN_SOURCE_STATE_REQUEST].
-            if (task.allocationId() != null && Objects.equals(routingTable.primaryShard().allocationId(), task.allocationId()) == false) {
+            if (Objects.equals(routingTable.primaryShard().allocationId(), task.allocationId()) == false) {
                 // We made changes to the allocation of this shard since this request was created (this shard was relocated or failed).
                 // We don't want to apply it so that the state doesn't change underneath the new instance of the shard
                 // that is potentially already started.

@@ -123,9 +123,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         ClusterState stateWithOldSetting = ClusterState.builder(new ClusterName("elasticsearch"))
             .metadata(
                 Metadata.builder()
-                    .persistentSettings(
-                        Settings.builder().put("dummy.setting1", "old-value1").put("dummy.setting2", "old-value2").build()
-                    )
+                    .persistentSettings(Settings.builder().put("dummy.setting1", "old-value1").put("dummy.setting2", "old-value2").build())
                     .build()
             )
             .build();
@@ -135,12 +133,12 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
 
         // New config only specifies dummy.setting1 (dummy.setting2 was removed from the registry)
         String json = """
-                {
-                    "dummy": {
-                        "setting1": "new-value1"
-                    }
+            {
+                "dummy": {
+                    "setting1": "new-value1"
                 }
-                """;
+            }
+            """;
 
         // Should not throw even though dummy.setting2 was previously reserved but no longer exists
         TransformState newState = processJSON(action, prevState, json);

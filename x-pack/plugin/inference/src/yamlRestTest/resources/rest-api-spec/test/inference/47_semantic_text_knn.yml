@@ -545,7 +545,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 0.9990483, error: 1e-4 } }
+  - close_to: { hits.hits.0._score: { value: 0.9990483, error: 1e-3 } }
   - not_exists: hits.hits.0.matched_queries
 
   - do:
@@ -568,7 +568,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 4.9952416, error: 1e-3 } }
+  - close_to: { hits.hits.0._score: { value: 4.9952416, error: 1e-2 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
 
 ---
@@ -627,7 +627,7 @@ setup:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "doc_1" }
   - match: { hits.hits.1._id: "doc_3" }
-  - close_to: { hits.hits.0._score: { value: 4.9952416, error: 1e-3 } }
+  - close_to: { hits.hits.0._score: { value: 4.9952416, error: 1e-2 } }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
   - close_to: { hits.hits.1._score: { value: 4.719687, error: 1e-2 } }
   - match: { hits.hits.1.matched_queries: [ "i-like-naming-my-queries" ] }

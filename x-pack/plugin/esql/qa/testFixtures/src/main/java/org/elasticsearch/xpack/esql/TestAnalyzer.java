@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -379,7 +379,7 @@ public class TestAnalyzer {
     /**
      * Set external source resolution.
      */
-    public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileSet fileSet) {
+    public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
         var metadata = new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -404,7 +404,7 @@ public class TestAnalyzer {
      * Sets an "unresolved" external source.
      */
     public TestAnalyzer externalSourceUnresolved(String path, List<Attribute> schema) {
-        return externalSourceResolution(path, schema, FileSet.UNRESOLVED);
+        return externalSourceResolution(path, schema, FileList.UNRESOLVED);
     }
 
     /**

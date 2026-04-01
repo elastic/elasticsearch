@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.junit.BeforeClass;
 
@@ -18,9 +17,7 @@ public class ReplaceLimitByExpressionWithEvalGoldenTests extends GoldenTestCase 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
 
     @BeforeClass
-    public static void checkLimitByCapability() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
-    }
+    public static void checkLimitByCapability() {}
 
     public void testAttributeGroupingUnchanged() {
         runGoldenTest("""
@@ -113,7 +110,6 @@ public class ReplaceLimitByExpressionWithEvalGoldenTests extends GoldenTestCase 
     }
 
     public void testTopNByAttributeDoesNotIntroduceEval() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest("""
             FROM employees
             | SORT salary DESC
@@ -122,7 +118,6 @@ public class ReplaceLimitByExpressionWithEvalGoldenTests extends GoldenTestCase 
     }
 
     public void testTopNByExpressionIntroducesEval() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest("""
             FROM employees
             | SORT salary DESC
@@ -131,7 +126,6 @@ public class ReplaceLimitByExpressionWithEvalGoldenTests extends GoldenTestCase 
     }
 
     public void testTopNByMixedAttrAndExpression() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest("""
             FROM employees
             | SORT salary DESC
@@ -140,7 +134,6 @@ public class ReplaceLimitByExpressionWithEvalGoldenTests extends GoldenTestCase 
     }
 
     public void testTopNByFoldableExprs() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest("""
             FROM employees
             | SORT salary DESC
@@ -149,7 +142,6 @@ public class ReplaceLimitByExpressionWithEvalGoldenTests extends GoldenTestCase 
     }
 
     public void testTopNByMixedAttrAndFoldable() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest("""
             FROM employees
             | SORT salary DESC
@@ -158,7 +150,6 @@ public class ReplaceLimitByExpressionWithEvalGoldenTests extends GoldenTestCase 
     }
 
     public void testTopNByMixedExprsAttr() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest("""
             FROM employees
             | SORT salary DESC

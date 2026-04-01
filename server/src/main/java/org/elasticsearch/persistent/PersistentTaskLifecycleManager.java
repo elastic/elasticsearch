@@ -98,12 +98,7 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
     ) {
         final var enabled = new AtomicBoolean();
         clusterSettings.initializeAndWatch(enabledSetting, enabled::set);
-        registerClusterTask(taskName, enabled::get, paramsSupplier);
-    }
-
-    // visible for testing
-    void registerClusterTask(String taskName, BooleanSupplier enabled, Supplier<? extends PersistentTaskParams> paramsSupplier) {
-        clusterRegistrations.add(new ClusterTaskRegistration(taskName, enabled, paramsSupplier));
+        clusterRegistrations.add(new ClusterTaskRegistration(taskName, enabled::get, paramsSupplier));
     }
 
     /// Registers a project-scoped task whose enabled state is driven by a [Setting].
@@ -140,18 +135,7 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
     ) {
         final var enabled = new AtomicBoolean();
         clusterSettings.initializeAndWatch(enabledSetting, enabled::set);
-        registerProjectTask(taskName, taskIdFn, enabled::get, paramsSupplier, onRemove);
-    }
-
-    // visible for testing
-    void registerProjectTask(
-        String taskName,
-        Function<ProjectId, String> taskIdFn,
-        BooleanSupplier enabled,
-        Supplier<? extends PersistentTaskParams> paramsSupplier,
-        Consumer<ProjectId> onRemove
-    ) {
-        projectRegistrations.add(new ProjectTaskRegistration(taskName, taskIdFn, enabled, paramsSupplier, onRemove));
+        projectRegistrations.add(new ProjectTaskRegistration(taskName, taskIdFn, enabled::get, paramsSupplier, onRemove));
     }
 
     @Override
@@ -162,10 +146,25 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
         if (event.localNodeMaster() == false) {
             return;
         }
-        if (event.metadataChanged() == false && event.previousState().nodes().isLocalNodeElectedMaster()) {
+        if (needsReconciliation(event) == false) {
             return;
         }
         reconcile(event.state());
+    }
+
+    // Skip reconciliation when nothing relevant changed and the node was already the master.
+    // Reconciliation is needed when: the persistent tasks custom metadata changed (a task was created or removed),
+    // the set of projects changed (a project was added or removed), the persistent settings changed (the enabled
+    // setting was toggled), or the node just became master.
+    // Failed requests always retry immediately via the runAfter callback, which calls reconcile directly and
+    // bypasses this check. The requests logic also ensures that after a request completes we re-check the latest
+    // state, so an in-flight request never freezes reconciliation at a stale view.
+    private boolean needsReconciliation(ClusterChangedEvent event) {
+        return event.changedCustomClusterMetadataSet().contains(ClusterPersistentTasksCustomMetadata.TYPE)
+            || event.changedCustomProjectMetadataSet().contains(PersistentTasksCustomMetadata.TYPE)
+            || event.state().metadata().projects().keySet().equals(event.previousState().metadata().projects().keySet()) == false
+            || event.state().metadata().persistentSettings() == event.previousState().metadata().persistentSettings() == false
+            || event.previousState().nodes().isLocalNodeElectedMaster();
     }
 
     private void reconcile(ClusterState state) {

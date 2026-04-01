@@ -375,7 +375,7 @@ EXTERNAL "{{employees}}"
 ;
 
 count:long
-30..70
+5..95
 ;
 
 forkTwoBranches

@@ -1,5 +1,4 @@
 config:
-  smart-retries: true
   skip-labels:
     - ">test-mute"
     - ":Delivery/Packaging"

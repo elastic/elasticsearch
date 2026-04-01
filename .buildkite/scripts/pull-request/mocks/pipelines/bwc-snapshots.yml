@@ -1,5 +1,4 @@
 config:
-  smart-retries: true
   trigger-phrase: '.*run\W+elasticsearch-ci/bwc.*'
   skip-labels:
     - ">test-mute"

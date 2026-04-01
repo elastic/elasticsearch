@@ -1,5 +1,4 @@
 config:
-  smart-retries: true
   allow-labels: "test-arm"
 steps:
   - label: part-1-arm

@@ -531,10 +531,35 @@ exports[`generatePipelines should generate correct pipelines with a different br
   {
     "name": "skip-branch",
     "pipeline": {
+      "env": {
+        "SMART_RETRIES": "true",
+      },
       "steps": [
         {
           "command": "echo 1",
           "label": "skip-me",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 3,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
         },
       ],
     },

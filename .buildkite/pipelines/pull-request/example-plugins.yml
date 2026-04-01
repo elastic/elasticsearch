@@ -1,5 +1,4 @@
 config:
-  smart-retries: true
   included-regions:
     - build-conventions/.*
     - build-tools/.*

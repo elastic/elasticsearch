@@ -1,5 +1,3 @@
-config:
-  smart-retries: true
 steps:
   - label: pr-upgrade
     command: ".buildkite/scripts/run-pr-upgrade-tests.sh"

@@ -1,5 +1,4 @@
 config:
-  smart-retries: true
   allow-labels: "test-windows"
 steps:
   - label: part-3-windows

@@ -72,7 +72,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         }
         {
             var emptyAuthUsingOf = ElasticInferenceServiceAuthorizationModel.of(
-                new ElasticInferenceServiceAuthorizationResponseEntity(List.of()),
+                new ElasticInferenceServiceAuthorizationResponseEntity(List.of(), Set.of()),
                 "url"
             );
             assertFalse(emptyAuthUsingOf.isAuthorized());
@@ -108,7 +108,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
         assertTrue(auth.getTaskTypes().isEmpty());
@@ -145,7 +146,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
@@ -184,7 +186,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
@@ -248,7 +251,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var url = "url";
@@ -320,7 +324,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var url = "url";
@@ -467,7 +472,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var url = "url";
@@ -599,7 +605,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var url = "url";
@@ -745,7 +752,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -826,7 +834,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -868,7 +877,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     fingerprint
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -915,7 +925,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     display,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -962,7 +973,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -1004,7 +1016,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -1069,7 +1082,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
@@ -1121,7 +1135,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
@@ -1150,7 +1165,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -1212,7 +1228,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -1259,7 +1276,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -1306,7 +1324,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -1348,7 +1367,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -1397,7 +1417,8 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null,
                     null
                 )
-            )
+            ),
+            Set.of()
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, url);
@@ -1416,5 +1437,15 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         );
 
         assertThat(scoped.getEndpoints(Set.of(id1, id2)).get(0), is(expectedEndpoint));
+    }
+
+    public void testContainsRemovedEndpoints() {
+        String randomId = randomAlphaOfLength(10);
+        var removed = Set.of("id1", "id2", randomId);
+        var authResponse = new ElasticInferenceServiceAuthorizationResponseEntity(List.of(), removed);
+
+        ElasticInferenceServiceAuthorizationModel model = ElasticInferenceServiceAuthorizationModel.of(authResponse, "url");
+
+        assertThat(model.getRemovedEndpoints(), is(removed));
     }
 }

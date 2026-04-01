@@ -1365,7 +1365,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitDefaultLimitAfterLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = basic().query("from test | limit 1 by emp_no");
 
         var defaultLimit = as(plan, Limit.class);
@@ -2335,7 +2334,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         LogicalPlan plan = basic().query(query);
@@ -2388,7 +2387,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 int_number_names ON garbage
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 2:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("2:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         basic().error(query, containsString("Unknown column in lookup target [garbage]"));
@@ -2400,7 +2399,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 garbage ON a
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 2:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("2:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         basic().error(query, containsString("Unknown table [garbage]"));
@@ -2413,7 +2412,7 @@ public class AnalyzerTests extends ESTestCase {
             | LOOKUP_🐔 int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
-            basic().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            basic().error(query, ParsingException.class, containsString("3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         basic().error(query, containsString("column type mismatch, table column was [integer] and original column was [keyword]"));
@@ -3880,6 +3879,102 @@ public class AnalyzerTests extends ESTestCase {
             | FORK (FORK (WHERE true) (WHERE true))
                    (WHERE true)
             """, containsString("Only a single FORK command is supported, but found multiple"));
+
+        basic().error("""
+            FROM test
+            | FORK (EVAL conflict_field = "string_value")
+                   (EVAL conflict_field = 123)
+            | EVAL y = conflict_field
+            """, containsString("Column [conflict_field] has conflicting data types in FORK branches: [INTEGER] and [KEYWORD]"));
+
+        basic().error("""
+            FROM test
+            | FORK (EVAL shared_field = "abc")
+                   (EVAL shared_field = 100.5)
+            | WHERE shared_field > 50
+            """, containsString("first argument of [shared_field > 50] is [keyword]"));
+    }
+
+    public void testForkWithAmbiguousFieldType() {
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "k8s-downsampled,k8s",
+            false,
+            fieldsInfoOnCurrentVersion(
+                new FieldCapabilitiesResponse(
+                    List.of(
+                        fieldCapabilitiesIndexResponse(
+                            "k8s-downsampled",
+                            Map.of(
+                                "network.eth0.tx",
+                                new IndexFieldCapabilitiesBuilder("network.eth0.tx", "aggregate_metric_double").build()
+                            )
+                        ),
+                        fieldCapabilitiesIndexResponse(
+                            "k8s",
+                            Map.of("network.eth0.tx", new IndexFieldCapabilitiesBuilder("network.eth0.tx", "integer").build())
+                        )
+                    ),
+                    List.of()
+                )
+            ),
+            IndexResolver.DO_NOT_GROUP
+        );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (where true) (where true)
+                    | eval x = network.eth0.tx + 1
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (where true) (where false)
+                    | stats c = COUNT() BY network.eth0.tx
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (KEEP network.eth0.tx) (DROP network.eth0.tx)
+                    | eval x = network.eth0.tx + 1
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+
+        analyzer().addIndex(resolution)
+            .error(
+                """
+                    from k8s-downsampled, k8s
+                    | fork (EVAL x = network.eth0.tx + 1)
+                           (WHERE true)
+                    """,
+                VerificationException.class,
+                containsString(
+                    "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
     }
 
     public void testValidFuse() {

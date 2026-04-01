@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.chunking;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkingStrategy;
@@ -16,6 +17,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings.MAX_CHUNK_SIZE_LOWER_LIMIT;
+import static org.hamcrest.Matchers.containsString;
 
 public class SentenceBoundaryChunkingSettingsTests extends AbstractWireSerializingTestCase<SentenceBoundaryChunkingSettings> {
 
@@ -31,6 +35,43 @@ public class SentenceBoundaryChunkingSettingsTests extends AbstractWireSerializi
         chunkingSettingsMap.put(randomAlphaOfLength(10), randomNonNegativeInt());
 
         assertThrows(ValidationException.class, () -> { SentenceBoundaryChunkingSettings.fromMap(chunkingSettingsMap); });
+    }
+
+    public void testValidateWithValidSettings() {
+        var settings = new SentenceBoundaryChunkingSettings(randomIntBetween(MAX_CHUNK_SIZE_LOWER_LIMIT, 300), randomFrom(0, 1));
+        settings.validate(); // should not throw
+    }
+
+    public void testValidateWithBoundaryMaxChunkSize() {
+        var settings = new SentenceBoundaryChunkingSettings(MAX_CHUNK_SIZE_LOWER_LIMIT, randomFrom(0, 1));
+        settings.validate(); // should not throw
+    }
+
+    public void testValidateWithInvalidMaxChunkSize() {
+        var invalidMaxChunkSize = randomIntBetween(0, MAX_CHUNK_SIZE_LOWER_LIMIT - 1);
+        var settings = new SentenceBoundaryChunkingSettings(invalidMaxChunkSize, randomFrom(0, 1));
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(
+            e.getMessage(),
+            containsString(Strings.format("max_chunk_size [%s] must be above %s", invalidMaxChunkSize, MAX_CHUNK_SIZE_LOWER_LIMIT))
+        );
+    }
+
+    public void testValidateWithInvalidSentenceOverlap() {
+        var settings = new SentenceBoundaryChunkingSettings(randomIntBetween(MAX_CHUNK_SIZE_LOWER_LIMIT, 300), randomFrom(-1, 2));
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(e.getMessage(), containsString("must be either 0 or 1"));
+    }
+
+    public void testValidateWithBothInvalid() {
+        var invalidMaxChunkSize = randomIntBetween(0, MAX_CHUNK_SIZE_LOWER_LIMIT - 1);
+        var settings = new SentenceBoundaryChunkingSettings(invalidMaxChunkSize, randomFrom(-1, 2));
+        var e = assertThrows(ValidationException.class, settings::validate);
+        assertThat(
+            e.getMessage(),
+            containsString(Strings.format("max_chunk_size [%s] must be above %s", invalidMaxChunkSize, MAX_CHUNK_SIZE_LOWER_LIMIT))
+        );
+        assertThat(e.getMessage(), containsString("must be either 0 or 1"));
     }
 
     public void testValidInputsProvided() {

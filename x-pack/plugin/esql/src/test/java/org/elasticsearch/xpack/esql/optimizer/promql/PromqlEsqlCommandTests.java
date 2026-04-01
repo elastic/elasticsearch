@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -156,7 +157,11 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
 
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
-        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+        assertThat(
+            ((AggregateFunction.TSWindow) Expressions.foldMap(rate.window(), FoldContext.small(), AggregateFunction.TSWindow.TYPE))
+                .length(),
+            equalTo(Duration.ofMinutes(5))
+        );
     }
 
     public void testImplicitRangeSelectorUsesScrapeIntervalWhenStepIsSmaller() {
@@ -166,7 +171,11 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
 
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
-        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+        assertThat(
+            ((AggregateFunction.TSWindow) Expressions.foldMap(rate.window(), FoldContext.small(), AggregateFunction.TSWindow.TYPE))
+                .length(),
+            equalTo(Duration.ofMinutes(1))
+        );
     }
 
     public void testImplicitRangeSelectorRoundsWindowToStepMultiple() {
@@ -176,7 +185,11 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
 
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
-        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+        assertThat(
+            ((AggregateFunction.TSWindow) Expressions.foldMap(rate.window(), FoldContext.small(), AggregateFunction.TSWindow.TYPE))
+                .length(),
+            equalTo(Duration.ofMinutes(1))
+        );
     }
 
     public void testImplicitRangeSelectorUsesInferredStepFromDefaultBuckets() {
@@ -188,7 +201,11 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
 
         Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
-        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+        assertThat(
+            ((AggregateFunction.TSWindow) Expressions.foldMap(rate.window(), FoldContext.small(), AggregateFunction.TSWindow.TYPE))
+                .length(),
+            equalTo(Duration.ofMinutes(1))
+        );
     }
 
     public void testImplicitRangeSelectorUsesInferredStepFromBuckets() {
@@ -200,7 +217,11 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
 
         Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
-        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+        assertThat(
+            ((AggregateFunction.TSWindow) Expressions.foldMap(rate.window(), FoldContext.small(), AggregateFunction.TSWindow.TYPE))
+                .length(),
+            equalTo(Duration.ofMinutes(10))
+        );
     }
 
     public void testStartEndStep() {

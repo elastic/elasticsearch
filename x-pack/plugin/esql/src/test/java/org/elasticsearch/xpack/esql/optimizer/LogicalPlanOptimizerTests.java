@@ -7907,7 +7907,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
             assertTrue(holder.get().hasWindow());
-            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
+            assertThat(
+                ((AggregateFunction.TSWindow) Expressions.foldMap(
+                    holder.get().window(),
+                    FoldContext.small(),
+                    AggregateFunction.TSWindow.TYPE
+                )).length(),
+                equalTo(Duration.ofMinutes(window))
+            );
             Holder<WindowFilter> windowFilterHolder = new Holder<>();
             plan.forEachExpressionDown(WindowFilter.class, windowFilterHolder::set);
             assertNull(windowFilterHolder.get());
@@ -7925,7 +7932,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
             assertTrue(holder.get().hasWindow());
-            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofHours(window)));
+            assertThat(
+                ((AggregateFunction.TSWindow) Expressions.foldMap(
+                    holder.get().window(),
+                    FoldContext.small(),
+                    AggregateFunction.TSWindow.TYPE
+                )).length(),
+                equalTo(Duration.ofHours(window))
+            );
             Holder<WindowFilter> windowFilterHolder = new Holder<>();
             plan.forEachExpressionDown(WindowFilter.class, windowFilterHolder::set);
             assertNull(windowFilterHolder.get());
@@ -7945,7 +7959,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertFalse(holder.get().hasWindow());
             assertTrue(holder.get().hasFilter());
             WindowFilter windowFilter = (WindowFilter) holder.get().filter();
-            assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
+            assertThat(
+                ((AggregateFunction.TSWindow) Expressions.foldMap(
+                    windowFilter.window(),
+                    FoldContext.small(),
+                    AggregateFunction.TSWindow.TYPE
+                )).length().toMinutes(),
+                equalTo((long) window)
+            );
         }
         // non-multiple window (>= bucket) - now supported via GCD sub-bucketing
         {
@@ -7960,7 +7981,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
             assertTrue(holder.get().hasWindow());
-            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
+            assertThat(
+                ((AggregateFunction.TSWindow) Expressions.foldMap(
+                    holder.get().window(),
+                    FoldContext.small(),
+                    AggregateFunction.TSWindow.TYPE
+                )).length(),
+                equalTo(Duration.ofMinutes(window))
+            );
         }
         // no time bucket
         {
@@ -8025,7 +8053,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             Holder<WindowFilter> holder = new Holder<>();
             plan.forEachExpressionDown(WindowFilter.class, holder::set);
             assertNotNull(holder.get());
-            assertThat(((Duration) holder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
+            assertThat(
+                ((AggregateFunction.TSWindow) Expressions.foldMap(
+                    holder.get().window(),
+                    FoldContext.small(),
+                    AggregateFunction.TSWindow.TYPE
+                )).length().toMinutes(),
+                equalTo((long) window)
+            );
         }
         // nested aggregation
         {
@@ -8039,7 +8074,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             Holder<WindowFilter> holder = new Holder<>();
             plan.forEachExpressionDown(WindowFilter.class, holder::set);
             assertNotNull(holder.get());
-            assertThat(((Duration) holder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
+            assertThat(
+                ((AggregateFunction.TSWindow) Expressions.foldMap(
+                    holder.get().window(),
+                    FoldContext.small(),
+                    AggregateFunction.TSWindow.TYPE
+                )).length().toMinutes(),
+                equalTo((long) window)
+            );
         }
         // multiple aggregates with varying window sizes
         {
@@ -8063,8 +8105,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertTrue(rateHolder.get().hasFilter());
             WindowFilter lotWindowFilter = (WindowFilter) maxHolder.get().filter();
             WindowFilter rateWindowFilter = (WindowFilter) rateHolder.get().filter();
-            assertThat(((Duration) lotWindowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window1));
-            assertThat(((Duration) rateWindowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));
+            assertThat(
+                ((AggregateFunction.TSWindow) Expressions.foldMap(
+                    lotWindowFilter.window(),
+                    FoldContext.small(),
+                    AggregateFunction.TSWindow.TYPE
+                )).length().toMinutes(),
+                equalTo((long) window1)
+            );
+            assertThat(
+                ((AggregateFunction.TSWindow) Expressions.foldMap(
+                    rateWindowFilter.window(),
+                    FoldContext.small(),
+                    AggregateFunction.TSWindow.TYPE
+                )).length().toMinutes(),
+                equalTo((long) window2)
+            );
         }
         // multiple aggregates with only one filter
         {
@@ -8088,21 +8144,49 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 assertFalse(maxHolder.get().hasWindow());
                 assertTrue(maxHolder.get().hasFilter());
                 WindowFilter windowFilter = (WindowFilter) maxHolder.get().filter();
-                assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window1));
+                assertThat(
+                    ((AggregateFunction.TSWindow) Expressions.foldMap(
+                        windowFilter.window(),
+                        FoldContext.small(),
+                        AggregateFunction.TSWindow.TYPE
+                    )).length().toMinutes(),
+                    equalTo((long) window1)
+                );
 
                 assertTrue(rateHolder.get().hasWindow());
                 assertFalse(rateHolder.get().hasFilter());
-                assertThat(((Duration) rateHolder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));
+                assertThat(
+                    ((AggregateFunction.TSWindow) Expressions.foldMap(
+                        rateHolder.get().window(),
+                        FoldContext.small(),
+                        AggregateFunction.TSWindow.TYPE
+                    )).length().toMinutes(),
+                    equalTo((long) window2)
+                );
             } else {
                 // rate has window filter (window cleared); max_over_time no filter (still has window)
                 assertFalse(rateHolder.get().hasWindow());
                 assertTrue(rateHolder.get().hasFilter());
                 WindowFilter windowFilter = (WindowFilter) rateHolder.get().filter();
-                assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));
+                assertThat(
+                    ((AggregateFunction.TSWindow) Expressions.foldMap(
+                        windowFilter.window(),
+                        FoldContext.small(),
+                        AggregateFunction.TSWindow.TYPE
+                    )).length().toMinutes(),
+                    equalTo((long) window2)
+                );
 
                 assertTrue(maxHolder.get().hasWindow());
                 assertFalse(maxHolder.get().hasFilter());
-                assertThat(((Duration) maxHolder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window1));
+                assertThat(
+                    ((AggregateFunction.TSWindow) Expressions.foldMap(
+                        maxHolder.get().window(),
+                        FoldContext.small(),
+                        AggregateFunction.TSWindow.TYPE
+                    )).length().toMinutes(),
+                    equalTo((long) window1)
+                );
             }
         }
     }

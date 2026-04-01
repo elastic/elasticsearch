@@ -13,7 +13,9 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FilteredAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.WindowEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
@@ -40,7 +42,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -48,6 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 
 import static java.util.Collections.emptyList;
 
@@ -332,8 +335,80 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     }
                     // apply the grouping window in the final phase
                     if (mode.isOutputPartial() == false && aggregateFunction.hasWindow()) {
-                        Duration windowInterval = (Duration) aggregateFunction.window().fold(foldContext);
-                        aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, windowInterval);
+                        var aggregateWindow = Expressions.foldMap(
+                            aggregateFunction.window(),
+                            FoldContext.small(),
+                            AggregateFunction.TSWindow.TYPE
+                        );
+                        aggSupplier = switch (aggregateWindow) {
+                            case AggregateFunction.TSFront w -> new WindowAggregatorFunctionSupplier(
+                                aggSupplier,
+                                w.length(),
+                                aggCtx -> new WindowEvaluationContext() {
+                                    @Override
+                                    public void forEachGroupInWindow(int startingGroupId, IntConsumer action) {
+                                        aggCtx.forEachGroupInWindow(startingGroupId, w.length(), action);
+                                    }
+
+                                    @Override
+                                    public void forEachBucketInWindow(long groupId, TimeSeriesBlockHash tsBlockHash, LongConsumer action) {
+                                        aggCtx.forEachBucketInWindow(groupId, w.length(), tsBlockHash, action);
+                                    }
+
+                                    @Override
+                                    public long rangeStartInMillis(int groupId) {
+                                        return aggCtx.rangeStartInMillis(groupId);
+                                    }
+
+                                    @Override
+                                    public long rangeEndInMillis(int groupId) {
+                                        return aggCtx.rangeStartInMillis(groupId) + w.length().toMillis();
+                                    }
+                                }
+                            );
+                            case AggregateFunction.TSBack w -> new WindowAggregatorFunctionSupplier(
+                                aggSupplier,
+                                w.length(),
+                                aggCtx -> new WindowEvaluationContext() {
+                                    @Override
+                                    public void forEachGroupInWindow(int startingGroupId, IntConsumer action) {
+                                        long end = aggCtx.rangeEndInMillis(startingGroupId);
+                                        aggCtx.forEachGroupInRange(startingGroupId, end - w.length().toMillis(), end, action);
+                                    }
+
+                                    @Override
+                                    public void forEachBucketInWindow(long groupId, TimeSeriesBlockHash tsBlockHash, LongConsumer action) {
+                                        long bucketMillis = aggCtx.rangeStartInMillis(Math.toIntExact(groupId));
+                                        aggCtx.forEachBucketInRange(bucketMillis, bucketMillis + w.length().toMillis(), ts -> {
+                                            if (ts != tsBlockHash.timestampForGroup(groupId)) {
+                                                action.accept(ts);
+                                            }
+                                        });
+                                    }
+
+                                    @Override
+                                    public long rangeStartInMillis(int groupId) {
+                                        return aggCtx.rangeEndInMillis(groupId) - w.length().toMillis();
+                                    }
+
+                                    @Override
+                                    public long rangeEndInMillis(int groupId) {
+                                        return aggCtx.rangeEndInMillis(groupId);
+                                    }
+
+                                    @Override
+                                    public long trimRangeStart(long dataRangeStartMillis, long dataRangeEndMillis) {
+                                        return dataRangeStartMillis;
+                                    }
+
+                                    @Override
+                                    public long trimRangeEnd(long dataRangeStartMillis, long dataRangeEndMillis) {
+                                        return dataRangeEndMillis;
+                                    }
+                                }
+                            );
+                            default -> throw new EsqlIllegalArgumentException("unknown window: [{}]", aggregateFunction.window());
+                        };
                     }
                     consumer.accept(new AggFunctionSupplierContext(aggSupplier, inputChannels, mode));
                 }

@@ -19,6 +19,7 @@ import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSup
 import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.WindowEvaluationContext;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -156,7 +157,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
 
         // Use both a window aggregator (sum) and a values aggregator (dimension values on tsid column)
         List<GroupingAggregator.Factory> aggregatorFactories = List.of(
-            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+            forwardWindowAggregatorFunctionSupplier(windowDuration).groupingAggregatorFactory(
                 AggregatorMode.SINGLE,
                 List.of(HASH_CHANNEL_COUNT)
             ),
@@ -239,7 +240,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         rows.add(List.of("s1", baseTime + TimeValue.timeValueMinutes(8).millis(), 10));
 
         List<GroupingAggregator.Factory> aggregatorFactories = List.of(
-            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+            forwardWindowAggregatorFunctionSupplier(windowDuration).groupingAggregatorFactory(
                 AggregatorMode.SINGLE,
                 List.of(HASH_CHANNEL_COUNT)
             ),
@@ -363,7 +364,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             ),
             AggregatorMode.SINGLE,
             List.of(
-                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                forwardWindowAggregatorFunctionSupplier(windowDuration).groupingAggregatorFactory(
                     AggregatorMode.SINGLE,
                     List.of(HASH_CHANNEL_COUNT)
                 )
@@ -407,5 +408,41 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             }
         }
         return outputRows;
+    }
+
+    /**
+     * Windowed sum with forward-looking window iteration; ordinary {@link WindowAggregatorFunctionSupplier}
+     * usage applies the default backward-looking window.
+     */
+    private static WindowAggregatorFunctionSupplier forwardWindowAggregatorFunctionSupplier(Duration windowDuration) {
+        return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration, base -> {
+            long wMillis = windowDuration.toMillis();
+            return new WindowEvaluationContext() {
+                @Override
+                public void forEachGroupInWindow(int startingGroupId, java.util.function.IntConsumer action) {
+                    long start = base.rangeStartInMillis(startingGroupId);
+                    base.forEachGroupInRange(startingGroupId, start, start + wMillis, action);
+                }
+
+                @Override
+                public void forEachBucketInWindow(
+                    long groupId,
+                    org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash tsBlockHash,
+                    java.util.function.LongConsumer action
+                ) {
+                    base.forEachBucketInWindow(groupId, windowDuration, tsBlockHash, action);
+                }
+
+                @Override
+                public long rangeStartInMillis(int groupId) {
+                    return base.rangeStartInMillis(groupId);
+                }
+
+                @Override
+                public long rangeEndInMillis(int groupId) {
+                    return base.rangeStartInMillis(groupId) + wMillis;
+                }
+            };
+        });
     }
 }

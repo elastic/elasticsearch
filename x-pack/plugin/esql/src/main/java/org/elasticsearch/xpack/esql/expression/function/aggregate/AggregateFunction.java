@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -59,7 +62,28 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * </p>
  */
 public abstract class AggregateFunction extends Function implements PostAnalysisPlanVerificationAware {
-    public static final Literal NO_WINDOW = Literal.timeDuration(Source.EMPTY, Duration.ZERO);
+
+    public interface Window<T> {
+        T length();
+    }
+
+    public sealed interface TSWindow extends Window<Duration> permits TSFront, TSBack {
+        UnaryOperator<Object> TYPE = o -> {
+            if (o instanceof Duration d) {
+                if (d.isNegative()) {
+                    return new TSBack(d.negated());
+                }
+                return new TSFront(d);
+            }
+            return o;
+        };
+    }
+
+    public record TSBack(Duration length) implements TSWindow {}
+
+    public record TSFront(Duration length) implements TSWindow {}
+
+    public static final Expression NO_WINDOW = Literal.timeDuration(Source.EMPTY, Duration.ZERO);
     public static final TransportVersion WINDOW_INTERVAL = TransportVersion.fromName("aggregation_window");
 
     private final Expression field;
@@ -85,7 +109,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         super(source, CollectionUtils.combine(asList(field, filter, window), parameters));
         this.field = field;
         this.filter = filter;
-        this.window = Objects.requireNonNull(window, "[window] must be specified; use NO_WINDOW instead");
+        this.window = window;
         this.parameters = parameters;
     }
 
@@ -113,7 +137,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(filter);
         if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
-            out.writeNamedWriteable(window);
+            window.writeTo(out);
         }
         out.writeNamedWriteableCollection(parameters);
     }
@@ -160,7 +184,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         if (parameters == this.parameters) {
             return this;
         }
-        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter), parameters));
+        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter, window), parameters));
     }
 
     /**
@@ -174,10 +198,14 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
      * Whether the aggregate function has a window different than NO_WINDOW.
      */
     public boolean hasWindow() {
-        if (window instanceof Literal lit && lit.value() instanceof Duration duration) {
-            return duration.isZero() == false;
+        if (window.foldable() == false) {
+            return true;
         }
-        return true;
+        var folded = Expressions.foldMap(window, FoldContext.small(), TSWindow.TYPE);
+        if (folded instanceof TSWindow w) {
+            return w.length().isZero() == false;
+        }
+        return false;
     }
 
     /**

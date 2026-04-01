@@ -149,7 +149,7 @@ if "%SMART_RETRIES%"=="true" (
 
                     if exist .test-perf-response.json (
                       REM Extract taskPath values and merge into the history JSON
-                      for /f "delims=" %%i in ('jq "[.testTasks[].taskPath]" .test-perf-response.json 2^>nul') do set EXECUTED_TASK_PATHS=%%i
+                      for /f "delims=" %%i in ('jq -c "[.testTasks[].taskPath]" .test-perf-response.json 2^>nul') do set EXECUTED_TASK_PATHS=%%i
                       if defined EXECUTED_TASK_PATHS (
                         if not "!EXECUTED_TASK_PATHS!"=="null" (
                           jq --argjson executed "!EXECUTED_TASK_PATHS!" ". + {executedTestTasks: $executed}" .failed-test-history.json > .failed-test-history.json.tmp 2>nul

@@ -182,6 +182,12 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
          * Returns {@code true} if the task was confirmed executed. Returns {@code false}
          * if the task was not executed OR if executed task data is unavailable (null),
          * which triggers the safe fallback of running all tests.
+         * <p>
+         * Note: a task that started but crashed before completing would appear in
+         * executedTestTasks yet have no entry in workUnits. In practice this is safe
+         * because such a crash produces a non-test exit code (e.g. 137 for OOM),
+         * so the smart retry path (exit_status 1) is never reached. If this assumption
+         * ever changes, consider cross-checking with Gradle build outcome data.
          *
          * @param taskPath the Gradle task path (e.g., ":server:test")
          * @return true if the task was confirmed executed in the previous run

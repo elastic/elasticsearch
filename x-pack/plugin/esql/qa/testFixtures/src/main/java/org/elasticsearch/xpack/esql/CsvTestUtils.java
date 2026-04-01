@@ -81,7 +81,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -293,8 +292,10 @@ public final class CsvTestUtils {
             );
         }
         assumeTrueLogging(
-            format("Capability not supported in this build: {}",
-                Sets.difference(new HashSet<>(requiredCapabilities), enabledCapabilities.capabilities())),
+            format(
+                "Capability not supported in this build: {}",
+                Sets.difference(new HashSet<>(requiredCapabilities), enabledCapabilities.capabilities())
+            ),
             enabledCapabilities.capabilities().containsAll(requiredCapabilities)
         );
     }

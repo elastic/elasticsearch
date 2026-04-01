@@ -361,6 +361,46 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3")));
     }
 
+    public void testReplaceViewsWildcardAll() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        addView("view3", "FROM emp3");
+        LogicalPlan plan = query("FROM *");
+        // The * wildcard is preserved because concrete indices from setupTest() (emp, emp1, emp2, emp3, logs)
+        // also match *, so hasNonView=true and * passes through for later field caps resolution.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3, *")));
+    }
+
+    public void testReplaceViewsWildcardAllNoReferencedIndices() {
+        addView("view1", "ROW a = 1");
+        addView("view2", "ROW a = 2");
+        addView("view3", "ROW a = 3");
+        LogicalPlan plan = query("FROM *");
+        LogicalPlan rewritten = replaceViews(plan);
+        // We cannot express the expected plan using subqueries because they only accept FROM commands, so we check its structure instead
+        assertThat(rewritten, instanceOf(ViewUnionAll.class));
+        List<LogicalPlan> subqueries = rewritten.children();
+        assertThat(subqueries.size(), equalTo(4));
+        assertThat(
+            subqueries,
+            containsInAnyOrder(
+                matchesPlan(query("FROM *")),
+                matchesPlan(query("ROW a = 1")),
+                matchesPlan(query("ROW a = 2")),
+                matchesPlan(query("ROW a = 3"))
+            )
+        );
+    }
+
+    public void testReplaceViewsIndexWildcardAll() {
+        addIndex("emp");
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        addView("view3", "FROM emp3");
+        LogicalPlan plan = query("FROM *");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3, *")));
+    }
+
     public void testReplaceViewsWildcardWithIndex() {
         addIndex("viewX");
         addView("view1", "FROM emp1");
@@ -398,19 +438,25 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_2", "FROM emp2 | WHERE emp.age < 40");
         addView("view_3", "FROM emp3 | WHERE emp.salary > 50000");
         LogicalPlan plan = query("FROM view*");
-        LogicalPlan rewritten = replaceViews(plan);
-        // We cannot express the expected plan easily, so we check its structure instead
-        assertThat(rewritten, instanceOf(ViewUnionAll.class));
-        List<LogicalPlan> subqueries = rewritten.children();
-        assertThat(subqueries.size(), equalTo(3));
-        assertThat(
-            subqueries,
-            containsInAnyOrder(
-                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
-                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
-                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000"))
-            )
-        );
+        assertThat(replaceViews(plan), matchesPlan(query("""
+            FROM
+            (FROM emp1 | WHERE emp.age > 30),
+            (FROM emp2 | WHERE emp.age < 40),
+            (FROM emp3 | WHERE emp.salary > 50000)""")));
+    }
+
+    public void testReplaceViewsPlanWildcardAll() {
+        addView("view_1", "FROM emp1 | WHERE emp.age > 30");
+        addView("view_2", "FROM emp2 | WHERE emp.age < 40");
+        addView("view_3", "FROM emp3 | WHERE emp.salary > 50000");
+        LogicalPlan plan = query("FROM *");
+        // The * wildcard is preserved because concrete indices from setupTest() also match.
+        assertThat(replaceViews(plan), matchesPlan(query("""
+            FROM
+            (FROM *),
+            (FROM emp1 | WHERE emp.age > 30),
+            (FROM emp2 | WHERE emp.age < 40),
+            (FROM emp3 | WHERE emp.salary > 50000)""")));
     }
 
     public void testReplaceViewsPlanWildcardWithIndex() {
@@ -419,20 +465,26 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_2", "FROM emp2 | WHERE emp.age < 40");
         addView("view_3", "FROM emp3 | WHERE emp.salary > 50000");
         LogicalPlan plan = query("FROM view*");
-        LogicalPlan rewritten = replaceViews(plan);
-        // We cannot express the expected plan easily, so we check its structure instead
-        assertThat(rewritten, instanceOf(ViewUnionAll.class));
-        List<LogicalPlan> subqueries = rewritten.children();
-        assertThat(subqueries.size(), equalTo(4));
-        assertThat(
-            subqueries,
-            containsInAnyOrder(
-                matchesPlan(query("FROM view*")),
-                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
-                matchesPlan(query("FROM emp2 | WHERE emp.age < 40")),
-                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000"))
-            )
-        );
+        assertThat(replaceViews(plan), matchesPlan(query("""
+            FROM
+            (FROM view*),
+            (FROM emp1 | WHERE emp.age > 30),
+            (FROM emp2 | WHERE emp.age < 40),
+            (FROM emp3 | WHERE emp.salary > 50000)""")));
+    }
+
+    public void testReplaceViewsPlanWildcardWithIndexAll() {
+        addIndex("viewX");
+        addView("view_1", "FROM emp1 | WHERE emp.age > 30");
+        addView("view_2", "FROM emp2 | WHERE emp.age < 40");
+        addView("view_3", "FROM emp3 | WHERE emp.salary > 50000");
+        LogicalPlan plan = query("FROM *");
+        assertThat(replaceViews(plan), matchesPlan(query("""
+            FROM
+            (FROM *),
+            (FROM emp1 | WHERE emp.age > 30),
+            (FROM emp2 | WHERE emp.age < 40),
+            (FROM emp3 | WHERE emp.salary > 50000)""")));
     }
 
     public void testReplaceViewsNestedWildcard() {
@@ -442,10 +494,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_2", "FROM view_1, view_2");
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
-        // Should rewrite in steps:
-        // FROM view_1_*
-        // FROM view_1_3, view_1_2
-        // FROM (FROM emp1,emp3), (FROM emp1,emp2)
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1,emp3),(FROM emp1,emp2)")));
     }
 
@@ -457,11 +505,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_x1", "FROM view_1, view_2");
         addView("view_x2", "FROM view_3, view_4");
         LogicalPlan plan = query("FROM view_x*");
-        // Should rewrite in steps:
-        // FROM view_x*
-        // FROM view_x1, view_x2
-        // FROM (FROM emp1,emp2), (FROM emp3,emp4)
-        // FROM emp1,emp2,emp3,emp4
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,emp4")));
     }
 

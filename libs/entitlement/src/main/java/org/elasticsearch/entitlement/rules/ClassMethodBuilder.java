@@ -77,8 +77,7 @@ public class ClassMethodBuilder<T> {
      * @return a builder for configuring the constructor rule
      */
     public VoidMethodRuleBuilder<T> protectedCtor() {
-        validateConstructorExists();
-        MethodKey methodKey = getConstructorMethodKey();
+        MethodKey methodKey = resolveConstructor(clazz);
         return new VoidMethodRuleBuilder<>(registry, clazz, methodKey);
     }
 
@@ -90,8 +89,7 @@ public class ClassMethodBuilder<T> {
      * @return a builder for configuring the constructor rule
      */
     public <A> VoidMethodRuleBuilder.VoidMethodRuleBuilder1<T, A> protectedCtor(Class<A> arg0) {
-        validateConstructorExists(arg0);
-        MethodKey methodKey = getConstructorMethodKey(arg0);
+        MethodKey methodKey = resolveConstructor(clazz, arg0);
         return new VoidMethodRuleBuilder.VoidMethodRuleBuilder1<>(registry, clazz, methodKey);
     }
 
@@ -105,8 +103,7 @@ public class ClassMethodBuilder<T> {
      * @return a builder for configuring the constructor rule
      */
     public <A, B> VoidMethodRuleBuilder.VoidMethodRuleBuilder2<T, A, B> protectedCtor(Class<A> arg0, Class<B> arg1) {
-        validateConstructorExists(arg0, arg1);
-        MethodKey methodKey = getConstructorMethodKey(arg0, arg1);
+        MethodKey methodKey = resolveConstructor(clazz, arg0, arg1);
         return new VoidMethodRuleBuilder.VoidMethodRuleBuilder2<>(registry, clazz, methodKey);
     }
 
@@ -1203,7 +1200,7 @@ public class ClassMethodBuilder<T> {
     }
 
     @SuppressForbidden(reason = "relies on reflection")
-    private void validateConstructorExists(Class<?>... args) {
+    private static void validateConstructorExists(Class<?> clazz, Class<?>... args) {
         Class<?>[] resolvedArgs = Arrays.stream(args).map(TypeUtils::toPrimitive).toArray(Class[]::new);
         try {
             clazz.getDeclaredConstructor(resolvedArgs);
@@ -1215,7 +1212,8 @@ public class ClassMethodBuilder<T> {
         }
     }
 
-    private MethodKey getConstructorMethodKey(Class<?>... args) {
+    private static MethodKey resolveConstructor(Class<?> clazz, Class<?>... args) {
+        validateConstructorExists(clazz, args);
         return new MethodKey(clazz.getName().replace(".", "/"), "<init>", Arrays.stream(args).map(Class::getCanonicalName).toList());
     }
 }

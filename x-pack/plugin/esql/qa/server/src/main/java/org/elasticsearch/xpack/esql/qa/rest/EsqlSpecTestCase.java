@@ -474,9 +474,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && randomBoolean()) {
             pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
         }
-        if (randomBoolean() && hasCapabilities(client(), List.of("fork_no_implicit_limit"))) {
-            pragma.put("fork_implicit_limit", false);
-        }
     }
 
     protected MappedFieldType.FieldExtractPreference fieldExtractPreference() {

@@ -108,7 +108,7 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
-    public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
+    public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", false);
 
     /**
      * The number of branches to execute in parallel. This is a safeguard to avoid overloading the cluster with too many parallel branches.

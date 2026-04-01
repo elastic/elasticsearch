@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.Build;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
@@ -47,8 +48,11 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
     private static final String SPARKLINE_EXPR = "sparkline(count(*), hire_date, 10, \"2024-01-01\", \"2024-12-31\")";
 
     @Before
-    public void skipIfNotSnapshot() {
-        assumeTrue("Sparkline is only available in snapshot builds", Build.current().isSnapshot());
+    public void checkCapability() {
+        assumeTrue(
+            "sparkline should be enabled",
+            EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), false).capabilities().contains("fn_sparkline")
+        );
     }
 
     public void testNoSparklines() {

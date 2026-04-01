@@ -15,8 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -37,8 +39,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     private static final Source SRC = Source.EMPTY;
 
     public void testExternalSourceExecGetsSplitsAttached() {
-        FileSet fileSet = createFileSet(3);
-        ExternalSourceExec exec = createExternalSourceExec(fileSet, "parquet");
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
 
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FileSplitProvider()));
 
@@ -53,7 +55,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     public void testNoExternalSourceUnchanged() {
-        PhysicalPlan leaf = createExternalSourceExec(FileSet.UNRESOLVED, "parquet");
+        PhysicalPlan leaf = createExternalSourceExec(FileList.UNRESOLVED, "parquet");
         LimitExec limit = new LimitExec(SRC, leaf, new Literal(SRC, 10, DataType.INTEGER), null);
 
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FileSplitProvider()));
@@ -66,8 +68,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     public void testFilterExecAboveExternalSourceCollectsFilters() {
-        FileSet fileSet = createFileSet(2);
-        ExternalSourceExec exec = createExternalSourceExec(fileSet, "parquet");
+        FileList fileList = createFileList(2);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
         Expression condition = new Equals(SRC, fieldAttr("year", DataType.INTEGER), new Literal(SRC, 2024, DataType.INTEGER));
         FilterExec filter = new FilterExec(SRC, exec, condition);
 
@@ -80,10 +82,10 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     public void testMultipleExternalSourcesEachGetOwnSplits() {
-        FileSet fileSet1 = createFileSet(2);
-        FileSet fileSet2 = createFileSet(3);
-        ExternalSourceExec exec1 = createExternalSourceExec(fileSet1, "parquet");
-        ExternalSourceExec exec2 = createExternalSourceExec(fileSet2, "csv");
+        FileList fileList1 = createFileList(2);
+        FileList fileList2 = createFileList(3);
+        ExternalSourceExec exec1 = createExternalSourceExec(fileList1, "parquet");
+        ExternalSourceExec exec2 = createExternalSourceExec(fileList2, "csv");
 
         LimitExec limit = new LimitExec(SRC, exec1, new Literal(SRC, 10, DataType.INTEGER), null);
 
@@ -105,8 +107,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     public void testUnknownSourceTypeDefaultsToSingleProvider() {
-        FileSet fileSet = createFileSet(3);
-        ExternalSourceExec exec = createExternalSourceExec(fileSet, "unknown_type");
+        FileList fileList = createFileList(3);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "unknown_type");
 
         Map<String, ExternalSourceFactory> factories = Map.of();
 
@@ -119,8 +121,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
     public void testSplitCountMatchesFileCount() {
         int fileCount = randomIntBetween(1, 10);
-        FileSet fileSet = createFileSet(fileCount);
-        ExternalSourceExec exec = createExternalSourceExec(fileSet, "parquet");
+        FileList fileList = createFileList(fileCount);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
 
         Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FileSplitProvider()));
 
@@ -131,10 +133,10 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     public void testFiltersFromDifferentBranchesAreNotMixed() {
-        FileSet fileSet1 = createFileSet(2);
-        FileSet fileSet2 = createFileSet(2);
-        ExternalSourceExec exec1 = createExternalSourceExec(fileSet1, "parquet");
-        ExternalSourceExec exec2 = createExternalSourceExec(fileSet2, "csv");
+        FileList fileList1 = createFileList(2);
+        FileList fileList2 = createFileList(2);
+        ExternalSourceExec exec1 = createExternalSourceExec(fileList1, "parquet");
+        ExternalSourceExec exec2 = createExternalSourceExec(fileList2, "csv");
 
         Expression cond1 = new Equals(SRC, fieldAttr("year", DataType.INTEGER), new Literal(SRC, 2024, DataType.INTEGER));
         FilterExec filter1 = new FilterExec(SRC, exec1, cond1);
@@ -155,8 +157,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     public void testNestedFiltersAccumulateForDescendantSource() {
-        FileSet fileSet = createFileSet(2);
-        ExternalSourceExec exec = createExternalSourceExec(fileSet, "parquet");
+        FileList fileList = createFileList(2);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
         Expression cond1 = new Equals(SRC, fieldAttr("year", DataType.INTEGER), new Literal(SRC, 2024, DataType.INTEGER));
         Expression cond2 = new Equals(SRC, fieldAttr("month", DataType.INTEGER), new Literal(SRC, 6, DataType.INTEGER));
         FilterExec inner = new FilterExec(SRC, exec, cond1);
@@ -171,8 +173,8 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     public void testNoFiltersWhenNoFilterExecInPlan() {
-        FileSet fileSet = createFileSet(2);
-        ExternalSourceExec exec = createExternalSourceExec(fileSet, "parquet");
+        FileList fileList = createFileList(2);
+        ExternalSourceExec exec = createExternalSourceExec(fileList, "parquet");
         LimitExec limit = new LimitExec(SRC, exec, new Literal(SRC, 10, DataType.INTEGER), null);
 
         RecordingSplitProvider recorder = new RecordingSplitProvider();
@@ -185,17 +187,17 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
     // -- helpers --
 
-    private static FileSet createFileSet(int fileCount) {
+    private static FileList createFileList(int fileCount) {
         List<StorageEntry> entries = new ArrayList<>();
         for (int i = 0; i < fileCount; i++) {
             entries.add(new StorageEntry(StoragePath.of("s3://bucket/data/file" + i + ".parquet"), 100 * (i + 1), Instant.EPOCH));
         }
-        return new FileSet(entries, "s3://bucket/data/*.parquet");
+        return GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
     }
 
-    private static ExternalSourceExec createExternalSourceExec(FileSet fileSet, String sourceType) {
+    private static ExternalSourceExec createExternalSourceExec(FileList fileList, String sourceType) {
         List<Attribute> attrs = List.of(fieldAttr("id", DataType.LONG), fieldAttr("name", DataType.KEYWORD));
-        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", sourceType, attrs, Map.of(), Map.of(), null, null, fileSet);
+        return new ExternalSourceExec(SRC, "s3://bucket/data/*.parquet", sourceType, attrs, Map.of(), Map.of(), null, null, fileList);
     }
 
     private static Attribute fieldAttr(String name, DataType type) {

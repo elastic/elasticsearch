@@ -55,7 +55,7 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
      */
     @Override
     public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
-        throw new UnsupportedOperationException("This producer be called using the collectOnce method");
+        throw new UnsupportedOperationException("This producer should be collected using the collectOnce method.");
     }
 
     public void collectOnce(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {

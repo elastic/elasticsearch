@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -25,8 +26,9 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OAuth2Settings> {
@@ -99,14 +101,16 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         var settings = OAuth2Settings.fromMap(serviceSettingsMap, validationException);
 
         assertTrue(settings.isFailed());
-        var thrownException = expectThrows(ValidationException.class, validationException::throwIfValidationErrorsExist);
 
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format("OAuth2 fields [%s] must be provided together; missing: [%s]", OAuth2Settings.REQUIRED_FIELDS, missingField)
-            )
+        var expectedError = Strings.format(
+            "[%s] OAuth2 fields [%s] must be provided together; missing: [%s]",
+            ModelConfigurations.SERVICE_SETTINGS,
+            OAuth2Settings.REQUIRED_FIELDS,
+            missingField
         );
+        var errors = validationException.validationErrors();
+        assertThat(errors, hasSize(1));
+        assertThat(errors, contains(expectedError));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

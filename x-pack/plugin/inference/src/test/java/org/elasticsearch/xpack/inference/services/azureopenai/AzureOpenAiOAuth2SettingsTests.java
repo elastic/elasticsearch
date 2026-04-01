@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,10 +27,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiOAuth2Settings> {
@@ -92,12 +93,16 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
 
         var settings = AzureOpenAiOAuth2Settings.fromMap(settingsMap, validationException);
 
-        assertNull(settings);
+        assertThat(settings, is(nullValue()));
 
-        var thrownException = expectThrows(ValidationException.class, validationException::throwIfValidationErrorsExist);
-        assertThat(thrownException.getMessage(), containsString("all Azure OpenAI OAuth2 fields must be provided together"));
-        assertThat(thrownException.getMessage(), containsString(OAuth2Settings.REQUIRED_FIELDS));
-        assertThat(thrownException.getMessage(), not(containsString(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD)));
+        var expectedError = Strings.format(
+            "[%s] all Azure OpenAI OAuth2 fields must be provided together; missing: [%s]",
+            ModelConfigurations.SERVICE_SETTINGS,
+            OAuth2Settings.REQUIRED_FIELDS
+        );
+        var errors = validationException.validationErrors();
+        assertThat(errors, hasSize(1));
+        assertThat(errors, contains(expectedError));
     }
 
     public void testFromMap_WithOnlyClientIdAndScopes_AddsValidationErrorForTenantId() {
@@ -109,13 +114,18 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
         );
         var validationException = new ValidationException();
 
-        AzureOpenAiOAuth2Settings.fromMap(settingsMap, validationException);
+        var settings = AzureOpenAiOAuth2Settings.fromMap(settingsMap, validationException);
 
-        var thrownException = expectThrows(ValidationException.class, validationException::throwIfValidationErrorsExist);
-        assertThat(thrownException.getMessage(), containsString("all Azure OpenAI OAuth2 fields must be provided together"));
-        assertThat(thrownException.getMessage(), containsString(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD));
-        assertThat(thrownException.getMessage(), not(containsString(OAuth2Settings.CLIENT_ID_FIELD)));
-        assertThat(thrownException.getMessage(), not(containsString(OAuth2Settings.SCOPES_FIELD)));
+        assertThat(settings, is(nullValue()));
+
+        var expectedError = Strings.format(
+            "[%s] all Azure OpenAI OAuth2 fields must be provided together; missing: [%s]",
+            ModelConfigurations.SERVICE_SETTINGS,
+            AzureOpenAiOAuth2Settings.TENANT_ID_FIELD
+        );
+        var errors = validationException.validationErrors();
+        assertThat(errors, hasSize(1));
+        assertThat(errors, contains(expectedError));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

@@ -314,6 +314,11 @@ tasks.named('internalClusterTestTestingConventions').configure {
 // This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task
 // and generates a types table for the LOOKUP JOIN command. It is possible in future we might have move tests that do this.
 tasks.named("internalClusterTest").configure {
+  // prevent empty stacktraces on JDK 25 for intrinsic Math.*Exact invocations
+  // https://bugs.openjdk.org/browse/JDK-8367990
+  // https://github.com/elastic/elasticsearch/issues/135009
+  jvmArgs '-XX:-OmitStackTraceInFastThrow'
+
   def injected = project.objects.newInstance(Injected)
   File snippetsFolder = file("build/testrun/internalClusterTest/temp/esql/_snippets")
   def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")

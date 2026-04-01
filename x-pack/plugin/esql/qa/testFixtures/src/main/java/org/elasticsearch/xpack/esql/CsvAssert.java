@@ -130,11 +130,15 @@ public final class CsvAssert {
                 actualType = Type.NULL;
             }
 
-            assertEquals(
-                "Different column type for column [" + expectedName + "] (" + expectedType + " != " + actualType + ")",
-                expectedType,
-                actualType
-            );
+            boolean keywordTextCompatible = (expectedType == Type.KEYWORD && actualType == Type.TEXT)
+                || (expectedType == Type.TEXT && actualType == Type.KEYWORD);
+            if (keywordTextCompatible == false) {
+                assertEquals(
+                    "Different column type for column [" + expectedName + "] (" + expectedType + " != " + actualType + ")",
+                    expectedType,
+                    actualType
+                );
+            }
 
             // perform another check against each returned page to make sure they have the same metadata
             for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {

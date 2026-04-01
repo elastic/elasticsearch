@@ -1602,7 +1602,7 @@ public class BlockHashTests extends BlockHashTestCase {
 
     public void testTimeSeriesBlockHash() throws Exception {
         long endTime = randomLongBetween(10_000_000, 20_000_000);
-        var hash1 = new TimeSeriesBlockHash(0, 1, false, blockFactory);
+        var hash1 = new TimeSeriesBlockHash(0, 1, false, randomBoolean(), blockFactory);
         var hash2 = BlockHash.build(
             List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF), new BlockHash.GroupSpec(1, ElementType.LONG)),
             blockFactory,
@@ -1725,8 +1725,8 @@ public class BlockHashTests extends BlockHashTestCase {
 
     public void testTimeSeriesBlockHashReverseOutput() throws Exception {
         long endTime = randomLongBetween(10_000_000, 20_000_000);
-        var hash1 = new TimeSeriesBlockHash(0, 1, false, blockFactory);
-        var hash2 = new TimeSeriesBlockHash(0, 1, true, blockFactory);
+        var hash1 = new TimeSeriesBlockHash(0, 1, false, randomBoolean(), blockFactory);
+        var hash2 = new TimeSeriesBlockHash(0, 1, true, randomBoolean(), blockFactory);
         int numPages = between(1, 100);
         int globalTsid = -1;
         long timestamp = endTime;

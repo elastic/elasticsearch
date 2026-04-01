@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -49,7 +49,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -156,7 +155,7 @@ public class TestAnalyzer {
             Map.of(noFieldsIndexName, IndexMode.STANDARD),
             Map.of("", List.of(noFieldsIndexName)),
             Map.of("", List.of(noFieldsIndexName)),
-            Set.of()
+            Map.of()
         );
         addIndex(noFieldsIndexName, IndexResolution.valid(noFieldsIndex));
         return this;
@@ -380,7 +379,7 @@ public class TestAnalyzer {
     /**
      * Set external source resolution.
      */
-    public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileSet fileSet) {
+    public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
         var metadata = new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -405,7 +404,7 @@ public class TestAnalyzer {
      * Sets an "unresolved" external source.
      */
     public TestAnalyzer externalSourceUnresolved(String path, List<Attribute> schema) {
-        return externalSourceResolution(path, schema, FileSet.UNRESOLVED);
+        return externalSourceResolution(path, schema, FileList.UNRESOLVED);
     }
 
     /**
@@ -688,15 +687,26 @@ public class TestAnalyzer {
         assertThat(e, instanceOf(exception));
 
         String message = e.getMessage();
+        if (e instanceof VerificationException) {
+            assertTrue(message.startsWith("Found "));
+        }
         if (stripErrorPrefix) {
-            if (e instanceof VerificationException) {
-                assertTrue(message.startsWith("Found "));
-            }
-            String pattern = "\nline ";
-            int index = message.indexOf(pattern);
-            message = message.substring(index + pattern.length());
+            message = stripErrorPrefix(message);
         }
         assertThat(message, messageMatcher);
+        return message;
+    }
+
+    private String stripErrorPrefix(String message) {
+        int firstLine = message.indexOf("\nline ");
+        if (firstLine > 0) {
+            // VerificationException style
+            return message.substring(firstLine + "\nline ".length());
+        }
+        if (message.startsWith("line ")) {
+            // ParsingException style
+            return message.substring("line ".length());
+        }
         return message;
     }
 
@@ -770,7 +780,7 @@ public class TestAnalyzer {
      */
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Set.of())
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Map.of())
         );
     }
 

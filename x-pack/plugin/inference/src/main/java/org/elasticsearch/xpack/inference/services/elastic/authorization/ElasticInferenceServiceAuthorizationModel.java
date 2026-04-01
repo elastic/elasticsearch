@@ -62,11 +62,12 @@ public class ElasticInferenceServiceAuthorizationModel {
         String baseEisUrl
     ) {
         var components = new ElasticInferenceServiceComponents(baseEisUrl);
-        return createInternal(responseEntity.authorizedEndpoints(), components);
+        return createInternal(responseEntity.authorizedEndpoints(), responseEntity.removedEndpoints(), components);
     }
 
     private static ElasticInferenceServiceAuthorizationModel createInternal(
         List<ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint> responseEndpoints,
+        Set<String> removedEndpoints,
         ElasticInferenceServiceComponents components
     ) {
         var validEndpoints = new ArrayList<ElasticInferenceServiceModel>();
@@ -77,7 +78,7 @@ public class ElasticInferenceServiceAuthorizationModel {
             }
         }
 
-        return new ElasticInferenceServiceAuthorizationModel(validEndpoints);
+        return new ElasticInferenceServiceAuthorizationModel(validEndpoints, removedEndpoints);
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -285,14 +286,19 @@ public class ElasticInferenceServiceAuthorizationModel {
      * Returns an object indicating that the cluster is not authorized for any endpoints from EIS.
      */
     public static ElasticInferenceServiceAuthorizationModel unauthorized() {
-        return new ElasticInferenceServiceAuthorizationModel(List.of());
+        return new ElasticInferenceServiceAuthorizationModel(List.of(), Set.of());
     }
 
     private final Map<String, ElasticInferenceServiceModel> authorizedEndpoints;
     private final EnumSet<TaskType> taskTypes;
+    private final Set<String> removedEndpoints;
 
     // Default for testing
     ElasticInferenceServiceAuthorizationModel(List<ElasticInferenceServiceModel> authorizedEndpoints) {
+        this(authorizedEndpoints, Set.of());
+    }
+
+    ElasticInferenceServiceAuthorizationModel(List<ElasticInferenceServiceModel> authorizedEndpoints, Set<String> removedEndpoints) {
         Objects.requireNonNull(authorizedEndpoints);
         this.authorizedEndpoints = authorizedEndpoints.stream()
             .collect(
@@ -305,6 +311,7 @@ public class ElasticInferenceServiceAuthorizationModel {
         var taskTypesSet = EnumSet.noneOf(TaskType.class);
         taskTypesSet.addAll(this.authorizedEndpoints.values().stream().map(ElasticInferenceServiceModel::getTaskType).toList());
         this.taskTypes = taskTypesSet;
+        this.removedEndpoints = Objects.requireNonNull(removedEndpoints);
     }
 
     /**
@@ -335,24 +342,35 @@ public class ElasticInferenceServiceAuthorizationModel {
         return Set.copyOf(authorizedEndpoints.keySet());
     }
 
+    public Set<String> getRemovedEndpoints() {
+        return removedEndpoints;
+    }
+
     public List<Model> getEndpoints(Set<String> endpointIds) {
         return endpointIds.stream().<Model>map(authorizedEndpoints::get).filter(Objects::nonNull).toList();
     }
 
     @Override
     public String toString() {
-        return Strings.format("AuthorizationModel{authorizedEndpoints=%s, taskTypes=%s}", authorizedEndpoints, taskTypes);
+        return Strings.format(
+            "AuthorizationModel{authorizedEndpoints=%s, taskTypes=%s, removedEndpoints=%s}",
+            authorizedEndpoints,
+            taskTypes,
+            removedEndpoints
+        );
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         ElasticInferenceServiceAuthorizationModel that = (ElasticInferenceServiceAuthorizationModel) o;
-        return Objects.equals(authorizedEndpoints, that.authorizedEndpoints) && Objects.equals(taskTypes, that.taskTypes);
+        return Objects.equals(authorizedEndpoints, that.authorizedEndpoints)
+            && Objects.equals(taskTypes, that.taskTypes)
+            && Objects.equals(removedEndpoints, that.removedEndpoints);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(authorizedEndpoints, taskTypes);
+        return Objects.hash(authorizedEndpoints, taskTypes, removedEndpoints);
     }
 }

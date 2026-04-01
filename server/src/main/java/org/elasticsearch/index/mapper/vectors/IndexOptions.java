@@ -9,9 +9,22 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Represents general index options that can be attached to a semantic or vector field.
  */
-public interface IndexOptions extends ToXContent {}
+public abstract class IndexOptions implements ToXContentObject {
+    public abstract void toXContentFragment(XContentBuilder builder, Params params) throws IOException;
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        toXContentFragment(builder, params);
+        builder.endObject();
+        return builder;
+    }
+}

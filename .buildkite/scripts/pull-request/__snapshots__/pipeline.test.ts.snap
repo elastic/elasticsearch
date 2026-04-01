@@ -34,11 +34,11 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                 "automatic": [
                   {
                     "exit_status": "-1",
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "none",
                   },
                   {
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "agent_stop",
                   },
                   {
@@ -103,11 +103,11 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
             "automatic": [
               {
                 "exit_status": "-1",
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "none",
               },
               {
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "agent_stop",
               },
               {
@@ -196,11 +196,11 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                 "automatic": [
                   {
                     "exit_status": "-1",
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "none",
                   },
                   {
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "agent_stop",
                   },
                   {
@@ -233,11 +233,11 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                 "automatic": [
                   {
                     "exit_status": "-1",
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "none",
                   },
                   {
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "agent_stop",
                   },
                   {
@@ -270,11 +270,11 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                 "automatic": [
                   {
                     "exit_status": "-1",
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "none",
                   },
                   {
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "agent_stop",
                   },
                   {
@@ -307,11 +307,11 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                 "automatic": [
                   {
                     "exit_status": "-1",
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "none",
                   },
                   {
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "agent_stop",
                   },
                   {
@@ -344,11 +344,11 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
                 "automatic": [
                   {
                     "exit_status": "-1",
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "none",
                   },
                   {
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "agent_stop",
                   },
                   {
@@ -394,11 +394,11 @@ exports[`generatePipelines should generate correct pipelines with full BWC expan
             "automatic": [
               {
                 "exit_status": "-1",
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "none",
               },
               {
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "agent_stop",
               },
               {
@@ -453,11 +453,11 @@ exports[`generatePipelines should generate correct pipelines with a different br
                 "automatic": [
                   {
                     "exit_status": "-1",
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "none",
                   },
                   {
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "agent_stop",
                   },
                   {
@@ -519,11 +519,11 @@ exports[`generatePipelines should generate correct pipelines with a different br
             "automatic": [
               {
                 "exit_status": "-1",
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "none",
               },
               {
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "agent_stop",
               },
               {
@@ -555,11 +555,11 @@ exports[`generatePipelines should generate correct pipelines with a different br
             "automatic": [
               {
                 "exit_status": "-1",
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "none",
               },
               {
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "agent_stop",
               },
               {
@@ -596,11 +596,11 @@ exports[`generatePipelines should generate correct pipeline when using a trigger
             "automatic": [
               {
                 "exit_status": "-1",
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "none",
               },
               {
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "agent_stop",
               },
               {
@@ -655,11 +655,11 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                 "automatic": [
                   {
                     "exit_status": "-1",
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "none",
                   },
                   {
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "agent_stop",
                   },
                   {
@@ -724,11 +724,11 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
             "automatic": [
               {
                 "exit_status": "-1",
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "none",
               },
               {
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "agent_stop",
               },
               {
@@ -783,11 +783,11 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                 "automatic": [
                   {
                     "exit_status": "-1",
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "none",
                   },
                   {
-                    "limit": 3,
+                    "limit": 2,
                     "signal_reason": "agent_stop",
                   },
                   {
@@ -852,11 +852,11 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
             "automatic": [
               {
                 "exit_status": "-1",
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "none",
               },
               {
-                "limit": 3,
+                "limit": 2,
                 "signal_reason": "agent_stop",
               },
               {

@@ -6,14 +6,14 @@ import { execSync } from "child_process";
 import { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types";
 import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
 
-// Auto-retry configuration matching periodic pipeline conventions.
-// - exit_status "-1": Agent/infrastructure failures (3 retries)
-// - signal_reason agent_stop: Agent stops (3 retries)
+// Auto-retry configuration for PR pipelines.
+// - exit_status "-1": Agent/infrastructure failures (2 retries)
+// - signal_reason agent_stop: Agent stops (2 retries)
 // - exit_status "1": Test/build failures (1 retry with smart filtering)
 const AUTO_RETRY_CONFIG: BuildkiteRetry = {
   automatic: [
-    { exit_status: "-1", limit: 3, signal_reason: "none" },
-    { signal_reason: "agent_stop", limit: 3 },
+    { exit_status: "-1", limit: 2, signal_reason: "none" },
+    { signal_reason: "agent_stop", limit: 2 },
     { exit_status: "1", limit: 1 },
   ],
   manual: {

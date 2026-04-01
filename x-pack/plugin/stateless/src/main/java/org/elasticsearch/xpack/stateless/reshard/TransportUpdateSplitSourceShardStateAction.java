@@ -17,7 +17,6 @@
 
 package org.elasticsearch.xpack.stateless.reshard;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -46,10 +45,6 @@ public class TransportUpdateSplitSourceShardStateAction extends TransportMasterN
     TransportUpdateSplitSourceShardStateAction.Request,
     ActionResponse> {
     public static final ActionType<ActionResponse> TYPE = new ActionType<>("indices:admin/reshard/split/update_source_shard_state");
-
-    public static final TransportVersion RESHARD_SPLIT_ALLOCATION_ID_IN_SOURCE_STATE_REQUEST = TransportVersion.fromName(
-        "reshard_split_allocation_id_in_source_state_request"
-    );
 
     private final ReshardIndexService reshardIndexService;
 
@@ -106,11 +101,7 @@ public class TransportUpdateSplitSourceShardStateAction extends TransportMasterN
         public Request(StreamInput in) throws IOException {
             super(in);
             this.shardId = new ShardId(in);
-            if (in.getTransportVersion().supports(RESHARD_SPLIT_ALLOCATION_ID_IN_SOURCE_STATE_REQUEST)) {
-                this.allocationId = new AllocationId(in);
-            } else {
-                this.allocationId = null;
-            }
+            this.allocationId = new AllocationId(in);
             this.state = IndexReshardingState.Split.SourceShardState.readFrom(in);
         }
 
@@ -123,9 +114,7 @@ public class TransportUpdateSplitSourceShardStateAction extends TransportMasterN
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getTransportVersion().supports(RESHARD_SPLIT_ALLOCATION_ID_IN_SOURCE_STATE_REQUEST)) {
-                allocationId.writeTo(out);
-            }
+            allocationId.writeTo(out);
             state.writeTo(out);
         }
 

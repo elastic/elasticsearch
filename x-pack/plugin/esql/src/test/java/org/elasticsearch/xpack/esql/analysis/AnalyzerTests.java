@@ -6599,4 +6599,25 @@ public class AnalyzerTests extends ESTestCase {
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps, boolean hasTimeSeriesAggregation) {
         return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation);
     }
+
+    public void testCastOverridesAmbiguityError() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | EVAL tx = unsupported::keyword
+            """, "mapping-multi-field-variation.json"));
+
+        String msg = e.getMessage();
+
+        assertThat(msg, not(containsString("ambiguities")));
+        assertTrue(msg.length() > 0);
+    }
+
+    public void testAmbiguityWithoutCastStillFails() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM test
+            | EVAL tx = unsupported
+            """, "mapping-multi-field-variation.json"));
+
+        assertThat(e.getMessage(), containsString("Cannot use field"));
+    }
 }

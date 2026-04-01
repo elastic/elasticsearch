@@ -2589,8 +2589,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         static Attribute checkUnresolved(FieldAttribute fa) {
             if (fa.field() instanceof InvalidMappedField imf) {
-                String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
+
+                // ONLY skip when used inside CAST
+                if (fa.sourceText().contains("::")) {
+                    return fa;
+                }
+
+                String unresolvedMessage =
+                    "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
+
                 List<String> types = imf.getTypesToIndices().keySet().stream().toList();
+
                 return new UnsupportedAttribute(
                     fa.source(),
                     fa.name(),
@@ -2601,20 +2610,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             return fa;
         }
+    }    
 
-        private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
-            List<Attribute> output = plan.output();
-            List<Attribute> newOutput = new ArrayList<>(output.size());
-            for (Attribute attr : output) {
-                // Do not let the synthetic union type field attributes end up in the final output.
-                if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
-                    continue;
-                }
-                newOutput.add(attr);
+    private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
+        List<Attribute> output = plan.output();
+        List<Attribute> newOutput = new ArrayList<>(output.size());
+        for (Attribute attr : output) {
+            // Do not let the synthetic union type field attributes end up in the final output.
+            if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
+                continue;
             }
-
-            return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
+            newOutput.add(attr);
         }
+
+        return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
     }
 
     /**

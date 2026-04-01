@@ -269,13 +269,8 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         final Directory dir = newDirectory();
         final IndexReader reader;
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
-            writer.addDocument(List.of(
-                new StringField("kw", "A", Field.Store.NO),
-                new StringField("kw", "B", Field.Store.NO)
-            ));
-            writer.addDocument(List.of(
-                new StringField("kw", "A", Field.Store.NO)
-            ));
+            writer.addDocument(List.of(new StringField("kw", "A", Field.Store.NO), new StringField("kw", "B", Field.Store.NO)));
+            writer.addDocument(List.of(new StringField("kw", "A", Field.Store.NO)));
             writer.forceMerge(1);
             reader = writer.getReader();
         }
@@ -291,8 +286,10 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
 
             SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
             SearchStats stats = SearchContextStats.from(List.of(ctx));
-            assertFalse("keyword field with MVs must not be reported as single-valued",
-                stats.isSingleValue(new FieldAttribute.FieldName("kw")));
+            assertFalse(
+                "keyword field with MVs must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("kw"))
+            );
         } finally {
             IOUtils.close(reader, mapperService, dir);
         }

@@ -362,8 +362,10 @@ tests:
   method: testDatafeedTimingStats_DatafeedRecreated
   issue: https://github.com/elastic/elasticsearch/issues/138348
 - class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats.sumAsSurrogateWithOverflowRow}
-  issue: https://github.com/elastic/elasticsearch/issues/145424
+  methods:
+  - "test {csv-spec:stats.*Overflow*}"
+  - "test {csv-spec:k8s-timeseries-sum-over-time.*Overflow*}"
+  issue: https://github.com/elastic/elasticsearch/issues/145415
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:unsigned_long.evalNullEqualsUnsignedLong}
   issue: https://github.com/elastic/elasticsearch/issues/145426

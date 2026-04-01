@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -28,18 +30,29 @@ public final class FileSet {
     private final List<StorageEntry> files;
     private final String originalPattern;
     private final PartitionMetadata partitionMetadata;
+    private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo;
 
     public FileSet(List<StorageEntry> files, String originalPattern) {
-        this(files, originalPattern, null);
+        this(files, originalPattern, null, null);
     }
 
     public FileSet(List<StorageEntry> files, String originalPattern, @Nullable PartitionMetadata partitionMetadata) {
+        this(files, originalPattern, partitionMetadata, null);
+    }
+
+    public FileSet(
+        List<StorageEntry> files,
+        String originalPattern,
+        @Nullable PartitionMetadata partitionMetadata,
+        @Nullable Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo
+    ) {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
         this.files = List.copyOf(files);
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
+        this.fileSchemaInfo = fileSchemaInfo;
     }
 
     public List<StorageEntry> files() {
@@ -53,6 +66,19 @@ public final class FileSet {
     @Nullable
     public PartitionMetadata partitionMetadata() {
         return partitionMetadata;
+    }
+
+    @Nullable
+    public Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo() {
+        return fileSchemaInfo;
+    }
+
+    /**
+     * Returns a new FileSet with per-file schema info attached.
+     * Used by schema reconciliation to pass column mappings from planning to split discovery.
+     */
+    public FileSet withSchemaInfo(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
+        return new FileSet(files, originalPattern, partitionMetadata, schemaInfo);
     }
 
     public int size() {

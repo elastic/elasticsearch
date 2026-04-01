@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 145403
+summary: Synthetic id bloom filter configurations
+type: feature

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -138,10 +137,5 @@ public class AzureOpenAiCompletionServiceSettings extends AzureOpenAiServiceSett
         if (out.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
             out.writeOptionalWriteable(oAuth2Settings);
         }
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this);
     }
 }

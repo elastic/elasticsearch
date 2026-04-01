@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -302,10 +301,5 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), dimensions, dimensionsSetByUser, maxInputTokens, similarity);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this);
     }
 }

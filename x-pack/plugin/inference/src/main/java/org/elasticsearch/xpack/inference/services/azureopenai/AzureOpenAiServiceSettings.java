@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -168,5 +169,10 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
     @Override
     public int hashCode() {
         return Objects.hash(resourceName, deploymentId, apiVersion, rateLimitSettings, oAuth2Settings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

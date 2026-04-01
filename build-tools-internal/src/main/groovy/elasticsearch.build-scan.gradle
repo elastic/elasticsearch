@@ -62,6 +62,10 @@ develocity {
         def jobName = safeName(jobLabel)
 
         tag 'CI'
+        if (Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") > 0) {
+          tag 'RETRY'
+          value 'Retry Count', System.getenv('BUILDKITE_RETRY_COUNT')
+        }
         link 'CI Build', "${buildKiteUrl}#${System.getenv('BUILDKITE_JOB_ID')}"
         value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
         value 'Build ID', System.getenv('BUILDKITE_BUILD_ID')

@@ -131,7 +131,11 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         indexDocuments(indexName);
 
         Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_seq_no");
-        assertDocValuesFormat(indexName, ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, expectedFields);
+        assertDocValuesFormat(
+            indexName,
+            ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK,
+            expectedFields
+        );
     }
 
     public void testTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {

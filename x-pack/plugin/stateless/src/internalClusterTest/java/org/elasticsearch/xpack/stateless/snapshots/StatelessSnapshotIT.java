@@ -24,11 +24,13 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
@@ -40,6 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -48,7 +51,13 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), StatelessMockRepositoryPlugin.class);
+        @SuppressWarnings("unchecked")
+        final var plugins = CollectionUtils.appendToCopyNoNullElements(
+            super.nodePlugins(),
+            StatelessMockRepositoryPlugin.class,
+            TestTelemetryPlugin.class
+        );
+        return plugins;
     }
 
     @Override
@@ -147,6 +156,44 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
 
         ensureGreen(indexName);
         assertHitCount(prepareSearch(indexName), nDocs);
+    }
+
+    public void testStatelessSnapshotDoesNotReadFromCache() {
+        final var settings = Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build();
+        final var indexNode = startMasterAndIndexNode(settings);
+
+        final String indexName = randomIndexName();
+        final int numberOfShards = between(1, 5);
+        createIndex(indexName, numberOfShards, 0);
+        ensureGreen(indexName);
+        indexAndMaybeFlush(indexName);
+        flush(indexName); // flush so that snapshot does not flush it and lead to cache activities
+
+        final var repoName = randomRepoName();
+        createRepository(repoName, "fs");
+
+        // Force evict cache and gather metrics before snapshot so that we can assert that snapshot does not lead to cache activities
+        final var indexShardBlobStoreCacheDirectory = BlobStoreCacheDirectory.unwrapDirectory(
+            findIndexShard(indexName).store().directory()
+        );
+        getCacheService(indexShardBlobStoreCacheDirectory).forceEvict((key) -> true);
+        final var testTelemetryPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
+        testTelemetryPlugin.collect();
+        long readsBeforeSnapshot = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long missesBeforeSnapshot = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+
+        final var snapshotName = randomSnapshotName();
+        createSnapshot(repoName, snapshotName, List.of(indexName), List.of());
+        // Assert snapshot does not lead to any cache activities
+        testTelemetryPlugin.collect();
+        assertThat(
+            testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(),
+            equalTo(readsBeforeSnapshot)
+        );
+        assertThat(
+            testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(),
+            equalTo(missesBeforeSnapshot)
+        );
     }
 
     public void testSnapshotHollowShard() {

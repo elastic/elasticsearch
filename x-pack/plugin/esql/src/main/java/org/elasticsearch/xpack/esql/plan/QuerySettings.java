@@ -74,17 +74,20 @@ public class QuerySettings {
         ZoneOffset.UTC
     );
 
-    @Param(
-        name = "unmapped_fields",
-        type = { "keyword" },
-        since = "9.3.0",
-        description = "Defines how unmapped fields are treated. Possible values are:\n\n"
-            + "- `DEFAULT` (default) - standard ESQL queries fail when referencing unmapped fields, "
-            + "while other query types (e.g. PromQL) may treat them differently;\n"
-            + "- `NULLIFY` - treats unmapped fields as null values.\n"
-            + "- `LOAD` - attempts to load the fields from the source. {applies_to}`stack: preview 9.4`\n"
-    )
+    @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
+        This setting determines how unmapped fields are treated. Possible values are:
+
+        - `DEFAULT` (default) - Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
+        may treat them differently.
+        - `NULLIFY` - Treats unmapped fields as null values.
+        - `LOAD` - Attempts to load unmapped fields  from the stored JSON
+        [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md). {applies_to}`stack: preview 9.4`
+
+        In the simplest form, an unmapped field is one referenced in a query while absent from the mapping of the index being queried.
+        If querying multiple indices, a field is considered unmapped if it was referenced in the query while absent from the mapping of
+        at least one of the indices; partially unmapped.""")
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = "Make the field null if it is unmapped.")
+    @Example(file = "unmapped-load", tag = "unmapped-load-sample", description = "Load the field from `_source` if it is unmapped.")
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
         "unmapped_fields",
         DataType.KEYWORD,

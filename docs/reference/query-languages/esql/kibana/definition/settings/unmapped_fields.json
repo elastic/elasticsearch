@@ -7,5 +7,5 @@
   "serverlessOnly" : false,
   "preview" : true,
   "snapshotOnly" : false,
-  "description" : "Defines how unmapped fields are treated. Possible values are:\n\n- `DEFAULT` (default) - standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL) may treat them differently;\n- `NULLIFY` - treats unmapped fields as null values.\n- `LOAD` - attempts to load the fields from the source. {applies_to}`stack: preview 9.4`\n"
+  "description" : "This setting determines how unmapped fields are treated. Possible values are:\n\n- `DEFAULT` (default) - Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)\nmay treat them differently.\n- `NULLIFY` - Treats unmapped fields as null values.\n- `LOAD` - Attempts to load unmapped fields  from the stored JSON\n[`_source`](https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/mapping-source-field). {applies_to}`stack: preview 9.4`\n\nIn the simplest form, an unmapped field is one referenced in a query while absent from the mapping of the index being queried.\nIf querying multiple indices, a field is considered unmapped if it was referenced in the query while absent from the mapping of\nat least one of the indices; partially unmapped."
 }

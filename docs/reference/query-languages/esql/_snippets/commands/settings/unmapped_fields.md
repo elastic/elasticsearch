@@ -5,12 +5,17 @@
 serverless: preview
 stack: preview 9.3.0
 ```
-Defines how unmapped fields are treated. Possible values are:
+This setting determines how unmapped fields are treated. Possible values are:
 
-- `DEFAULT` (default) - standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL) may treat them differently;
-- `NULLIFY` - treats unmapped fields as null values.
-- `LOAD` - attempts to load the fields from the source. {applies_to}`stack: preview 9.4`
+- `DEFAULT` (default) - Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
+may treat them differently.
+- `NULLIFY` - Treats unmapped fields as null values.
+- `LOAD` - Attempts to load unmapped fields  from the stored JSON
+[`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md). {applies_to}`stack: preview 9.4`
 
+In the simplest form, an unmapped field is one referenced in a query while absent from the mapping of the index being queried.
+If querying multiple indices, a field is considered unmapped if it was referenced in the query while absent from the mapping of
+at least one of the indices; partially unmapped.
 
 **Type**: `keyword`
 
@@ -29,4 +34,23 @@ FROM employees
 | emp_no:integer | foo:null |
 | --- | --- |
 | 10001 | null |
+
+## Example
+
+Load the field from `_source` if it is unmapped.
+
+```esql
+SET unmapped_fields="load";
+FROM partial_mapping_sample_data
+| STATS s = SUM(event_duration), c = COUNT(*) BY unmapped_message
+| SORT unmapped_message
+```
+
+| s:long | c:long | unmapped_message:keyword |
+| --- | --- | --- |
+| 1232381 | 1 | 43 |
+| 1756466 | 1 | Disconnected from 10.1.0.1 |
+| 2764888 | 1 | Disconnected from 10.1.0.2 |
+| 3450232 | 1 | Disconnected from 10.1.0.3 |
+| 14027353 | 3 | Disconnection error |
 

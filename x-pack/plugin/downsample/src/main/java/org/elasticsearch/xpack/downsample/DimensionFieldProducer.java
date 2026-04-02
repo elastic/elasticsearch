@@ -96,14 +96,27 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
             if (docValues.advanceExact(docId) == false) {
                 continue;
             }
-            int docValueCount = docValues.docValueCount();
-            for (int j = 0; j < docValueCount; j++) {
-                this.dimension.collectOnce(docValues.nextValue());
-            }
+            this.dimension.collectOnce(retrieveDimensionValues(docValues));
             // Only need to record one dimension value from one document, within in the same tsid-and-time-interval bucket values are the
             // same.
             return;
         }
+    }
+
+    private Object retrieveDimensionValues(FormattedDocValues docValues) throws IOException {
+        int docValueCount = docValues.docValueCount();
+        assert docValueCount > 0;
+        Object value;
+        if (docValueCount == 1) {
+            value = docValues.nextValue();
+        } else {
+            var values = new Object[docValueCount];
+            for (int j = 0; j < docValueCount; j++) {
+                values[j] = docValues.nextValue();
+            }
+            value = values;
+        }
+        return value;
     }
 
     @Override
@@ -111,5 +124,9 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
         if (isEmpty() == false) {
             builder.field(this.dimension.name, this.dimension.value());
         }
+    }
+
+    public Object dimensionValue() {
+        return isEmpty() ? null : this.dimension.value();
     }
 }

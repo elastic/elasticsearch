@@ -315,7 +315,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
         int numVectors = values.size();
         final float approximateCost;
-        if (esAcceptDocs == ESAcceptDocs.ESAcceptDocsAll.INSTANCE) {
+        if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
             approximateCost = numVectors;
         } else {
             approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();

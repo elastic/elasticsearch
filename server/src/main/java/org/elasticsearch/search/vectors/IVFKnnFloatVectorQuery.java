@@ -50,7 +50,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio,
         boolean doPrecondition
     ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition);
+        super(field, visitRatio, k, numCands, filter, doPrecondition, null, null);
         this.query = query;
     }
 

@@ -161,6 +161,11 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         return runningTasks.get();
     }
 
+    // exposed for testing
+    int queuedTasks() {
+        return tasks.size();
+    }
+
     /**
      * Run a single task on the given executor which eagerly pulls tasks from the queue and executes them. This must only be used if the
      * tasks in the queue are all synchronous, i.e. they release their ref before returning from {@code onResponse()}.

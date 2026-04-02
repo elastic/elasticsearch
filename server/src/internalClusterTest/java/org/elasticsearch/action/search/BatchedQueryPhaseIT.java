@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -81,6 +82,14 @@ public class BatchedQueryPhaseIT extends ESIntegTestCase {
             "test skipped because batched query execution disabled by feature flag",
             SearchService.BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled()
         );
+        assertAdaptiveReplicaSelectionStats(QUERY_THEN_FETCH);
+    }
+
+    public void testAdaptiveReplicaSelectionStatsWithDFS() {
+        assertAdaptiveReplicaSelectionStats(DFS_QUERY_THEN_FETCH);
+    }
+
+    private void assertAdaptiveReplicaSelectionStats(SearchType searchType) {
         internalCluster().ensureAtLeastNumDataNodes(3);
 
         String indexName = "test-ars-stats";
@@ -104,7 +113,7 @@ public class BatchedQueryPhaseIT extends ESIntegTestCase {
         String coordinatorNodeId = getNodeId(coordinatorNode);
 
         for (int i = 0; i < 20; i++) {
-            assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(indexName).setSearchType(QUERY_THEN_FETCH), response -> {});
+            assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(indexName).setSearchType(searchType), response -> {});
         }
 
         ResponseCollectorService responseCollectorService = internalCluster().getInstance(ResponseCollectorService.class, coordinatorNode);

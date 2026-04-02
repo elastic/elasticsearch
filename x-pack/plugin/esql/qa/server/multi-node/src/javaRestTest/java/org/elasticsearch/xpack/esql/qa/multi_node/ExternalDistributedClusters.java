@@ -28,6 +28,7 @@ public class ExternalDistributedClusters {
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.testCluster(spec -> {
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES);
+            spec.plugin("inference-service-test");
             spec.module("repository-s3");
             spec.module("repository-gcs");
             spec.setting("xpack.ml.enabled", "false");

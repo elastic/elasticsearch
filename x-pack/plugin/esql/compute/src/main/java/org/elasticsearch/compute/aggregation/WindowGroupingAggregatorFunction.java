@@ -83,25 +83,33 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                 return next.prepareEvaluateFinal(selected, ctx);
             }
         }
+        // When output filtering is active, allGroupIds contains every group (including sub-bucket
+        // groups that won't appear in the final output). We need all of them for evaluateIntermediate
+        // so that neighbor data is available during the window merge. When null, selected already
+        // contains every group.
+        IntVector allGroups = ctx.allGroupIds();
+        if (allGroups == null) {
+            allGroups = selected;
+        }
         int blockCount = next.intermediateBlockCount();
         List<Integer> channels = IntStream.range(0, blockCount).boxed().toList();
         GroupingAggregator.Factory aggregatorFactory = supplier.groupingAggregatorFactory(AggregatorMode.FINAL, channels);
         GroupingAggregator finalAgg = aggregatorFactory.apply(ctx.driverContext());
         try {
             Block[] intermediateBlocks = new Block[blockCount];
-            int[] backwards = new int[selected.getPositionCount()];
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int groupId = selected.getInt(i);
-                backwards = ArrayUtil.grow(backwards, groupId + 1);
-                backwards[groupId] = i;
+            int[] backwards = new int[allGroups.getPositionCount()];
+            for (int i = 0; i < allGroups.getPositionCount(); i++) {
+                int gid = allGroups.getInt(i);
+                backwards = ArrayUtil.grow(backwards, gid + 1);
+                backwards[gid] = i;
             }
             try {
                 // TODO slice into pages
-                try (PreparedForEvaluation prepared = next.prepareEvaluateIntermediate(selected, ctx)) {
-                    prepared.evaluate(intermediateBlocks, 0, selected);
+                try (PreparedForEvaluation prepared = next.prepareEvaluateIntermediate(allGroups, ctx)) {
+                    prepared.evaluate(intermediateBlocks, 0, allGroups);
                 }
                 Page page = new Page(intermediateBlocks);
-                finalAgg.aggregatorFunction().addIntermediateInput(0, selected, page);
+                finalAgg.aggregatorFunction().addIntermediateInput(0, allGroups, page);
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     mergeBucketsFromWindow(groupId, backwards, page, finalAgg.aggregatorFunction(), ctx);

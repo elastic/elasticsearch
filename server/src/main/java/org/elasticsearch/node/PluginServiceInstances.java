@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -67,5 +68,6 @@ public record PluginServiceInstances(
     LinkedProjectConfigService linkedProjectConfigService,
     ProjectRoutingResolver projectRoutingResolver,
     RemoteTransportClient remoteTransportClient,
-    CrossProjectModeDecider crossProjectModeDecider
+    CrossProjectModeDecider crossProjectModeDecider,
+    DataStreamLifecycleErrorStore dlmErrorStore
 ) implements Plugin.PluginServices {}

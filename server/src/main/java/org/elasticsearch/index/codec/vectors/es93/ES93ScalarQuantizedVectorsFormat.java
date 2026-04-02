@@ -46,7 +46,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
 
     static final FlatVectorsScorer flatVectorScorer = new ESQuantizedFlatVectorsScorer(
-        new ScalarQuantizedVectorScorer(ES93FlatVectorScorer.INSTANCE)
+        new ScalarQuantizedVectorScorer(ES93GenericFlatVectorScorer.INSTANCE)
     );
 
     /** The minimum confidence interval */

@@ -17,6 +17,7 @@ import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
+import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
 
 import java.io.IOException;
@@ -43,16 +44,27 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         byte indexBits,
         int dimension,
         int dataLength,
-        int bulkSize
+        int bulkSize,
+        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) {
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
             && dataLength >= 16
             && ((queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) || (queryBits == 7 && indexBits == 7))) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-            return new MemorySegmentESNextOSQVectorsScorer(unwrappedInput, queryBits, indexBits, dimension, dataLength, bulkSize);
+            if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
+                return new MemorySegmentESNextOSQVectorsScorer(
+                    unwrappedInput,
+                    queryBits,
+                    indexBits,
+                    dimension,
+                    dataLength,
+                    bulkSize,
+                    int4Encoding
+                );
+            }
         }
-        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
+        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     @Override
@@ -60,7 +72,9 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-            return new MemorySegmentES91OSQVectorsScorer(unwrappedInput, dimension, bulkSize);
+            if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
+                return new MemorySegmentES91OSQVectorsScorer(unwrappedInput, dimension, bulkSize);
+            }
         }
         return new OnHeapES91OSQVectorsScorer(input, dimension, bulkSize);
     }
@@ -69,7 +83,11 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-        return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize);
+
+        if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
+            return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize);
+        }
+        return new ES92Int7VectorsScorer(input, dimension, bulkSize);
     }
 
     @Override
@@ -78,7 +96,9 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         if (NATIVE_SUPPORTED) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-            return new NativeBinaryQuantizedVectorScorer(unwrappedInput, dimensions, vectorLengthInBytes);
+            if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
+                return new NativeBinaryQuantizedVectorScorer(unwrappedInput, dimensions, vectorLengthInBytes);
+            }
         }
         return new DefaultES93BinaryQuantizedVectorScorer(input, dimensions, vectorLengthInBytes);
     }

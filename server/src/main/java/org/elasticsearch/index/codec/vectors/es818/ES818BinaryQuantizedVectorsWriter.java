@@ -943,6 +943,11 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         @Override
+        public int getVectorByteLength() {
+            return values.getVectorByteLength();
+        }
+
+        @Override
         public float[] vectorValue(int ord) throws IOException {
             System.arraycopy(values.vectorValue(ord), 0, normalizedVector, 0, normalizedVector.length);
             VectorUtil.l2normalize(normalizedVector);

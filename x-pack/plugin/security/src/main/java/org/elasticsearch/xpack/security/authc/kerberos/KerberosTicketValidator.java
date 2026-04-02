@@ -140,12 +140,11 @@ public class KerberosTicketValidator {
         throws GSSException {
         try {
             return Subject.callAs(subject, () -> gssContext.acceptSecContext(base64decodedTicket, 0, base64decodedTicket.length));
-        } catch (Exception e) {
-            Throwable cause = (e instanceof CompletionException ce) ? ce.getCause() : e;
-            if (cause instanceof GSSException gsse) {
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof GSSException gsse) {
                 throw gsse;
             }
-            throw new RuntimeException(cause);
+            throw new RuntimeException(e.getCause());
         }
     }
 
@@ -163,12 +162,11 @@ public class KerberosTicketValidator {
                 subject,
                 () -> gssManager.createCredential(null, GSSCredential.DEFAULT_LIFETIME, SUPPORTED_OIDS, GSSCredential.ACCEPT_ONLY)
             );
-        } catch (Exception e) {
-            Throwable cause = (e instanceof CompletionException ce) ? ce.getCause() : e;
-            if (cause instanceof GSSException gsse) {
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof GSSException gsse) {
                 throw gsse;
             }
-            throw new RuntimeException(cause);
+            throw new RuntimeException(e.getCause());
         }
     }
 

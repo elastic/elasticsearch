@@ -712,7 +712,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 .admin()
                 .cluster()
                 .createSnapshot(createRequest)
-                .get(SNAPSHOT_TIMEOUT.hours(), TimeUnit.HOURS);
+                .get(SNAPSHOT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
             checkSnapshotInfoSuccess(indexName, snapshotName, response.getSnapshotInfo());
         } catch (TimeoutException e) {
             throw new ElasticsearchException(
@@ -723,12 +723,19 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 indexName
             );
         } catch (Exception e) {
-            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+            final Throwable unwrapped = unwrapExecutionException(e);
+            if (unwrapped instanceof InterruptedException
+                || ExceptionsHelper.unwrapCause(unwrapped) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw e instanceof ElasticsearchException
-                ? (ElasticsearchException) e
-                : new ElasticsearchException("DLM failed to start snapshot [{}] for index [{}]", e, snapshotName, indexName);
+            throw unwrapped instanceof ElasticsearchException
+                ? (ElasticsearchException) unwrapped
+                : new ElasticsearchException(
+                    "DLM failed to start snapshot [{}] for index [{}]",
+                    unwrapped,
+                    snapshotName,
+                    indexName
+                );
         }
     }
 
@@ -737,12 +744,40 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * If not, throws an exception with details about the failure.
      */
     static void checkSnapshotInfoSuccess(String indexName, String snapshotName, SnapshotInfo snapshotInfo) {
-        if (snapshotInfo != null && snapshotInfo.failedShards() == 0) {
-            logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);
-        } else {
-            int failedShards = snapshotInfo != null ? snapshotInfo.failedShards() : -1;
+        if (snapshotInfo == null) {
             throw new ElasticsearchException(
-                Strings.format("DLM snapshot [%s] for index [%s] finished with [%d] failed shards", snapshotName, indexName, failedShards)
+                Strings.format("DLM snapshot [%s] for index [%s] did not return snapshot info", snapshotName, indexName)
+            );
+        }
+
+        if (snapshotInfo.failedShards() == 0) {
+            logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);
+            return;
+        }
+
+        int failedShards = snapshotInfo.failedShards();
+        String state = snapshotInfo.state() == null ? "unknown" : snapshotInfo.state().name();
+        String reason = snapshotInfo.reason();
+        if (Strings.hasText(reason)) {
+            throw new ElasticsearchException(
+                Strings.format(
+                    "DLM snapshot [%s] for index [%s] finished with [%d] failed shards, state [%s], reason [%s]",
+                    snapshotName,
+                    indexName,
+                    failedShards,
+                    state,
+                    reason
+                )
+            );
+        } else {
+            throw new ElasticsearchException(
+                Strings.format(
+                    "DLM snapshot [%s] for index [%s] finished with [%d] failed shards, state [%s]",
+                    snapshotName,
+                    indexName,
+                    failedShards,
+                    state
+                )
             );
         }
     }

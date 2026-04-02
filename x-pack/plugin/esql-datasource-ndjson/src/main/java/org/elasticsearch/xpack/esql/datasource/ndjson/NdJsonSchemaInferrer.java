@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.EnumSet;

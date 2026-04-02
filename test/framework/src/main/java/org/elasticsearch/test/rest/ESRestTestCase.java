@@ -914,7 +914,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             "metrics-apm.transaction_60m_metrics-default_policy",
             "traces-apm.rum_traces-default_policy",
             "traces-apm.sampled_traces-default_policy",
-            "traces-apm.traces-default_policy"
+            "traces-apm.traces-default_policy",
+            ".query-logging-ilm-policy"
         );
     }
 
@@ -2447,6 +2448,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             return true;
         }
         if (name.startsWith(".deprecation-")) {
+            return true;
+        }
+        if (name.startsWith(".query-logging-")) {
             return true;
         }
         if (name.startsWith(".fleet-")) {

@@ -237,7 +237,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     ) {
         if (elementType == DenseVectorFieldMapper.ElementType.BFLOAT16
             && (indexVersionCreated.onOrAfter(BFLOAT16_DEFAULT_INDEX_OPTIONS)
-            || indexVersionCreated.between(BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT, ES_VERSION_94)) == false) {
+                || indexVersionCreated.between(BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT, ES_VERSION_94)) == false) {
             return null;
         }
         // These are the default index options for dense_vector fields, used then semantic_text does not default to bbq_disk.

@@ -375,7 +375,7 @@ public class DownsampleAction implements LifecycleAction {
     }
 
     private boolean isForceMergeEnabled() {
-        return forceMergeIndex == null || forceMergeIndex;
+        return forceMergeIndex != null && forceMergeIndex;
     }
 
     @Override

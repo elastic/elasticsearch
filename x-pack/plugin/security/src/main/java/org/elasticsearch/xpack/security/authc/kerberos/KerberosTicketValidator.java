@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 
 import javax.security.auth.Subject;
 import javax.security.auth.login.AppConfigurationEntry;
@@ -140,10 +141,11 @@ public class KerberosTicketValidator {
         try {
             return Subject.callAs(subject, () -> gssContext.acceptSecContext(base64decodedTicket, 0, base64decodedTicket.length));
         } catch (Exception e) {
-            if (e instanceof GSSException gsse) {
+            Throwable cause = (e instanceof CompletionException ce) ? ce.getCause() : e;
+            if (cause instanceof GSSException gsse) {
                 throw gsse;
             }
-            throw new RuntimeException(e);
+            throw new RuntimeException(cause);
         }
     }
 
@@ -162,10 +164,11 @@ public class KerberosTicketValidator {
                 () -> gssManager.createCredential(null, GSSCredential.DEFAULT_LIFETIME, SUPPORTED_OIDS, GSSCredential.ACCEPT_ONLY)
             );
         } catch (Exception e) {
-            if (e instanceof GSSException gsse) {
+            Throwable cause = (e instanceof CompletionException ce) ? ce.getCause() : e;
+            if (cause instanceof GSSException gsse) {
                 throw gsse;
             }
-            throw new RuntimeException(e);
+            throw new RuntimeException(cause);
         }
     }
 

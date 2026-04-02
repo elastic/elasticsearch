@@ -6,8 +6,9 @@
 :   (integer) The maximum number of matching snippets to return.
 
 `num_words`
-:   (integer) The maximum number of words to return in each snippet. When set to 0,
-disables chunking entirely, the input field values are used as-is, which is
+:   (integer) The maximum number of words to return in each snippet.
+	
+{applies_to}`stack: preview 9.4`When set to 0, disables chunking entirely, the input field values are used as-is, which is
 useful when the text has already been chunked.
 
 

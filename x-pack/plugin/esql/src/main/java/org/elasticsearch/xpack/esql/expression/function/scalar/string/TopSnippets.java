@@ -160,8 +160,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                     valueHint = { "3" }
                 ),
                 @MapParam.MapParamEntry(name = "num_words", type = "integer", description = """
-                    The maximum number of words to return in each snippet. When set to 0,
-                    disables chunking entirely, the input field values are used as-is, which is
+                    The maximum number of words to return in each snippet.\n\t
+                    {applies_to}`stack: preview 9.4`When set to 0, disables chunking entirely, the input field values are used as-is, which is
                     useful when the text has already been chunked.
                     """, valueHint = { "300" }),
                 @MapParam.MapParamEntry(name = "highlight", type = "boolean", description = """

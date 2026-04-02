@@ -39,22 +39,22 @@ import java.util.concurrent.CountDownLatch;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 
-public class DlmFrozenTransitionServiceTests extends ESTestCase {
+public class DLMFrozenTransitionServiceTests extends ESTestCase {
 
     /**
-     * Minimal test double implementing {@link DlmFrozenTransitionRunnable} that blocks until released,
+     * Minimal test double implementing {@link DLMFrozenTransitionRunnable} that blocks until released,
      * allowing tests to observe the transition as running and to record which indices were submitted.
      */
-    static class TestDlmFrozenTransitionRunnable implements DlmFrozenTransitionRunnable {
+    static class TestDLMFrozenTransitionRunnable implements DLMFrozenTransitionRunnable {
         private final String indexName;
         private final CountDownLatch blockUntil;
         private final CountDownLatch started;
 
-        TestDlmFrozenTransitionRunnable(String indexName, CountDownLatch blockUntil) {
+        TestDLMFrozenTransitionRunnable(String indexName, CountDownLatch blockUntil) {
             this(indexName, blockUntil, new CountDownLatch(0));
         }
 
-        TestDlmFrozenTransitionRunnable(String indexName, CountDownLatch blockUntil, CountDownLatch started) {
+        TestDLMFrozenTransitionRunnable(String indexName, CountDownLatch blockUntil, CountDownLatch started) {
             this.indexName = indexName;
             this.blockUntil = blockUntil;
             this.started = started;
@@ -87,13 +87,13 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
     @Before
     public void setupTest() {
         Set<org.elasticsearch.common.settings.Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingSet.add(DlmFrozenTransitionService.POLL_INTERVAL_SETTING);
-        settingSet.add(DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING);
-        settingSet.add(DlmFrozenTransitionService.MAX_QUEUE_SIZE);
+        settingSet.add(DLMFrozenTransitionService.POLL_INTERVAL_SETTING);
+        settingSet.add(DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING);
+        settingSet.add(DLMFrozenTransitionService.MAX_QUEUE_SIZE);
         threadPool = new TestThreadPool(getTestName());
         // Set max_queue_size equal to max_concurrency so that capacity tests remain valid: once maxConcurrency * 2
         // tasks have been submitted, hasCapacity() returns false.
-        int maxConcurrency = DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING.getDefault(Settings.EMPTY);
+        int maxConcurrency = DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING.getDefault(Settings.EMPTY);
         Settings settings = Settings.builder().put("dlm.frozen_transition.max_queue_size", maxConcurrency).build();
         clusterService = createClusterService(
             threadPool,
@@ -110,10 +110,10 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
         super.tearDown();
     }
 
-    private DlmFrozenTransitionService createService() {
-        return new DlmFrozenTransitionService(
+    private DLMFrozenTransitionService createService() {
+        return new DLMFrozenTransitionService(
             clusterService,
-            (indexName, pid) -> new TestDlmFrozenTransitionRunnable(indexName, new CountDownLatch(0))
+            (indexName, pid) -> new TestDLMFrozenTransitionRunnable(indexName, new CountDownLatch(0))
         );
     }
 
@@ -220,9 +220,9 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
         CountDownLatch blockUntil = new CountDownLatch(1);
         CountDownLatch tasksStarted = new CountDownLatch(2);
         List<String> submittedIndices = new CopyOnWriteArrayList<>();
-        var service = new DlmFrozenTransitionService(clusterService, (indexName, pid) -> {
+        var service = new DLMFrozenTransitionService(clusterService, (indexName, pid) -> {
             submittedIndices.add(indexName);
-            return new TestDlmFrozenTransitionRunnable(indexName, blockUntil, tasksStarted);
+            return new TestDLMFrozenTransitionRunnable(indexName, blockUntil, tasksStarted);
         });
         try {
             ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
@@ -259,9 +259,9 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
         CountDownLatch blockUntil = new CountDownLatch(1);
         CountDownLatch taskStarted = new CountDownLatch(1);
         List<String> submittedIndices = new CopyOnWriteArrayList<>();
-        var service = new DlmFrozenTransitionService(clusterService, (indexName, pid) -> {
+        var service = new DLMFrozenTransitionService(clusterService, (indexName, pid) -> {
             submittedIndices.add(indexName);
-            return new TestDlmFrozenTransitionRunnable(indexName, blockUntil, taskStarted);
+            return new TestDLMFrozenTransitionRunnable(indexName, blockUntil, taskStarted);
         });
         try {
             IndexMetadata markedIndex = createMarkedIndex("frozen-ds");
@@ -285,18 +285,18 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
     }
 
     public void testCheckForFrozenIndicesReturnsEarlyWhenCapacityExhausted() throws Exception {
-        int maxConcurrency = DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING.get(clusterService.getSettings());
-        int maxQueue = DlmFrozenTransitionService.MAX_QUEUE_SIZE.get(clusterService.getSettings());
+        int maxConcurrency = DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING.get(clusterService.getSettings());
+        int maxQueue = DLMFrozenTransitionService.MAX_QUEUE_SIZE.get(clusterService.getSettings());
 
         int maxJobs = maxConcurrency + maxQueue;
 
         CountDownLatch blockUntil = new CountDownLatch(1);
         CountDownLatch allSubmitted = new CountDownLatch(maxJobs);
         List<String> submittedIndices = new CopyOnWriteArrayList<>();
-        var service = new DlmFrozenTransitionService(clusterService, (indexName, pid) -> {
+        var service = new DLMFrozenTransitionService(clusterService, (indexName, pid) -> {
             submittedIndices.add(indexName);
             allSubmitted.countDown();
-            return new TestDlmFrozenTransitionRunnable(indexName, blockUntil);
+            return new TestDLMFrozenTransitionRunnable(indexName, blockUntil);
         });
         try {
             // Start with exactly maxJobs marked indices so the initial poll fills capacity without rejection
@@ -336,9 +336,9 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
      */
     public void testAlreadyQueuedIndexIsNotResubmitted() throws Exception {
         Set<org.elasticsearch.common.settings.Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        allSettings.add(DlmFrozenTransitionService.POLL_INTERVAL_SETTING);
-        allSettings.add(DlmFrozenTransitionService.MAX_CONCURRENCY_SETTING);
-        allSettings.add(DlmFrozenTransitionService.MAX_QUEUE_SIZE);
+        allSettings.add(DLMFrozenTransitionService.POLL_INTERVAL_SETTING);
+        allSettings.add(DLMFrozenTransitionService.MAX_CONCURRENCY_SETTING);
+        allSettings.add(DLMFrozenTransitionService.MAX_QUEUE_SIZE);
         Settings singleThreadSettings = Settings.builder()
             .put("dlm.frozen_transition.max_concurrency", 1)
             .put("dlm.frozen_transition.max_queue_size", 5)
@@ -360,9 +360,9 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
             addDataStream(projectBuilder, "second-ds", secondIndex);
             setState(localClusterService, ClusterState.builder(localClusterService.state()).putProjectMetadata(projectBuilder).build());
 
-            var service = new DlmFrozenTransitionService(localClusterService, (indexName, pid) -> {
+            var service = new DLMFrozenTransitionService(localClusterService, (indexName, pid) -> {
                 submittedIndices.add(indexName);
-                return new TestDlmFrozenTransitionRunnable(indexName, blockUntil);
+                return new TestDLMFrozenTransitionRunnable(indexName, blockUntil);
             });
             try {
                 service.clusterChanged(createMasterEventFor(localClusterService, true));
@@ -371,7 +371,7 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
                 // thread, the other is waiting in the queue. We poll submittedTransitions directly so that
                 // the assertion is independent of which index happened to be scheduled first.
                 assertBusy(() -> {
-                    DlmFrozenTransitionExecutor exec = service.getTransitionExecutor();
+                    DLMFrozenTransitionExecutor exec = service.getTransitionExecutor();
                     assertNotNull(exec);
                     assertTrue(exec.transitionSubmitted(firstIndex.getIndex().getName()));
                     assertTrue(exec.transitionSubmitted(secondIndex.getIndex().getName()));

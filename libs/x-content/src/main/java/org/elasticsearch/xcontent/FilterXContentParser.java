@@ -60,6 +60,11 @@ public abstract class FilterXContentParser implements XContentParser {
     }
 
     @Override
+    public boolean supportsMap() {
+        return delegate().supportsMap();
+    }
+
+    @Override
     public Map<String, Object> map() throws IOException {
         return delegate().map();
     }
@@ -78,6 +83,11 @@ public abstract class FilterXContentParser implements XContentParser {
     public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
         throws IOException {
         return delegate().map(mapFactory, mapValueParser);
+    }
+
+    @Override
+    public boolean supportsList() {
+        return delegate().supportsList();
     }
 
     @Override

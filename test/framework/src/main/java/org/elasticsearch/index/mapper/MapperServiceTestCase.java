@@ -67,7 +67,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.plugins.internal.XContentTestMeteringParserDecoratorProvider;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -478,7 +478,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             dynamicTemplates,
             dynamicTemplateParams,
             true,
-            XContentMeteringParserDecorator.NOOP,
+            XContentTestMeteringParserDecoratorProvider.instance(),
             null
         );
     }

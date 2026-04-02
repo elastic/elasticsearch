@@ -158,11 +158,7 @@ public class BundleChangelogsTask extends DefaultTask {
                 versionRef = upstreamRemote + "/" + branch;
             }
             Properties props = new Properties();
-            props.load(
-                new StringReader(
-                    gitWrapper.runCommand("git", "show", versionRef + ":build-tools-internal/version.properties")
-                )
-            );
+            props.load(new StringReader(gitWrapper.runCommand("git", "show", versionRef + ":build-tools-internal/version.properties")));
             String version = props.getProperty("elasticsearch");
 
             LOGGER.info("Finding changelog files for " + version + "...");

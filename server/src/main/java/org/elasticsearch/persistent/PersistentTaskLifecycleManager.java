@@ -142,6 +142,9 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
         if (event.localNodeMaster() == false) {
             return;
         }
+        if (event.metadataChanged() == false && event.masterChanged() == false && event.clusterJustRecovered() == false) {
+            return;
+        }
         reconcile(event.state());
     }
 

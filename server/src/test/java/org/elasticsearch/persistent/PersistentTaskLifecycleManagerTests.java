@@ -47,6 +47,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class PersistentTaskLifecycleManagerTests extends ESTestCase {
     private static final String LOCAL_NODE_ID = "local";
@@ -241,7 +242,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
 
     public void testProjectTaskReconciliationNoInFlightRequests() {
         final var projectId1 = randomUniqueProjectId();
-        final var projectId2 = randomValueOtherThan(projectId1, ESTestCase::randomUniqueProjectId);
+        final var projectId2 = randomUniqueProjectId();
         boolean enabled = randomBoolean();
         final var allSettings = Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(TASK_ENABLED_SETTING));
         final var nodeSettings = Settings.EMPTY;
@@ -667,10 +668,7 @@ public class PersistentTaskLifecycleManagerTests extends ESTestCase {
             }
             setState(clusterService, state);
 
-            verify(persistentTasksService, never()).sendClusterStartRequest(any(), any(), any(), any(), any());
-            verify(persistentTasksService, never()).sendClusterRemoveRequest(any(), any(), any());
-            verify(persistentTasksService, never()).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
-            verify(persistentTasksService, never()).sendProjectRemoveRequest(any(), any(), any(), any());
+            verifyNoInteractions(persistentTasksService);
         }
     }
 

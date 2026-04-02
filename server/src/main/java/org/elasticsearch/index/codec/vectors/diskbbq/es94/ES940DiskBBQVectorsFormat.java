@@ -58,7 +58,9 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final String IVF_META_EXTENSION = "mivf";
 
     public static final int VERSION_START = 1;
-    public static final int VERSION_CURRENT = VERSION_START;
+    public static final int VERSION_DIRECT_IO = VERSION_START;
+    public static final int VERSION_PACKED_INT4 = 2;
+    public static final int VERSION_CURRENT = VERSION_PACKED_INT4;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
@@ -139,7 +141,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
                 return 2 * ((discretized + 7) / 8);
             }
         },
-        FOUR_BIT_SYMMETRIC(2, (byte) 4, (byte) 4) {
+        FOUR_BIT_SYMMETRIC_STRIPED(2, (byte) 4, (byte) 4) {
             @Override
             public void packQuery(int[] quantized, byte[] destination) {
                 ESVectorUtil.transposeHalfByte(quantized, destination);
@@ -192,11 +194,47 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
             public int getQueryPackedLength(int dimensions) {
                 return discretizedDimensions(dimensions);
             }
+        },
+        FOUR_BIT_SYMMETRIC_PACKED(4, (byte) 4, (byte) 4) {
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                packAsBytes(quantized, destination);
+            }
+
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                packNibbles(quantized, destination);
+            }
+
+            @Override
+            public int getDocPackedLength(int dimensions) {
+                int discretized = discretizedDimensions(dimensions);
+                return discretized / 2;
+            }
+
+            @Override
+            public int getQueryPackedLength(int dimensions) {
+                return discretizedDimensions(dimensions);
+            }
+
+            @Override
+            public int discretizedDimensions(int dimensions) {
+                int totalBits = dimensions * 4;
+                return (totalBits + 7) / 8 * 8 / 4;
+            }
         };
 
         private static void packAsBytes(int[] quantized, byte[] destination) {
             for (int i = 0; i < quantized.length; i++) {
                 destination[i] = (byte) quantized[i];
+            }
+        }
+
+        private static void packNibbles(int[] quantized, byte[] destination) {
+            assert quantized.length == destination.length * 2;
+            int packedLength = destination.length;
+            for (int i = 0; i < packedLength; i++) {
+                destination[i] = (byte) ((quantized[i] << 4) | (quantized[packedLength + i] & 0x0F));
             }
         }
 
@@ -266,7 +304,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
             return switch (bits) {
                 case 1 -> ONE_BIT_4BIT_QUERY;
                 case 2 -> TWO_BIT_4BIT_QUERY;
-                case 4 -> FOUR_BIT_SYMMETRIC;
+                case 4 -> FOUR_BIT_SYMMETRIC_PACKED;
                 case 7 -> SEVEN_BIT_SYMMETRIC;
                 default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
             };
@@ -283,6 +321,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
     private final int flatVectorThreshold;
+    private final int writeVersion;
 
     public ES940DiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
         this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
@@ -340,6 +379,34 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         int preconditioningBlockDimension,
         int flatVectorThreshold
     ) {
+        this(
+            quantEncoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            doPrecondition,
+            preconditioningBlockDimension,
+            flatVectorThreshold,
+            VERSION_CURRENT
+        );
+    }
+
+    public ES940DiskBBQVectorsFormat(
+        QuantEncoding quantEncoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        boolean doPrecondition,
+        int preconditioningBlockDimension,
+        int flatVectorThreshold,
+        int writeVersion
+    ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -392,6 +459,13 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
+        this.writeVersion = writeVersion;
+        if (writeVersion < VERSION_PACKED_INT4 && quantEncoding == QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED) {
+            throw new IllegalArgumentException("Packed 4-bit encoding requires version " + VERSION_PACKED_INT4 + " or later");
+        }
+        if (writeVersion >= VERSION_PACKED_INT4 && quantEncoding == QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED) {
+            throw new IllegalArgumentException("Striped 4-bit encoding requires version before " + VERSION_PACKED_INT4);
+        }
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -413,7 +487,8 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
             numMergeWorkers,
             preconditioningBlockDimension,
             doPrecondition,
-            flatVectorThreshold
+            flatVectorThreshold,
+            writeVersion
         );
     }
 

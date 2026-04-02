@@ -61,7 +61,9 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
                 int docId = buffer.get(i);
                 if (docValues.advanceExact(docId)) {
                     var value = retrieveDimensionValues(docValues);
-                    assert false : "Dimension value changed without tsid change [" + value + "] != [" + this.value + "]";
+                    if (value.equals(this.value) == false) {
+                        assert false : "Dimension value changed without tsid change [" + value + "] != [" + this.value + "]";
+                    }
                 }
             }
 

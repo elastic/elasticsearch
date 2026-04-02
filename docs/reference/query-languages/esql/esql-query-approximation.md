@@ -8,7 +8,7 @@ mapped_pages:
 ---
 # Approximate `STATS` queries
 
-ES|QL {{esql}} [`STATS`](/reference/query-languages/esql/commands/stats-by.md) commands summarize large volumes of data into aggregated statistics. For many analytics workloads, exact results are not strictly necessary — approximate results with known error bounds are sufficient, and can be computed dramatically faster. The `approximation` setting enables this: ES|QL rewrites your query to use random sampling and extrapolation, returning estimates together with confidence intervals and a certification flag.
+{{esql}} [`STATS`](/reference/query-languages/esql/commands/stats-by.md) commands summarize large volumes of data into aggregated statistics. For many analytics workloads, exact results are not strictly necessary — approximate results with known error bounds are sufficient, and can be computed dramatically faster. The `approximation` setting enables this: {{esql}} rewrites your query to use random sampling and extrapolation, returning estimates together with confidence intervals and a certification flag.
 
 Approximation breaks the dependency between performance and dataset size. Accuracy depends principally on the data characteristics and the query itself, not on how many rows are in the source index. This means the performance advantage grows as your data grows.
 
@@ -135,7 +135,7 @@ Approximation works best on large, broad queries. Certain query patterns reduce 
 
 ### Highly selective filters
 
-If a query's `WHERE` clause matches only a small fraction of the data, sampling provides little benefit — the data is already small. ES|QL detects this during the rewrite phase and falls back to exact execution. However, the rewrite step itself adds some overhead, so if you know in advance that your query will match very few rows, it is better to run without approximation.
+If a query's `WHERE` clause matches only a small fraction of the data, sampling provides little benefit — the data is already small. {{esql}} detects this during the rewrite phase and falls back to exact execution. However, the rewrite step itself adds some overhead, so if you know in advance that your query will match very few rows, it is better to run without approximation.
 
 ### High-cardinality grouping
 
@@ -152,7 +152,7 @@ If accuracy for high-cardinality queries matters, increase the sample size using
 
 ## Using SAMPLE directly
 
-For expert users who want full control, ES|QL provides the {{esql}} [`SAMPLE`](/reference/query-languages/esql/commands/sample.md) command. This gives you raw sampled data with no automatic extrapolation or confidence interval computation:
+For expert users who want full control, {{esql}} provides the [`SAMPLE`](/reference/query-languages/esql/commands/sample.md) command. This gives you raw sampled data with no automatic extrapolation or confidence interval computation:
 
 ```esql
 FROM web_traffic | SAMPLE 0.01

@@ -149,6 +149,8 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
                     } else if (mockCreateSnapshotResponse.get() != null) {
                         listener.onResponse((Response) mockCreateSnapshotResponse.get());
                     }
+                } else {
+                    throw new RuntimeException("Unexpected request type: " + request.getClass());
                 }
             }
         };

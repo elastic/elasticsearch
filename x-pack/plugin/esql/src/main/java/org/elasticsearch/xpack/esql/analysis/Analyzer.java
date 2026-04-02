@@ -2339,28 +2339,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             List<Expression> args = vectorFunction.arguments();
             List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(vectorFunction.getClass());
-            List<Expression> newArgs = new ArrayList<>();
+            List<Expression> newArgs = new ArrayList<>(args.size());
+            boolean changed = false;
             for (int i = 0; i < args.size(); i++) {
                 Expression arg = args.get(i);
-                if (targetDataTypes.get(i) == DENSE_VECTOR && arg.resolved()) {
-                    var dataType = arg.dataType();
-                    if (dataType == KEYWORD) {
-                        if (arg.foldable()) {
-                            Expression exp = castStringLiteral(arg, DENSE_VECTOR, configuration);
-                            if (exp != arg) {
-                                newArgs.add(exp);
-                                continue;
-                            }
-                        }
-                    } else if (dataType.isNumeric()) {
-                        newArgs.add(new ToDenseVector(vectorFunction.source(), arg));
-                        continue;
+                if (targetDataTypes.get(i) == DENSE_VECTOR) {
+                    Expression cast = castArgToDenseVector(arg, vectorFunction.source(), configuration);
+                    if (cast != arg) {
+                        changed = true;
                     }
+                    newArgs.add(cast);
+                } else {
+                    newArgs.add(arg);
                 }
-                newArgs.add(arg);
             }
-
-            return vectorFunction.replaceChildren(newArgs);
+            return changed ? vectorFunction.replaceChildren(newArgs) : vectorFunction;
         }
 
         /**

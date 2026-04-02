@@ -51,7 +51,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
+import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -176,9 +178,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var indexName = randomIdentifier();
         internalCluster().startDataOnlyNode();
         var randomNonDefaultCodec = randomFrom(
-            CodecService.BEST_COMPRESSION_CODEC,
+            CodecService.LEGACY_BEST_COMPRESSION_CODEC,
             CodecService.LEGACY_DEFAULT_CODEC,
-            CodecService.BEST_COMPRESSION_CODEC,
             CodecService.LUCENE_DEFAULT_CODEC
         );
 
@@ -198,7 +199,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             containsString(
                 "The setting ["
                     + IndexSettings.SYNTHETIC_ID.getKey()
-                    + "] is only permitted when [index.codec] is set to [default]. Current mode: ["
+                    + "] is only permitted when [index.codec] is set to [default] or [best_compression]. Current mode: ["
                     + randomNonDefaultCodec
                     + "]."
             )
@@ -1301,6 +1302,76 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
+    public void testBestCompressionCodec() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        String indexName = randomIndexName();
+
+        // Set best_compression codec
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC);
+        final var mapping = """
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "metric": {
+                        "properties": {
+                            "field": {
+                                "type": "keyword"
+                            },
+                            "value": {
+                                "type": "integer",
+                                "time_series_metric": "counter"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(settingsBuilder).setMapping(mapping).get());
+
+        var timestamp = Instant.now();
+        createDocuments(
+            indexName,
+            document(timestamp, "vm-dev01", "cpu-load", 0),
+            document(timestamp.plus(1, ChronoUnit.SECONDS), "vm-dev02", "cpu-load", 1)
+        );
+        ensureGreen(indexName);
+        flushAndRefresh(indexName);
+
+        // Validate synthetic ids are being used correctly
+        var diskUsage = diskUsage(indexName);
+        var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
+        assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+        assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
+
+        var indices = new HashSet<String>();
+        indices.add(indexName);
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+
+        // Validate assumption about index version
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get();
+        String versionSetting = getSettingsResponse.getSetting(indexName, IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+        IndexVersion version = IndexVersion.fromId(Integer.parseInt(versionSetting));
+        assertTrue(version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION));
+
+        // Validate codec setting is best_compression
+        String codecSetting = getSettingsResponse.getSetting(indexName, EngineConfig.INDEX_CODEC_SETTING.getKey());
+        assertThat(codecSetting, equalTo(CodecService.BEST_COMPRESSION_CODEC));
+
+        // Validate shards use best_compression format
+        assertShardsAreUsingZstdBestCompressionMode(indices);
+    }
+
     public void testDefaultSetting() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
 
@@ -1311,8 +1382,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // (codec will be randomised by ESIntegTestCase.randomIndexTemplate if not explicitly set)
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC);
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname");
+        if (randomBoolean()) {
+            settingsBuilder.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
+        }
         final var mapping = """
             {
                 "properties": {
@@ -1566,6 +1639,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);  // Sequence numbers are needed for id validation.
+        if (randomBoolean()) {
+            settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
+        }
         if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
@@ -1933,6 +2009,42 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             }
         }
         assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
+    }
+
+    private static void assertShardsAreUsingZstdBestCompressionMode(Set<String> indices) {
+        int nbVisitedIndices = 0;
+        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesServices) {
+                if (indices.contains(indexService.index().getName())) {
+                    int nbVisitedShards = 0;
+                    for (var indexShard : indexService) {
+                        nbVisitedShards += indexShard.withEngineOrNull(engine -> {
+                            if (engine != null) {
+                                assertThat(engine.config().getCodec().getName(), equalTo(ES94TSDBBestCompressionLucene104Codec.NAME));
+                                try (var searcher = engine.acquireSearcher("test_codec")) {
+                                    for (var leaf : searcher.getLeafContexts()) {
+                                        var segInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo().info;
+                                        assertThat(
+                                            segInfo.getAttribute(Zstd814StoredFieldsFormat.MODE_KEY),
+                                            equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION.name())
+                                        );
+                                    }
+                                }
+                                return 1;
+                            }
+                            return 0;
+                        });
+                    }
+                    nbVisitedIndices++;
+                    assertThat("Expected at least one shard to be verified for each index", nbVisitedShards, greaterThanOrEqualTo(1));
+                }
+            }
+        }
+        assertThat("Expected all indices to be visited", nbVisitedIndices, greaterThanOrEqualTo(indices.size()));
+    }
+
+    private static String randomValidCodec() {
+        return randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC);
     }
 
     private static IndexShard findPrimaryShard(ShardId shardId) {

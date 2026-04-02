@@ -97,8 +97,9 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             return new Expression.TypeResolution("Unresolved children");
         }
 
-        if (isNotNull(field(), sourceText(), FIRST).unresolved()) {
-            return isNotNull(field(), sourceText(), FIRST);
+        TypeResolution fieldNullCheck = isNotNull(field(), sourceText(), FIRST);
+        if (fieldNullCheck.unresolved()) {
+            return fieldNullCheck;
         } else if (field() instanceof AggregateFunction == false) {
             return new TypeResolution(
                 LoggerMessageFormat.format(

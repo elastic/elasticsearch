@@ -13,7 +13,9 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeApproximationRestTest;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.nio.file.Path;
@@ -22,6 +24,11 @@ import java.nio.file.Path;
 public class GenerativeApproximationIT extends GenerativeApproximationRestTest {
 
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
+
+    @Before
+    public void checkCapability() {
+        assumeTrue("query approximation should be enabled", EsqlCapabilities.Cap.APPROXIMATION_V6.isEnabled());
+    }
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(CSV_DATA_PATH, spec -> {

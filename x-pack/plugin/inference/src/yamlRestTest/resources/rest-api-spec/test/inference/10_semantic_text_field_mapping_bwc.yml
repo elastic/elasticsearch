@@ -875,7 +875,7 @@ setup:
 
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "/Cannot.update.parameter.\\[element_type\\].from.\\[float\\].to.\\[bfloat16\\]/" }
-git a
+
 ---
 "Users can set sparse vector index options and index documents using those options":
   - requires:

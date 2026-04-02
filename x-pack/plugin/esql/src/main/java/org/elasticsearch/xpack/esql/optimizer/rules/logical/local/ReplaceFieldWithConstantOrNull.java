@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -134,9 +135,16 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || plan instanceof CompoundOutputEval<?>
             || plan instanceof TopN) {
 
+            // full-text functions need actual index fields to construct Lucene queries
+            var fullTextFieldArgsBuilder = AttributeSet.builder();
+            plan.forEachExpression(FullTextFunction.class, ftf -> {
+                ftf.forEachDown(FieldAttribute.class, fullTextFieldArgsBuilder::add);
+            });
+            AttributeSet fullTextFieldArgs = fullTextFieldArgsBuilder.build();
+
             LogicalPlan transformed = plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {
                 if (attrToConstant.containsKey(f)) {// handle constant values field and use the value itself instead
-                    return attrToConstant.get(f);
+                    return fullTextFieldArgs.contains(f) ? f : attrToConstant.get(f);
                 } else {// handle missing fields and replace them with null
                     return shouldBeRetained.test(f) ? f : Literal.of(f, null);
                 }

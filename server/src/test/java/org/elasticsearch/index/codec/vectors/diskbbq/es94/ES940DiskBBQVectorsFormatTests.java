@@ -85,9 +85,15 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     @Before
     @Override
     public void setUp() throws Exception {
-        ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
-            ES940DiskBBQVectorsFormat.QuantEncoding.values().length
-        )];
+        ES940DiskBBQVectorsFormat.QuantEncoding encoding = RandomPicks.randomFrom(
+            random(),
+            List.of(
+                ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+                ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED,
+                ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC
+            )
+        );
         boolean disableFlatOnFlush = random().nextBoolean();
         if (rarely()) {
             int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
@@ -208,6 +214,41 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         expectThrows(IllegalArgumentException.class, () -> new ES940DiskBBQVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16));
         expectThrows(IllegalArgumentException.class, () -> new ES940DiskBBQVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1));
         expectThrows(IllegalArgumentException.class, () -> new ES940DiskBBQVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1));
+    }
+
+    public void testInt4EncodingVersionEnforcement() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED,
+                64,
+                2,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                0,
+                ES940DiskBBQVectorsFormat.VERSION_START
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED,
+                64,
+                2,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                0,
+                ES940DiskBBQVectorsFormat.VERSION_CURRENT
+            )
+        );
     }
 
     public void testSimpleOffHeapSize() throws IOException {

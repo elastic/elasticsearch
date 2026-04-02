@@ -14,9 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -45,9 +47,9 @@ import java.util.OptionalLong;
  * The coordinator's FINAL AggregateExec is never touched — it merges intermediate values from all
  * data nodes regardless of whether each data node pushed down or scanned.
  * <p>
- * Statistics come from {@code ExternalSourceExec.sourceMetadata()} which is populated at planning time.
- * In Phase 2 (union-by-name), per-split statistics in {@code FileSplit.statistics()} will enable
- * pushdown even when per-query metadata only has first-file stats.
+ * Statistics come from {@code ExternalSourceExec.sourceMetadata()} for single-split queries, or
+ * from merged per-split statistics in {@code FileSplit.statistics()} for multi-split queries.
+ * Falls back to normal execution when any split lacks statistics.
  */
 public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     AggregateExec,
@@ -85,8 +87,10 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
 
-        // Try to resolve all aggregate values from sourceMetadata
-        Map<String, Object> sourceMetadata = externalExec.sourceMetadata();
+        Map<String, Object> sourceMetadata = resolveEffectiveMetadata(externalExec);
+        if (sourceMetadata == null) {
+            return aggregateExec;
+        }
         List<Object> values = resolveAggregateValues(aggregateExec.aggregates(), sourceMetadata);
         if (values == null) {
             return aggregateExec; // Some aggregate couldn't be resolved from metadata
@@ -216,6 +220,22 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         } else {
             return blockFactory.newConstantNullBlock(1);
         }
+    }
+
+    private static Map<String, Object> resolveEffectiveMetadata(ExternalSourceExec externalExec) {
+        List<? extends ExternalSplit> splits = externalExec.splits();
+        if (splits.size() <= 1) {
+            return externalExec.sourceMetadata();
+        }
+        List<Map<String, Object>> splitStats = new ArrayList<>(splits.size());
+        for (ExternalSplit split : splits) {
+            if (split instanceof FileSplit fileSplit) {
+                splitStats.add(fileSplit.statistics());
+            } else {
+                return null;
+            }
+        }
+        return SourceStatisticsSerializer.mergeStatistics(splitStats);
     }
 
     private List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {

@@ -23,6 +23,7 @@
 
 No approximation
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation=false\;
 FROM many_numbers | STATS count=COUNT(*)
@@ -35,6 +36,7 @@ count:long
 
 No confidence intervals
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000, "confidence_level":null}\;
 FROM many_numbers | STATS count=COUNT(), sum=SUM(sv)
@@ -47,6 +49,7 @@ count:long     | sum:long
 
 Exact total row count
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(*)
@@ -60,6 +63,7 @@ count:long | _approximation_confidence_interval(count):long | _approximation_cer
 // Does not run as a CSV test, because this needs filter pushdown (of sv!=null)
 Exact total single-valued field count
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(sv)
@@ -72,6 +76,7 @@ count:long | _approximation_confidence_interval(count):long | _approximation_cer
 
 Approximate total multi-valued field count
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(mv)
@@ -84,6 +89,7 @@ count:long       | _approximation_confidence_interval(count):long | _approximati
 
 Approximate stats on large single-valued data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(sv), avg=AVG(sv), sum=SUM(sv)
@@ -96,6 +102,7 @@ count:long      | avg:double | sum:long            | _approximation_confidence_i
 
 Approximate stats on large multi-valued data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation=true\;
 FROM many_numbers
@@ -110,6 +117,7 @@ count:long       | avg:double | sum:long               | _approximation_confiden
 
 Exact stats on small single-valued data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -124,6 +132,7 @@ count:long | avg:double | sum:long | _approximation_confidence_interval(count):l
 
 Exact stats on small multi-valued data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -139,6 +148,7 @@ count:long | avg:double | sum:long | _approximation_confidence_interval(count):l
 
 Multiple total counts
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(*), count2=COUNT("*"), countValue=COUNT(mv)
@@ -152,6 +162,7 @@ count:long     | count2:long    | countValue:long  | _approximation_confidence_i
 // Does not run as a CSV test, because this needs filter pushdown
 Exact count with where on single-valued data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -166,6 +177,7 @@ count:long | _approximation_confidence_interval(count):long | _approximation_cer
 
 Approximate stats with where on multi-valued data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -181,6 +193,7 @@ count:long      | avg:double | sum:long               | _approximation_confidenc
 
 Approximate stats with stats where
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000, "confidence_level":0.85}\;
 FROM many_numbers
@@ -197,6 +210,7 @@ count:long      | avg:double | sum:long               | _approximation_confidenc
 
 Approximate stats with sample
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000,"confidence_level":0.85}\;
 FROM many_numbers
@@ -211,6 +225,7 @@ count:long     | avg:double | sum:long            | _approximation_confidence_in
 
 Approximate stats with commands before stats
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -235,6 +250,7 @@ count:long       | avg:double | sum:long               | _approximation_confiden
 
 Approximate stats with commands after stats
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -253,6 +269,7 @@ avg:double | avg2:double | _approximation_confidence_interval(avg):double | _app
 
 Approximate stats with dependent variables that have confidence interval
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -272,6 +289,7 @@ y:integer | plus1:double     | _approximation_confidence_interval(plus1):double 
 
 Approximate stats with dependent string variable
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -288,6 +306,7 @@ from_str:double
 
 Approximate stats with dependent multi-valued variable
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -303,6 +322,7 @@ sv:double
 
 Approximate stats by with zero variance
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":100000}\;
 FROM many_numbers
@@ -324,6 +344,7 @@ avg:double               | median:double | one:double | mv:integer | _approximat
 
 Approximate stats by on large single-valued data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -343,6 +364,7 @@ count:long | sv:integer | _approximation_confidence_interval(count):long | _appr
 
 Approximate stats by on large multi-valued data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":100000}\;
 FROM many_numbers
@@ -363,6 +385,7 @@ count:long | mv:integer | _approximation_confidence_interval(count):long | _appr
 
 Exact stats by on small single-valued data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -382,6 +405,7 @@ count:long | sv:integer | _approximation_confidence_interval(count):long | _appr
 
 Exact stats by on small multi-valued data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -402,6 +426,7 @@ count:long | mv:integer | _approximation_confidence_interval(count):long | _appr
 
 Approximate stats by on mixed data
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(sv_and_one_mv)
@@ -414,6 +439,7 @@ count:long     | _approximation_confidence_interval(count):long | _approximation
 
 Overwrite approximated column
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation=true\;
 FROM many_numbers
@@ -428,6 +454,7 @@ sum:integer
 
 User-generated approximation column name
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation=true\;
 FROM many_numbers
@@ -446,6 +473,7 @@ sum:long | _approximation_confidence_interval(sum):long | _approximation_certifi
 
 Rename stats group key
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | RENAME sv AS key | STATS count = COUNT(key) BY key | SORT key DESC | LIMIT 2
@@ -459,6 +487,7 @@ count:long | key:integer | _approximation_confidence_interval(count):long | _app
 
 Filter all rows
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -472,6 +501,7 @@ median:double | _approximation_confidence_interval(median):double | _approximati
 
 Row with duplicate aggs
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 ROW x = [1, 2, 3] 
@@ -486,6 +516,7 @@ a:long | b:long | c:long | x:long | _approximation_confidence_interval(a):long |
 
 Duplicate aggs with grouping
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -500,6 +531,7 @@ median:double | p50:double | key:keyword | _approximation_confidence_interval(me
 
 Sum of nulls
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation=true\;
 FROM many_numbers
@@ -515,6 +547,7 @@ null
 
 Approximated column is null
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation=true\;
 FROM many_numbers | STATS sum = sum(sv) | EVAL sum = sum + null
@@ -527,6 +560,7 @@ null     | null                                         | null
 
 Approximated column and null
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation=true\;
 FROM many_numbers | STATS sum = sum(sv) | EVAL sum_null = sum + null
@@ -539,6 +573,7 @@ sum:long            | sum_null:long | _approximation_confidence_interval(sum):lo
 
 Mv_expand after duplicate aggs
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers| STATS a = COUNT(*), b = COUNT(*) | MV_EXPAND b;
@@ -550,6 +585,7 @@ a:long         | b:long         | _approximation_confidence_interval(a):long | _
 
 Exact dense vector count
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation={"rows":10000}\;
 from dense_vector
@@ -563,6 +599,7 @@ count_vectors:long | _approximation_confidence_interval(count_vectors):long | _a
 
 Count by date bucket
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation=true\;
 FROM employees
@@ -581,6 +618,7 @@ c:long  |           b:date        | _approximation_confidence_interval(c):long |
 
 Warn on no stats
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation=true\;
 FROM many_numbers | KEEP sv | SORT sv | LIMIT 5
@@ -599,6 +637,7 @@ sv:integer
 
 Warn on max
 required_capability: approximation_v6
+request_stored: skip
 
 SET approximation=true\;
 FROM many_numbers
@@ -616,6 +655,7 @@ max:integer | sv:integer
 
 Example boolean for docs
 required_capability: approximation_v6
+request_stored: skip
 
 // tag::approximationBooleanForDocs[]
 SET approximation=true\;
@@ -635,6 +675,7 @@ sum:long | _approximation_confidence_interval(sum):long | _approximation_certifi
 
 Example map for docs
 required_capability: approximation_v6
+request_stored: skip
 
 // tag::approximationMapForDocs[]
 SET approximation={"rows":10000}\;

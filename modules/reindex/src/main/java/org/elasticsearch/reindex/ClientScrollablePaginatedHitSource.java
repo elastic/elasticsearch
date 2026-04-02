@@ -21,19 +21,14 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
-import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +47,7 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  * This implementation is a scrollable source of hits from a {@linkplain Client} instance. For a remote client instance,
  * please use {@code RemoteScrollablePaginatedHitSource}
  */
-public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
+public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
 
@@ -73,25 +68,21 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
     }
 
     @Override
-    public void doStart(RejectAwareActionListener<Response> searchListener) {
-        if (logger.isDebugEnabled()) {
-            logger.debug(
-                "executing initial scroll against {}",
-                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
-            );
-        }
+    protected void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
+        logger.debug(
+            "executing initial local scroll search against {}",
+            () -> isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
+        );
         client.search(firstSearchRequest, wrapListener(searchListener));
     }
 
     @Override
-    protected void restoreState(WorkerResumeInfo resumeInfo) {
-        assert resumeInfo instanceof ScrollWorkerResumeInfo;
-        var scrollResumeInfo = (ScrollWorkerResumeInfo) resumeInfo;
-        setScroll(scrollResumeInfo.scrollId());
+    protected void restoreScrollState(ScrollWorkerResumeInfo resumeInfo) {
+        setScrollId(resumeInfo.scrollId());
     }
 
     @Override
-    protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+    protected void doNextScrollSearch(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         SearchScrollRequest request = new SearchScrollRequest();
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
         request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().nanos() + extraKeepAlive.nanos()));
@@ -117,9 +108,14 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
     }
 
     @Override
-    public void clearScroll(String scrollId, Runnable onCompletion) {
+    protected void releaseSearchContext(Runnable onCompletion) {
+        String sid = getScrollId();
+        if (Strings.hasLength(sid) == false) {
+            onCompletion.run();
+            return;
+        }
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        clearScrollRequest.addScrollId(scrollId);
+        clearScrollRequest.addScrollId(sid);
         /*
          * Unwrap the client so we don't set our task as the parent. If we *did* set our ID then the clear scroll would be cancelled as
          * if this task is cancelled. But we want to clear the scroll regardless of whether or not the main request was cancelled.
@@ -133,7 +129,7 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> "Failed to clear scroll [" + scrollId + "]", e);
+                logger.warn(() -> "Failed to clear scroll [" + sid + "]", e);
                 onCompletion.run();
             }
         });
@@ -167,60 +163,5 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
         }
         long total = response.getHits().getTotalHits().value();
         return new Response(response.isTimedOut(), failures, total, hits, response.getScrollId());
-    }
-
-    private static class ClientHit implements Hit {
-        private final SearchHit delegate;
-        private final BytesReference source;
-
-        ClientHit(SearchHit delegate) {
-            this.delegate = delegate.asUnpooled(); // TODO: use pooled version here
-            source = this.delegate.hasSource() ? this.delegate.getSourceRef() : null;
-        }
-
-        @Override
-        public String getIndex() {
-            return delegate.getIndex();
-        }
-
-        @Override
-        public String getId() {
-            return delegate.getId();
-        }
-
-        @Override
-        public BytesReference getSource() {
-            return source;
-        }
-
-        @Override
-        public XContentType getXContentType() {
-            return XContentHelper.xContentType(source);
-        }
-
-        @Override
-        public long getVersion() {
-            return delegate.getVersion();
-        }
-
-        @Override
-        public long getSeqNo() {
-            return delegate.getSeqNo();
-        }
-
-        @Override
-        public long getPrimaryTerm() {
-            return delegate.getPrimaryTerm();
-        }
-
-        @Override
-        public String getRouting() {
-            return fieldValue(RoutingFieldMapper.NAME);
-        }
-
-        private <T> T fieldValue(String fieldName) {
-            DocumentField field = delegate.field(fieldName);
-            return field == null ? null : field.getValue();
-        }
     }
 }

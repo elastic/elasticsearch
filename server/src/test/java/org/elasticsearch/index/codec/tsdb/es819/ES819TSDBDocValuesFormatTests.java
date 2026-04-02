@@ -146,7 +146,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         boolean sparse = randomBoolean();
         int numBlocksBound = 10;
         // Since average size is 25b will hit count threshold rather than size threshold, so use count threshold compute needed docs.
-        int numNonNullValues = randomIntBetween(0, numBlocksBound * BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT);
+        int numNonNullValues = randomIntBetween(1, numBlocksBound * BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT);
 
         List<String> binaryValues = new ArrayList<>();
         int numNonNull = 0;
@@ -167,7 +167,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     public void testBlockWiseBinarySmallValues() throws Exception {
         boolean sparse = randomBoolean();
         int numBlocksBound = 5;
-        int numNonNullValues = randomIntBetween(0, numBlocksBound * BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT);
+        int numNonNullValues = randomIntBetween(1, numBlocksBound * BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT);
 
         List<String> binaryValues = new ArrayList<>();
         int numNonNull = 0;
@@ -189,7 +189,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         List<String> binaryValues = new ArrayList<>();
         int numSequences = 10;
         for (int i = 0; i < numSequences; i++) {
-            int numInSequence = randomIntBetween(0, 3 * BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT);
+            int numInSequence = randomIntBetween(1, 3 * BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT);
             boolean emptySequence = randomBoolean();
             for (int j = 0; j < numInSequence; j++) {
                 binaryValues.add(emptySequence ? "" : randomAlphaOfLengthBetween(0, 5));
@@ -201,7 +201,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     public void testBlockWiseBinaryLargeValues() throws Exception {
         boolean sparse = randomBoolean();
         int numBlocksBound = 5;
-        int binaryDataSize = randomIntBetween(0, numBlocksBound * BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT);
+        int binaryDataSize = randomIntBetween(1, numBlocksBound * BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT);
         List<String> binaryValues = new ArrayList<>();
         int totalSize = 0;
         while (totalSize < binaryDataSize) {
@@ -221,6 +221,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     }
 
     public void assertBinaryValues(List<String> binaryValues) throws Exception {
+        assert binaryValues.isEmpty() == false : "binaryValues must be non-empty";
         String timestampField = "@timestamp";
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;

@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
@@ -48,6 +49,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +63,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -123,7 +127,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             String forceMergeIndex = maybeCloneIndex();
             maybeForceMergeIndex(forceMergeIndex);
             maybeTakeSnapshot(forceMergeIndex);
-            maybeMountSearchableSnapshot();
+            maybeMountSearchableSnapshot(forceMergeIndex);
         } catch (IndexNotFoundException e) {
             if (e.getIndex().getName().equals(indexName)) {
                 // if the original index was not found, then we can assume
@@ -355,9 +359,46 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         // todo
     }
 
-    public void maybeMountSearchableSnapshot() throws InterruptedException {
+    public void maybeMountSearchableSnapshot(String forceMergeIndex) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
+
+        if (isSnapshotMounted(forceMergeIndex)) {
+            logger.debug("Snapshot for index [{}], original index [{}], is already mounted, skipping DLM mount searchable snapshot step", forceMergeIndex, indexName);
+            return;
+        }
+
+        ProjectState projectState = getProjectState();
+        ProjectMetadata projectMetadata = projectState.metadata();
+
+        MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TimeValue.MAX_VALUE,
+            getMountedIndexName(forceMergeIndex),
+            getRepositoryForFrozen(projectMetadata, indexName),
+            snapshotName(forceMergeIndex),
+            forceMergeIndex,
+            Settings.EMPTY,
+            ignoredIndexSettings(),
+            true,
+            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
+        );
+
+        logger.debug(
+            "DLM attempting to mount frozen index [{}] for original index [{}]",
+            getMountedIndexName(forceMergeIndex),
+            indexName
+        );
+        try {
+            RestoreSnapshotResponse resp = client
+                .projectClient(projectId)
+                .execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).get();
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw ExceptionsHelper.convertToElastic((Exception) e, "DLM failed while mounting snapshot for index [{}]", indexName);
+        }
+
     }
 
     private boolean isIndexReadOnly() {
@@ -598,6 +639,19 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         }
     }
 
+    boolean isSnapshotMounted(String forceMergeIndex) {
+        ProjectState projectState = getProjectState();
+        ProjectMetadata projectMetadata = projectState.metadata();
+        return Optional.of(snapshotName(forceMergeIndex))
+                .filter(projectMetadata.indices()::containsKey)
+                .map(idx -> projectState.routingTable().index(idx))
+                .map(IndexRoutingTable::allPrimaryShardsActive)
+                .orElse(false);
+    }
+
+    @Override
+    public String getIndexName() {
+        return indexName;
     /**
      * Attempts to delete a snapshot. If the snapshot is already missing, logs and returns.
      * Throws on any other failure.

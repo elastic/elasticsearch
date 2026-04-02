@@ -60,9 +60,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     private final String sliceField; // null no slice
     private final BytesRef sliceId;
 
-    private final String sliceField; // null no slice
-    private final BytesRef sliceId;
-
     protected AbstractIVFKnnVectorQuery(
         String field,
         float visitRatio,

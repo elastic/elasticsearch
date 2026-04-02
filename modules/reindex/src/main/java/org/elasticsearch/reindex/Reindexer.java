@@ -74,7 +74,6 @@ import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -294,15 +293,7 @@ public class Reindexer {
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call
         client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listener.delegateFailureAndWrap((l, pitResponse) -> {
             BytesReference pitId = pitResponse.getPointInTimeId();
-            // Inject PIT into the search request so workers can use it; PIT and scroll are mutually exclusive
-            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive(request)));
-            searchRequest.scroll(null);
-            // PIT defines the index context; indices must not be set on the search request.
-            // Preserve source indices for task description (toString) since searchRequest.indices() will be empty.
-            request.setSourceIndicesForDescription(indices);
-            searchRequest.indices(Strings.EMPTY_ARRAY);
-            // Project routing is fixed at open-PIT time; it must not remain on the SearchRequest with PIT
-            searchRequest.clearProjectRouting();
+            request.convertSearchRequestToUsePit(pitId, pitKeepAlive(request));
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 l,
@@ -498,15 +489,7 @@ public class Reindexer {
         String[] indices = searchRequest.indices();
         // Sends a REST request to the remote node to open a PIT
         openPit(searchRequest, indices, pitKeepAlive(request), RejectAwareActionListener.wrap(pitId -> {
-            // Inject PIT into the search request so workers can use it; PIT and scroll are mutually exclusive
-            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive(request)));
-            searchRequest.scroll(null);
-            // PIT defines the index context; indices must not be set on the search request.
-            // Preserve source indices for task description (toString) since searchRequest.indices() will be empty.
-            request.setSourceIndicesForDescription(indices);
-            searchRequest.indices(Strings.EMPTY_ARRAY);
-            // Project routing is fixed at open-PIT time; it must not remain on the SearchRequest with PIT
-            searchRequest.clearProjectRouting();
+            request.convertSearchRequestToUsePit(pitId, pitKeepAlive(request));
             ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                 pitId,
                 listenerWithRelocations,

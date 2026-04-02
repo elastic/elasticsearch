@@ -40,6 +40,9 @@ static inline __m512 load_f32(const f32_t* ptr, const int elements) {
     return _mm512_loadu_ps(ptr + elements);
 }
 
+/*
+ * Specialization for dot product of 2 vectors of BFloat16s using the dpbf16 instructions.
+ */
 static inline f32_t dotDbf16Qbf16_inner_avx512(const bf16_t* d, const bf16_t* q, int32_t elementCount) {
     constexpr int batches = 2;
 
@@ -59,32 +62,43 @@ static inline f32_t dotDbf16Qbf16_inner_avx512(const bf16_t* d, const bf16_t* q,
         });
     }
 
-    f32_t total = _mm512_reduce_add_ps(tree_reduce<batches, __m512, _mm512_add_ps>(sums));
+    __m512 total = tree_reduce<batches, __m512, _mm512_add_ps>(sums);
 
-    constexpr int stride256 = sizeof(__m256bh) / sizeof(bf16_t);
-    __m256 acc256 = _mm256_setzero_ps();
-    for (; i < (elementCount & ~(stride256 - 1)); i += stride256) {
-        acc256 = _mm256_dpbf16_ps(acc256,
-            (__m256bh)_mm256_loadu_epi16(d + i),
-            (__m256bh)_mm256_loadu_epi16(q + i));
+    // another complete register at the end
+    if (elementCount - i > elements) {
+        total = _mm512_dpbf16_ps(total,
+            (__m512bh)_mm512_loadu_epi16(d + i),
+            (__m512bh)_mm512_loadu_epi16(q + i));
+        i += elements;
     }
 
-    total += mm256_reduce_ps<_mm_add_ps>(acc256);
-
-    // finish scalar
-    for (; i < elementCount; ++i) {
-        total += dot_scalar(d[i], q[i]);
+    // Masked tail: handle remaining bytes that don't fill a full 512-bit register.
+    // Masked-off lanes load as zero, contributing nothing to the dot product.
+    const int maskRem = elementCount - i;
+    if (maskRem > 0) {
+        __mmask32 readMask = (__mmask32)((1UL << maskRem) - 1);
+        __mmask16 dpMask = (__mmask16)((1U << (maskRem/2)) - 1);
+        __m512bh d_rem = (__m512bh)_mm512_maskz_loadu_epi16(readMask, d + i);
+        __m512bh q_rem = (__m512bh)_mm512_maskz_loadu_epi16(readMask, q + i);
+        total = _mm512_maskz_dpbf16_ps(dpMask, total, d_rem, q_rem);
     }
 
-    return total;
+    f32_t result = _mm512_reduce_add_ps(total);
+
+    if (maskRem & 1 != 0) {
+        // odd number of dimensions
+        result += dot_scalar(d[elementCount - 1], q[elementCount - 1]);
+    }
+
+    return result;
 }
 
 /*
- * BFloat16 single operation. Processes 4 dimensions at a time.
+ * BFloat16 single operation. Processes 8 dimensions at a time.
  *
  * Template parameters:
  * Q: the type of query vector
- * load_q: loads the query vector as a __m256 of 32-bit floats
+ * load_q: loads the query vector as a __m512 of 32-bit floats
  * inner_op: SIMD per-dimension vector operation, takes a, b, sum, returns new sum
  * scalar_op: scalar per-dimension vector operation, takes a, b, returns sum
  *

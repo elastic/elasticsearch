@@ -64,24 +64,34 @@ public abstract class FilterXContentParser implements XContentParser {
         return delegate().supportsMap();
     }
 
+    private void requireSupportsMap() {
+        if (supportsMap() == false) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Override
     public Map<String, Object> map() throws IOException {
+        requireSupportsMap();
         return delegate().map();
     }
 
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
+        requireSupportsMap();
         return delegate().mapOrdered();
     }
 
     @Override
     public Map<String, String> mapStrings() throws IOException {
+        requireSupportsMap();
         return delegate().mapStrings();
     }
 
     @Override
     public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
         throws IOException {
+        requireSupportsMap();
         return delegate().map(mapFactory, mapValueParser);
     }
 
@@ -90,13 +100,21 @@ public abstract class FilterXContentParser implements XContentParser {
         return delegate().supportsList();
     }
 
+    private void requireSupportsList() {
+        if (supportsList() == false) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Override
     public List<Object> list() throws IOException {
+        requireSupportsList();
         return delegate().list();
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
+        requireSupportsList();
         return delegate().listOrderedMap();
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -393,6 +394,21 @@ public class PromqlCommand extends UnaryPlan
                     }
                     if (s.series() == null) {
                         failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
+                    } else if (s.series() instanceof FieldAttribute seriesField) {
+                        DataType seriesType = seriesField.dataType();
+                        if (DataType.isNull(seriesType) == false
+                            && seriesType.isNumeric() == false
+                            && DataType.isCounter(seriesType) == false) {
+                            failures.add(
+                                fail(
+                                    s,
+                                    "field [{}] of type [{}] cannot be used as a metric; PromQL metrics must be numeric [{}]",
+                                    seriesField.name(),
+                                    seriesType.typeName(),
+                                    s.sourceText()
+                                )
+                            );
+                        }
                     }
                     if (s.evaluation() != null) {
                         if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {

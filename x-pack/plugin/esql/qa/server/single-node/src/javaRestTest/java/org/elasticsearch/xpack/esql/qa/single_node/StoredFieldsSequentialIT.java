@@ -122,6 +122,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
                         .entry("plans", instanceOf(List.class))
                         .entry("planning", matchesMap().extraOk())
                         .entry("parsing", matchesMap().extraOk())
+                        .entry("view_resolution", matchesMap().extraOk())
                         .entry("preanalysis", matchesMap().extraOk())
                         .entry("dependency_resolution", matchesMap().extraOk())
                         .entry("analysis", matchesMap().extraOk())

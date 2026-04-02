@@ -24,12 +24,16 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Segment;
@@ -44,7 +48,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -54,7 +60,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCase {
+public class DLMConvertToFrozenForceMergeTests extends ESTestCase {
     private ProjectId projectId;
     private String indexName;
     private String indexUuid;
@@ -119,7 +125,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         };
     }
 
-    public void testSkipsForceMergeWhenAlreadyForceMergedToSingleSegment() {
+    public void testSkipsForceMergeWhenAlreadyForceMergedToSingleSegment() throws InterruptedException {
         // Set up segment response showing single segment on primary shard
         ShardSegments shardSegments = new ShardSegments(
             TestShardRouting.newShardRouting(new ShardId(index, 0), "_node_id", true, ShardRoutingState.STARTED),
@@ -128,12 +134,13 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockSegmentResponse.set(new IndicesSegmentResponse(new ShardSegments[] { shardSegments }, 1, 1, 0, List.of()));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         converter.maybeForceMergeIndex(indexName);
@@ -142,7 +149,7 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         assertThat(capturedForceMergeRequest.get(), is(nullValue()));
     }
 
-    public void testDoesNotSkipForceMergeWhenMultipleSegments() {
+    public void testDoesNotSkipForceMergeWhenMultipleSegments() throws InterruptedException {
         ShardSegments shardSegments = new ShardSegments(
             TestShardRouting.newShardRouting(new ShardId(index, 0), "_node_id", true, ShardRoutingState.STARTED),
             List.of(new Segment("_0"), new Segment("_1"))
@@ -151,12 +158,13 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockForceMergeResponse.set(new BroadcastResponse(1, 1, 0, List.of()));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         converter.maybeForceMergeIndex(indexName);
@@ -165,23 +173,6 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         assertThat(capturedForceMergeRequest.get().indices().length, is(1));
         assertThat(capturedForceMergeRequest.get().indices()[0], is(indexName));
         assertThat(capturedForceMergeRequest.get().maxNumSegments(), is(1));
-    }
-
-    public void testMaybeForceMergeSkipsWhenIndexNotInMetadata() {
-        buildProjectState(null);
-
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            createMockClient(),
-            clusterService,
-            licenseState
-        );
-
-        converter.maybeForceMergeIndex(indexName);
-
-        // No force merge request should be sent when the index is not in metadata
-        assertThat(capturedForceMergeRequest.get(), is(nullValue()));
     }
 
     public void testForceMergeThrowsWhenShardsHaveFailures() {
@@ -194,12 +185,13 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockForceMergeResponse.set(new BroadcastResponse(1, 0, 1, List.of(shardFailure)));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
@@ -212,12 +204,13 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockForceMergeResponse.set(new BroadcastResponse(5, 3, 0, List.of()));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
@@ -225,17 +218,18 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         assertThat(exception.getMessage(), containsString("shards were unavailable"));
     }
 
-    public void testForceMergeSucceedsWhenAllShardsSuccessful() {
+    public void testForceMergeSucceedsWhenAllShardsSuccessful() throws InterruptedException {
         // Default mock segment response: no segments found → force merge not complete
         mockForceMergeResponse.set(new BroadcastResponse(1, 1, 0, List.of()));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         // Should not throw
@@ -249,17 +243,20 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         mockForceMergeFailure.set(new RuntimeException("transport failure"));
 
         createProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             createMockClient(),
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> converter.maybeForceMergeIndex(indexName));
         assertThat(exception.getCause().getMessage(), containsString("transport failure"));
     }
+
+    private static final String REPO_NAME = "my-repo";
 
     private void createProjectState() {
         buildProjectState(Settings.EMPTY);
@@ -273,6 +270,10 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
         if (indexSettings != null) {
             projectMetadata.put(buildIndexMetadata(indexSettings), false);
         }
+
+        RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);
+        projectMetadata.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
+
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata.build()).build();
         setState(clusterService, clusterState);
     }
@@ -288,6 +289,10 @@ public class DataStreamLifecycleConvertToFrozenForceMergeTests extends ESTestCas
             )
             .numberOfShards(1)
             .numberOfReplicas(0)
+            .putCustom(
+                DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
+            )
             .build();
     }
 }

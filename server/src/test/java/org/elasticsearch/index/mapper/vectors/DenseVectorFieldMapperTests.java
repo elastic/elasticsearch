@@ -2439,8 +2439,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return inner.toXContent(builder, params);
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
+            inner.toXContentFragment(builder, params);
         }
     }
 }

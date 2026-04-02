@@ -373,7 +373,8 @@ public final class SearchPhaseController {
         TopDocsStats topDocsStats,
         int numReducePhases,
         boolean isScrollRequest,
-        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
+        @Nullable List<SearchHits> topHitsToRelease
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -394,6 +395,7 @@ public final class SearchPhaseController {
                 0,
                 0,
                 true,
+                null,
                 null
             );
         }
@@ -498,7 +500,8 @@ public final class SearchPhaseController {
             size,
             from,
             false,
-            timeRangeFilterFromMillis
+            timeRangeFilterFromMillis,
+            topHitsToRelease
         );
     }
 
@@ -582,7 +585,9 @@ public final class SearchPhaseController {
         int from,
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
         boolean isEmptyResult,
-        Long timeRangeFilterFromMillis
+        Long timeRangeFilterFromMillis,
+        // SearchHits from top_hits aggs for release by SearchResponse (may be null)
+        @Nullable List<SearchHits> topHitsToRelease
     ) {
 
         public ReducedQueryPhase {
@@ -604,7 +609,8 @@ public final class SearchPhaseController {
                 terminatedEarly,
                 buildSearchProfileResults(fetchResults),
                 numReducePhases,
-                timeRangeFilterFromMillis
+                timeRangeFilterFromMillis,
+                topHitsToRelease
             );
         }
 

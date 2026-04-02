@@ -24,6 +24,7 @@ import java.lang.foreign.ValueLayout;
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public abstract sealed class FloatVectorScorerSupplier implements RandomVectorScorerSupplier {
 
@@ -32,8 +33,6 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
     final MemorySegmentAccessInput input;
     final FloatVectorValues values;
     final VectorSimilarityFunction fallbackScorer;
-
-    static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     protected FloatVectorScorerSupplier(MemorySegmentAccessInput input, FloatVectorValues values, VectorSimilarityFunction fallbackScorer) {
         this.input = input;

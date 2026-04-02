@@ -21,6 +21,7 @@
 package org.elasticsearch.test.knn;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
@@ -414,6 +415,29 @@ public class KnnSearcher {
                 : null
         ) {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                // Log segment layout
+                int segCount = reader.leaves().size();
+                int totalIndexVectors = 0;
+                StringBuilder segmentInfo = new StringBuilder();
+                segmentInfo.append(segCount).append(" segments: [");
+                for (int s = 0; s < segCount; s++) {
+                    LeafReaderContext leaf = reader.leaves().get(s);
+                    int segVectors;
+                    if (vectorEncoding.equals(VectorEncoding.BYTE)) {
+                        var bvv = leaf.reader().getByteVectorValues(VECTOR_FIELD);
+                        segVectors = bvv != null ? bvv.size() : 0;
+                    } else {
+                        FloatVectorValues fvv = leaf.reader().getFloatVectorValues(VECTOR_FIELD);
+                        segVectors = fvv != null ? fvv.size() : 0;
+                    }
+                    totalIndexVectors += segVectors;
+                    if (s > 0) segmentInfo.append(", ");
+                    segmentInfo.append(segVectors);
+                }
+                segmentInfo.append("]");
+                logger.debug("Segment layout: {}", segmentInfo);
+                finalResults.numSegments = segCount;
+                finalResults.totalIndexVectors = totalIndexVectors;
                 IndexSearcher searcher = searchParameters.searchThreads() > 1
                     ? new IndexSearcher(reader, executorService)
                     : new IndexSearcher(reader);
@@ -524,6 +548,9 @@ public class KnnSearcher {
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
         finalResults.numCandidates = searchParameters.numCandidates();
         finalResults.earlyTermination = searchParameters.earlyTermination();
+        if (finalResults.totalIndexVectors > 0) {
+            finalResults.actualVisitPercentage = (finalResults.averageVisited / finalResults.totalIndexVectors) * 100.0;
+        }
     }
 
     /**

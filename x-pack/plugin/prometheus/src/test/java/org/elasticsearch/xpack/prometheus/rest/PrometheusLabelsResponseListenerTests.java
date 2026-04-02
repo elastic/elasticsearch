@@ -90,11 +90,14 @@ public class PrometheusLabelsResponseListenerTests extends ESTestCase {
         assertThat(body, not(containsString("warnings")));
     }
 
-    public void testWarningWhenResultsEqualLimit() throws Exception {
-        // size == limit signals possible truncation (plan applied Limit node)
-        String body = PrometheusLabelsResponseListener.buildSuccessResponse(List.of("env", "job"), 2).content().utf8ToString();
+    public void testWarningWhenResultsEqualLimitPlusOne() throws Exception {
+        // The plan builder emits LIMIT limit+1 as a sentinel. If ESQL returns limit+1 rows the
+        // result was truncated. The sentinel row is excluded from the output.
+        String body = PrometheusLabelsResponseListener.buildSuccessResponse(List.of("env", "job", "sentinel"), 2).content().utf8ToString();
         assertThat(body, containsString("warnings"));
         assertThat(body, containsString("results truncated due to limit"));
+        // sentinel row must not be emitted
+        assertThat(body, not(containsString("sentinel")));
     }
 
     public void testNoWarningWhenLimitIsZero() throws Exception {

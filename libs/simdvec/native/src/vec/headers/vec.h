@@ -35,7 +35,7 @@
         static_assert(sizeof(float) == 4, "Unsupported compiler. Please define f32_t to designate a 32-bit float.");
         #define f32_t float
 
-        #include <cstdint>
+        #include <stdint.h>
         // use uint16 as something that is guaranteed to be 16 bits wide
         // we'll need to cast to a float type to do scalar ops on it
         static_assert(sizeof(uint16_t) == 2, "Unsupported compiler. Please define bf16_t to designate a 16-bit bfloat.");

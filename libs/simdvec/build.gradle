@@ -44,14 +44,26 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
 }
 
 tasks.named('test').configure {
-  if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
-    jvmArgs '--add-modules=jdk.incubator.vector'
-  }
+  dependsOn 'testJava21'
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-// hack for now, fix the jarhell check for MRJar
-tasks.named("jarHell").configure { enabled = false }
+def java21Launcher = javaToolchains.launcherFor {
+  languageVersion = JavaLanguageVersion.of(21)
+}
+
+tasks.register('testJava21', Test) {
+  description = 'Runs simdvec tests with JDK 21 to verify runtime version guards'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  javaLauncher = java21Launcher
+  executable = java21Launcher.get().executablePath.asFile.absolutePath
+  jvmArgs '--add-modules=jdk.incubator.vector'
+  onlyIf('runtime JDK is not already 21') {
+    buildParams.getRuntimeJavaVersion().get().majorVersion.toInteger() > 21
+  }
+}

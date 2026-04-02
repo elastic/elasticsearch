@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -79,11 +78,11 @@ public class QuerySettings {
         name = "unmapped_fields",
         type = { "keyword" },
         since = "9.3.0",
-        description = "Defines how unmapped fields are treated. Possible values are: "
-            + "\"DEFAULT\" (default) - standard ESQL queries fail when referencing unmapped fields, "
-            + "while other query types (e.g. PromQL) may treat them differently; "
-            + "\"NULLIFY\" - treats unmapped fields as null values. "
-        // + "\"LOAD\" - attempts to load the fields from the source." Commented out since LOAD is currently only under snapshot.
+        description = "Defines how unmapped fields are treated. Possible values are:\n\n"
+            + "- `DEFAULT` (default) - standard ESQL queries fail when referencing unmapped fields, "
+            + "while other query types (e.g. PromQL) may treat them differently;\n"
+            + "- `NULLIFY` - treats unmapped fields as null values.\n"
+            + "- `LOAD` - attempts to load the fields from the source. {applies_to}`stack: preview 9.4`\n"
     )
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = "Make the field null if it is unmapped.")
     public static final QuerySettingDef<UnmappedResolution> UNMAPPED_FIELDS = new QuerySettingDef<>(
@@ -95,18 +94,10 @@ public class QuerySettings {
         (value) -> {
             String resolution = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {
-                UnmappedResolution res = UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
-                if (res == UnmappedResolution.LOAD && EsqlCapabilities.Cap.OPTIONAL_FIELDS_V3.isEnabled() == false) {
-                    throw new IllegalArgumentException("'LOAD' is only supported in snapshot builds");
-                }
-                return res;
+                return UnmappedResolution.valueOf(resolution.toUpperCase(Locale.ROOT));
             } catch (Exception exc) {
-                var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS_V3.isEnabled()
-                    ? UnmappedResolution.values()
-                    : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
-
                 throw new IllegalArgumentException(
-                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(values)
+                    "Invalid unmapped_fields resolution [" + value + "], must be one of " + Arrays.toString(UnmappedResolution.values())
                 );
             }
         },
@@ -116,8 +107,11 @@ public class QuerySettings {
     @Param(
         name = "approximation",
         type = { "boolean", "map_param" },
-        // TODO: more detailed description of query approximation and when it can be applied
-        description = "Enables query approximation if possible for the query."
+        since = "9.4.0",
+        // TODO: make "query approximation" a link to an "Advanced workflows" page when that's ready.
+        description = "Enables query approximation if possible for the query. "
+            + "A boolean value `false` (default) disables query approximation and `true` enables it with "
+            + "default settings. Map values enable query approximation with custom settings."
     )
     @MapParam(
         name = "approximation",
@@ -141,8 +135,8 @@ public class QuerySettings {
         "approximation",
         null,
         false,
-        false,
         true,
+        false,
         ApproximationSettings::parse,
         null
     );

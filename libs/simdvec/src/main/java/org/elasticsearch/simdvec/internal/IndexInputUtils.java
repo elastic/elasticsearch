@@ -23,6 +23,8 @@ import java.lang.ref.Reference;
 import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
 
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
+
 /**
  * Utility for obtaining a {@link MemorySegment} view of data in an
  * {@link IndexInput} and passing it to a caller-supplied action. The
@@ -36,6 +38,13 @@ import java.util.function.IntFunction;
 public final class IndexInputUtils {
 
     private IndexInputUtils() {}
+
+    /**
+     * Returns {@code true} if {@code MemorySegment} slices can be obtained from the specified {@link IndexInput}.
+     */
+    public static boolean canUseSegmentSlices(IndexInput input) {
+        return input instanceof MemorySegmentAccessInput || input instanceof DirectAccessInput;
+    }
 
     /**
      * Obtains a memory segment for the next {@code length} bytes of the
@@ -312,8 +321,6 @@ public final class IndexInputUtils {
             );
         }
     }
-
-    private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     private static <R> R copySlicesAndApply(
         IndexInput in,

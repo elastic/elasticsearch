@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 
 import java.io.IOException;
 import java.net.URI;
@@ -390,7 +391,7 @@ class JwkSetLoader implements Releasable {
         boolean changed = false;
 
         FileChangeWatcher(Path path) {
-            this.fileWatcher = new FileWatcher(path);
+            this.fileWatcher = new PrivilegedFileWatcher(path);
             this.fileWatcher.addListener(this);
         }
 

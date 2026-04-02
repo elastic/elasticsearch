@@ -62,6 +62,8 @@ static inline void bbq_load_corrections_8(
     __m256& additionalCorrection,
     __m256i& targetComponentSum
 ) {
+    // Ensure these stack-allocated arrays aligned to 32-byte boundary, so we can safely use
+    // AVX unaligned load operations (which can be slightly faster).
     alignas(32) f32_t li[8], ui[8], ac[8];
     alignas(32) int32_t tcs[8];
     for (int j = 0; j < 8; ++j) {
@@ -127,9 +129,9 @@ EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
         f32_t score = apply_corrections_euclidean_inner(
             dimensions, queryLowerInterval, queryUpperInterval, queryComponentSum,
             queryAdditionalCorrection, queryBitScale, indexBitScale, centroidDp,
-            c.lowerInterval, c.upperInterval, c.targetComponentSum, c.additionalCorrection, *(scores + i)
+            c.lowerInterval, c.upperInterval, c.targetComponentSum, c.additionalCorrection, scores[i]
         );
-        *(scores + i) = score;
+        scores[i] = score;
         maxScore = __builtin_fmaxf(maxScore, score);
     }
 
@@ -191,9 +193,9 @@ EXPORT f32_t bbq_apply_corrections_maximum_inner_product_bulk(
         f32_t score = apply_corrections_maximum_inner_product_inner(
             dimensions, queryLowerInterval, queryUpperInterval, queryComponentSum,
             queryAdditionalCorrection, queryBitScale, indexBitScale, centroidDp,
-            c.lowerInterval, c.upperInterval, c.targetComponentSum, c.additionalCorrection, *(scores + i)
+            c.lowerInterval, c.upperInterval, c.targetComponentSum, c.additionalCorrection, scores[i]
         );
-        *(scores + i) = score;
+        scores[i] = score;
         maxScore = __builtin_fmaxf(maxScore, score);
     }
 
@@ -251,9 +253,9 @@ EXPORT f32_t bbq_apply_corrections_dot_product_bulk(
         f32_t score = apply_corrections_dot_product_inner(
             dimensions, queryLowerInterval, queryUpperInterval, queryComponentSum,
             queryAdditionalCorrection, queryBitScale, indexBitScale, centroidDp,
-            c.lowerInterval, c.upperInterval, c.targetComponentSum, c.additionalCorrection, *(scores + i)
+            c.lowerInterval, c.upperInterval, c.targetComponentSum, c.additionalCorrection, scores[i]
         );
-        *(scores + i) = score;
+        scores[i] = score;
         maxScore = __builtin_fmaxf(maxScore, score);
     }
 
@@ -318,13 +320,13 @@ EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
             queryBitScale,
             indexBitScale,
             centroidDp,
-            *(c.lowerIntervals + i),
-            *(c.upperIntervals + i),
-            *(c.targetComponentSums + i),
-            *(c.additionalCorrections + i),
-            *(scores + i)
+            c.lowerIntervals[i],
+            c.upperIntervals[i],
+            c.targetComponentSums[i],
+            c.additionalCorrections[i],
+            scores[i]
         );
-        *(scores + i) = score;
+        scores[i] = score;
         maxScore = __builtin_fmaxf(maxScore, score);
     }
 
@@ -400,13 +402,13 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk(
             queryBitScale,
             indexBitScale,
             centroidDp,
-            *(c.lowerIntervals + i),
-            *(c.upperIntervals + i),
-            *(c.targetComponentSums + i),
-            *(c.additionalCorrections + i),
-            *(scores + i)
+            c.lowerIntervals[i],
+            c.upperIntervals[i],
+            c.targetComponentSums[i],
+            c.additionalCorrections[i],
+            scores[i]
         );
-        *(scores + i) = score;
+        scores[i] = score;
         maxScore = __builtin_fmaxf(maxScore, score);
     }
 
@@ -476,13 +478,13 @@ EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
             queryBitScale,
             indexBitScale,
             centroidDp,
-            *(c.lowerIntervals + i),
-            *(c.upperIntervals + i),
-            *(c.targetComponentSums + i),
-            *(c.additionalCorrections + i),
-            *(scores + i)
+            c.lowerIntervals[i],
+            c.upperIntervals[i],
+            c.targetComponentSums[i],
+            c.additionalCorrections[i],
+            scores[i]
         );
-        *(scores + i) = score;
+        scores[i] = score;
         maxScore = __builtin_fmaxf(maxScore, score);
     }
 

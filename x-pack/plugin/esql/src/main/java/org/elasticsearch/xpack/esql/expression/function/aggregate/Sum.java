@@ -18,7 +18,6 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumOverflowingLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
-import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -35,9 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -281,30 +278,9 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
             }
             // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
             return new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window()));
+        } else {
+            return null;
         }
-
-        // SUM(field + c) is equivalent to SUM(sv_field) + c * COUNT(sv_field)
-        // where sv_field = SINGLE_VALUE_OR_NULL(field). This allows multiple SUM(field + c_i)
-        // expressions in the same STATS to share a single SUM and COUNT computation.
-        if (field instanceof Add add) {
-            Expression dataExpr = null;
-            Expression constant = null;
-            if (add.right().foldable() && add.left().foldable() == false) {
-                dataExpr = add.left();
-                constant = add.right();
-            } else if (add.left().foldable() && add.right().foldable() == false) {
-                dataExpr = add.right();
-                constant = add.left();
-            }
-            if (dataExpr != null) {
-                var sv = new MvSingleValueOrNull(s, dataExpr);
-                var svSum = new Sum(s, sv, filter(), window(), summationMode, longOverflowMode);
-                var svCount = new Count(s, sv, filter(), window());
-                return new Add(s, svSum, new Mul(s, constant, svCount), ConfigurationAware.CONFIGURATION_MARKER);
-            }
-        }
-
-        return null;
     }
 
     @Override

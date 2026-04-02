@@ -131,7 +131,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         if ((indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_INT8)
             || indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ))
             && indexed
-            && elementType.equals(ElementType.FLOAT)
+            && DenseVectorFieldMapperTestUtils.elementTypesWithDefaultIndexOptions(indexVersion).contains(elementType)
             && indexOptionsSet == false) {
             if (indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_BBQ)
                 && dims >= DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD) {
@@ -2439,8 +2439,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return inner.toXContent(builder, params);
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
+            inner.toXContentFragment(builder, params);
         }
     }
 }

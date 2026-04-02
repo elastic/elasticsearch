@@ -1,5 +1,9 @@
 apply plugin: 'elasticsearch.java'
 
+versions << [
+  'hadoop' : '3.4.3',
+]
+
 description = 'Integration tests for ESQL'
 
 configurations {

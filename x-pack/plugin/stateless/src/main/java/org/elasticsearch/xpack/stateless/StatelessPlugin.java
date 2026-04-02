@@ -181,7 +181,12 @@ import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
+import org.elasticsearch.xpack.stateless.memory.HeapMemoryUsagePublisher;
+import org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
+import org.elasticsearch.xpack.stateless.memory.TransportPublishHeapMemoryMetrics;
+import org.elasticsearch.xpack.stateless.memory.TransportPublishIndexingOperationsHeapMemoryRequirements;
+import org.elasticsearch.xpack.stateless.memory.TransportPublishMergeMemoryEstimate;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
@@ -208,7 +213,6 @@ import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitTargetShard
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings;
 import org.elasticsearch.xpack.stateless.snapshots.TransportGetShardSnapshotCommitInfoAction;
-import org.elasticsearch.xpack.stateless.utils.IndexingShardRefreshListenerProvider;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollectorProvider;
 import org.elasticsearch.xpack.stateless.xpack.DummyILMInfoTransportAction;
@@ -481,7 +485,6 @@ public class StatelessPlugin extends Plugin
     protected final SetOnce<RefreshManagerServiceFactory> refreshManagerServiceFactory = new SetOnce<>();
     private final SetOnce<RefreshManagerService> refreshManagerService = new SetOnce<>();
     private final SetOnce<HollowShardsService> hollowShardsService = new SetOnce<>();
-    private final SetOnce<List<IndexingShardRefreshListenerProvider>> indexingShardRefreshListenerProviders = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
     private final SetOnce<RecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
     private final SetOnce<DocumentParsingProvider> documentParsingProvider = new SetOnce<>();
@@ -500,6 +503,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<List<StatelessExtensionProvider>> statelessServicesConsumerProviders = new SetOnce<>();
     private final SetOnce<SnapshotsCommitService> snapshotsCommitServiceRef = new SetOnce<>();
     private final SetOnce<StatelessMemoryMetricsService> statelessMemoryMetricsService = new SetOnce<>();
+    private final SetOnce<ShardsMappingSizeCollector> shardsMappingSizeCollector = new SetOnce<>();
     private final SetOnce<Client> clientRef = new SetOnce<>();
 
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
@@ -635,6 +639,12 @@ public class StatelessPlugin extends Plugin
             new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class),
             new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class),
             new ActionHandler(TransportFetchSearchShardInformationAction.TYPE, TransportFetchSearchShardInformationAction.class),
+            new ActionHandler(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
+            new ActionHandler(
+                TransportPublishIndexingOperationsHeapMemoryRequirements.INSTANCE,
+                TransportPublishIndexingOperationsHeapMemoryRequirements.class
+            ),
+            new ActionHandler(TransportPublishMergeMemoryEstimate.INSTANCE, TransportPublishMergeMemoryEstimate.class),
             new ActionHandler(TransportGetShardSnapshotCommitInfoAction.TYPE, TransportGetShardSnapshotCommitInfoAction.class)
         );
     }
@@ -863,6 +873,19 @@ public class StatelessPlugin extends Plugin
         clusterService.addListener(memoryMetricsService);
         this.statelessMemoryMetricsService.set(memoryMetricsService);
         components.add(memoryMetricsService);
+
+        var heapMemoryUsagePublisher = new HeapMemoryUsagePublisher(client);
+        components.add(heapMemoryUsagePublisher);
+        var shardsMappingSizeCollector = ShardsMappingSizeCollector.create(
+            hasIndexRole,
+            clusterService,
+            indicesService,
+            heapMemoryUsagePublisher,
+            threadPool,
+            hollowShardsService
+        );
+        this.shardsMappingSizeCollector.set(shardsMappingSizeCollector);
+        components.add(shardsMappingSizeCollector);
 
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
@@ -1231,7 +1254,12 @@ public class StatelessPlugin extends Plugin
             StatelessMemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
             StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
             StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
-            StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING
+            StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
+            ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING,
+            ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
+            ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
+            ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
+            ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING
         );
     }
 
@@ -1244,7 +1272,7 @@ public class StatelessPlugin extends Plugin
         var snapshotsCommitService = snapshotsCommitServiceRef.get();
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
-
+            indexModule.addIndexEventListener(shardsMappingSizeCollector.get());
             indexModule.addIndexOperationListener(new StatelessIndexingOperationListener(hollowShardsService.get()));
             if (indexModule.indexSettings().getMode() == IndexMode.TIME_SERIES) {
                 indexModule.addIndexOperationListener(timeSeriesOccMetrics.get());
@@ -1487,16 +1515,11 @@ public class StatelessPlugin extends Plugin
                 if (internalRefreshListeners == null) {
                     internalRefreshListeners = List.of();
                 }
-                final var providedInternalRefreshListeners = indexingShardRefreshListenerProviders.get()
-                    .stream().<ReferenceManager.RefreshListener>mapMulti((indexingShardRefreshListenerProvider, consumer) -> {
-                        final var refreshListenerOptional = indexingShardRefreshListenerProvider.getRefreshListener(config);
-                        if (refreshListenerOptional.isPresent()) {
-                            consumer.accept(refreshListenerOptional.get());
-                        }
-                    })
-                    .toList();
-                internalRefreshListeners = Stream.concat(internalRefreshListeners.stream(), providedInternalRefreshListeners.stream())
-                    .toList();
+
+                internalRefreshListeners = Stream.concat(
+                    internalRefreshListeners.stream(),
+                    Stream.of(getUpdateMetricsRefreshListener(config))
+                ).toList();
 
                 final var shardLocalCommitsTracker = getCommitService().getShardLocalCommitsTracker(config.getShardId());
                 assert shardLocalCommitsTracker != null : config.getShardId();
@@ -1604,6 +1627,26 @@ public class StatelessPlugin extends Plugin
         });
     }
 
+    /**
+     * Returns a refresh listener that updates mapping metrics for a shard after refresh.
+     */
+    private ReferenceManager.RefreshListener getUpdateMetricsRefreshListener(EngineConfig config) {
+        return new ReferenceManager.RefreshListener() {
+            boolean first = true;
+
+            @Override
+            public void beforeRefresh() {}
+
+            @Override
+            public void afterRefresh(boolean didRefresh) {
+                if (first || didRefresh) {
+                    getShardsMappingSizeCollector().updateMappingMetricsForShard(config.getShardId());
+                    first = false;
+                }
+            }
+        };
+    }
+
     private Engine newHollowOrIndexEngine(IndexSettings indexSettings, EngineConfig newConfig) {
 
         SegmentInfos segmentCommitInfos = lastCommittedSegmentsInfo(newConfig);
@@ -1679,13 +1722,6 @@ public class StatelessPlugin extends Plugin
             throw new IllegalStateException(RefreshManagerServiceFactory.class + " may not have multiple implementations");
         } else if (refreshManagerServiceFactories.size() == 1) {
             this.refreshManagerServiceFactory.set(refreshManagerServiceFactories.getFirst());
-        }
-
-        var indexingShardRefreshListenerProviders = loader.loadExtensions(IndexingShardRefreshListenerProvider.class);
-        if (indexingShardRefreshListenerProviders.isEmpty()) {
-            this.indexingShardRefreshListenerProviders.set(List.of());
-        } else {
-            this.indexingShardRefreshListenerProviders.set(indexingShardRefreshListenerProviders);
         }
 
         var searchShardSizeCollectorProviders = loader.loadExtensions(SearchShardSizeCollectorProvider.class);
@@ -1913,6 +1949,10 @@ public class StatelessPlugin extends Plugin
                 ObjectStoreGCTaskExecutor.ObjectStoreGCTaskParams::fromXContent
             )
         );
+    }
+
+    public ShardsMappingSizeCollector getShardsMappingSizeCollector() {
+        return shardsMappingSizeCollector.get();
     }
 
     private static void logSettings(final Settings settings) {

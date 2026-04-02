@@ -23,21 +23,30 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @TestLogging(value = "org.elasticsearch.cluster.routing.allocation.ShardChangesObserver:TRACE", reason = "verifies debug level logging")
 public class ShardChangesObserverTests extends ESAllocationTestCase {
 
     public void testLogShardStarting() {
-
         var indexName = randomIdentifier();
         var indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
 
@@ -66,7 +75,6 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
     }
 
     public void testLogShardMovement() {
-
         var allocationId = randomUUID();
         var indexName = randomIdentifier();
         var indexMetadata = IndexMetadata.builder(indexName)
@@ -142,5 +150,79 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
                 "[" + indexName + "][0][P] has failed on [node-1]: NODE_LEFT"
             )
         );
+    }
+
+    public void testUnassignedMetrics() {
+        final var meterRegistry = new RecordingMeterRegistry();
+        final long unassignedAtMillis = randomLongBetween(0, System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1));
+        final AtomicLong nowMillis = new AtomicLong(unassignedAtMillis);
+        final var observer = new ShardChangesObserver(meterRegistry, nowMillis::get);
+
+        final var reason = randomFrom(UnassignedInfo.Reason.values());
+        // ALLOCATION_FAILED needs failedAllocations > 0
+        final int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? randomIntBetween(1, 5) : 0;
+        // NODE_RESTARTING needs lastAllocatedNodeId
+        final String lastAllocatedNodeId = reason == UnassignedInfo.Reason.NODE_RESTARTING ? randomIdentifier() : null;
+        final var unassignedInfo = new UnassignedInfo(
+            reason,
+            null,
+            null,
+            failedAllocations,
+            System.nanoTime(),
+            unassignedAtMillis,
+            false,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            lastAllocatedNodeId
+        );
+        final var shardId = new ShardId("test-index", "_na_", 0);
+        final var primary = randomBoolean();
+        final var unassignedShard = shardRoutingBuilder(shardId, null, primary, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+            unassignedInfo
+        ).build();
+
+        final var recorder = meterRegistry.getRecorder();
+        assertThat(
+            recorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, ShardChangesObserver.UNASSIGNED_TO_INITIALIZING_METRIC).size(),
+            equalTo(0)
+        );
+        assertThat(
+            recorder.getMeasurements(InstrumentType.LONG_HISTOGRAM, ShardChangesObserver.UNASSIGNED_TO_STARTED_METRIC).size(),
+            equalTo(0)
+        );
+
+        // replica shards must recover from primary
+        final var recoverySource = primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE;
+        final var initializedShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.INITIALIZING).withRecoverySource(
+            recoverySource
+        ).withUnassignedInfo(unassignedInfo).build();
+        final long initializedTimeMillis = System.currentTimeMillis();
+        nowMillis.set(initializedTimeMillis);
+        observer.shardInitialized(unassignedShard, initializedShard);
+
+        final var startedShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.STARTED).build();
+        final long startedTimeMillis = initializedTimeMillis + randomLongBetween(0, 1000L);
+        nowMillis.set(startedTimeMillis);
+        observer.shardStarted(initializedShard, startedShard);
+
+        final List<Measurement> initializedMetrics = recorder.getMeasurements(
+            InstrumentType.LONG_HISTOGRAM,
+            ShardChangesObserver.UNASSIGNED_TO_INITIALIZING_METRIC
+        );
+        assertThat(initializedMetrics, hasSize(1));
+        final var initializedMetricValue = initializedMetrics.getFirst();
+        assertThat(initializedMetricValue.getLong(), equalTo(Math.max(0, initializedTimeMillis - unassignedAtMillis)));
+        assertThat(initializedMetricValue.attributes().get("es_shard_primary"), equalTo(primary));
+        assertThat(initializedMetricValue.attributes().get("es_shard_reason"), equalTo(reason.name()));
+
+        final List<Measurement> startedMetrics = recorder.getMeasurements(
+            InstrumentType.LONG_HISTOGRAM,
+            ShardChangesObserver.UNASSIGNED_TO_STARTED_METRIC
+        );
+        assertThat(startedMetrics, hasSize(1));
+        final var startedMetricValue = startedMetrics.getFirst();
+        assertThat(startedMetricValue.getLong(), equalTo(Math.max(0, startedTimeMillis - unassignedAtMillis)));
+        assertThat(startedMetricValue.attributes().get("es_shard_primary"), equalTo(primary));
+        assertThat(startedMetricValue.attributes().get("es_shard_reason"), equalTo(reason.name()));
     }
 }

@@ -40,7 +40,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +86,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     private static final AtomicLong requestIdGenerator = new AtomicLong();
 
     private final XContentParserConfiguration parserConfig;
-    private final Map<String, String> params;
+    private final RequestParams params;
     private final Map<String, List<String>> headers;
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
@@ -109,7 +108,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     @SuppressWarnings("this-escape")
     protected RestRequest(
         XContentParserConfiguration parserConfig,
-        Map<String, String> params,
+        RequestParams params,
         String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
@@ -121,7 +120,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     @SuppressWarnings("this-escape")
     private RestRequest(
         XContentParserConfiguration parserConfig,
-        Map<String, String> params,
+        RequestParams params,
         String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
@@ -195,11 +194,16 @@ public class RestRequest implements ToXContent.Params, Traceable {
     /**
      * Creates a new REST request.
      *
-     * @throws BadParameterException if the parameters can not be decoded
+     * @throws BadParameterException    if the parameters can not be decoded
      * @throws MediaTypeHeaderException if the Content-Type or Accept header can not be parsed
      */
     public static RestRequest request(XContentParserConfiguration parserConfig, HttpRequest httpRequest, HttpChannel httpChannel) {
-        Map<String, String> params = params(httpRequest.uri());
+        RequestParams params;
+        try {
+            params = RequestParams.fromUri(httpRequest.uri());
+        } catch (final IllegalArgumentException e) {
+            throw new BadParameterException(e);
+        }
         return new RestRequest(
             parserConfig,
             params,
@@ -209,19 +213,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
             httpChannel,
             requestIdGenerator.incrementAndGet()
         );
-    }
-
-    private static Map<String, String> params(final String uri) {
-        final Map<String, String> params = new HashMap<>();
-        int index = uri.indexOf('?');
-        if (index >= 0) {
-            try {
-                RestUtils.decodeQueryString(uri, index + 1, params);
-            } catch (final IllegalArgumentException e) {
-                throw new BadParameterException(e);
-            }
-        }
-        return params;
     }
 
     /**
@@ -235,10 +226,9 @@ public class RestRequest implements ToXContent.Params, Traceable {
         HttpRequest httpRequest,
         HttpChannel httpChannel
     ) {
-        Map<String, String> params = Collections.emptyMap();
         return new RestRequest(
             parserConfig,
-            params,
+            RequestParams.empty(),
             httpRequest.uri(),
             httpRequest.getHeaders(),
             httpRequest,
@@ -415,16 +405,25 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     @Override
     public final String param(String key, String defaultValue) {
-        consumedParams.add(key);
-        String value = params.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return value;
+        String value = param(key);
+        return value != null ? value : defaultValue;
     }
 
-    public Map<String, String> params() {
+    public RequestParams params() {
         return params;
+    }
+
+    /**
+     * Returns all values for the given query parameter, preserving the order in which they appeared in the URL.
+     * This is useful for parameters that may be repeated (e.g. {@code match[]=foo&match[]=bar}).
+     * Unlike {@link #param(String)}, path parameters are not visible through this method.
+     *
+     * @param key the parameter name
+     * @return all values for the parameter, or an empty list if the parameter was not present
+     */
+    public List<String> repeatedParamAsList(String key) {
+        consumedParams.add(key);
+        return params.getAll(key);
     }
 
     /**

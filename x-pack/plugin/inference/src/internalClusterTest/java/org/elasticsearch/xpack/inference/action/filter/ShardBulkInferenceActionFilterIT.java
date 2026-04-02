@@ -35,6 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
@@ -218,7 +219,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         storeModel(modelRegistry, model2);
 
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
-        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart");
+        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart", InferenceSecretsIndex.INDEX_NAME);
 
         assertRandomBulkOperations("index_restart", isIndexRequest -> {
             Map<String, Object> map = new HashMap<>();
@@ -228,7 +229,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         });
 
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
-        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart");
+        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart", InferenceSecretsIndex.INDEX_NAME);
 
         assertRandomBulkOperations("index_restart", isIndexRequest -> {
             Map<String, Object> map = new HashMap<>();

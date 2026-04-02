@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -161,6 +162,10 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     public InMemoryViewResolver getViewResolver() {
-        return new InMemoryViewResolver(clusterService, () -> viewMetadata);
+        return new InMemoryViewResolver(clusterService, () -> viewMetadata, CrossProjectModeDecider.NOOP);
+    }
+
+    public InMemoryViewResolver getViewResolver(CrossProjectModeDecider crossProjectModeDecider) {
+        return new InMemoryViewResolver(clusterService, () -> viewMetadata, crossProjectModeDecider);
     }
 }

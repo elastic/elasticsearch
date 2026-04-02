@@ -20,6 +20,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -131,7 +132,7 @@ public class VectorScorerTestUtils {
     ) {
 
         final float[] residualScratch = new float[dimensions];
-        final int[] scratch = new int[dimensions];
+        final int[] scratch = new int[ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
         final byte[] qVector = new byte[vectorPackedLengthInBytes];
 
         OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
@@ -152,16 +153,52 @@ public class VectorScorerTestUtils {
         );
     }
 
+    public static OSQVectorData createOSQIndexData(
+        float[] values,
+        float[] centroid,
+        OptimizedScalarQuantizer quantizer,
+        int dimensions,
+        byte indexBits,
+        int vectorPackedLengthInBytes,
+        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+    ) {
+        final float[] residualScratch = new float[dimensions];
+        final int[] scratch = new int[ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
+        final byte[] qVector = new byte[vectorPackedLengthInBytes];
+
+        OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
+            values,
+            residualScratch,
+            scratch,
+            indexBits,
+            centroid
+        );
+        if (indexBits == 4 && int4Encoding == ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
+            ESVectorUtil.transposeHalfByte(scratch, qVector);
+        } else {
+            ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).pack(scratch, qVector);
+        }
+
+        return new OSQVectorData(
+            qVector,
+            result.lowerInterval(),
+            result.upperInterval(),
+            result.additionalCorrection(),
+            result.quantizedComponentSum()
+        );
+    }
+
     public static OSQVectorData createOSQQueryData(
         float[] query,
         float[] centroid,
         OptimizedScalarQuantizer quantizer,
         int dimensions,
         byte queryBits,
-        int queryVectorPackedLengthInBytes
+        int queryVectorPackedLengthInBytes,
+        byte indexBits
     ) {
         final float[] residualScratch = new float[dimensions];
-        final int[] scratch = new int[dimensions];
+        final int[] scratch = new int[ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
 
         OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
             query,
@@ -171,7 +208,43 @@ public class VectorScorerTestUtils {
             centroid
         );
         final byte[] quantizeQuery = new byte[queryVectorPackedLengthInBytes];
-        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(queryBits).packQuery(scratch, quantizeQuery);
+        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).packQuery(scratch, quantizeQuery);
+
+        return new OSQVectorData(
+            quantizeQuery,
+            queryCorrections.lowerInterval(),
+            queryCorrections.upperInterval(),
+            queryCorrections.additionalCorrection(),
+            queryCorrections.quantizedComponentSum()
+        );
+    }
+
+    public static OSQVectorData createOSQQueryData(
+        float[] query,
+        float[] centroid,
+        OptimizedScalarQuantizer quantizer,
+        int dimensions,
+        byte queryBits,
+        int queryVectorPackedLengthInBytes,
+        byte indexBits,
+        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+    ) {
+        final float[] residualScratch = new float[dimensions];
+        final int[] scratch = new int[ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dimensions)];
+
+        OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
+            query,
+            residualScratch,
+            scratch,
+            queryBits,
+            centroid
+        );
+        final byte[] quantizeQuery = new byte[queryVectorPackedLengthInBytes];
+        if (indexBits == 4 && int4Encoding == ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED) {
+            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
+        } else {
+            ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).packQuery(scratch, quantizeQuery);
+        }
 
         return new OSQVectorData(
             quantizeQuery,

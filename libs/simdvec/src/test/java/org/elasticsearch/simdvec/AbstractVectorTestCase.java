@@ -35,9 +35,6 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
      */
     protected static final float BULK_DELTA = 2e-5f;
 
-    // Support for passing on-heap arrays/segments to native
-    protected static boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
-
     @BeforeClass
     public static void getVectorScorerFactory() {
         factory = org.elasticsearch.simdvec.VectorScorerFactory.instance();

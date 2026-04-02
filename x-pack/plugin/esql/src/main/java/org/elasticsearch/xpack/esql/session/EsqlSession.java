@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
@@ -252,6 +253,8 @@ public class EsqlSession {
         EsqlStatement statement = parse(request);
         gatherSettingsMetrics(statement);
         parsingProfile.stop();
+        TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
+        viewResolutionProfile.start();
         viewResolver.replaceViews(
             statement.plan(),
             (query, viewName) -> parser.parseView(
@@ -261,9 +264,10 @@ public class EsqlSession {
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
-            listener.delegateFailureAndWrap(
-                (l, viewResolution) -> analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l)
-            )
+            listener.delegateFailureAndWrap((l, viewResolution) -> {
+                viewResolutionProfile.stop();
+                analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
+            })
         );
     }
 
@@ -276,7 +280,13 @@ public class EsqlSession {
         ActionListener<Versioned<Result>> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+
+        // this is stack telemetry
+        gatherViewMetrics(viewResolution);
+
+        // this is APM
         gatherPlanTelemetry(viewResolution.plan(), statement.settings());
+
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = request.timeZone() == null
@@ -761,6 +771,13 @@ public class EsqlSession {
         statement.settings().stream().map(QuerySetting::name).distinct().forEach(metrics::incSetting);
     }
 
+    private void gatherViewMetrics(ViewResolver.ViewResolutionResult viewResolution) {
+        if (metrics == null || viewResolution.viewQueries().isEmpty()) {
+            return;
+        }
+        metrics.inc(FeatureMetric.VIEW);
+    }
+
     /**
      * Associates errors that occurred during field-caps with the cluster info in the execution info.
      * - Skips clusters that are no longer running, as they have already been marked as successful, skipped, or failed.
@@ -1171,7 +1188,7 @@ public class EsqlSession {
                 Map.of(indexName, IndexMode.LOOKUP),
                 Map.of(),
                 Map.of(),
-                Set.of()
+                Map.of()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }

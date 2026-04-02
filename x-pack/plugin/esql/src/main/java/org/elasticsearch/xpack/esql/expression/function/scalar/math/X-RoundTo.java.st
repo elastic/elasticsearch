@@ -44,7 +44,18 @@ class RoundTo$Type$ {
              * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
              * on 2025-05-22.
              */
-            default -> new RoundTo$Type$BinarySearchEvaluator.Factory(source, field, f);
+            default -> {
+$if(long||int)$
+                $type$ interval = extractFixedInterval(f);
+                if (interval > 0) {
+                    yield new RoundTo$Type$FixedIntervalEvaluator.Factory(source, field, f[0], f[f.length - 1], interval);
+                } else {
+                    yield new RoundTo$Type$BinarySearchEvaluator.Factory(source, field, f);
+                }
+$else$
+                yield new RoundTo$Type$BinarySearchEvaluator.Factory(source, field, f);
+$endif$
+            }
         };
     };
 
@@ -53,6 +64,29 @@ class RoundTo$Type$ {
         int idx = Arrays.binarySearch(points, field);
         return points[idx >= 0 ? idx : Math.max(0, -idx - 2)];
     }
+
+$if(long||int)$
+    private static $type$ extractFixedInterval($type$[] points) {
+        $type$ interval = (points[points.length - 1] - points[0]) / (points.length - 1);
+        for (int i = 1; i < points.length; i++) {
+            if (points[i] - points[i - 1] != interval) {
+                return -1;
+            }
+        }
+        return interval;
+    }
+
+    @Evaluator(extraName = "FixedInterval")
+    static $type$ processFixed($type$ field, @Fixed $type$ first, @Fixed $type$ last, @Fixed $type$ interval) {
+        if (field < first) {
+            return first; // almost never true in practice; predictor skips this
+        }
+        if (field > last) {
+            return last; // almost never true in practice; predictor skips this
+        }
+        return field - (field - first) % interval;
+    }
+$endif$
 
     @Evaluator(extraName = "1")
     static $type$ process($type$ field, @Fixed $type$ p0) {

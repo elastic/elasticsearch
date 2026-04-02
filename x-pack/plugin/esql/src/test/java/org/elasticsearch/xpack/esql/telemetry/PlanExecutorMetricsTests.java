@@ -579,7 +579,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             CrossProjectModeDecider.NOOP,
             dataSourceModule,
             TEST_FUNCTION_REGISTRY,
-            TEST_PARSER
+            TEST_PARSER,
+            null
         );
     }
 

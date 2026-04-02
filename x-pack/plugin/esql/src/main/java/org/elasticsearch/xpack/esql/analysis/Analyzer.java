@@ -354,7 +354,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
 
             if (context.unmappedResolution() == UnmappedResolution.LOAD) {
-                loadPartiallyMappedKeywordFields(attributes, esIndex);
+                loadPartiallyMappedFields(attributes, esIndex);
             }
 
             return new EsRelation(
@@ -369,16 +369,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * When {@code SET unmapped_fields="load"}, convert partially-mapped keyword fields to use
-         * {@link PotentiallyUnmappedKeywordEsField} so they are loaded from {@code _source} on shards where they are unmapped.
-         * Non-keyword fields are left unchanged (they will return null on unmapped shards, consistent with their default behavior).
+         * When {@code SET unmapped_fields="load"}, convert partially-mapped fields so they can be used across indices where they
+         * may not exist:
+         * <ul>
+         *   <li>Keyword fields are converted to use {@link PotentiallyUnmappedKeywordEsField} so they are loaded from
+         *       {@code _source} on shards where they are unmapped.</li>
+         *   <li>Non-keyword fields are marked as {@link InvalidMappedField#potentiallyUnmapped potentially unmapped} so that
+         *       explicit casts (e.g. {@code field::long}) can resolve them via the union types / {@code MultiTypeEsField}
+         *       mechanism.</li>
+         * </ul>
          */
-        private static void loadPartiallyMappedKeywordFields(List<Attribute> attributes, EsIndex esIndex) {
+        private static void loadPartiallyMappedFields(List<Attribute> attributes, EsIndex esIndex) {
             for (int i = 0; i < attributes.size(); i++) {
-                if (attributes.get(i) instanceof FieldAttribute fa
-                    && fa.dataType() == KEYWORD
-                    && esIndex.isPartiallyUnmappedField(fa.fieldName().string())) {
-                    attributes.set(i, ResolveRefs.insistKeyword(fa));
+                if (attributes.get(i) instanceof FieldAttribute fa && esIndex.isPartiallyUnmappedField(fa.fieldName().string())) {
+                    if (fa.dataType() == KEYWORD) {
+                        attributes.set(i, ResolveRefs.insistKeyword(fa));
+                    } else {
+                        attributes.set(i, ResolveRefs.invalidInsistAttribute(fa, esIndex));
+                    }
                 }
             }
         }
@@ -1247,7 +1255,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedCol;
         }
 
-        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
+        static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
             InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.name(), getTypesToIndices(fa, esIndex));
             return new FieldAttribute(fa.source(), null, fa.qualifier(), fa.name(), field);
         }
@@ -1270,64 +1278,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 attribute.name(),
                 new PotentiallyUnmappedKeywordEsField(attribute.name())
             );
-        }
-
-        /**
-         * This will inspect current node/{@code plan}'s expressions and check if any of the {@code FieldAttribute}s refer to fields that
-         * are partially unmapped across the indices involved in the plan fragment. If so, replace their field with an "insisted" EsField.
-         */
-        private static LogicalPlan resolvePartiallyMapped(LogicalPlan plan, AnalyzerContext context) {
-            var indexResolutions = collectIndexResolutions(plan, context);
-            Map<FieldAttribute, FieldAttribute> insistedMap = new HashMap<>();
-            var transformed = plan.transformExpressionsOnly(FieldAttribute.class, fa -> {
-                var esField = fa.field();
-                if (esField instanceof PotentiallyUnmappedKeywordEsField
-                    || esField instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped()) {
-                    return fa;
-                }
-                var existing = insistedMap.get(fa);
-                if (existing != null) { // field shows up multiple times in the node; return first processing
-                    return existing;
-                }
-
-                if (indexResolutions.isEmpty()) {
-                    throw new IllegalStateException("Unmapped fields with empty index resolutions.");
-                }
-                if (indexResolutions.size() > 1) {
-                    throw new IllegalStateException(
-                        Strings.format("Multiple index patterns should be disabled with unmapped fields", indexResolutions)
-                    );
-                }
-                EsIndex esIndex = indexResolutions.getFirst().get();
-                if (esIndex.isPartiallyUnmappedField(fa.name())) {
-                    FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, esIndex);
-                    insistedMap.put(fa, newFA);
-                    return newFA;
-                }
-                return fa;
-            });
-            return insistedMap.isEmpty() ? transformed : propagateInsistedFields(transformed, insistedMap);
-        }
-
-        /**
-         * Push only those fields from the {@code insistedMap} into {@code EsRelation}s in the {@code plan} that wrap a
-         * {@code PotentiallyUnmappedKeywordEsField}.
-         */
-        private static LogicalPlan propagateInsistedFields(LogicalPlan plan, Map<? extends Attribute, FieldAttribute> insistedMap) {
-            return plan.transformUp(EsRelation.class, esr -> {
-                var newOutput = new ArrayList<Attribute>();
-                boolean updated = false;
-                for (Attribute attr : esr.output()) {
-                    var newFA = insistedMap.get(attr);
-                    if (newFA != null && newFA.field() instanceof PotentiallyUnmappedKeywordEsField) {
-                        newOutput.add(newFA);
-                        updated = true;
-                    } else {
-                        newOutput.add(attr);
-                    }
-                }
-                return updated ? esr.withAttributes(newOutput) : esr;
-            });
         }
 
         private LogicalPlan resolveFuse(Fuse fuse, List<Attribute> childrenOutput) {
@@ -2704,17 +2654,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return relation;
                 }
                 return relation.transformExpressionsUp(FieldAttribute.class, f -> {
-                    if (f.field() instanceof InvalidMappedField imf && allDates(context, relation, imf)) {
+                    if (f.field() instanceof InvalidMappedField imf && allDates(context, imf)) {
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f, context.configuration());
                         imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
-                        // This rule runs in the "Initialize" batch, before ResolveUnmapped. The isFieldMappedInAllIndices
-                        // check above should prevent reaching here for fields that are unmapped in any index when in LOAD mode.
-                        if (imf.isPotentiallyUnmapped()) {
-                            throw new IllegalStateException(
-                                "Unexpected potentially unmapped field [" + imf.getName() + "] in DateMillisToNanosInEsRelation"
-                            );
-                        }
+                        // The allDates check filters out fields that are not mapped in all indices, which includes
+                        // potentiallyUnmapped fields. This assertion guards against future changes breaking that invariant.
+                        assert imf.isPotentiallyUnmapped() == false
+                            : "Unexpected potentially unmapped field [" + imf.getName() + "] in DateMillisToNanosInEsRelation";
                         var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions, null);
                         return new FieldAttribute(
                             f.source(),
@@ -2732,18 +2679,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
         }
 
-        private static boolean allDates(AnalyzerContext context, EsRelation relation, InvalidMappedField imf) {
+        private static boolean allDates(AnalyzerContext context, InvalidMappedField imf) {
             if (imf.types().stream().allMatch(DataType::isDate) == false) {
                 return false;
             }
-            // If we need to load the fields from unmapped indices, we will treat it as a keyword, i.e., not all types are dates.
-            if (context.unmappedResolution() != UnmappedResolution.LOAD) {
-                return true;
+            // If the field is potentially unmapped (i.e. not mapped in all indices), we treat it as a keyword (not all dates),
+            // so that it can be resolved via the union types / MultiTypeEsField mechanism instead.
+            if (context.unmappedResolution() == UnmappedResolution.LOAD && imf.isPotentiallyUnmapped()) {
+                return false;
             }
-            // Since DateMillisToNanosInEsRelation runs before ResolveUnmapped, isPotentiallyUnmapped isn't set yet.
-            int mappedCount = imf.getTypesToIndices().values().stream().mapToInt(Set::size).sum();
-            int totalCount = relation.concreteIndices().values().stream().mapToInt(List::size).sum();
-            return mappedCount >= totalCount;
+            return true;
         }
     }
 

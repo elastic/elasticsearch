@@ -17,6 +17,7 @@ import org.elasticsearch.logging.Logger;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.nio.file.FileVisitResult;
@@ -25,7 +26,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -36,6 +39,13 @@ public class FixtureUtils {
 
     /** Resource path for test fixtures */
     public static final String FIXTURES_RESOURCE_PATH = "/iceberg-fixtures";
+
+    /**
+     * Same directory as {@link #FIXTURES_RESOURCE_PATH} without a leading slash, for
+     * {@link ClassLoader#getResources(String)} (which does not use leading {@code /}).
+     * {@link #FIXTURES_RESOURCE_PATH} must begin with {@code /}.
+     */
+    private static final String FIXTURES_RESOURCE_PATH_FOR_CLASS_LOADER = FIXTURES_RESOURCE_PATH.substring(1);
 
     /** Compressed extensions generated on the fly; skip loading from disk */
     public static final Set<String> COMPRESSED_EXTENSIONS = Set.of(".gz", ".zst", ".zstd", ".bz2", ".bz");
@@ -63,6 +73,46 @@ public class FixtureUtils {
         } else {
             logger.warn("Unsupported fixtures resource protocol [{}] for [{}]", resourceUrl.getProtocol(), resourceUrl);
             throw new IllegalStateException("Unsupported resource protocol: " + resourceUrl);
+        }
+    }
+
+    /**
+     * Like {@link #forEachFixtureEntry(Class, CheckedBiConsumer)} but merges every root under
+     * {@link #FIXTURES_RESOURCE_PATH} returned by {@link ClassLoader#getResources(String)}. Multiple roots
+     * are common when one dependency contributes a partial tree (e.g. CSV-only) and the test project adds
+     * generated Parquet; {@link Class#getResource(String)} only sees the first match, so fixtures such as
+     * {@code standalone/web_logs.parquet} would otherwise never load into HTTP fixtures.
+     * <p>
+     * Roots are processed in enumeration order; for the same {@code relativePath}, later roots overwrite
+     * earlier ones (matching typical classpath precedence for overlapping resources).
+     */
+    public static void forEachFixtureEntryMergingAllClasspathRoots(
+        ClassLoader classLoader,
+        CheckedBiConsumer<String, byte[], IOException> consumer
+    ) throws Exception {
+        List<URL> urls = new ArrayList<>();
+        Enumeration<URL> resources = classLoader.getResources(FIXTURES_RESOURCE_PATH_FOR_CLASS_LOADER);
+        while (resources.hasMoreElements()) {
+            urls.add(resources.nextElement());
+        }
+        if (urls.isEmpty()) {
+            throw new IllegalStateException("Fixtures resource path not found: " + FIXTURES_RESOURCE_PATH);
+        }
+        logger.info("Merging {} {} classpath root(s)", urls.size(), FIXTURES_RESOURCE_PATH_FOR_CLASS_LOADER);
+        for (URL resourceUrl : urls) {
+            logger.info("Loading fixtures from [{}]", resourceUrl);
+            if (resourceUrl.getProtocol().equals("file")) {
+                Path fixturesPath = Paths.get(resourceUrl.toURI());
+                if (Files.exists(fixturesPath) == false) {
+                    throw new IllegalStateException("Fixtures path does not exist: " + fixturesPath);
+                }
+                forEachFixtureEntryFromFilesystem(fixturesPath, consumer);
+            } else if (resourceUrl.getProtocol().equals("jar")) {
+                forEachFixtureEntryFromJar(resourceUrl, consumer);
+            } else {
+                logger.warn("Unsupported fixtures resource protocol [{}] for [{}]", resourceUrl.getProtocol(), resourceUrl);
+                throw new IllegalStateException("Unsupported resource protocol: " + resourceUrl);
+            }
         }
     }
 
@@ -165,6 +215,35 @@ public class FixtureUtils {
         }
         return null;
     }
+
+    /**
+     * Directory path for Elasticsearch {@code path.repo} when tests need a narrow filesystem root for
+     * {@code shared_repo}-backed file entitlements (e.g. esql-datasource-http). Using {@code java.io.tmpdir}
+     * or {@code /tmp} as the repo root can imply read access under the test distribution's {@code modules}
+     * directory and fail {@code FilesEntitlementsValidation} at node bootstrap.
+     * <p>
+     * If {@code iceberg-fixtures} resolves to an on-disk path for the given anchor class, that path is
+     * returned. Otherwise a unique temporary directory is created once per anchor class per JVM via
+     * {@link Files#createTempDirectory(String, java.nio.file.attribute.FileAttribute[])}.
+     */
+    public static String pathRepoRootForIcebergFixtures(Class<?> anchor) {
+        Path local = resolveLocalFixturesPath(logger, anchor);
+        if (local != null) {
+            return local.toAbsolutePath().toString();
+        }
+        return pathRepoFallback.get(anchor).toAbsolutePath().toString();
+    }
+
+    private static final ClassValue<Path> pathRepoFallback = new ClassValue<>() {
+        @Override
+        protected Path computeValue(Class<?> type) {
+            try {
+                return Files.createTempDirectory("esql-path-repo-" + type.getSimpleName() + "-");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    };
 
     public static byte[] compress(byte[] input, String suffix) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();

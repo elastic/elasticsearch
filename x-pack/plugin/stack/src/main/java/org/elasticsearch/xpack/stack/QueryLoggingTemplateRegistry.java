@@ -33,7 +33,6 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     public static final String QUERY_LOGGING_MAPPINGS_NAME = ".query-logging-mappings";
     public static final String QUERY_LOGGING_SETTINGS_NAME = ".query-logging-settings";
     public static final String QUERY_LOGGING_TEMPLATE_NAME = ".query-logging-template";
-    public static final String QUERY_LOGGING_POLICY_NAME = ".query-logging-ilm-policy";
 
     public QueryLoggingTemplateRegistry(
         Settings nodeSettings,

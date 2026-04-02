@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -140,9 +139,6 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().nodes().getMasterNode() == null || event.state().clusterRecovered() == false) {
-            return;
-        }
         if (event.localNodeMaster() == false) {
             return;
         }
@@ -176,8 +172,8 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
         }
         final var projects = state.metadata().projects();
         for (var reg : projectRegistrations) {
-            for (var project : projects.values()) {
-                reconcileProjectTask(project, reg);
+            for (var projectId : projects.keySet()) {
+                reconcileProjectTask(state, reg, projectId);
             }
         }
     }
@@ -244,29 +240,27 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
         );
     }
 
-    private void reconcileProjectTask(ProjectMetadata project, ProjectTaskRegistration reg) {
-        final var projectId = project.id();
-        final var taskId = reg.taskIdFn().apply(projectId);
-        final boolean taskExists = PersistentTasksCustomMetadata.getTaskWithId(project, taskId) != null;
-        final boolean enabled = reg.enabled().getAsBoolean();
-        if (enabled && taskExists == false) {
-            sendProjectTaskStartRequest(reg, projectId, taskId);
-        } else if (enabled == false && taskExists) {
-            sendProjectTaskRemoveRequest(reg, projectId, taskId);
-        } else {
-            logger.trace("Reconciliation of [{}] task in project [{}] complete", reg.taskName(), projectId);
-        }
-    }
-
     private void reconcileProjectTask(ClusterState state, ProjectTaskRegistration registration, ProjectId projectId) {
         if (lifecycle.started() == false) {
             return;
         }
-        final var project = state.metadata().projects().get(projectId);
-        if (state.nodes().isLocalNodeElectedMaster() == false || state.clusterRecovered() == false || project == null) {
+        if (state.nodes().isLocalNodeElectedMaster() == false || state.clusterRecovered() == false) {
             return;
         }
-        reconcileProjectTask(project, registration);
+        final var project = state.metadata().projects().get(projectId);
+        if (project == null) {
+            return;
+        }
+        final var taskId = registration.taskIdFn().apply(projectId);
+        final boolean taskExists = PersistentTasksCustomMetadata.getTaskWithId(project, taskId) != null;
+        final boolean enabled = registration.enabled().getAsBoolean();
+        if (enabled && taskExists == false) {
+            sendProjectTaskStartRequest(registration, projectId, taskId);
+        } else if (enabled == false && taskExists) {
+            sendProjectTaskRemoveRequest(registration, projectId, taskId);
+        } else {
+            logger.trace("Reconciliation of [{}] task in project [{}] complete", registration.taskName(), projectId);
+        }
     }
 
     private void sendProjectTaskStartRequest(ProjectTaskRegistration reg, ProjectId projectId, String taskId) {

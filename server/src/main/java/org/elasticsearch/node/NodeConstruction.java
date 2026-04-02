@@ -1028,8 +1028,6 @@ class NodeConstruction {
 
         final var persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         final var taskLifecycleManager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
-        taskLifecycleManager.start();
-        resourcesToClose.add(taskLifecycleManager);
 
         final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
 
@@ -1879,6 +1877,7 @@ class NodeConstruction {
 
         return b -> {
             b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
+            b.bind(PersistentTaskLifecycleManager.class).toInstance(persistentTaskLifecycleManager);
             b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
             b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
             b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);

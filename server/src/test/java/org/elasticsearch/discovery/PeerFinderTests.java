@@ -876,6 +876,71 @@ public class PeerFinderTests extends ESTestCase {
         assertFalse(peerFinder.discoveredMasterTerm.isPresent());
     }
 
+    public void testConnectionFailureAfterDeactivationDoesNotLeaveStalePeer() {
+        // Validates that a connection failure callback arriving after deactivation properly cleans up
+        // the failed peer entry via peersByAddress.remove(key, value). Randomizes between slow failures
+        // (callback always fires after deactivation) and non-slow with execution delay variability
+        // (callback may fire before or after deactivation depending on seed), verifying no assertions
+        // trip in either ordering.
+
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.unreachableAddresses.add(otherNode.getAddress());
+
+        if (randomBoolean()) {
+            // slow address: failure fires well after deactivation at CONNECTION_TIMEOUT_MILLIS
+            transportAddressConnector.slowAddresses.add(otherNode.getAddress());
+        } else {
+            // non-slow with execution delay variability: failure may interleave with deactivation
+            deterministicTaskQueue.setExecutionDelayVariabilityMillis(10000);
+        }
+
+        peerFinder.activate(lastAcceptedNodes);
+        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, () -> peerFinder.deactivate(localNode));
+
+        do {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+        } while (deterministicTaskQueue.hasDeferredTasks());
+
+        assertFoundPeers();
+        peerFinder.closePeers();
+        assertThat(connectedNodes, empty());
+    }
+
+    public void testReactivationAfterConnectionFailureDuringDeactivationDiscoversPeerCleanly() {
+        // Companion to testConnectionFailureAfterDeactivationDoesNotLeaveStalePeer: after the
+        // deactivation-failure sequence completes, re-activating and making the address reachable
+        // must allow clean discovery. If the prior failure leaked a stale Peer (no DiscoveryNode),
+        // activate() would trip assertInactiveWithNoUndiscoveredPeers.
+
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.unreachableAddresses.add(otherNode.getAddress());
+        transportAddressConnector.slowAddresses.add(otherNode.getAddress());
+
+        peerFinder.activate(lastAcceptedNodes);
+        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, () -> peerFinder.deactivate(localNode));
+
+        do {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+        } while (deterministicTaskQueue.hasDeferredTasks());
+
+        assertFoundPeers();
+        peerFinder.closePeers();
+        assertThat(connectedNodes, empty());
+
+        // Make the node reachable and re-activate
+        transportAddressConnector.unreachableAddresses.clear();
+        transportAddressConnector.slowAddresses.clear();
+        transportAddressConnector.addReachableNode(otherNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        runAllRunnableTasks();
+        assertFoundPeers(otherNode);
+    }
+
     public void testReconnectsToDisconnectedNodes() {
         final DiscoveryNode otherNode = newDiscoveryNode("original-node");
         providedAddresses.add(otherNode.getAddress());

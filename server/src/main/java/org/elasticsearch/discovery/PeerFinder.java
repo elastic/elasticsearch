@@ -493,9 +493,8 @@ public abstract class PeerFinder {
                         synchronized (mutex) {
                             assert probeConnectionResult.get() == null
                                 : "discoveryNode unexpectedly already set to " + probeConnectionResult.get();
-                            if (isActive()) {
-                                peersByAddress.remove(transportAddress);
-                            } // else this Peer has been superseded by a different instance which should be left in place
+                            peersByAddress.remove(transportAddress, Peer.this);
+                            // else this Peer has been superseded by a different instance which should be left in place
                         }
                     }
 

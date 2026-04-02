@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkWithOffsets;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /** Vectorized scorer for 7-bit symmetric quantized vectors stored as a {@link MemorySegment}. */
 final class MSD7Q7ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {

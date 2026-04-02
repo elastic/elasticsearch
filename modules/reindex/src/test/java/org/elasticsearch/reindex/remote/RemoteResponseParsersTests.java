@@ -13,7 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,7 +39,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
         try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.SearchFailure parsed = RemoteResponseParsers.SEARCH_FAILURE_PARSER.parse(parser, null);
+            PaginatedSearchFailure parsed = RemoteResponseParsers.SEARCH_FAILURE_PARSER.parse(parser, null);
             assertNotNull(parsed.getReason());
             assertThat(parsed.getReason().getMessage(), Matchers.containsString("exhausted"));
             assertThat(parsed.getReason(), Matchers.instanceOf(EsRejectedExecutionException.class));

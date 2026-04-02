@@ -79,6 +79,11 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, boolean[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BOOLEAN;
     }

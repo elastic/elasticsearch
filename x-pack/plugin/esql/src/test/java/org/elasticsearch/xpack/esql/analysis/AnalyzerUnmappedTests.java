@@ -7,22 +7,29 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -32,10 +39,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -43,9 +56,20 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends ESTestCase {
+
+    /**
+     * Query suffixes that use the unsupported type-conflict field [message] in different commands.
+     * Each type conflict test iterates over these to verify the error is raised regardless of how the field is used.
+     */
+    private static final String[] TYPE_CONFLICT_QUERY_SUFFIXES = new String[] {
+        "| SORT message",
+        "| EVAL x = message",
+        "| WHERE message IS NOT NULL" };
+
     public void testFailKeepAndNonMatchingStar() {
         assertUnmappedFailure(test(), """
             FROM test
@@ -185,8 +209,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                     """),
                 allOf(
                     containsString("Found 4 problems"),
-                    containsString("Subqueries and views are not supported with unmapped_fields=\"load\""),
-                    containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
+                    containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    containsString("line 5:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    containsString("line 7:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    containsString("line 9:19: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
                     not(containsString("FORK is not supported"))
                 )
             );
@@ -497,12 +523,20 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     public void testLoadModeDisallowsSubqueryWithLookupJoin() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assertUnmappedLoadError(test().addLanguagesLookup(), """
-            FROM test,
-                (FROM test
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code)
-            """, containsString("Subqueries and views are not supported with unmapped_fields=\"load\""));
+        assertUnmappedLoadError(
+            test().addLanguagesLookup(),
+            """
+                FROM test,
+                    (FROM test
+                    | EVAL language_code = languages
+                    | LOOKUP JOIN languages_lookup ON language_code)
+                """,
+            allOf(
+                containsString("Found 2 problems"),
+                containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                containsString("line 4:19: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+            )
+        );
     }
 
     public void testLoadModeDisallowsSingleSubqueryPlusFork() {
@@ -540,8 +574,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             .statementError(
                 query,
                 allOf(
-                    containsString("Subqueries and views are not supported with unmapped_fields=\"load\""),
-                    containsString("FORK is not supported with unmapped_fields=\"load\"")
+                    containsString("Found 5 problems"),
+                    containsString("line 2:3: FORK is not supported with unmapped_fields=\"load\""),
+                    // error below appears twice
+                    containsString("line 1:40: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    // error below appears twice
+                    containsString("line 1:34: FORK after subquery is not supported")
                 )
             );
     }
@@ -588,6 +626,114 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 containsString("line 1:65: Subqueries and views are not supported with unmapped_fields=\"load\"")
             )
         );
+    }
+
+    public void testTypeConflictLongUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
+        }
+    }
+
+    public void testTypeConflictLongKeywordUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+        }
+    }
+
+    public void testTypeConflictLongIntUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "integer")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+        }
+    }
+
+    public void testTypeConflictTextUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "text")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
+        }
+    }
+
+    public void testSameMappingHashNotPartiallyUnmapped() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "long"))
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var plan = ta.statement(setUnmappedLoad("FROM foo, bar | EVAL x = message + 1"));
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), org.elasticsearch.xpack.esql.plan.logical.Eval.class);
+        var attr = eval.output().stream().filter(a -> a.name().equals("message")).findFirst().orElseThrow();
+        assertThat(attr.dataType(), is(DataType.LONG));
+    }
+
+    public void testSameMappingHashWithUnmappedIndex() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(VerificationException.class, () -> ta.statement(setUnmappedLoad("FROM foo, bar, baz | SORT message")));
+        assertThat(e.getMessage(), allOf(containsString("Cannot use field [message]"), containsString("[long] in [bar, foo]")));
     }
 
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;
@@ -694,7 +840,16 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             test().addLanguagesLookup()
                 .statementError(
                     statement,
-                    allOf(containsString("[tbucket(1 hour)] "), not(containsString("LOOKUP JOIN is not supported")))
+                    allOf(
+                        containsString("Found 1 problem"),
+                        containsString(
+                            "line 4:25: [tbucket(1 hour)] requires the [@timestamp] "
+                                + "field, which was either not present in the source index, "
+                                + "or has been dropped or renamed; the [unmapped_fields] "
+                                + "setting does not apply to the implicit @timestamp reference"
+                        ),
+                        not(containsString("LOOKUP JOIN is not supported"))
+                    )
                 );
         }
     }
@@ -872,6 +1027,335 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
+    /**
+     * When unmapped_fields=load and an index has a partially mapped field that is not KEYWORD (e.g. LONG),
+     * analysis must fail once that field is used outside {@link EsRelation}.
+     * Covers one offending field; see {@link #testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields} for multiple.
+     */
+    public void testDisallowLoadWithPartiallyMappedNonKeyword() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM idx* | WHERE partial_long > 0",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:47: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
+                )
+            )
+        );
+    }
+
+    public void testDisallowLoadWithPartiallyMappedNonKeywordReportsAllFields() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(
+            Map.of("partial_long", longField("partial_long"), "partial_double", doubleField("partial_double")),
+            Set.of("partial_long", "partial_double")
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM idx* | SORT partial_long, partial_double",
+            allOf(
+                containsString("Found 2 problems"),
+                containsString(
+                    "line 1:46: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
+                ),
+                containsString(
+                    "line 1:60: Cannot use field [partial_double] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [double] in [idx_mapped]"
+                )
+            )
+        );
+    }
+
+    public void testAllowLoadWithPartialNonKeywordWhenFieldNotReferenced() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Set.of("partial_long")
+        );
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | KEEP common"));
+        var limit = as(plan, Limit.class);
+        // partial_long must not appear in the output — only the non-PUNK field that was explicitly kept
+        assertThat(Expressions.names(limit.output()), is(List.of("common")));
+        assertThat(limit.output().getFirst().dataType(), is(DataType.KEYWORD));
+    }
+
+    /**
+     * Comma-separated {@code FROM} resolves to one merged {@link EsIndex} named {@code idx_a,idx_b}; partial-field checks must use that
+     * resolution (see {@link IndexResolution#matches}).
+     */
+    public void testAllowLoadCommaSeparatedIndicesWhenPartialNonKeywordUnused() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var pattern = "idx_a,idx_b";
+        var merged = new EsIndex(
+            pattern,
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Map.of("partial_long", Set.of("idx_b"))
+        );
+        var plan = analyzer().addIndex(pattern, IndexResolution.valid(merged))
+            .statement(setUnmappedLoad("FROM idx_a, idx_b | KEEP common"));
+        assertThat(plan, not(nullValue()));
+    }
+
+    public void testDisallowLoadCommaSeparatedIndicesWhenPartialNonKeywordUsed() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var pattern = "idx_a,idx_b";
+        var merged = new EsIndex(
+            pattern,
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Map.of("idx_a", IndexMode.STANDARD, "idx_b", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Map.of("partial_long", Set.of("idx_b"))
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(pattern, IndexResolution.valid(merged)),
+            "FROM idx_a, idx_b | WHERE partial_long > 0",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:55: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_a]"
+                )
+            )
+        );
+    }
+
+    public void testAllowLoadFromOnlyWhenPartialNonKeywordUnused() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx*"));
+        assertThat(plan, not(nullValue()));
+    }
+
+    public void testDisallowLoadWithPartiallyMappedNonKeywordInRename() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Set.of("partial_long")
+        );
+        var analyzer = analyzer().addIndex(esIndex);
+
+        assertUnmappedLoadError(
+            analyzer,
+            "FROM idx* | RENAME partial_long AS pl",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:48: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
+                )
+            )
+        );
+
+        assertUnmappedLoadError(
+            analyzer,
+            "FROM idx* | RENAME common as c, partial_long AS pl",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:61: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
+                )
+            )
+        );
+    }
+
+    public void testDisallowLoadWithPartiallyMappedNonKeywordInSort() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM idx* | SORT partial_long",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:46: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
+                )
+            )
+        );
+    }
+
+    /**
+     * Same rule as {@link #testDisallowLoadWithPartiallyMappedNonKeyword} exercised through additional commands
+     * ({@code CHANGE_POINT} and {@code MV_EXPAND}) to ensure the check is not accidentally tied to a specific command.
+     * A regression that bypasses the verifier for one of these commands would cause its test to fail.
+     */
+    public void testDisallowLoadWithPartiallyMappedNonKeywordInChangePoint() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+        assumeTrue("Requires CHANGE_POINT", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+
+        var esIndex = partialIndex(
+            Map.of(
+                "partial_long",
+                longField("partial_long"),
+                "@timestamp",
+                new EsField("@timestamp", DataType.DATETIME, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Set.of("partial_long")
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM idx* | CHANGE_POINT partial_long ON @timestamp AS type, pvalue",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:54: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
+                )
+            )
+        );
+    }
+
+    /** See {@link #testDisallowLoadWithPartiallyMappedNonKeywordInChangePoint}. */
+    public void testDisallowLoadWithPartiallyMappedNonKeywordInMvExpand() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM idx* | MV_EXPAND partial_long",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:51: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
+                )
+            )
+        );
+    }
+
+    public void testDisallowLoadWithPartiallyMappedNonKeywordDottedPath() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var sub = longField("sub");
+        var obj = new EsField("obj", DataType.OBJECT, Map.of("sub", sub), true, EsField.TimeSeriesFieldType.NONE);
+        var esIndex = partialIndex(Map.of("obj", obj), Set.of("obj.sub"));
+        assertUnmappedLoadError(
+            analyzer().addIndex(esIndex),
+            "FROM idx* | SORT `obj.sub`",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:46: Cannot use field [obj.sub] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
+                )
+            )
+        );
+    }
+
+    /**
+     * {@code @timestamp} resolved as date/date_nanos union across two indices, with a third index where it is outright unmapped. Under
+     * {@code unmapped_fields=load}, this still fails because {@code @timestamp} is partially unmapped and used in {@code WHERE}.
+     */
+    public void testDisallowLoadWithPartialUnionTimestampInWhere() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var pattern = "sample_data,sample_data_ts_nanos,no_mapping_sample_data";
+        var tsField = new InvalidMappedField(
+            "@timestamp",
+            Map.of(DataType.DATETIME.typeName(), Set.of("sample_data"), DataType.DATE_NANOS.typeName(), Set.of("sample_data_ts_nanos"))
+        );
+        var merged = new EsIndex(
+            pattern,
+            Map.of("@timestamp", tsField),
+            Map.of(
+                "sample_data",
+                IndexMode.STANDARD,
+                "sample_data_ts_nanos",
+                IndexMode.STANDARD,
+                "no_mapping_sample_data",
+                IndexMode.STANDARD
+            ),
+            Map.of(),
+            Map.of(),
+            Map.of("@timestamp", Set.of("no_mapping_sample_data"))
+        );
+        assertUnmappedLoadError(
+            analyzer().addIndex(pattern, IndexResolution.valid(merged)),
+            "FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index "
+                + "| WHERE @timestamp == \"2021-01-01\"::date_nanos",
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:116: Cannot use field [@timestamp] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[keyword] due to loading from _source, [date_nanos] in [sample_data, sample_data_ts_nanos]"
+                )
+            )
+        );
+    }
+
+    public void testAllowLoadWithKeepDrop() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(
+            Map.of("partial_long", longField("partial_long"), "common", keywordField("common")),
+            Set.of("partial_long")
+        );
+        var analyzer = analyzer().addIndex(esIndex);
+
+        String[] queries = new String[] {
+            "FROM idx* | KEEP common",
+            "FROM idx* | KEEP partial_long",
+            "FROM idx* | KEEP partial_long, common",
+            "FROM idx* | KEEP c*, p*",
+            "FROM idx* | DROP partial_long",
+            "FROM idx* | DROP common",
+            "FROM idx* | DROP c*",
+            "FROM idx* | DROP p*",
+            "FROM idx* | DROP partial_long | KEEP common", };
+        String suffix = randomFrom("", "| EVAL foo = 1", "| STATS count(*)", "| LIMIT 10");
+        LogicalPlan plan;
+        for (String query : queries) {
+            plan = analyzer.statement(setUnmappedLoad(query + suffix));
+            assertThat(plan, not(nullValue()));
+        }
+    }
+
+    public void testAllowLoadWithPartiallyMappedKeyword() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(Map.of("partial_type_keyword", keywordField("partial_type_keyword")), Set.of("partial_type_keyword"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedLoad("FROM idx* | KEEP partial_type_keyword"));
+        assertThat(plan, not(nullValue()));
+    }
+
+    public void testNullifyWithPartiallyMappedNonKeywordDoesNotFail() {
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        var plan = analyzer().addIndex(esIndex).statement(setUnmappedNullify("FROM idx* | WHERE partial_long IS NOT NULL"));
+        assertThat(plan, not(nullValue()));
+    }
+
+    /**
+     * With {@code unmapped_fields=load}, referencing a partially unmapped non-KEYWORD field only in {@code FROM} (not downstream)
+     * must succeed — the check fires only when the field is used outside the source relation.
+     */
+    public void testPartiallyUnmappedNonKeywordIsAllowedWithLoad_WhenNotReferenced() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
+        // partial_long is in the index but not referenced in any downstream expression — no PUNK violation
+        assertNotNull(analyzer().addIndex(esIndex).statement("SET unmapped_fields=\"load\"; FROM idx*"));
+    }
+
     private Matcher<String> unmappedLoadAndFlattenedSubfieldHelper(String... pairs) {
         assert pairs.length % 2 == 0;
         String errorMessage =
@@ -897,11 +1381,38 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     private static TestAnalyzer index1() {
         Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
-        return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of()));
+        return analyzer().addIndex(new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Map.of()));
     }
 
     private static void assertUnmappedLoadError(TestAnalyzer analyzer, String query, Matcher<String> matcher) {
         analyzer.statementError(setUnmappedLoad(query), matcher);
+    }
+
+    private void typeConflictVerificationFailure(String statement, Map<IndexPattern, IndexResolution> indexResolutions) {
+        TestAnalyzer ta = analyzer();
+        for (var entry : indexResolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(VerificationException.class, () -> ta.statement(statement));
+        assertThat(e.getMessage(), containsString("Cannot use field [message]"));
+    }
+
+    private static EsIndex partialIndex(Map<String, EsField> mapping, Set<String> partialFieldNames) {
+        Map<String, Set<String>> fieldToUnmappedIndices = partialFieldNames.stream()
+            .collect(Collectors.toMap(f -> f, f -> Set.of("idx_unmapped")));
+        return new EsIndex("idx*", mapping, Map.of("idx_mapped", IndexMode.STANDARD), Map.of(), Map.of(), fieldToUnmappedIndices);
+    }
+
+    private static EsField longField(String name) {
+        return new EsField(name, DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static EsField doubleField(String name) {
+        return new EsField(name, DataType.DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+    }
+
+    private static EsField keywordField(String name) {
+        return new EsField(name, DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
     }
 
     private static String setUnmappedNullify(String query) {
@@ -910,7 +1421,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private static String setUnmappedLoad(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_V3", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V3.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
         return "SET unmapped_fields=\"load\"; " + query;
     }
 
@@ -927,32 +1438,67 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var analyzer = test();
         analyzer.statementError(
             setUnmappedLoad("FROM test | WHERE first_name:\"foo\" | KEEP first_name"),
-            containsString("does not support full-text search function [:]")
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:47: unmapped_fields=\"load\" does not support full-text search function [:]; use \"default\" or \"nullify\""
+                )
+            )
         );
         analyzer.statementError(
             setUnmappedLoad("FROM test | WHERE match(first_name, \"foo\") | KEEP first_name"),
-            containsString("does not support full-text search function [MATCH]")
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:47: unmapped_fields=\"load\" does not support full-text search function [MATCH]; "
+                        + "use \"default\" or \"nullify\""
+                )
+            )
         );
         analyzer.statementError(
             setUnmappedLoad("FROM test | WHERE match_phrase(first_name, \"foo bar\") | KEEP first_name"),
-            containsString("does not support full-text search function [MatchPhrase]")
+            allOf(
+                containsString("Found 1 problem"),
+                containsString(
+                    "line 1:47: unmapped_fields=\"load\" does not support full-text search function [MatchPhrase]; "
+                        + "use \"default\" or \"nullify\""
+                )
+            )
         );
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
             analyzer.statementError(
                 setUnmappedLoad("FROM test | WHERE qstr(\"first_name: foo\") | KEEP first_name"),
-                containsString("does not support full-text search function [QSTR]")
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString(
+                        "line 1:47: unmapped_fields=\"load\" does not support full-text search function [QSTR]; "
+                            + "use \"default\" or \"nullify\""
+                    )
+                )
             );
         }
         if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
             analyzer.statementError(
                 setUnmappedLoad("FROM test | WHERE kql(\"first_name: foo\") | KEEP first_name"),
-                containsString("does not support full-text search function [KQL]")
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString(
+                        "line 1:47: unmapped_fields=\"load\" does not support full-text search function [KQL]; "
+                            + "use \"default\" or \"nullify\""
+                    )
+                )
             );
         }
         analyzer().addIndex("test", "mapping-full_text_search.json")
             .statementError(
                 setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | KEEP vector"),
-                containsString("does not support full-text search function [KNN]")
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString(
+                        "line 1:47: unmapped_fields=\"load\" does not support full-text search function [KNN]; "
+                            + "use \"default\" or \"nullify\""
+                    )
+                )
             );
     }
 

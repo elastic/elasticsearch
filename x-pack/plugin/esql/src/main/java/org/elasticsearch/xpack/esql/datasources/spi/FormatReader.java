@@ -148,6 +148,14 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Returns the aggregate pushdown support for this format.
+     * Only format readers with column statistics in their metadata (Parquet, ORC) override this.
+     */
+    default AggregatePushdownSupport aggregatePushdownSupport() {
+        return AggregatePushdownSupport.UNSUPPORTED;
+    }
+
+    /**
      * Returns a format reader configured with the schema attributes.
      * <p>
      * The schema is determined during the planning phase (via {@link #metadata(StorageObject)})

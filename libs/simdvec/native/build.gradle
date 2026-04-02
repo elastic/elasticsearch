@@ -64,8 +64,21 @@ model {
       }
     }
     clang(Clang) {
+      // On Darwin, use tinystd instead of the platform SDK's libc++ headers.
+      // -nostdinc blocks all system headers; we add back our minimal C++ std
+      // headers (tinystd) and clang's freestanding builtins (arm_neon.h, stdint.h, etc.).
       target("aarch64") {
-        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8.2-a+dotprod", "-Winline"]) }
+        if (os.isMacOsX()) {
+          def clangResourceDir = "clang -print-resource-dir".execute().text.trim()
+          cppCompiler.withArguments { args -> args.addAll([
+            "-std=c++17", "-O3", "-march=armv8.2-a+dotprod", "-Winline", "-DNDEBUG",
+            "-nostdinc",
+            "-isystem", "src/vec/headers/darwin/tinystd",
+            "-isystem", "${clangResourceDir}/include"
+          ]) }
+        } else {
+          cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8.2-a+dotprod", "-Winline"]) }
+        }
       }
 
       target("amd64") {

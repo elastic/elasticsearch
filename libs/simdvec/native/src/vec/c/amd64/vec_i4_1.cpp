@@ -97,12 +97,15 @@ static inline void doti4_bulk_impl(
     const int8_t* current_doc_ptrs[batches];
     init_pointers<batches, int8_t, int8_t, mapper>(current_doc_ptrs, docs, pitch, offsets, 0, count);
 
-    for (; c + 2 * batches - 1 < count; c += batches) {
+    for (; c + batches - 1 < count; c += batches) {
         const int8_t* next_doc_ptrs[batches];
-        apply_indexed<batches>([&](auto I) {
-            next_doc_ptrs[I] = mapper(docs, c + batches + I, offsets, pitch);
-            prefetch(next_doc_ptrs[I], lines_to_fetch);
-        });
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_doc_ptrs[I] = mapper(docs, c + batches + I, offsets, pitch);
+                prefetch(next_doc_ptrs[I], lines_to_fetch);
+            });
+        }
 
         __m256i acc32[batches];
         apply_indexed<batches>([&](auto I) {
@@ -158,7 +161,9 @@ static inline void doti4_bulk_impl(
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)res[I];
         });
-        std::copy_n(next_doc_ptrs, batches, current_doc_ptrs);
+        if (has_next) {
+            std::copy_n(next_doc_ptrs, batches, current_doc_ptrs);
+        }
     }
 
     for (; c < count; c++) {

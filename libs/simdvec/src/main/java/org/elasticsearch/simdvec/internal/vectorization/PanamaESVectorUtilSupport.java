@@ -33,6 +33,7 @@ import static jdk.incubator.vector.VectorOperators.LSHL;
 import static jdk.incubator.vector.VectorOperators.MAX;
 import static jdk.incubator.vector.VectorOperators.MIN;
 import static jdk.incubator.vector.VectorOperators.OR;
+import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -44,7 +45,6 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
 
     static final boolean SUPPORTS_NATIVE_VECTORS = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
-    static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     private static FloatVector fma(FloatVector a, FloatVector b, FloatVector c) {
         if (Constants.HAS_FAST_VECTOR_FMA) {
@@ -74,6 +74,29 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
             ? Similarities.squareDistanceF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
             : VectorUtil.squareDistance(a, b);
+    }
+
+    @Override
+    public float squareDistance(float[] a, float[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return squareDistance(a, b);
+        }
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        int i = offset;
+        final int end = offset + length;
+        final int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+            FloatVector diff = av.sub(bv);
+            acc = fma(diff, diff, acc);
+        }
+        float distance = acc.reduceLanes(ADD);
+        for (; i < end; i++) {
+            float diff = a[i] - b[i];
+            distance = fma(diff, diff, distance);
+        }
+        return distance;
     }
 
     @Override
@@ -862,13 +885,28 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distances);
+    }
+
+    @Override
+    public void squareDistanceBulk(
+        float[] query,
+        int queryOffset,
+        int length,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        float[] distances
+    ) {
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
-        final int limit = FLOAT_SPECIES.loopBound(query.length);
-        int i = 0;
-        for (; i < limit; i += FLOAT_SPECIES.length()) {
+        final int end = queryOffset + length;
+        final int vectorEnd = queryOffset + FLOAT_SPECIES.loopBound(length);
+        int i = queryOffset;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
             FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
             FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
             FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
@@ -888,7 +926,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         float distance2 = sv2.reduceLanes(VectorOperators.ADD);
         float distance3 = sv3.reduceLanes(VectorOperators.ADD);
 
-        for (; i < query.length; i++) {
+        for (; i < end; i++) {
             final float qValue = query[i];
             final float diff0 = qValue - v0[i];
             final float diff1 = qValue - v1[i];
@@ -1183,6 +1221,51 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             }
         }
         return -1;
+    }
+
+    @Override
+    public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        // Scalar logic is faster for short values (below approximately 24 bytes)
+        if (valueLength < 24) {
+            return ByteArrayUtils.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+        }
+
+        byte first = term[termOffset];
+        byte last = term[termOffset + termLength - 1];
+        int maxPos = valueOffset + valueLength - termLength;
+
+        ByteVector firstVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, first);
+        ByteVector lastVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, last);
+        int vectorSize = PREFERRED_BYTE_SPECIES.length();
+        int i = valueOffset;
+        int loopBound = maxPos - vectorSize + 1;
+        for (; i <= loopBound; i += vectorSize) {
+            ByteVector blockFirst = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, value, i);
+            ByteVector blockLast = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, value, i + termLength - 1);
+            long mask = blockFirst.eq(firstVec).and(blockLast.eq(lastVec)).toLong();
+            while (mask != 0) {
+                int pos = Long.numberOfTrailingZeros(mask);
+                int absPos = i + pos;
+                if (absPos > maxPos) {
+                    break;
+                }
+                if (middleBytesMatch(value, absPos, term, termOffset, termLength)) {
+                    return true;
+                }
+                mask &= mask - 1;
+            }
+        }
+        return ByteArrayUtils.contains(value, i, valueOffset + valueLength - i, term, termOffset, termLength);
+    }
+
+    /** Checks bytes between first and last (exclusive) since those were already verified by the SIMD masks. */
+    private static boolean middleBytesMatch(byte[] value, int valuePos, byte[] term, int termOffset, int termLength) {
+        for (int k = 1; k < termLength - 1; k++) {
+            if (value[valuePos + k] != term[termOffset + k]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

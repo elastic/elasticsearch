@@ -36,7 +36,7 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.IOException;
 
-abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
+public abstract class OffHeapBFloat16VectorValues extends FloatVectorValues implements HasIndexSlice {
 
     protected final int dimension;
     protected final int size;
@@ -64,10 +64,6 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
         this.flatVectorsScorer = flatVectorsScorer;
         bfloatBytes = new byte[dimension * BFloat16.BYTES];
         value = new float[dimension];
-
-        assert (this instanceof HasIndexSlice) == false
-            : "BFloat16 should not implement HasIndexSlice until a bfloat16 scorer is created,"
-                + " else Lucene99MemorySegmentFlatVectorsScorer will try to access 4-byte floats here";
     }
 
     @Override
@@ -78,6 +74,16 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
     @Override
     public int size() {
         return size;
+    }
+
+    @Override
+    public IndexInput getSlice() {
+        return slice;
+    }
+
+    @Override
+    public int getVectorByteLength() {
+        return dimension * BFloat16.BYTES;
     }
 
     @Override
@@ -129,9 +135,9 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
      * Dense vector values that are stored off-heap. This is the most common case when every doc has a
      * vector.
      */
-    static class DenseOffHeapVectorValues extends OffHeapBFloat16VectorValues {
+    public static class DenseOffHeapVectorValues extends OffHeapBFloat16VectorValues {
 
-        DenseOffHeapVectorValues(
+        public DenseOffHeapVectorValues(
             int dimension,
             int size,
             IndexInput slice,

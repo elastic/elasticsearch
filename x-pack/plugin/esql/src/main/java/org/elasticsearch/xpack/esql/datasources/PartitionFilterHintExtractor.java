@@ -53,7 +53,7 @@ public final class PartitionFilterHintExtractor {
         LESS_THAN_OR_EQUAL,
         IN;
 
-        boolean canRewriteGlob() {
+        public boolean canRewriteGlob() {
             return this == EQUALS || this == IN;
         }
     }
@@ -69,7 +69,7 @@ public final class PartitionFilterHintExtractor {
             values = values != null ? List.copyOf(values) : List.of();
         }
 
-        boolean isSingleValue() {
+        public boolean isSingleValue() {
             return values.size() == 1;
         }
     }

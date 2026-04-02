@@ -1,0 +1,5 @@
+area: "TSDB, ES|QL"
+issues: []
+pr: 145625
+summary: TS rejects non-TSDS indices with misleading error
+type: enhancement

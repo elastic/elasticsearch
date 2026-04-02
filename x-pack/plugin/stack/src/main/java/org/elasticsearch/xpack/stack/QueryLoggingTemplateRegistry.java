@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.stack;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -24,6 +27,8 @@ import java.util.Map;
  * Manages the index template for query logging.
  */
 public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
+    private static final Logger logger = LogManager.getLogger(QueryLoggingTemplateRegistry.class);
+
     // history (please add a comment why you increased the version here)
     // version 1: initial placeholder
     public static final int INDEX_TEMPLATE_VERSION = 1;
@@ -34,6 +39,18 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     public static final String QUERY_LOGGING_SETTINGS_NAME = ".query-logging-settings";
     public static final String QUERY_LOGGING_TEMPLATE_NAME = ".query-logging-template";
 
+    /**
+     * Setting for tests to disable the registry.
+     */
+    public static final Setting<Boolean> QUERY_LOGGING_REGISTRY_ENABLED = Setting.boolSetting(
+        "xpack.stack.querylog.registry.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private volatile boolean queryLoggingRegistryEnabled;
+
     public QueryLoggingTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -42,6 +59,17 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
         NamedXContentRegistry xContentRegistry
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        this.queryLoggingRegistryEnabled = QUERY_LOGGING_REGISTRY_ENABLED.get(nodeSettings);
+    }
+
+    @Override
+    public void initialize() {
+        super.initialize();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(QUERY_LOGGING_REGISTRY_ENABLED, this::updateEnabledSetting);
+    }
+
+    private void updateEnabledSetting(boolean newValue) {
+        this.queryLoggingRegistryEnabled = newValue;
     }
 
     private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
@@ -61,7 +89,10 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return componentTemplates;
+        if (queryLoggingRegistryEnabled) {
+            return componentTemplates;
+        }
+        return Map.of();
     }
 
     private final Map<String, ComposableIndexTemplate> composableIndexTemplateConfigs = parseComposableTemplates(
@@ -81,7 +112,10 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return composableIndexTemplateConfigs;
+        if (queryLoggingRegistryEnabled) {
+            return composableIndexTemplateConfigs;
+        }
+        return Map.of();
     }
 
     @Override

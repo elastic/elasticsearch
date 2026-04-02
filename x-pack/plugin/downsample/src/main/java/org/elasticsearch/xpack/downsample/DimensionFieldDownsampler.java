@@ -69,23 +69,13 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
             if (docValues.advanceExact(docId)) {
                 int docValueCount = docValues.docValueCount();
                 assert docValueCount > 0;
-                Object value;
-                if (docValueCount == 1) {
-                    value = docValues.nextValue();
-                } else {
-                    var values = new Object[docValueCount];
-                    for (int j = 0; j < docValueCount; j++) {
-                        values[j] = docValues.nextValue();
-                    }
-                    value = values;
-                }
+                var value = retrieveDimensionValues(docValues);
                 Objects.requireNonNull(value);
                 this.lastValue = value;
                 this.isEmpty = false;
             }
         }
     }
-
     @Override
     public FormattedDocValues getLeaf(LeafReaderContext context) {
         DocValueFormat format = fieldType.docValueFormat(null, null);
@@ -101,6 +91,22 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
 
     public Object lastValue() {
         return lastValue;
+    }
+
+    private Object retrieveDimensionValues(FormattedDocValues docValues) throws IOException {
+        int docValueCount = docValues.docValueCount();
+        assert docValueCount > 0;
+        Object value;
+        if (docValueCount == 1) {
+            value = docValues.nextValue();
+        } else {
+            var values = new Object[docValueCount];
+            for (int j = 0; j < docValueCount; j++) {
+                values[j] = docValues.nextValue();
+            }
+            value = values;
+        }
+        return value;
     }
 
     /**

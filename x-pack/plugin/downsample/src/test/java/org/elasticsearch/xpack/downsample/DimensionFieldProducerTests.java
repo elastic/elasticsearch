@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.test.ESTestCase;
 
@@ -15,56 +16,55 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import static org.elasticsearch.xpack.downsample.LastValueFieldDownsamplerTests.createValuesInstance;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DimensionFieldDownsamplerTests extends ESTestCase {
+public class DimensionFieldProducerTests extends ESTestCase {
 
     public void testKeywordDimension() throws IOException {
-        DimensionFieldDownsampler dimensionDownsampler = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        DimensionFieldProducer dimensionProducer = new DimensionFieldProducer(randomAlphanumericOfLength(10));
+        assertThat(dimensionProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new String[] { "aaa", "aaa", "aaa" });
-        dimensionDownsampler.collect(values, docIdBuffer);
-        assertThat(dimensionDownsampler.lastValue(), equalTo("aaa"));
-        dimensionDownsampler.reset();
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        dimensionProducer.collect(values, docIdBuffer);
+        assertThat(dimensionProducer.lastValue(), equalTo("aaa"));
+        dimensionProducer.reset();
+        assertThat(dimensionProducer.lastValue(), nullValue());
     }
 
     public void testDoubleDimension() throws IOException {
-        DimensionFieldDownsampler dimensionDownsampler = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        DimensionFieldProducer dimensionProducer = new DimensionFieldProducer(randomAlphanumericOfLength(10));
+        assertThat(dimensionProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Double[] { 10.20D, 10.20D, 10.20D });
-        dimensionDownsampler.collect(values, docIdBuffer);
-        assertThat(dimensionDownsampler.lastValue(), equalTo(10.20D));
-        dimensionDownsampler.reset();
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        dimensionProducer.collect(values, docIdBuffer);
+        assertThat(dimensionProducer.lastValue(), equalTo(10.20D));
+        dimensionProducer.reset();
+        assertThat(dimensionProducer.lastValue(), nullValue());
     }
 
     public void testIntegerDimension() throws IOException {
-        DimensionFieldDownsampler dimensionDownsampler = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        DimensionFieldProducer dimensionProducer = new DimensionFieldProducer(randomAlphanumericOfLength(10));
+        assertThat(dimensionProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Integer[] { 10, 10, 10 });
-        dimensionDownsampler.collect(values, docIdBuffer);
-        assertThat(dimensionDownsampler.lastValue(), equalTo(10));
-        dimensionDownsampler.reset();
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        dimensionProducer.collect(values, docIdBuffer);
+        assertThat(dimensionProducer.lastValue(), equalTo(10));
+        dimensionProducer.reset();
+        assertThat(dimensionProducer.lastValue(), nullValue());
     }
 
     public void testBooleanDimension() throws IOException {
-        DimensionFieldDownsampler dimensionDownsampler = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        DimensionFieldProducer dimensionProducer = new DimensionFieldProducer(randomAlphanumericOfLength(10));
+        assertThat(dimensionProducer.lastValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Boolean[] { true, true, true });
-        dimensionDownsampler.collect(values, docIdBuffer);
-        assertThat(dimensionDownsampler.lastValue(), equalTo(true));
-        dimensionDownsampler.reset();
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        dimensionProducer.collect(values, docIdBuffer);
+        assertThat(dimensionProducer.lastValue(), equalTo(true));
+        dimensionProducer.reset();
+        assertThat(dimensionProducer.lastValue(), nullValue());
     }
 
     public void testMultiValueDimensions() throws IOException {
@@ -91,10 +91,35 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
         };
 
         values.iterator = Arrays.stream(multiValue).iterator();
-        DimensionFieldDownsampler multiLastValueProducer = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
+        DimensionFieldProducer multiLastValueProducer = new DimensionFieldProducer(randomAlphanumericOfLength(10));
         assertThat(multiLastValueProducer.lastValue(), nullValue());
         multiLastValueProducer.collect(values, docIdBuffer);
         assertThat(multiLastValueProducer.lastValue(), instanceOf(Object[].class));
         assertThat((Object[]) multiLastValueProducer.lastValue(), arrayContainingInAnyOrder(true, false));
+    }
+
+    static <T> FormattedDocValues createValuesInstance(IntArrayList docIdBuffer, T[] values) {
+        return new FormattedDocValues() {
+
+            final IntObjectHashMap<T> docIdToValue = IntObjectHashMap.from(docIdBuffer.toArray(), values);
+
+            int currentDocId = -1;
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                currentDocId = target;
+                return docIdToValue.containsKey(target);
+            }
+
+            @Override
+            public T nextValue() throws IOException {
+                return docIdToValue.get(currentDocId);
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+        };
     }
 }

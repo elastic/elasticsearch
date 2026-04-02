@@ -535,8 +535,7 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
             final var commitRefReleased = new AtomicBoolean(false);
             mockIndexShardAndCommit(testHarness, commit, commitRefReleased);
 
-            // TODO: randomize in a future PR, see also ES-14099
-            final boolean supportsRelocation = false;
+            final boolean supportsRelocation = randomBoolean();
             final var result = testHarness.snapshotsCommitService.acquireAndMaybeRegisterCommitForSnapshot(
                 shardId,
                 snapshot,

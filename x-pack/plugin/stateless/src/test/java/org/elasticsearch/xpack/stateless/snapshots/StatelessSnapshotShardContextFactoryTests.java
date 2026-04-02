@@ -20,8 +20,12 @@ package org.elasticsearch.xpack.stateless.snapshots;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,14 +41,17 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
@@ -69,12 +76,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.isA;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -179,6 +189,42 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
             snapshotShardContext.onFailure(new RuntimeException("boom"));
         }
         assertTrue(commitClosed.get());
+    }
+
+    public void testAcquireCommitFailureRetriesOnRemoteWhenEnabled() throws IOException {
+        testHarness = createTestHarness(Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "enabled").build());
+        final var retryableException = randomFrom(
+            new ShardNotFoundException(testHarness.shardId()),
+            new IndexNotFoundException(testHarness.shardId().getIndex()),
+            new IllegalIndexShardStateException(testHarness.shardId(), IndexShardState.CLOSED, "shard not in expected state"),
+            new NoShardAvailableActionException(testHarness.shardId(), "no shard available"),
+            new UnavailableShardsException(testHarness.shardId(), "no shard available"),
+            new AlreadyClosedException("already closed")
+        );
+
+        when(
+            testHarness.snapshotsCommitService()
+                .acquireAndMaybeRegisterCommitForSnapshot(eq(testHarness.shardId()), any(Snapshot.class), anyBoolean(), any())
+        ).thenThrow(retryableException);
+
+        // Mock client to capture the remote request and respond with commit info
+        final var client = mock(Client.class);
+        final var projectClient = mock(ProjectClient.class);
+        when(testHarness.stateless().getClient()).thenReturn(client);
+        when(client.projectClient(any(ProjectId.class))).thenReturn(projectClient);
+
+        final var expectedShardStateId = randomIdentifier();
+        doAnswer(invocation -> {
+            final ActionListener<GetShardSnapshotCommitInfoResponse> listener = invocation.getArgument(2);
+            listener.onResponse(new GetShardSnapshotCommitInfoResponse(Store.MetadataSnapshot.EMPTY, Map.of(), expectedShardStateId));
+            return null;
+        }).when(projectClient)
+            .execute(eq(TransportGetShardSnapshotCommitInfoAction.TYPE), any(GetShardSnapshotCommitInfoRequest.class), anyActionListener());
+
+        final var snapshotShardContextListener = testHarness.asyncCreate(new PlainActionFuture<>());
+        final var snapshotShardContext = safeAwait(snapshotShardContextListener);
+        assertThat(snapshotShardContext, isA(StatelessSnapshotShardContext.class));
+        assertThat(snapshotShardContext.stateIdentifier(), equalTo(expectedShardStateId));
     }
 
     private record TestHarness(

@@ -18,6 +18,7 @@
 package org.elasticsearch.xpack.stateless.snapshots;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.TimeValue;
 
 public class StatelessSnapshotSettings {
 
@@ -31,7 +32,14 @@ public class StatelessSnapshotSettings {
          * The stateless snapshot reads indices data from the object store. But otherwise no changes.
          * The commit information is obtained directly from the local primary shard.
          */
-        READ_FROM_OBJECT_STORE(false);
+        READ_FROM_OBJECT_STORE(false),
+
+        /**
+         * The stateless snapshot reads indices data from the object store.
+         * The commit information is obtained from the primary shard via a transport request,
+         * which allows the snapshot to be taken on a node that does not host the primary shard.
+         */
+        ENABLED(true);
 
         /**
          * Whether the enabled status supports relocation during snapshots.
@@ -55,6 +63,13 @@ public class StatelessSnapshotSettings {
         StatelessSnapshotEnabledStatus.class,
         "stateless.snapshot.enabled",
         StatelessSnapshotEnabledStatus.DISABLED,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> STATELESS_SNAPSHOT_WAIT_FOR_ACTIVE_PRIMARY_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "stateless.snapshot.wait_for_active_primary_timeout",
+        TimeValue.timeValueMinutes(5),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

@@ -19,6 +19,8 @@ package org.elasticsearch.xpack.stateless.snapshots;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,6 +54,7 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
     private final BiFunction<ShardId, Long, BlobContainer> shardBlobContainerFunc;
     private final SnapshotsCommitService snapshotsCommitService;
     private final LocalPrimarySnapshotShardContextFactory localPrimaryFactory;
+    private final Client client;
 
     public StatelessSnapshotShardContextFactory() {
         throw new IllegalStateException("This no arg constructor only exists for SPI validation");
@@ -60,6 +63,7 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
     public StatelessSnapshotShardContextFactory(StatelessPlugin stateless) {
         this.shardBlobContainerFunc = stateless.shardBlobContainerFunc();
         this.snapshotsCommitService = stateless.getSnapshotsCommitService();
+        this.client = stateless.getClient();
         stateless.getClusterService()
             .getClusterSettings()
             .initializeAndWatch(STATELESS_SNAPSHOT_ENABLED_SETTING, this::setStatelessSnapshotEnabledStatus);
@@ -116,8 +120,20 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
                     )
                 );
             } catch (Exception e) {
-                // TODO: retry on remote node once relocation during snapshot is supported, see also ES-14099
-                throw e;
+                if (status.supportsRelocationDuringSnapshot() && TransportActions.isShardNotAvailableException(e)) {
+                    logger.debug("{} became unavailable ({}) on starting snapshot, retry on remote node.", shardId, e.getMessage());
+                    return asyncCreateOnRemoteNode(
+                        shardId,
+                        snapshot,
+                        indexId,
+                        snapshotStatus,
+                        repositoryMetaVersion,
+                        snapshotStartTime,
+                        listener
+                    );
+                } else {
+                    throw e;
+                }
             }
         }
     }
@@ -130,5 +146,44 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
     private void setStatelessSnapshotEnabledStatus(StatelessSnapshotEnabledStatus statelessSnapshotEnabledStatus) {
         logger.info("stateless snapshot enabled status is [{}]", statelessSnapshotEnabledStatus);
         this.statelessSnapshotEnabledStatus = statelessSnapshotEnabledStatus;
+    }
+
+    private SubscribableListener<SnapshotShardContext> asyncCreateOnRemoteNode(
+        ShardId shardId,
+        Snapshot snapshot,
+        IndexId indexId,
+        IndexShardSnapshotStatus snapshotStatus,
+        IndexVersion repositoryMetaVersion,
+        long snapshotStartTime,
+        ActionListener<ShardSnapshotResult> listener
+    ) {
+        final var snapshotShardContextListener = new SubscribableListener<SnapshotShardContext>();
+        snapshotStatus.updateStatusDescription("fetching commit info from primary shard");
+        client.projectClient(snapshot.getProjectId())
+            .execute(
+                TransportGetShardSnapshotCommitInfoAction.TYPE,
+                new GetShardSnapshotCommitInfoRequest(shardId, snapshot),
+                snapshotShardContextListener.delegateFailureAndWrap((l, response) -> {
+                    snapshotStatus.updateStatusDescription("commit info received from primary, proceeding with snapshot");
+                    snapshotStatus.ensureNotAborted();
+                    l.onResponse(
+                        new StatelessSnapshotShardContext(
+                            shardId,
+                            snapshot.getSnapshotId(),
+                            indexId,
+                            response.shardStateId(),
+                            snapshotStatus,
+                            repositoryMetaVersion,
+                            snapshotStartTime,
+                            null,
+                            response.metadataSnapshot(),
+                            response.blobLocations(),
+                            shardBlobContainerFunc,
+                            listener
+                        )
+                    );
+                })
+            );
+        return snapshotShardContextListener;
     }
 }

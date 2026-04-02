@@ -24,6 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotStressTestsHelper;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
+import java.util.ArrayList;
+
 import static org.elasticsearch.snapshots.SnapshotStressTestsHelper.nodeNames;
 
 public class StatelessSnapshotStressTestsIT extends AbstractStatelessPluginIntegTestCase {
@@ -55,11 +57,23 @@ public class StatelessSnapshotStressTestsIT extends AbstractStatelessPluginInteg
         );
     }
 
+    public void testRandomActivitiesStatelessSnapshotEnabled() throws InterruptedException {
+        doTestRandomActivities(
+            Settings.builder()
+                .put(
+                    StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
+                    StatelessSnapshotSettings.StatelessSnapshotEnabledStatus.ENABLED
+                )
+                .build()
+        );
+    }
+
     private void doTestRandomActivities(Settings extraSettings) throws InterruptedException {
         final int numIndexNodes = between(1, 3);
         logger.info("--> starting [{}] indexing nodes", numIndexNodes);
+        final var indexNodeNames = new ArrayList<String>();
         for (int i = 0; i < numIndexNodes; i++) {
-            startMasterAndIndexNode(extraSettings);
+            indexNodeNames.add(startMasterAndIndexNode(extraSettings));
         }
         final int numSearchNodes = between(0, 3);
         logger.info("--> starting [{}] search nodes", numSearchNodes);
@@ -85,5 +99,10 @@ public class StatelessSnapshotStressTestsIT extends AbstractStatelessPluginInteg
             }
         };
         trackedCluster.run();
+
+        indexNodeNames.forEach(nodeName -> {
+            logger.info("--> asserting no commit is tracked for snapshots on [{}]", nodeName);
+            internalCluster().getInstance(SnapshotsCommitService.class, nodeName).assertEmptyTracking();
+        });
     }
 }

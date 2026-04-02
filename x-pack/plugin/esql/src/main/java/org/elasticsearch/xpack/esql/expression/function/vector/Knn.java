@@ -197,11 +197,6 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         return filterExpressions;
     }
 
-    @Override
-    public Set<Integer> denseVectorCastArgIndices() {
-        return Set.of(1);
-    }
-
     public Knn withImplicitK(Integer k) {
         Check.notNull(k, "k must not be null");
         return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions());

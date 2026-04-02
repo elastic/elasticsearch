@@ -2108,11 +2108,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof In in) {
                 return processIn(in, configuration);
             }
+            if (f instanceof VectorFunction) {
+                return processVectorFunction(f, registry, configuration);
+            }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
                 return processScalarOrGroupingFunction(f, registry, configuration);
-            }
-            if (f instanceof VectorFunction) {
-                return processVectorFunction(f, configuration);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f, configuration);
@@ -2331,14 +2331,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
+        @SuppressWarnings("unchecked")
         private static Expression processVectorFunction(
-            org.elasticsearch.xpack.esql.core.expression.function.Function f,
+            org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction,
+            EsqlFunctionRegistry registry,
             Configuration configuration
         ) {
-            if (f instanceof VectorCastable vc) {
-                return castDenseVectorArgs((Expression) f, vc.denseVectorCastArgIndices(), configuration);
+            List<Expression> args = vectorFunction.arguments();
+            List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(vectorFunction.getClass());
+            List<Expression> newArgs = new ArrayList<>();
+            for (int i = 0; i < args.size(); i++) {
+                Expression arg = args.get(i);
+                if (targetDataTypes.get(i) == DENSE_VECTOR && arg.resolved()) {
+                    var dataType = arg.dataType();
+                    if (dataType == KEYWORD) {
+                        if (arg.foldable()) {
+                            Expression exp = castStringLiteral(arg, DENSE_VECTOR, configuration);
+                            if (exp != arg) {
+                                newArgs.add(exp);
+                                continue;
+                            }
+                        }
+                    } else if (dataType.isNumeric()) {
+                        newArgs.add(new ToDenseVector(vectorFunction.source(), arg));
+                        continue;
+                    }
+                }
+                newArgs.add(arg);
             }
-            return f;
+
+            return vectorFunction.replaceChildren(newArgs);
         }
 
         /**

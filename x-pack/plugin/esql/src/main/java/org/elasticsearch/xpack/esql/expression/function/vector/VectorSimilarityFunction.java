@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -57,11 +56,6 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
 
     protected VectorSimilarityFunction(StreamInput in) throws IOException {
         super(in);
-    }
-
-    @Override
-    public Set<Integer> denseVectorCastArgIndices() {
-        return Set.of(0, 1);
     }
 
     @Override

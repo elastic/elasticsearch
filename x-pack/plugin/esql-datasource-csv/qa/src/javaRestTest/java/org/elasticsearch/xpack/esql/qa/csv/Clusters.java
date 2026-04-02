@@ -28,6 +28,7 @@ public class Clusters {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .shared(true)
+            .plugin("inference-service-test")
             // Enable S3 repository plugin for S3 access
             .module("repository-s3")
             // Enable GCS repository module for GCS access

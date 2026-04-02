@@ -550,3 +550,24 @@ min:double | step:datetime
 520.0      | 2024-05-10T00:15:00.000Z
 774.0      | 2024-05-10T00:20:00.000Z
 ;
+
+sumOverTimeWithOverflow
+required_capability: ts_command_v0
+required_capability: fix_sum_agg_long_overflow
+TS k8s
+| WHERE pod == "one" AND cluster == "prod"
+| STATS overflow = sum(sum_over_time(network.bytes_in / network.bytes_in * 9223372036854775807)), underflow = sum(sum_over_time(-(network.bytes_in / network.bytes_in * 9223372036854775807))) BY time_bucket = bucket(@timestamp, 1hour)
+| LIMIT 1
+;
+warning:Line 3:115: evaluation of [sum_over_time(-(network.bytes_in / network.bytes_in * 9223372036854775807))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:115: java.lang.ArithmeticException: long overflow
+warning:Line 3:131: evaluation of [network.bytes_in / network.bytes_in] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:131: java.lang.ArithmeticException: / by zero
+warning:Line 3:24: evaluation of [sum_over_time(network.bytes_in / network.bytes_in * 9223372036854775807)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:24: java.lang.ArithmeticException: long overflow
+warning:Line 3:38: evaluation of [network.bytes_in / network.bytes_in] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:38: java.lang.ArithmeticException: / by zero
+
+overflow:long | underflow:long | time_bucket:datetime
+null          | null           | 2024-05-10T00:00:00.000Z
+;

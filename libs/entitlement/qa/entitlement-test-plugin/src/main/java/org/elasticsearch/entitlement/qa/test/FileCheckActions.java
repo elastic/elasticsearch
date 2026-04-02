@@ -238,7 +238,7 @@ class FileCheckActions {
         return readWriteFile().toFile().setWritable(true, false);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createFileInputStreamFile() throws IOException {
         new FileInputStream(readFile().toFile()).close();
     }
@@ -248,27 +248,27 @@ class FileCheckActions {
         new FileInputStream(FileDescriptor.in).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createFileInputStreamString() throws IOException {
         new FileInputStream(readFile().toString()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createFileOutputStreamString() throws IOException {
         new FileOutputStream(readWriteFile().toString()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createFileOutputStreamStringWithAppend() throws IOException {
         new FileOutputStream(readWriteFile().toString(), false).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createFileOutputStreamFile() throws IOException {
         new FileOutputStream(readWriteFile().toFile()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createFileOutputStreamFileWithAppend() throws IOException {
         new FileOutputStream(readWriteFile().toFile(), false).close();
     }
@@ -278,12 +278,12 @@ class FileCheckActions {
         new FileOutputStream(FileDescriptor.out).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createFileReaderFile() throws IOException {
         new FileReader(readFile().toFile()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void createFileReaderFileCharset() throws IOException {
         new FileReader(readFile().toFile(), StandardCharsets.UTF_8).close();
     }
@@ -293,27 +293,27 @@ class FileCheckActions {
         new FileReader(FileDescriptor.in).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createFileReaderString() throws IOException {
         new FileReader(readFile().toString()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void createFileReaderStringCharset() throws IOException {
         new FileReader(readFile().toString(), StandardCharsets.UTF_8).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void createFileWriterFile() throws IOException {
         new FileWriter(readWriteFile().toFile()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void createFileWriterFileWithAppend() throws IOException {
         new FileWriter(readWriteFile().toFile(), false).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void createFileWriterFileCharsetWithAppend() throws IOException {
         new FileWriter(readWriteFile().toFile(), StandardCharsets.UTF_8, false).close();
     }
@@ -323,42 +323,42 @@ class FileCheckActions {
         new FileWriter(FileDescriptor.out).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void createFileWriterString() throws IOException {
         new FileWriter(readWriteFile().toString()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void createFileWriterStringWithAppend() throws IOException {
         new FileWriter(readWriteFile().toString(), false).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void createFileWriterStringCharset() throws IOException {
         new FileWriter(readWriteFile().toString(), StandardCharsets.UTF_8).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void createFileWriterStringCharsetWithAppend() throws IOException {
         new FileWriter(readWriteFile().toString(), StandardCharsets.UTF_8, false).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createRandomAccessFileStringRead() throws IOException {
         new RandomAccessFile(readFile().toString(), "r").close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createRandomAccessFileStringReadWrite() throws IOException {
         new RandomAccessFile(readWriteFile().toString(), "rw").close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createRandomAccessFileRead() throws IOException {
         new RandomAccessFile(readFile().toFile(), "r").close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createRandomAccessFileReadWrite() throws IOException {
         new RandomAccessFile(readWriteFile().toFile(), "rw").close();
     }
@@ -395,82 +395,82 @@ class FileCheckActions {
         throw new AssertionError("Expected an exception");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void zipFile_String() throws IOException {
         expectZipException(() -> new ZipFile(readFile().toString()).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void zipFile_StringCharset() throws IOException {
         expectZipException(() -> new ZipFile(readFile().toString(), defaultCharset()).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void zipFile_File() throws IOException {
         expectZipException(() -> new ZipFile(readFile().toFile()).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void zipFile_FileCharset() throws IOException {
         expectZipException(() -> new ZipFile(readFile().toFile(), defaultCharset()).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void zipFile_FileReadOnly() throws IOException {
         expectZipException(() -> new ZipFile(readFile().toFile(), OPEN_READ).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void zipFile_FileReadAndDelete() throws IOException {
         expectZipException(() -> new ZipFile(createTempFileForWrite().toFile(), OPEN_READ | OPEN_DELETE).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void zipFile_ReadOnlyCharset() throws IOException {
         expectZipException(() -> new ZipFile(readFile().toFile(), OPEN_READ, defaultCharset()).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void zipFile_ReadAndDeleteCharset() throws IOException {
         expectZipException(() -> new ZipFile(createTempFileForWrite().toFile(), OPEN_READ | OPEN_DELETE, defaultCharset()).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void jarFile_String() throws IOException {
         expectZipException(() -> new JarFile(readFile().toString()).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void jarFile_StringBoolean() throws IOException {
         expectZipException(() -> new JarFile(readFile().toString(), false).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void jarFile_FileReadOnly() throws IOException {
         expectZipException(() -> new JarFile(readFile().toFile(), false, OPEN_READ).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void jarFile_FileReadAndDelete() throws IOException {
         expectZipException(() -> new JarFile(createTempFileForWrite().toFile(), false, OPEN_READ | OPEN_DELETE).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void jarFile_FileBooleanReadOnlyVersion() throws IOException {
         expectZipException(() -> new JarFile(readFile().toFile(), false, OPEN_READ, Runtime.version()).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void jarFile_FileBooleanReadAndDeleteOnlyVersion() throws IOException {
         expectZipException(() -> new JarFile(createTempFileForWrite().toFile(), false, OPEN_READ | OPEN_DELETE, Runtime.version()).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void jarFile_File() throws IOException {
         expectZipException(() -> new JarFile(readFile().toFile()).close());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void jarFileFileBoolean() throws IOException {
         expectZipException(() -> new JarFile(readFile().toFile(), false).close());
     }
@@ -484,47 +484,47 @@ class FileCheckActions {
         throw new AssertionError("Expected an exception");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createScannerFile() throws FileNotFoundException {
         new Scanner(readFile().toFile());
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void createScannerFileWithCharset() throws IOException {
         new Scanner(readFile().toFile(), StandardCharsets.UTF_8);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = FileNotFoundException.class)
     static void createScannerFileWithCharsetName() throws FileNotFoundException {
         new Scanner(readFile().toFile(), "UTF-8");
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void fileHandler() throws IOException {
         new FileHandler();
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void fileHandler_String() throws IOException {
         new FileHandler(readFile().toString());
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void fileHandler_StringBoolean() throws IOException {
         new FileHandler(readFile().toString(), false);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void fileHandler_StringIntInt() throws IOException {
         new FileHandler(readFile().toString(), 1, 2);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void fileHandler_StringIntIntBoolean() throws IOException {
         new FileHandler(readFile().toString(), 1, 2, false);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void fileHandler_StringLongIntBoolean() throws IOException {
         new FileHandler(readFile().toString(), 1L, 2, false);
     }
@@ -640,7 +640,7 @@ class FileCheckActions {
         Files.createFile(file);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = FileNotFoundException.class)
     static void javaDesktopFileAccess() throws Exception {
         // Test file access from a java.desktop class. We explicitly exclude that module from the "system modules", so we expect
         // any sensitive operation from java.desktop to fail.

@@ -57,7 +57,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -156,18 +156,13 @@ public class Reindexer {
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
-        // todo(szy/sam): handle sliced and non-sliced
-        // todo(szy/sam): bug, we send System::nanoTime across JVMs
-        final long startTime = System.nanoTime();
-
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
         final ActionListener<BulkByScrollResponse> responseListener = wrapWithMetrics(
             listenerWithRelocations(task, request, listener),
             reindexMetrics,
             task,
-            request,
-            startTime
+            request
         );
 
         final boolean isRemote = request.getRemoteInfo() != null;
@@ -401,8 +396,18 @@ public class Reindexer {
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ReindexMetrics metrics,
         BulkByScrollTask task,
-        ReindexRequest request,
-        long startTime
+        ReindexRequest request
+    ) {
+        return wrapWithMetrics(listener, metrics, task, request, System::currentTimeMillis);
+    }
+
+    /** Overload accepting a clock supplier for testability. Visible for testing*/
+    static ActionListener<BulkByScrollResponse> wrapWithMetrics(
+        final ActionListener<BulkByScrollResponse> listener,
+        final @Nullable ReindexMetrics metrics,
+        final BulkByScrollTask task,
+        final ReindexRequest request,
+        final LongSupplier currentTimeMillisSupplier
     ) {
         if (metrics == null) {
             return listener;
@@ -414,11 +419,13 @@ public class Reindexer {
         }
         final boolean isRemote = request.getRemoteInfo() != null;
         final ReindexMetrics.SlicingMode slicingMode = ReindexMetrics.resolveSlicingMode(request);
-        // todo(szy): add relocation metrics
         return new ActionListener<>() {
             private void recordDuration() {
-                long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-                metrics.recordTookTime(elapsedTime, isRemote, slicingMode);
+                // handles relocations
+                long elapsedTimeSeconds = TimeUnit.MILLISECONDS.toSeconds(
+                    currentTimeMillisSupplier.getAsLong() - task.relocationOrigin().originalStartTimeMillis()
+                );
+                metrics.recordTookTime(elapsedTimeSeconds, isRemote, slicingMode);
             }
 
             @Override
@@ -435,7 +442,7 @@ public class Reindexer {
                     var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
                         .stream()
                         .flatMap(List::stream)
-                        .map(PaginatedHitSource.SearchFailure::getReason)
+                        .map(PaginatedSearchFailure::getReason)
                         .findFirst();
                     var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
                         .stream()
@@ -748,7 +755,7 @@ public class Reindexer {
         protected void finishHim(
             Exception failure,
             List<BulkItemResponse.Failure> indexingFailures,
-            List<PaginatedHitSource.SearchFailure> searchFailures,
+            List<PaginatedSearchFailure> searchFailures,
             boolean timedOut
         ) {
             super.finishHim(failure, indexingFailures, searchFailures, timedOut);

@@ -144,7 +144,7 @@ static inline void dotd1q4_inner_bulk(
 
     int c = 0;
 
-    for (; c + batches < count; c += batches) {
+    for (; c + batches - 1 < count; c += batches) {
         const uint8_t* as[batches];
         apply_indexed<batches>([&](auto I) {
             as[I] = (const uint8_t*)mapper(a, c + I, offsets, pitch);

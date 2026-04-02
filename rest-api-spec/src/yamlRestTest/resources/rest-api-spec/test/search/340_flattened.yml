@@ -514,3 +514,191 @@ setup:
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.2._id: "1" }
+
+---
+"Test flattened passthrough sub-fields resolve at root":
+  - requires:
+      cluster_features: ["mapper.flattened.passthrough"]
+      reason: "passthrough support on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                passthrough:
+                  priority: 10
+                properties:
+                  status:
+                    type: keyword
+                  count:
+                    type: long
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "labels": { "status": "active", "count": 3, "region": "us-east-1" } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "status": "inactive", "count": 7, "region": "eu-west-1" } }'
+          - '{ "index": { "_id": "3" } }'
+          - '{ "labels": { "status": "active", "count": 1 } }'
+  - match: { errors: false }
+
+  # term query on passthrough sub-field resolves at root
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              status: "active"
+          sort: count
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "1" }
+
+  # range query on long passthrough sub-field at root
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              count:
+                gte: 3
+  - match: { hits.total.value: 2 }
+
+  # untyped key is still accessible via prefixed path
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              labels.region: "us-east-1"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Test flattened passthrough priority: higher priority wins":
+  - requires:
+      cluster_features: ["mapper.flattened.passthrough"]
+      reason: "passthrough support on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                passthrough:
+                  priority: 5
+                properties:
+                  env:
+                    type: keyword
+              resource.attributes:
+                type: passthrough
+                priority: 10
+                properties:
+                  env:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "labels": { "env": "staging" }, "resource.attributes": { "env": "production" } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "env": "staging" } }'
+  - match: { errors: false }
+
+  # root "env" resolves to resource.attributes.env (priority 10 > 5)
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              env: "production"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # querying via the full flattened path still works
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              labels.env: "staging"
+  - match: { hits.total.value: 2 }
+
+---
+"Test flattened passthrough: root concrete field wins over passthrough alias":
+  - requires:
+      cluster_features: ["mapper.flattened.passthrough"]
+      reason: "passthrough support on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              status:
+                type: keyword
+              labels:
+                type: flattened
+                passthrough:
+                  priority: 10
+                properties:
+                  status:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "status": "root-value", "labels": { "status": "passthrough-value" } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "status": "passthrough-value" } }'
+  - match: { errors: false }
+
+  # term on root "status" finds only the doc with a concrete root value
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              status: "root-value"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # "passthrough-value" is not reachable via the root alias — full path required
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              status: "passthrough-value"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              labels.status: "passthrough-value"
+  - match: { hits.total.value: 2 }

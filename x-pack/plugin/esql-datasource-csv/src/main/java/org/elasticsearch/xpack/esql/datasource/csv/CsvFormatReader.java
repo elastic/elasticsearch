@@ -500,6 +500,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Parse CSV type names to ESQL DataType. Small numeric types (SHORT, BYTE, FLOAT, etc.)
      * are widened to INTEGER/DOUBLE since the planner expects widened types.
+     * Typed-schema aliases TEXT and TXT map to KEYWORD (same string family as KEYWORD/STRING).
      */
     private DataType parseDataType(String typeName) {
         String upper = typeName.toUpperCase(Locale.ROOT);
@@ -511,8 +512,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "LONG", "L" -> DataType.LONG;
             case "FLOAT", "F", "HALF_FLOAT", "SCALED_FLOAT" -> DataType.DOUBLE;
             case "DOUBLE", "D" -> DataType.DOUBLE;
-            case "KEYWORD", "K", "STRING", "S" -> DataType.KEYWORD;
-            case "TEXT", "TXT" -> DataType.TEXT;
+            case "KEYWORD", "K", "STRING", "S", "TEXT", "TXT" -> DataType.KEYWORD;
             case "BOOLEAN", "BOOL" -> DataType.BOOLEAN;
             case "DATETIME", "DATE", "DT" -> DataType.DATETIME;
             case "IP" -> DataType.IP;

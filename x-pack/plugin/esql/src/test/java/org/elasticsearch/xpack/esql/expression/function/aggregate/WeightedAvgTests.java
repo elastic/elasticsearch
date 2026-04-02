@@ -38,9 +38,7 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
 
         var numberCases = Stream.of(
             MultiRowTestCaseSupplier.intCases(1000, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-            // Longs currently fail on overflow
-            // Restore after https://github.com/elastic/elasticsearch/issues/110437
-            // MultiRowTestCaseSupplier.longCases(1000, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1000, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1000, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).toList();
 
@@ -145,6 +143,7 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
 
                 // Calculate the results one by one to correctly track overflows and exceptions
                 var validMulResults = new ArrayList<Double>();
+                var validMulLongResults = new ArrayList<Long>();
                 for (int i = 0; i < fieldValues.size(); i++) {
                     Number fieldNum = (Number) fieldValues.get(i);
                     Number weightNum = (Number) weightValues.get(i);
@@ -160,6 +159,7 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                         try {
                             long result = Math.multiplyExact(fieldNum.longValue(), weightNum.longValue());
                             validMulResults.add((double) result);
+                            validMulLongResults.add(result);
                         } catch (ArithmeticException e) {
                             warnings.add("Line 1:1: java.lang.ArithmeticException: long overflow");
                         }
@@ -173,13 +173,40 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                     }
                 }
 
-                // If all Mul operations failed, Sum returns null (no values to aggregate)
-                // Otherwise, Sum returns the sum of valid values
-                Double weightedSum = validMulResults.isEmpty() ? null : validMulResults.stream().mapToDouble(d -> d).sum();
-                double totalWeights = weightValues.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum();
+                // Compute weighted sum, detecting SumLongAggregator overflow for longs
+                Double weightedSum;
+                if (mulType == DataType.LONG) {
+                    if (validMulLongResults.isEmpty()) {
+                        weightedSum = null;
+                    } else {
+                        try {
+                            long longSum = validMulLongResults.stream().mapToLong(Long::longValue).reduce(0L, Math::addExact);
+                            weightedSum = (double) longSum;
+                        } catch (ArithmeticException e) {
+                            weightedSum = null;
+                            warnings.add("Line 1:1: java.lang.ArithmeticException: long overflow");
+                        }
+                    }
+                } else {
+                    weightedSum = validMulResults.isEmpty() ? null : validMulResults.stream().mapToDouble(d -> d).sum();
+                }
+
+                // Compute total weights, detecting SumLongAggregator overflow for long weights
+                Double totalWeights;
+                if (weightTypedData.type() == DataType.LONG) {
+                    try {
+                        long longWeightSum = weightValues.stream().mapToLong(v -> ((Number) v).longValue()).reduce(0L, Math::addExact);
+                        totalWeights = (double) longWeightSum;
+                    } catch (ArithmeticException e) {
+                        totalWeights = null;
+                        warnings.add("Line 1:1: java.lang.ArithmeticException: long overflow");
+                    }
+                } else {
+                    totalWeights = weightValues.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum();
+                }
 
                 Double expected = null;
-                if (weightedSum != null) {
+                if (weightedSum != null && totalWeights != null) {
                     if (totalWeights == 0.0 && fieldValues.isEmpty() == false) {
                         warnings.add("Line 1:1: java.lang.ArithmeticException: / by zero");
                     } else if (totalWeights != 0.0) {

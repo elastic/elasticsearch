@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.apache.lucene.util.MathUtil;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -44,7 +46,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -157,6 +158,8 @@ import java.util.function.Consumer;
 public final class TranslateTimeSeriesAggregate extends OptimizerRules.ParameterizedOptimizerRule<
     TimeSeriesAggregate,
     LogicalOptimizerContext> {
+
+    static final int MAX_SUB_BUCKETS = 128;
 
     public TranslateTimeSeriesAggregate() {
         super(OptimizerRules.TransformDirection.UP);
@@ -307,12 +310,26 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 return r.withIndexMode(indexMode);
             }
         });
+        Bucket userBucket = (Bucket) Alias.unwrap(timeBucket);
+        Bucket internalBucket = computeInternalBucket(userBucket, firstPassAggs);
+        if (internalBucket != null && internalBucket != userBucket) {
+            // Replace the user bucket with the finer-grained internal bucket in the first-pass groupings
+            for (int i = 0; i < firstPassGroupings.size(); i++) {
+                Expression g = firstPassGroupings.get(i);
+                if (g instanceof Alias a && Alias.unwrap(a) instanceof Bucket) {
+                    firstPassGroupings.set(i, new Alias(a.source(), a.name(), internalBucket, a.id()));
+                } else if (g instanceof Attribute attr && timeBucket != null && attr.id().equals(timeBucket.id())) {
+                    firstPassGroupings.set(i, new Alias(timeBucket.source(), timeBucket.name(), internalBucket, timeBucket.id()));
+                }
+            }
+        }
         final var firstPhase = new TimeSeriesAggregate(
             aggregate.source(),
             newChild,
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
-            (Bucket) Alias.unwrap(timeBucket),
+            internalBucket != null ? internalBucket : userBucket,
+            userBucket,
             aggregate.timestamp()
         );
         checkWindow(firstPhase);
@@ -423,38 +440,89 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         if (hasWindow == false) {
             return;
         }
-        final long bucketInMillis = getTimeBucketInMillis(agg);
+        // Validate against the user-visible output bucket, not the internal (possibly GCD-sized) bucket
+        final Bucket outputBucket = agg.outputTimeBucket() != null ? agg.outputTimeBucket() : agg.timeBucket();
+        final long bucketInMillis = getTimeBucketInMillis(outputBucket);
         if (bucketInMillis <= 0) {
             throw new IllegalArgumentException(
                 "Using a window in aggregation [" + agg.sourceText() + "] requires a time bucket in groupings"
             );
         }
-        for (NamedExpression aggregate : agg.aggregates()) {
-            if (Alias.unwrap(aggregate) instanceof AggregateFunction af && af.hasWindow()) {
-                Expression window = af.window();
-                if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
-                    final long windowInMills = d.toMillis();
-                    if (windowInMills < bucketInMillis || windowInMills % bucketInMillis == 0) {
-                        continue;
-                    }
-                }
-                throw new IllegalArgumentException(
-                    "Unsupported window ["
-                        + window.sourceText()
-                        + "] for aggregate function ["
-                        + af.sourceText()
-                        + "]; "
-                        + "the window must be an exact multiple of the time bucket ["
-                        + Objects.requireNonNull(agg.timeBucket()).sourceText()
-                        + "]"
-                );
-            }
-        }
-
     }
 
-    private long getTimeBucketInMillis(TimeSeriesAggregate agg) {
-        final Bucket bucket = agg.timeBucket();
+    /**
+     * Computes a finer-grained internal bucket when window is not an exact multiple of the user bucket.
+     * The internal bucket size is the GCD of the user bucket and all window durations, ensuring that
+     * both the window and the user bucket are exact multiples of the internal bucket.
+     * Returns the original bucket when no sub-bucketing is needed, or null if no bucket is provided.
+     */
+    Bucket computeInternalBucket(Bucket userBucket, List<NamedExpression> aggregates) {
+        if (userBucket == null) {
+            return null;
+        }
+        if (userBucket.buckets().foldable() == false || (userBucket.buckets().fold(FoldContext.small()) instanceof Duration) == false) {
+            return userBucket;
+        }
+        long bucketMillis = ((Duration) userBucket.buckets().fold(FoldContext.small())).toMillis();
+        if (bucketMillis <= 0) {
+            return userBucket;
+        }
+        long gcdMillis = bucketMillis;
+        boolean hasSmallWindow = false;
+        boolean hasNonMultipleWindow = false;
+        List<String> windowSourceTexts = new ArrayList<>();
+        for (NamedExpression ne : aggregates) {
+            if (Alias.unwrap(ne) instanceof AggregateFunction af && af.hasWindow()) {
+                Expression window = af.window();
+                if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
+                    long windowMillis = d.toMillis();
+                    if (windowMillis > 0) {
+                        windowSourceTexts.add(window.sourceText());
+                        if (windowMillis < bucketMillis) {
+                            hasSmallWindow = true;
+                        } else {
+                            gcdMillis = MathUtil.gcd(gcdMillis, windowMillis);
+                            if (windowMillis % bucketMillis != 0) {
+                                hasNonMultipleWindow = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (hasSmallWindow && hasNonMultipleWindow) {
+            throw new IllegalArgumentException(
+                "Combining windows smaller than the time bucket with non-multiple windows in the same aggregation is not supported"
+            );
+        }
+        if (hasSmallWindow) {
+            return userBucket;
+        }
+        if (hasNonMultipleWindow == false || gcdMillis == bucketMillis) {
+            return userBucket;
+        }
+        long subBuckets = bucketMillis / gcdMillis;
+        if (subBuckets > MAX_SUB_BUCKETS) {
+            String windowSizes = windowSourceTexts.stream().distinct().toList().toString();
+            throw new IllegalArgumentException(
+                "The window "
+                    + windowSizes
+                    + " and bucket ["
+                    + userBucket.buckets().sourceText()
+                    + "] combination requires ["
+                    + subBuckets
+                    + "] internal sub-buckets of size ["
+                    + TimeValue.timeValueMillis(gcdMillis)
+                    + "] per output bucket, which exceeds the limit of ["
+                    + MAX_SUB_BUCKETS
+                    + "]; use a larger time bucket or adjust the window to be an exact multiple of the time bucket"
+            );
+        }
+        Literal gcdInterval = Literal.timeDuration(userBucket.buckets().source(), Duration.ofMillis(gcdMillis));
+        return new Bucket(userBucket.source(), userBucket.field(), gcdInterval, null, null, userBucket.configuration());
+    }
+
+    private long getTimeBucketInMillis(final Bucket bucket) {
         if (bucket == null) {
             return -1L;
         }

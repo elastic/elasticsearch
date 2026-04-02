@@ -419,6 +419,9 @@ tests:
 - class: org.elasticsearch.indices.IndexingMemoryControllerIT
   method: testDeletesAloneCanTriggerRefresh
   issue: https://github.com/elastic/elasticsearch/issues/145609
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse}
+  issue: https://github.com/elastic/elasticsearch/issues/145616
 
 # Examples:
 #

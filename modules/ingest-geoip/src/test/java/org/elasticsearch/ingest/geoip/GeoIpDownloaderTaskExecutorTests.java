@@ -32,8 +32,6 @@ import java.util.function.Consumer;
 
 public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
 
-    private static final String LOCAL_NODE_ID = "local";
-
     public void testHasAtLeastOneGeoipProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
         for (String pipelineConfigJson : getPipelinesWithGeoIpProcessors(false)) {
             var ingestMetadata = new IngestMetadata(

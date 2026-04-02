@@ -6,18 +6,20 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+
 import java.util.Map;
 
 /**
  * Holds the result of external source resolution (Iceberg/Parquet metadata).
  * This is carried in AnalyzerContext alongside IndexResolution, following the same pattern.
- * Each resolved source pairs its metadata with a {@link FileSet} describing the files to read.
+ * Each resolved source pairs its metadata with a {@link FileList} describing the files to read.
  */
 public record ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
 
     public static final ExternalSourceResolution EMPTY = new ExternalSourceResolution(Map.of());
 
-    public record ResolvedSource(ExternalSourceMetadata metadata, FileSet fileSet) {}
+    public record ResolvedSource(ExternalSourceMetadata metadata, FileList fileList) {}
 
     public ExternalSourceResolution {
         if (resolved == null) {

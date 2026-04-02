@@ -109,9 +109,9 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -1351,18 +1351,18 @@ public class LocalExecutionPlanner {
             effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
         }
 
-        FileSet fileSet = externalSource.fileSet();
+        FileList fileList = externalSource.fileList();
         int splitCount = externalSource.splits().size();
         ExternalSliceQueue sliceQueue = null;
         int instanceCount = 1;
 
         /*
-         * Data nodes don't have a resolved FileSet (it isn't serialized), so they must rely on explicit splits.
+         * Data nodes don't have a resolved FileList (it isn't serialized), so they must rely on explicit splits.
          * If we received a single coalesced split, we still need to route execution through the slice queue so
          * the operator can expand it into its leaf FileSplits. Otherwise we'd fall back to opening the original
          * (potentially globbed) source path as a single object.
          */
-        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileSet == null || fileSet.isResolved() == false);
+        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileList == null || fileList.isResolved() == false);
         if (useSliceQueue) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
         }
@@ -1378,8 +1378,8 @@ public class LocalExecutionPlanner {
             }
         }
         Set<String> partitionColumnNames = Set.of();
-        if (fileSet != null) {
-            PartitionMetadata pm = fileSet.partitionMetadata();
+        if (fileList != null) {
+            PartitionMetadata pm = fileList.partitionMetadata();
             if (pm != null && pm.isEmpty() == false) {
                 partitionColumnNames = pm.partitionColumns().keySet();
             }
@@ -1397,7 +1397,7 @@ public class LocalExecutionPlanner {
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())
-            .fileSet(fileSet)
+            .fileList(fileList)
             .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())

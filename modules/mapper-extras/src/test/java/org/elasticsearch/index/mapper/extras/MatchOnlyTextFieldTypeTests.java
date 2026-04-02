@@ -55,8 +55,8 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryM
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

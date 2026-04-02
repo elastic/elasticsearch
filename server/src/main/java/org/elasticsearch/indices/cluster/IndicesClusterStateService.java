@@ -88,7 +88,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -139,9 +138,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final ShardStateAction shardStateAction;
 
     private final Settings settings;
-    // a list of shards that failed during recovery
-    // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
-    final ConcurrentMap<ShardId, ShardRouting> failedShardsCache = ConcurrentCollections.newConcurrentMap();
+
+    record FailedShardCacheEntry(ShardRouting routing, long primaryTerm) {}
+
+    // A list of shards that failed during recovery.
+    // We keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update.
+    final ConcurrentMap<ShardId, FailedShardCacheEntry> failedShardsCache = ConcurrentCollections.newConcurrentMap();
     private final Map<ShardId, PendingShardCreation> pendingShardCreations = new HashMap<>();
     private final RepositoriesService repositoriesService;
 
@@ -376,13 +378,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         DiscoveryNode masterNode = state.nodes().getMasterNode();
 
         // remove items from cache which are not in our routing table anymore and resend failures that have not executed on master yet
-        for (Iterator<Map.Entry<ShardId, ShardRouting>> iterator = failedShardsCache.entrySet().iterator(); iterator.hasNext();) {
-            ShardRouting failedShardRouting = iterator.next().getValue();
-            ShardRouting matchedRouting = localRoutingNode.getByShardId(failedShardRouting.shardId());
-            if (matchedRouting == null || matchedRouting.isSameAllocation(failedShardRouting) == false) {
+        for (final var iterator = failedShardsCache.entrySet().iterator(); iterator.hasNext();) {
+            final var cacheEntry = iterator.next();
+            final var routing = cacheEntry.getValue().routing();
+            final var matchedRouting = localRoutingNode.getByShardId(routing.shardId());
+            if (matchedRouting == null || matchedRouting.isSameAllocation(routing) == false) {
+                // Shard is no longer assigned to this node, or was re-allocated with a different allocation id.
                 iterator.remove();
             } else {
-                if (masterNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
+                final long cachedTerm = cacheEntry.getValue().primaryTerm();
+                final long currentTerm = state.metadata().indexMetadata(routing.index()).primaryTerm(routing.id());
+                if (currentTerm > cachedTerm) {
+                    // Entry is stale. The master already processed the failure and re-allocated the shard.
+                    iterator.remove();
+                } else if (masterNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of
+                                                 // shardStateAction?
                     String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
                     shardStateAction.localShardFailed(matchedRouting, message, null, ActionListener.noop(), state);
@@ -1172,7 +1182,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure, ClusterState state) {
         try {
             logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardRouting.shardId(), message), failure);
-            failedShardsCache.put(shardRouting.shardId(), shardRouting);
+            final long primaryTerm = state.metadata().indexMetadata(shardRouting.index()).primaryTerm(shardRouting.id());
+            failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);

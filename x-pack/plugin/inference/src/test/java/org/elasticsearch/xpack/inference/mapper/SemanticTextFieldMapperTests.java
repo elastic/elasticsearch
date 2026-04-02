@@ -111,9 +111,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.index.IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.defaultDenseVectorIndexOptions;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.defaultDenseVectorIndexOptions;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests.randomSparseVectorIndexOptions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
@@ -2031,11 +2032,18 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         IndexVersion indexVersionCreated,
         License.OperationMode operationMode,
         Integer dims,
-        DenseVectorFieldMapper.ElementType elementType
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean experimentalFeaturesEnabled
     ) {
         return new SemanticTextIndexOptions(
             SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-            defaultDenseVectorIndexOptions(indexVersionCreated, operationMode == License.OperationMode.ENTERPRISE, dims, elementType)
+            defaultDenseVectorIndexOptions(
+                indexVersionCreated,
+                operationMode == License.OperationMode.ENTERPRISE,
+                dims,
+                elementType,
+                experimentalFeaturesEnabled
+            )
         );
     }
 
@@ -2085,12 +2093,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }), useLegacyFormat, indexVersion);
 
+            boolean experimentalFeatures = DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(mapperService.getIndexSettings().getSettings());
             assertSemanticTextField(
                 mapperService,
                 "field",
                 true,
                 null,
-                getExpectedDefaultIndexOptions(taskType, elementType, dimensions, indexVersion)
+                getExpectedDefaultIndexOptions(taskType, elementType, dimensions, indexVersion, experimentalFeatures)
             );
         }
     }
@@ -2099,7 +2108,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         TaskType taskType,
         DenseVectorFieldMapper.ElementType elementType,
         Integer dimensions,
-        IndexVersion indexVersion
+        IndexVersion indexVersion,
+        boolean experimentalFeatures
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> {
@@ -2110,7 +2120,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     && dimensions >= DenseVectorFieldMapper.BBQ_MIN_DIMS) {
                     yield defaultBbqHnswSemanticTextIndexOptions();
                 } else if (floatFamilyElementType) {
-                    yield defaultDenseVectorSemanticIndexOptions(indexVersion, operationMode, dimensions, elementType);
+                    yield defaultDenseVectorSemanticIndexOptions(
+                        indexVersion,
+                        operationMode,
+                        dimensions,
+                        elementType,
+                        experimentalFeatures
+                    );
                 } else {
                     yield null;
                 }
@@ -2252,7 +2268,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             TaskType.TEXT_EMBEDDING,
             DenseVectorFieldMapper.ElementType.FLOAT,
             100,
-            indexVersion
+            indexVersion,
+            DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(mapperService.getIndexSettings().getSettings())
         );
         DenseVectorFieldMapper.DenseVectorIndexOptions expectedDenseVectorIndexOptions = expectedDefaultIndexOptions != null
             ? (DenseVectorFieldMapper.DenseVectorIndexOptions) expectedDefaultIndexOptions.indexOptions()

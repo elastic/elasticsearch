@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.TaskType;
@@ -36,6 +35,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -55,6 +55,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -156,59 +159,52 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         assertThat(getFieldMappings(inferenceFieldName, false), equalTo(expectedFieldMapping));
     }
 
-    // Test that default bbq_hnsw options are set.
     public void testSetDefaultBBQIndexOptionsWithBasicLicense() throws Exception {
         final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
         downgradeLicenseAndRestartCluster();
 
-        assertAcked(
-            safeGet(
-                prepareCreate(INDEX_NAME).setSettings(indexSettingsWithVersion(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK))
-                    .setMapping(generateMapping(inferenceFieldName, inferenceId, null))
-                    .execute()
-            )
-        );
+        for (int i = 0; i < 20; i++) {
+            IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+                SEMANTIC_TEXT_DEFAULTS_TO_BBQ,
+                IndexVersionUtils.getPreviousVersion(SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS)
+            );
+            assertAcked(
+                safeGet(
+                    prepareCreate(INDEX_NAME).setSettings(indexSettingsWithVersion(indexVersion))
+                        .setMapping(generateMapping(inferenceFieldName, inferenceId, null))
+                        .execute()
+                )
+            );
 
-        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
-            inferenceFieldName,
-            inferenceId,
-            SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
-        );
+            final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
+                inferenceFieldName,
+                inferenceId,
+                indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
+                    ? new ExtendedDenseVectorIndexOptions(
+                        SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions(),
+                        DenseVectorFieldMapper.ElementType.BFLOAT16
+                    )
+                    : SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
+            );
 
-        // Filter out null/empty values from params we didn't set to make comparison easier
-        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
-        assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
-    }
+            // Filter out null/empty values from params we didn't set to make comparison easier
+            Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
+            assertThat("indexVersion = " + indexVersion, actualFieldMappings, equalTo(expectedFieldMapping));
 
-    // Test that default bbq_hnsw options are set along with element_type overridden to bfloat16
-    public void testSetDefaultBBQIndexOptionsAndBFloat16WithBasicLicense() throws Exception {
-        final String inferenceId = randomIdentifier();
-        final String inferenceFieldName = "inference_field";
-        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
-        downgradeLicenseAndRestartCluster();
-
-        assertAcked(
-            safeGet(
-                prepareCreate(INDEX_NAME).setSettings(indexSettingsWithVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16))
-                    .setMapping(generateMapping(inferenceFieldName, inferenceId, null))
-                    .execute()
-            )
-        );
-
-        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
-            inferenceFieldName,
-            inferenceId,
-            new ExtendedDenseVectorIndexOptions(
-                SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions(),
-                DenseVectorFieldMapper.ElementType.BFLOAT16
-            )
-        );
-
-        // Filter out null/empty values from params we didn't set to make comparison easier
-        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
-        assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
+            assertAcked(
+                safeGet(
+                    client().admin()
+                        .indices()
+                        .prepareDelete(INDEX_NAME)
+                        .setIndicesOptions(
+                            IndicesOptions.builder().concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true)).build()
+                        )
+                        .execute()
+                )
+            );
+        }
     }
 
     private Settings indexSettingsWithVersion(IndexVersion version) {

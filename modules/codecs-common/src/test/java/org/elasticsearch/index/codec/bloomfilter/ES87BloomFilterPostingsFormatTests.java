@@ -15,11 +15,11 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.tests.index.BasePostingsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.test.ESBasePostingsFormatTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.GraalVMThreadsFilter;
 
@@ -28,21 +28,24 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat.hashTerm;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
-public class ES87BloomFilterPostingsFormatTests extends BasePostingsFormatTestCase {
+public class ES87BloomFilterPostingsFormatTests extends ESBasePostingsFormatTestCase {
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysPostingsFormat(new ES87BloomFilterPostingsFormat(BigArrays.NON_RECYCLING_INSTANCE, field -> {
-            PostingsFormat postingsFormat = TestUtil.getDefaultPostingsFormat();
-            if (postingsFormat instanceof PerFieldPostingsFormat) {
-                postingsFormat = TestUtil.getDefaultPostingsFormat();
+        ES87BloomFilterPostingsFormat postingsFormat = new ES87BloomFilterPostingsFormat();
+        postingsFormat.initialize(BigArrays.NON_RECYCLING_INSTANCE, field -> {
+            PostingsFormat inner = TestUtil.getDefaultPostingsFormat();
+            if (inner instanceof PerFieldPostingsFormat) {
+                inner = TestUtil.getDefaultPostingsFormat();
             }
-            return postingsFormat;
-        }));
+            return inner;
+        });
+        return TestUtil.alwaysPostingsFormat(postingsFormat);
     }
 
     public void testBloomFilterSize() {

@@ -246,7 +246,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.cache.request;
     exports org.elasticsearch.index.codec;
     exports org.elasticsearch.index.codec.tsdb;
-    exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.codec.storedfields;
     exports org.elasticsearch.index.codec.zstd;
     exports org.elasticsearch.index.engine;
@@ -452,15 +451,12 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.PostingsFormat
         with
             org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat,
-            org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
-            org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.postings.ES812PostingsFormat;
     provides org.apache.lucene.codecs.DocValuesFormat
         with
             org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat,
             org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat,
-            org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat,
-            org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+            org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,

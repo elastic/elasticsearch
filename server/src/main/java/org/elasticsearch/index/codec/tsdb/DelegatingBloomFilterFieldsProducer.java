@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.bloomfilter;
+package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.index.FilterLeafReader;
@@ -15,6 +15,8 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.BloomFilter;
+import org.elasticsearch.index.codec.LazyFilterTermsEnum;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 
 import java.io.IOException;
@@ -26,12 +28,12 @@ import java.util.Set;
  * delegating exact lookups to the underlying FieldsProducer. This avoids a potentially
  * expensive seek operations for non-existent terms.
  */
-public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
+final class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     private static final Set<String> FIELD_NAMES = Set.of(IdFieldMapper.NAME);
     private final FieldsProducer delegate;
     private final BloomFilter bloomFilter;
 
-    public DelegatingBloomFilterFieldsProducer(FieldsProducer delegate, BloomFilter bloomFilter) {
+    DelegatingBloomFilterFieldsProducer(FieldsProducer delegate, BloomFilter bloomFilter) {
         this.delegate = delegate;
         this.bloomFilter = bloomFilter;
     }

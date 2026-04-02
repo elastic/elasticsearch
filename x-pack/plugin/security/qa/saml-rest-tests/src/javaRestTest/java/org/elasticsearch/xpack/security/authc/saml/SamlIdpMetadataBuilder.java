@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.opensaml.core.config.InitializationException;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.KeyDescriptor;
@@ -48,7 +49,7 @@ public class SamlIdpMetadataBuilder {
     public SamlIdpMetadataBuilder() {
         try {
             SamlUtils.initialize(logger);
-        } catch (Exception e) {
+        } catch (InitializationException e) {
             throw new RuntimeException("Cannot initialise SAML utilities", e);
         }
         wantSignedAuthnRequests = false;

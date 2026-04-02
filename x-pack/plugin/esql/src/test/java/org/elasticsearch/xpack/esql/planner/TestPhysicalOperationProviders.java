@@ -81,6 +81,11 @@ import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPrefere
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
+
+    public static final Environment TEST_ENV = TestEnvironment.newEnvironment(
+        Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+    );
+
     private final List<IndexPage> indexPages;
     private final UnmappedResolution unmappedResolution;
 
@@ -112,9 +117,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private static AnalysisRegistry createAnalysisRegistry() throws IOException {
         return new AnalysisModule(
-            TestEnvironment.newEnvironment(
-                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
-            ),
+            TEST_ENV,
             List.of(new MachineLearning(Settings.EMPTY), new CommonAnalysisPlugin()),
             new StablePluginsRegistry()
         ).getAnalysisRegistry();

@@ -763,12 +763,15 @@ public record TestConfiguration(
         }
 
         public TestConfiguration build() throws Exception {
-            if (datasetConfig instanceof DatasetConfig.GcpDataset gcpDataset) {
-                resolveDataset(gcpDataset.name());
-            } else if (datasetConfig instanceof DatasetConfig.FileDataset fileDataset) {
-                docVectors = fileDataset.docVectors().stream().map(PathUtils::get).toList();
-                if (fileDataset.queryVectors() != null) {
-                    queryVectors = PathUtils.get(fileDataset.queryVectors());
+            switch (datasetConfig) {
+                case DatasetConfig.GcpDataset gcpDataset -> resolveDataset(gcpDataset.name());
+                case DatasetConfig.FileDataset fileDataset -> {
+                    docVectors = fileDataset.docVectors().stream().map(PathUtils::get).toList();
+                    if (fileDataset.queryVectors() != null) {
+                        queryVectors = PathUtils.get(fileDataset.queryVectors());
+                    }
+                }
+                case null, default -> {
                 }
             }
             // specify some defaults here, so they can be set by the config file or dataset first
@@ -782,15 +785,20 @@ public record TestConfiguration(
                 numQueries = 100;
             }
 
-            if (datasetConfig instanceof PartitionGenerated pg) {
-                if (dimensions <= 0) {
-                    throw new IllegalArgumentException("dimensions must be specified when using data generator");
+            switch (datasetConfig) {
+                case PartitionGenerated pg -> {
+                    if (dimensions <= 0) {
+                        throw new IllegalArgumentException("dimensions must be specified when using data generator");
+                    }
+                    if (docVectors == null) {
+                        docVectors = List.of(PathUtils.get("generated-" + pg.numPartitions() + "-partitions"));
+                    }
                 }
-                if (docVectors == null) {
-                    docVectors = List.of(PathUtils.get("generated-" + pg.numPartitions() + "-partitions"));
+                case null, default -> {
+                    if (docVectors == null) {
+                        throw new IllegalArgumentException("Dataset or document vectors path must be provided");
+                    }
                 }
-            } else if (docVectors == null) {
-                throw new IllegalArgumentException("Dataset or document vectors path must be provided");
             }
             if (dimensions <= 0 && dimensions != -1) {
                 throw new IllegalArgumentException(

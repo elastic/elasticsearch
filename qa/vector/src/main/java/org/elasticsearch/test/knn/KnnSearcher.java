@@ -280,7 +280,6 @@ public class KnnSearcher {
             int[][] nn = getOrComputePartitionedNN(totalSearches, numSampledPartitions, params);
 
             Map<String, Float> perPartitionRecall = new LinkedHashMap<>();
-            float totalRecall = 0;
             for (int p = 0; p < numSampledPartitions; p++) {
                 int partitionMatches = 0;
                 int partitionTotal = numQueryVectors * params.topK();
@@ -290,21 +289,17 @@ public class KnnSearcher {
                 }
                 float partitionRecall = partitionMatches / (float) partitionTotal;
                 perPartitionRecall.put(provider.sampledPartitions().get(p), partitionRecall);
-                totalRecall += partitionRecall;
             }
-            float avgRecall = numSampledPartitions > 0 ? totalRecall / numSampledPartitions : 0;
-
-            float minRecall = perPartitionRecall.values().stream().min(Float::compareTo).orElse(0f);
-            float maxRecall = perPartitionRecall.values().stream().max(Float::compareTo).orElse(0f);
+            var stats = perPartitionRecall.values().stream().mapToDouble(Float::doubleValue).summaryStatistics();
             logger.info(
                 "Partitioned recall: avg={}, min={}, max={}, sampled_partitions={}",
-                String.format("%.4f", avgRecall),
-                String.format("%.4f", minRecall),
-                String.format("%.4f", maxRecall),
+                String.format("%.4f", stats.getAverage()),
+                String.format("%.4f", stats.getMin()),
+                String.format("%.4f", stats.getMax()),
                 numSampledPartitions
             );
 
-            results.avgRecall = avgRecall;
+            results.avgRecall = stats.getAverage();
             results.perPartitionRecall = perPartitionRecall;
         }
 

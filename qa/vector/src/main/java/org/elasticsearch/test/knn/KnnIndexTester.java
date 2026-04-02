@@ -721,17 +721,10 @@ public class KnnIndexTester {
                     String partitionMax = "";
                     String partitionAvg = "";
                     if (queryResult.perPartitionRecall != null && queryResult.perPartitionRecall.isEmpty() == false) {
-                        float min = Float.MAX_VALUE;
-                        float max = Float.MIN_VALUE;
-                        float sum = 0;
-                        for (float recall : queryResult.perPartitionRecall.values()) {
-                            min = Math.min(min, recall);
-                            max = Math.max(max, recall);
-                            sum += recall;
-                        }
-                        partitionMin = String.format(Locale.ROOT, "%.4f", min);
-                        partitionMax = String.format(Locale.ROOT, "%.4f", max);
-                        partitionAvg = String.format(Locale.ROOT, "%.4f", sum / queryResult.perPartitionRecall.size());
+                        var stats = queryResult.perPartitionRecall.values().stream().mapToDouble(Float::doubleValue).summaryStatistics();
+                        partitionMin = String.format(Locale.ROOT, "%.4f", stats.getMin());
+                        partitionMax = String.format(Locale.ROOT, "%.4f", stats.getMax());
+                        partitionAvg = String.format(Locale.ROOT, "%.4f", stats.getAverage());
                     }
                     row.add(partitionMin);
                     row.add(partitionMax);

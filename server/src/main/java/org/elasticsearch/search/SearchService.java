@@ -1104,6 +1104,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return null;
     }
 
+    private IndicesService.DirectoryMetricsCapture captureDirectoryMetricsOrNull() {
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            return indicesService.captureDirectoryMetrics();
+        }
+        return null;
+    }
+
     /**
      * Sets up worker-thread byte tracking on the searcher so that bytes read by parallel
      * collection threads are captured. Must be called before query execution; after execution,
@@ -1122,6 +1129,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         indicesService.currentThreadStoreMetrics().addBytesRead(searcher.getWorkerDirectoryBytesRead());
         return metricsDelta.get();
+    }
+
+    /**
+     * Uses the captured StoreMetrics reference (from likely another thread) instead of the
+     * current thread to ensure worker bytes are folded into the correct instance, i.e. when using the transport worker thread.
+     */
+    private static DirectoryMetrics resolveDirectoryMetrics(
+        IndicesService.DirectoryMetricsCapture metricsCapture,
+        ContextIndexSearcher searcher
+    ) {
+        if (metricsCapture == null) {
+            return DirectoryMetrics.EMPTY;
+        }
+        metricsCapture.callingThreadStoreMetrics().addBytesRead(searcher.getWorkerDirectoryBytesRead());
+        return metricsCapture.delta().get();
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
@@ -1244,7 +1266,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             protected void doRun() throws Exception {
                 final long startTime;
                 final SearchOperationListener opsListener;
-                final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
+                final IndicesService.DirectoryMetricsCapture metricsCapture = captureDirectoryMetricsOrNull();
 
                 this.searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false);
                 setupWorkerBytesTracking(searchContext.searcher());
@@ -1267,7 +1289,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         fetchPhaseMaxInFlightChunks,
                         fetchPhaseTargetChunkBytes,
                         searchExecutor,
-                        newFetchBuildListener(opsListener, searchContext, startTime, metricsDelta, fetchResult, closeOnce),
+                        newFetchBuildListener(opsListener, searchContext, startTime, metricsCapture, fetchResult, closeOnce),
                         newFetchCompletionListener(listener, fetchResult)
                     );
                 } catch (Exception e) {
@@ -1301,16 +1323,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Creates a listener that records fetch phase timing/failure stats, resolves directory metrics,
      * and releases the SearchContext and shard resources once the fetch build completes (hits assembled or failed).
      */
-    private ActionListener<Void> newFetchBuildListener(
+    private static ActionListener<Void> newFetchBuildListener(
         SearchOperationListener opsListener,
         SearchContext searchContext,
         long startTime,
-        Supplier<DirectoryMetrics> metricsDelta,
+        IndicesService.DirectoryMetricsCapture metricsCapture,
         FetchSearchResult fetchResult,
         Releasable closeOnce
     ) {
         return ActionListener.runAfter(ActionListener.wrap(ignored -> {
-            fetchResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.searcher()));
+            fetchResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsCapture, searchContext.searcher()));
             opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
         }, e -> opsListener.onFailedFetchPhase(searchContext)), closeOnce::close);
     }

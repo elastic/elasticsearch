@@ -147,14 +147,8 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
             .scroll(TimeValue.timeValueMinutes(1));
 
         SetOnce<String> scrollId = new SetOnce<>();
-        SetOnce<Long> initialBytesRead = new SetOnce<>();
-        CountDownLatch initialLatch = new CountDownLatch(1);
-
         final Client client = client();
         assertBytesReadHeader(request, searchResponse -> scrollId.set(searchResponse.getScrollId()));
-
-        assertTrue("initial search did not complete in time", initialLatch.await(30, TimeUnit.SECONDS));
-        assertThat(initialBytesRead.get(), greaterThan(0L));
         assertThat(scrollId.get(), notNullValue());
 
         try {
@@ -208,13 +202,22 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         );
 
         // it should not matter if chunked fetching is enabled or disabled, the number of bytes should remain the same
-        assertAcked(client().admin().cluster().prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
-            .setPersistentSettings(Settings.builder().put(FETCH_PHASE_CHUNKED_ENABLED.getKey(), true)));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+                .setPersistentSettings(Settings.builder().put(FETCH_PHASE_CHUNKED_ENABLED.getKey(), true))
+        );
 
         long bytesReadChunkedFetch = assertBytesReadHeader(request);
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
-            .setPersistentSettings(Settings.builder().putNull(FETCH_PHASE_CHUNKED_ENABLED.getKey())).get());
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+                .setPersistentSettings(Settings.builder().putNull(FETCH_PHASE_CHUNKED_ENABLED.getKey()))
+                .get()
+        );
 
         long bytesRead = assertBytesReadHeader(request);
 

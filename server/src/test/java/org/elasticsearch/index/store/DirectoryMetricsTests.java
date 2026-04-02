@@ -13,10 +13,14 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 public class DirectoryMetricsTests extends ESTestCase {
 
@@ -81,5 +85,65 @@ public class DirectoryMetricsTests extends ESTestCase {
     public void testMergeWithEmpty() {
         DirectoryMetrics merged = DirectoryMetrics.EMPTY.merge(DirectoryMetrics.EMPTY);
         assertNull(merged.metrics("store"));
+    }
+
+    public void testCaptureResolvedOnSameThread() {
+        StoreMetrics storeMetrics = new StoreMetrics();
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(StoreMetrics.NAME, storeMetrics);
+        Supplier<DirectoryMetrics> delta = builder.build().delta();
+
+        var capture = new IndicesService.DirectoryMetricsCapture(delta, storeMetrics);
+
+        storeMetrics.addBytesRead(100);
+
+        DirectoryMetrics resolved = resolveCapture(capture, 50);
+        StoreMetrics result = resolved.metrics(StoreMetrics.NAME).cast(StoreMetrics.class);
+        assertEquals(150, result.getBytesRead());
+    }
+
+    public void testCaptureResolvedOnDifferentThread() throws Exception {
+        StoreMetrics storeMetrics = new StoreMetrics();
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(StoreMetrics.NAME, storeMetrics);
+        Supplier<DirectoryMetrics> delta = builder.build().delta();
+
+        var capture = new IndicesService.DirectoryMetricsCapture(delta, storeMetrics);
+
+        storeMetrics.addBytesRead(200);
+
+        AtomicReference<DirectoryMetrics> resolvedRef = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread resolver = new Thread(() -> {
+            resolvedRef.set(resolveCapture(capture, 75));
+            latch.countDown();
+        });
+        resolver.start();
+        latch.await();
+
+        DirectoryMetrics resolved = resolvedRef.get();
+        assertNotNull(resolved);
+        StoreMetrics result = resolved.metrics(StoreMetrics.NAME).cast(StoreMetrics.class);
+        assertEquals(275, result.getBytesRead());
+    }
+
+    public void testCaptureWithZeroWorkerBytes() {
+        StoreMetrics storeMetrics = new StoreMetrics();
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(StoreMetrics.NAME, storeMetrics);
+        Supplier<DirectoryMetrics> delta = builder.build().delta();
+
+        var capture = new IndicesService.DirectoryMetricsCapture(delta, storeMetrics);
+
+        storeMetrics.addBytesRead(42);
+
+        DirectoryMetrics resolved = resolveCapture(capture, 0);
+        StoreMetrics result = resolved.metrics(StoreMetrics.NAME).cast(StoreMetrics.class);
+        assertEquals(42, result.getBytesRead());
+    }
+
+    private static DirectoryMetrics resolveCapture(IndicesService.DirectoryMetricsCapture capture, long workerBytesRead) {
+        capture.callingThreadStoreMetrics().addBytesRead(workerBytesRead);
+        return capture.delta().get();
     }
 }

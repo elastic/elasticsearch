@@ -257,7 +257,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("country_languages"),
         new ViewConfig("airports_mp_filtered"),
         new ViewConfig("employees_rehired"),
-        new ViewConfig("employees_not_rehired")
+        new ViewConfig("employees_not_rehired"),
+        new ViewConfig("employees_all"),
+        new ViewConfig("employees_extra")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

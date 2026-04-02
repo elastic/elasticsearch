@@ -26,6 +26,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.time.Clock;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,12 +39,12 @@ import static org.elasticsearch.logging.LogManager.getLogger;
 
 /**
  * Master-node service that periodically scans data stream backing indices for the frozen-candidate marker and submits matching indices to
- * {@link DlmFrozenTransitionExecutor} for conversion. Thread pools are started when the node becomes master and stopped when it loses
+ * {@link DLMFrozenTransitionExecutor} for conversion. Thread pools are started when the node becomes master and stopped when it loses
  * mastership or the service is closed.
  */
-class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
+class DLMFrozenTransitionService implements ClusterStateListener, Closeable {
 
-    private static final Logger logger = getLogger(DlmFrozenTransitionService.class);
+    private static final Logger logger = getLogger(DLMFrozenTransitionService.class);
 
     static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "dlm.frozen_transition.poll_interval",
@@ -71,7 +72,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     private final ClusterService clusterService;
     private final AtomicBoolean isMaster = new AtomicBoolean(false);
     private ScheduledExecutorService schedulerThreadExecutor;
-    private DlmFrozenTransitionExecutor transitionExecutor;
+    private DLMFrozenTransitionExecutor transitionExecutor;
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final TimeValue pollInterval;
     private final int maxConcurrency;
@@ -79,9 +80,9 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     private final long initialDelayMillis;
     private final DataStreamLifecycleErrorStore errorStore;
 
-    private final BiFunction<String, ProjectId, DlmFrozenTransitionRunnable> transitionRunnableFactory;
+    private final BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory;
 
-    DlmFrozenTransitionService(
+    DLMFrozenTransitionService(
         ClusterService clusterService,
         Client client,
         XPackLicenseState licenseState,
@@ -89,23 +90,23 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     ) {
         this(
             clusterService,
-            (index, pid) -> new DataStreamLifecycleConvertToFrozen(index, pid, client, clusterService, licenseState),
+            (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseState, Clock.systemUTC()),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
             errorStore
         );
     }
 
     // visible for testing
-    DlmFrozenTransitionService(
+    DLMFrozenTransitionService(
         ClusterService clusterService,
-        BiFunction<String, ProjectId, DlmFrozenTransitionRunnable> transitionRunnableFactory
+        BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory
     ) {
         this(clusterService, transitionRunnableFactory, 0, new DataStreamLifecycleErrorStore(System::currentTimeMillis));
     }
 
-    private DlmFrozenTransitionService(
+    private DLMFrozenTransitionService(
         ClusterService clusterService,
-        BiFunction<String, ProjectId, DlmFrozenTransitionRunnable> transitionRunnableFactory,
+        BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
         long initialDelayMillis,
         DataStreamLifecycleErrorStore errorStore
     ) {
@@ -145,7 +146,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     private void startThreadPools() {
         synchronized (this) {
             if (closing.get() == false) {
-                transitionExecutor = new DlmFrozenTransitionExecutor(
+                transitionExecutor = new DLMFrozenTransitionExecutor(
                     clusterService,
                     maxConcurrency,
                     maxQueueSize,
@@ -207,7 +208,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     }
 
     // Visible for testing
-    DlmFrozenTransitionExecutor getTransitionExecutor() {
+    DLMFrozenTransitionExecutor getTransitionExecutor() {
         return transitionExecutor;
     }
 
@@ -218,7 +219,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
 
     // visible for testing
     void checkForFrozenIndices() {
-        final DlmFrozenTransitionExecutor executor = transitionExecutor;
+        final DLMFrozenTransitionExecutor executor = transitionExecutor;
         if (executor == null) {
             return;
         }

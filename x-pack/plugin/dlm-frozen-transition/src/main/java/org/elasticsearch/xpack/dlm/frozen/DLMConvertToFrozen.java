@@ -739,9 +739,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      */
     static void checkSnapshotInfoSuccess(String indexName, String snapshotName, SnapshotInfo snapshotInfo) {
         if (snapshotInfo == null) {
-            throw new ElasticsearchException(
-                Strings.format("DLM snapshot [%s] for index [%s] did not return snapshot info", snapshotName, indexName)
-            );
+            throw new ElasticsearchException("DLM snapshot [{}] for index [{}] did not return snapshot info", snapshotName, indexName);
         }
 
         if (snapshotInfo.failedShards() == 0) {
@@ -754,24 +752,20 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         String reason = snapshotInfo.reason();
         if (Strings.hasText(reason)) {
             throw new ElasticsearchException(
-                Strings.format(
-                    "DLM snapshot [%s] for index [%s] finished with [%d] failed shards, state [%s], reason [%s]",
-                    snapshotName,
-                    indexName,
-                    failedShards,
-                    state,
-                    reason
-                )
+                "DLM snapshot [{}] for index [{}] finished with [{}] failed shards, state [{}], reason [{}]",
+                snapshotName,
+                indexName,
+                failedShards,
+                state,
+                reason
             );
         } else {
             throw new ElasticsearchException(
-                Strings.format(
-                    "DLM snapshot [%s] for index [%s] finished with [%d] failed shards, state [%s]",
-                    snapshotName,
-                    indexName,
-                    failedShards,
-                    state
-                )
+                "DLM snapshot [{}] for index [{}] finished with [{}] failed shards, state [{}]",
+                snapshotName,
+                indexName,
+                failedShards,
+                state
             );
         }
     }

@@ -116,7 +116,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     @After
     public void cleanup() {
         clusterService.close();
-        threadPool.shutdownNow();
+        terminate(threadPool);
     }
 
     private NoOpClient createMockClient() {

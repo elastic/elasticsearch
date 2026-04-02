@@ -163,7 +163,7 @@ public class PromqlVerifierTests extends ESTestCase {
         // host is a keyword dimension field, not a numeric metric - should get a clear 4xx-style error
         tsdb.error(
             "PROMQL index=test step=5m rate(host[5m])",
-            containsString("field [host] of type [keyword] cannot be used as a metric; PromQL metrics must be numeric")
+            containsString("field [host] of type [keyword] cannot be used as a metric; it is a dimension field")
         );
     }
 
@@ -171,7 +171,7 @@ public class PromqlVerifierTests extends ESTestCase {
         // metricset is a keyword dimension field, not a numeric metric
         tsdb.error(
             "PROMQL index=test step=5m sum(metricset)",
-            containsString("field [metricset] of type [keyword] cannot be used as a metric; PromQL metrics must be numeric")
+            containsString("field [metricset] of type [keyword] cannot be used as a metric; it is a dimension field")
         );
     }
 

@@ -395,17 +395,13 @@ public class PromqlCommand extends UnaryPlan
                     if (s.series() == null) {
                         failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
                     } else if (s.series() instanceof FieldAttribute seriesField) {
-                        DataType seriesType = seriesField.dataType();
-                        if (DataType.isNull(seriesType) == false
-                            && seriesType.isNumeric() == false
-                            && DataType.isCounter(seriesType) == false
-                            && seriesType != DataType.AGGREGATE_METRIC_DOUBLE) {
+                        if (seriesField.isDimension()) {
                             failures.add(
                                 fail(
                                     s,
-                                    "field [{}] of type [{}] cannot be used as a metric; PromQL metrics must be numeric [{}]",
+                                    "field [{}] of type [{}] cannot be used as a metric; it is a dimension field [{}]",
                                     seriesField.name(),
-                                    seriesType.typeName(),
+                                    seriesField.dataType().typeName(),
                                     s.sourceText()
                                 )
                             );

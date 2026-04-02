@@ -933,12 +933,17 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         Mapper embeddingsFieldMapper = mapperService.mappingLookup().getMapper(getEmbeddingsFieldName(fieldName));
         switch (model.getTaskType()) {
             case SPARSE_EMBEDDING -> assertThat(embeddingsFieldMapper, is(instanceOf(SparseVectorFieldMapper.class)));
-            case TEXT_EMBEDDING -> assertTextEmbeddingsFieldMapperMatchesModel(embeddingsFieldMapper, model);
+            case TEXT_EMBEDDING -> assertTextEmbeddingsFieldMapperMatchesModel(mapperService, fieldName, embeddingsFieldMapper, model);
             default -> throw new AssertionError("Unexpected task type [" + model.getTaskType() + "]");
         }
     }
 
-    private static void assertTextEmbeddingsFieldMapperMatchesModel(Mapper embeddingsFieldMapper, Model model) {
+    private static void assertTextEmbeddingsFieldMapperMatchesModel(
+        MapperService mapperService,
+        String fieldName,
+        Mapper embeddingsFieldMapper,
+        Model model
+    ) {
         Function<SimilarityMeasure, DenseVectorFieldMapper.VectorSimilarity> convertToVectorSimilarity = s -> switch (s) {
             case COSINE -> DenseVectorFieldMapper.VectorSimilarity.COSINE;
             case DOT_PRODUCT -> DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT;
@@ -948,7 +953,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) embeddingsFieldMapper;
         ServiceSettings modelServiceSettings = model.getConfigurations().getServiceSettings();
         assertThat(denseVectorFieldMapper.fieldType().getVectorDimensions(), equalTo(modelServiceSettings.dimensions()));
-        assertThat(denseVectorFieldMapper.fieldType().getElementType(), equalTo(modelServiceSettings.elementType()));
+        var semanticMapper = getSemanticFieldMapper(mapperService, fieldName);
+        DenseVectorFieldMapper.ElementType expectedElementType = SemanticTextFieldMapper.resolveSemanticTextDenseVectorElementType(
+            mapperService.getIndexSettings().getIndexVersionCreated(),
+            modelServiceSettings.elementType(),
+            semanticMapper.fieldType().semanticTextIndexOptions()
+        );
+        assertThat(denseVectorFieldMapper.fieldType().getElementType(), equalTo(expectedElementType));
         assertThat(
             denseVectorFieldMapper.fieldType().getSimilarity(),
             equalTo(convertToVectorSimilarity.apply(modelServiceSettings.similarity()))

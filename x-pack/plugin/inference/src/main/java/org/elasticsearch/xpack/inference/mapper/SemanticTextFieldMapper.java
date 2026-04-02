@@ -1023,6 +1023,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return chunkingSettings;
         }
 
+        /**
+         * @return configured {@code index_options} for this field, or {@code null} if none are stored on the mapping.
+         */
+        @Nullable
+        SemanticTextIndexOptions semanticTextIndexOptions() {
+            return indexOptions;
+        }
+
         public ObjectMapper getInferenceField() {
             return inferenceField;
         }
@@ -1584,6 +1592,27 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     ) {
         return indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
             && modelElementType == DenseVectorFieldMapper.ElementType.FLOAT;
+    }
+
+    /**
+     * Resolves the element type used for the nested {@code dense_vector} under {@code semantic_text}, matching
+     * {@link #configureDenseVectorMapperBuilder}. Same-package access for tests.
+     */
+    static DenseVectorFieldMapper.ElementType resolveSemanticTextDenseVectorElementType(
+        IndexVersion indexVersionCreated,
+        DenseVectorFieldMapper.ElementType modelElementType,
+        @Nullable SemanticTextIndexOptions indexOptions
+    ) {
+        DenseVectorFieldMapper.ElementType resolvedElementType = defaultElementTypeToBfloat16(indexVersionCreated, modelElementType)
+            ? DenseVectorFieldMapper.ElementType.BFLOAT16
+            : modelElementType;
+        if (indexOptions != null && indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+            IndexOptions innerIndexOptions = indexOptions.indexOptions();
+            if (innerIndexOptions instanceof ExtendedDenseVectorIndexOptions edvio && edvio.getElementType() != null) {
+                resolvedElementType = edvio.getElementType();
+            }
+        }
+        return resolvedElementType;
     }
 
     public static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {

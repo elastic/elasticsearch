@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -45,8 +47,9 @@ import java.util.OptionalLong;
  * the aggregate and external source by resolving aliased attribute names back to the
  * original column names before metadata lookup.
  * <p>
- * Currently supports single-file queries only (no splits or exactly one split).
- * Multi-file queries fall through to normal execution.
+ * Supports multi-split queries when per-split statistics are available in
+ * {@link FileSplit#statistics()}. Statistics are merged across splits (sum row counts,
+ * min-of-mins, max-of-maxes). Falls back to normal execution when any split lacks stats.
  * <p>
  * Note: MIN/MAX pushdown uses raw values from file metadata. For DATE/TIMESTAMP columns,
  * the raw values may not match ESQL's millisecond representation. A future enhancement
@@ -76,11 +79,11 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         if (aggregateExec.groupings().isEmpty() == false) {
             return aggregateExec;
         }
-        if (externalExec.splits().size() > 1) {
+
+        Map<String, Object> sourceMetadata = resolveEffectiveMetadata(externalExec);
+        if (sourceMetadata == null) {
             return aggregateExec;
         }
-
-        Map<String, Object> sourceMetadata = externalExec.sourceMetadata();
         List<? extends NamedExpression> aggregates = aggregateExec.aggregates();
 
         List<Object> values = new ArrayList<>(aggregates.size());
@@ -159,6 +162,22 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             return maxVal.orElse(null);
         }
         return null;
+    }
+
+    private static Map<String, Object> resolveEffectiveMetadata(ExternalSourceExec externalExec) {
+        List<? extends ExternalSplit> splits = externalExec.splits();
+        if (splits.size() <= 1) {
+            return externalExec.sourceMetadata();
+        }
+        List<Map<String, Object>> splitStats = new ArrayList<>(splits.size());
+        for (ExternalSplit split : splits) {
+            if (split instanceof FileSplit fileSplit) {
+                splitStats.add(fileSplit.statistics());
+            } else {
+                return null;
+            }
+        }
+        return SourceStatisticsSerializer.mergeStatistics(splitStats);
     }
 
     private static Block[] buildBlocks(List<Object> values) {

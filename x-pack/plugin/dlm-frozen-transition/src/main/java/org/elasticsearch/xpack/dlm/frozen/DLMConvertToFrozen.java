@@ -60,6 +60,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotState;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -598,49 +599,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * A snapshot for this index is currently running in the cluster. If it has been running longer
-     * than {@link #SNAPSHOT_TIMEOUT}, delete it and start again; otherwise wait for it to complete.
-     */
-    void handleInProgressSnapshot(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
-        // todo
-    }
-
-    /**
-     * Polls the snapshot status until it completes or the total elapsed time since snapshot start exceeds
-     * {@link #SNAPSHOT_TIMEOUT}. If the snapshot completes successfully, logs and returns. If the snapshot
-     * does not complete successfully for any reason (timeout, disappearance, failure), throws an exception.
-     */
-    void waitForSnapshotCompletion(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
-        // todo
-    }
-
-    /**
-     * Sleeps for the configured poll interval before polling for snapshot status.
-     * Extracted into its own method so that tests can override to avoid blocking.
-     */
-    void sleepBeforePoll(String snapshotName, String indexName) {
-        // todo
-    }
-
-    /**
-     * No snapshot is currently running for this index. Check whether a completed snapshot already
-     * exists in the repository. If a valid successful snapshot exists, returns.
-     * If the snapshot exists but is invalid (e.g. partial or failed), delete and recreate it.
-     * Otherwise, start a fresh snapshot.
-     */
-    void checkForOrphanedSnapshotAndStart(String indexName, String repositoryName, String snapshotName) {
-        // todo
-    }
-
-    /**
-     * Best-effort delete of the existing snapshot, then create a new one.
-     * If the snapshot is already missing, proceeds directly to creation.
-     */
-    void deleteAndRestartSnapshot(String indexName, String repositoryName, String snapshotName) {
-        // Todo
-    }
-
-    /**
      * Attempts to delete a snapshot. If the snapshot is already missing, logs and returns.
      * Throws on any other failure.
      */
@@ -659,37 +617,40 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             if (cause instanceof SnapshotMissingException) {
                 logger.debug("DLM snapshot [{}] for index [{}] already missing, proceeding to create", snapshotName, indexName);
             } else {
-                if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
                 }
-                throw cause instanceof ElasticsearchException
-                    ? (ElasticsearchException) cause
-                    : new ElasticsearchException("DLM failed to delete stale snapshot [{}] for index [{}]", e, snapshotName, indexName);
+                throw ExceptionsHelper.convertToElastic(
+                    (Exception) cause,
+                    "DLM failed to delete stale snapshot [{}] for index [{}]",
+                    snapshotName,
+                    indexName
+                );
             }
         }
     }
 
     /**
-     * Fetches snapshot info from the repository. Returns an empty list if the snapshot does not exist.
+     * Fetches snapshot info for a single snapshot from the repository. Returns {@code null} if the snapshot does not exist.
      */
-    List<SnapshotInfo> getSnapshots(String repositoryName, String snapshotName, String indexName) {
+    @Nullable
+    SnapshotInfo getSnapshot(String repositoryName, String snapshotName, String indexName) {
         GetSnapshotsRequest getRequest = new GetSnapshotsRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName);
         getRequest.snapshots(new String[] { snapshotName });
         getRequest.ignoreUnavailable(true);
         try {
             GetSnapshotsResponse response = client.projectClient(projectId).execute(TransportGetSnapshotsAction.TYPE, getRequest).get();
-            return response.getSnapshots();
+            List<SnapshotInfo> snapshots = response.getSnapshots();
+            return snapshots.isEmpty() ? null : snapshots.getFirst();
         } catch (Exception e) {
             Throwable cause = unwrapExecutionException(e);
             if (cause instanceof SnapshotMissingException) {
-                return List.of();
+                return null;
             }
-            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+            if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw cause instanceof ElasticsearchException
-                ? (ElasticsearchException) cause
-                : new ElasticsearchException("DLM failed while checking snapshots for index [{}]", e, indexName);
+            throw ExceptionsHelper.convertToElastic((Exception) cause, "DLM failed while checking snapshots for index [{}]", indexName);
         }
     }
 
@@ -698,7 +659,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * failures. Returns the original exception if it is not an {@code ExecutionException}.
      */
     private static Throwable unwrapExecutionException(Exception e) {
-        return e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
+        return e instanceof ExecutionException && e.getCause() != null ? ExceptionsHelper.unwrapCause(e.getCause()) : e;
     }
 
     /**
@@ -724,12 +685,15 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             );
         } catch (Exception e) {
             final Throwable unwrapped = unwrapExecutionException(e);
-            if (unwrapped instanceof InterruptedException || ExceptionsHelper.unwrapCause(unwrapped) instanceof InterruptedException) {
+            if (unwrapped instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw unwrapped instanceof ElasticsearchException
-                ? (ElasticsearchException) unwrapped
-                : new ElasticsearchException("DLM failed to start snapshot [{}] for index [{}]", unwrapped, snapshotName, indexName);
+            throw ExceptionsHelper.convertToElastic(
+                (Exception) unwrapped,
+                "DLM failed to start snapshot [{}] for index [{}]",
+                snapshotName,
+                indexName
+            );
         }
     }
 
@@ -742,7 +706,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             throw new ElasticsearchException("DLM snapshot [{}] for index [{}] did not return snapshot info", snapshotName, indexName);
         }
 
-        if (snapshotInfo.failedShards() == 0) {
+        if (snapshotInfo.state() == SnapshotState.SUCCESS && snapshotInfo.failedShards() == 0) {
             logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);
             return;
         }

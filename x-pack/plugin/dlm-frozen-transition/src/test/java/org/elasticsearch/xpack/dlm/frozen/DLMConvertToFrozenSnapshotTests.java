@@ -155,12 +155,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     }
 
     private DLMConvertToFrozen createConverter() {
-        return new DLMConvertToFrozen(indexName, projectId, createMockClient(), clusterService, licenseState, clock) {
-            @Override
-            void sleepBeforePoll(String snapshotName, String indexName) {
-                // no-op in tests to avoid 30s Thread.sleep
-            }
-        };
+        return new DLMConvertToFrozen(indexName, projectId, createMockClient(), clusterService, licenseState, clock);
     }
 
     private CreateSnapshotResponse createSuccessfulSnapshotResponse() {
@@ -282,13 +277,22 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         DLMConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", info);
     }
 
-    public void testCheckSnapshotInfoSuccess_failsWithFailedShards() {
-        SnapshotInfo info = createSnapshotInfo(SnapshotState.SUCCESS, 2);
+    public void testCheckSnapshotInfoPartialState_failsWithFailedShards() {
+        SnapshotInfo info = createSnapshotInfo(SnapshotState.PARTIAL, 2);
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
             () -> DLMConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", info)
         );
         assertThat(e.getMessage(), containsString("failed shards"));
+    }
+
+    public void testCheckSnapshotInfoFailedState_failsWithZeroFailedShards() {
+        SnapshotInfo info = createSnapshotInfo(SnapshotState.FAILED, 0);
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> DLMConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", info)
+        );
+        assertThat(e.getMessage(), containsString("FAILED"));
     }
 
     public void testCheckSnapshotInfoSuccess_failsWithNull() {
@@ -365,7 +369,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
     public void testDeleteSnapshotIfExists_snapshotMissingSilentlySucceeds() {
         setClusterState(createProjectState());
-        mockDeleteSnapshotFailure.set(new org.elasticsearch.snapshots.SnapshotMissingException(REPO_NAME, "missing"));
+        mockDeleteSnapshotFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
 
         DLMConvertToFrozen converter = createConverter();
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
@@ -392,21 +396,21 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
     }
 
-    // --- getSnapshots tests ---
+    // --- getSnapshot tests ---
 
-    public void testGetSnapshots_snapshotMissingReturnsEmpty() {
+    public void testGetSnapshot_snapshotMissingReturnsNull() {
         setClusterState(createProjectState());
         mockGetSnapshotsFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
 
         DLMConvertToFrozen converter = createConverter();
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        List<SnapshotInfo> result = converter.getSnapshots(REPO_NAME, snapshotName, indexName);
+        SnapshotInfo result = converter.getSnapshot(REPO_NAME, snapshotName, indexName);
 
-        assertThat(result.isEmpty(), is(true));
+        assertThat(result, is(org.hamcrest.Matchers.nullValue()));
         assertGetSnapshotsRequest(REPO_NAME, snapshotName);
     }
 
-    public void testGetSnapshots_otherFailureThrows() {
+    public void testGetSnapshot_otherFailureThrows() {
         setClusterState(createProjectState());
         mockGetSnapshotsFailure.set(new RuntimeException("connection lost"));
 
@@ -415,7 +419,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> converter.getSnapshots(REPO_NAME, snapshotName, indexName)
+            () -> converter.getSnapshot(REPO_NAME, snapshotName, indexName)
         );
         assertThat(e.getMessage(), containsString("DLM failed while checking snapshots for index"));
         assertThat(e.getCause().getMessage(), containsString("connection lost"));

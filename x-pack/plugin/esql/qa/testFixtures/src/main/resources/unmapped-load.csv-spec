@@ -1196,7 +1196,27 @@ c:long | last_name:keyword
 // Verify that a partially-mapped TEXT field is not automatically loaded from _source for the unmapped field index.
 // employees_no_gender doesn't have the gender field in its mappings, but it does have it in its _source, while
 // employees_gender_text has gender mapped as a TEXT field. Don't load gender from _source for employees_no_gender.
-partiallyMappedTextFieldNotLoaded
+partiallyMappedTextFieldNotLoadedKeep
+required_capability: index_metadata_field
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM employees_gender_text, employees_no_gender METADATA _index
+| KEEP emp_no, gender, _index
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | gender:text           | _index:keyword
+10001          | M                     | employees_gender_text
+10001          | null                  | employees_no_gender
+10002          | F                     | employees_gender_text
+10002          | null                  | employees_no_gender
+10003          | M                     | employees_gender_text
+10003          | null                  | employees_no_gender
+;
+
+partiallyMappedTextFieldNotLoadedDrop
 required_capability: index_metadata_field
 required_capability: optional_fields_v5
 

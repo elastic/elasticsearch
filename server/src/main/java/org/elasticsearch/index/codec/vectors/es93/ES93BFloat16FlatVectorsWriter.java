@@ -321,7 +321,7 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     }
 
     private static FloatVectorValues mergeFloatVectorValues(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        List<MergedBFloat16VectorValues.FloatVectorValuesSub> bfloat16Subs = tryMergeBFloat16VectorValues(
+        List<MergedBFloat16VectorValues.BFloat16VectorValuesSub> bfloat16Subs = tryMergeBFloat16VectorValues(
             mergeState.knnVectorsReaders,
             mergeState.docMaps,
             fieldInfo,
@@ -332,13 +332,13 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             : MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
     }
 
-    private static List<MergedBFloat16VectorValues.FloatVectorValuesSub> tryMergeBFloat16VectorValues(
+    private static List<MergedBFloat16VectorValues.BFloat16VectorValuesSub> tryMergeBFloat16VectorValues(
         KnnVectorsReader[] knnVectorsReaders,
         MergeState.DocMap[] docMaps,
         FieldInfo mergingField,
         FieldInfos[] sourceFieldInfos
     ) throws IOException {
-        List<MergedBFloat16VectorValues.FloatVectorValuesSub> subs = new ArrayList<>();
+        List<MergedBFloat16VectorValues.BFloat16VectorValuesSub> subs = new ArrayList<>();
         for (int i = 0; i < knnVectorsReaders.length; i++) {
             FieldInfos sourceFieldInfo = sourceFieldInfos[i];
             if (KnnVectorsWriter.MergedVectorValues.hasVectorValues(sourceFieldInfo, mergingField.name) == false) {
@@ -348,7 +348,7 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             if (reader != null) {
                 FloatVectorValues values = reader.getFloatVectorValues(mergingField.name);
                 if (values instanceof BFloat16VectorValues bf16) {
-                    subs.add(new MergedBFloat16VectorValues.FloatVectorValuesSub(docMaps[i], bf16));
+                    subs.add(new MergedBFloat16VectorValues.BFloat16VectorValuesSub(docMaps[i], bf16));
                 } else if (values != null) {
                     // not a bfloat16 thing, we have to use the default
                     return null;
@@ -360,11 +360,11 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
     static class MergedBFloat16VectorValues extends BFloat16VectorValues {
 
-        static class FloatVectorValuesSub extends DocIDMerger.Sub {
+        static class BFloat16VectorValuesSub extends DocIDMerger.Sub {
             final BFloat16VectorValues values;
             final KnnVectorValues.DocIndexIterator iterator;
 
-            FloatVectorValuesSub(MergeState.DocMap docMap, BFloat16VectorValues values) {
+            BFloat16VectorValuesSub(MergeState.DocMap docMap, BFloat16VectorValues values) {
                 super(docMap);
                 this.values = values;
                 this.iterator = values.iterator();
@@ -381,18 +381,18 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             }
         }
 
-        private final List<FloatVectorValuesSub> subs;
-        private final DocIDMerger<FloatVectorValuesSub> docIdMerger;
+        private final List<BFloat16VectorValuesSub> subs;
+        private final DocIDMerger<BFloat16VectorValuesSub> docIdMerger;
         private final int size;
         private int docId = -1;
         private int lastOrd = -1;
-        FloatVectorValuesSub current;
+        BFloat16VectorValuesSub current;
 
-        MergedBFloat16VectorValues(List<FloatVectorValuesSub> subs, MergeState mergeState) throws IOException {
+        MergedBFloat16VectorValues(List<BFloat16VectorValuesSub> subs, MergeState mergeState) throws IOException {
             this.subs = subs;
             docIdMerger = DocIDMerger.of(subs, mergeState.needsIndexSort);
             int totalSize = 0;
-            for (FloatVectorValuesSub sub : subs) {
+            for (BFloat16VectorValuesSub sub : subs) {
                 totalSize += sub.values.size();
             }
             size = totalSize;

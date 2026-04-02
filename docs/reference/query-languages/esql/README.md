@@ -1,6 +1,6 @@
 # ES|QL documentation
 
-> [!NOTE] 
+> [!NOTE]
 > This directory contains the source files for the [ES|QL documentation](https://www.elastic.co/docs/reference/query-languages/esql).
 
 This README covers how the ES|QL docs are structured, what's hand-written vs. auto-generated, and how to add or update commands and functions correctly.
@@ -190,6 +190,25 @@ When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alo
         @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0")
     },
     ...
+)
+```
+
+You can also use `appliesTo` for `Param` and `ParamMapEntry`. In this case `appliesTo` is a plain text field that accepts the same format used in inline `applies_to` metadata.
+For example, to mark a specific map entry as preview:
+
+```java
+@Param(
+    name = "options",
+    type = { "keyword" },
+    description = "A map of options.",
+    mapParams = {
+        @ParamMapEntry(
+            key = "my_option",
+            type = "keyword",
+            description = "Description of my_option.",
+            appliesTo = "stack: preview 9.2"
+        )
+    }
 )
 ```
 

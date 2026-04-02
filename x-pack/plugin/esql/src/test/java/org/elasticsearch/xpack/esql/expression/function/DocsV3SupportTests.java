@@ -437,6 +437,18 @@ public class DocsV3SupportTests extends ESTestCase {
         return constructors[0];
     }
 
+
+    public void testRenderingParamWithAppliesTo() throws Exception {
+        TestCallbacks callbacks = renderTestClassWithMapParamDocs();
+        String rendered = callbacks.rendered.get("parameters/test_map_func.md");
+        assertNotNull("parameters should be rendered", rendered);
+        // Param without applies_to should not have the annotation
+        assertThat(rendered, containsString("`field`\n:   "));
+        assertThat(rendered, not(containsString("`field` {applies_to}")));
+        // Param with applies_to should have the annotation inline next to the name
+        assertThat(rendered, containsString("`query` {applies_to}`stack: preview 9.4.0`\n:   "));
+    }
+
     public void testRenderingFunctionNamedParamsWithAppliesTo() throws Exception {
         TestCallbacks callbacks = renderTestClassWithMapParamDocs();
         String rendered = callbacks.rendered.get("functionNamedParams/test_map_func.md");
@@ -487,7 +499,7 @@ public class DocsV3SupportTests extends ESTestCase {
         public TestClassWithMapParam(
             Source source,
             @Param(name = "field", type = { "keyword" }, description = "The field.") Expression field,
-            @Param(name = "query", type = { "keyword" }, description = "The query.") Expression query,
+            @Param(name = "query", type = { "keyword" }, description = "The query.", applies_to = "stack: preview 9.4.0") Expression query,
             @MapParam(
                 name = "options",
                 description = "Optional parameters.",

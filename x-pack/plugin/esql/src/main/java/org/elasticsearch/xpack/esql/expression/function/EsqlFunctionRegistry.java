@@ -648,6 +648,27 @@ public class EsqlFunctionRegistry {
         protected final boolean variadic;
         protected final DataType targetDataType;
         protected final Hint hint;
+        protected final String appliesTo;
+
+        public ArgSignature(
+            String name,
+            String[] type,
+            String description,
+            boolean optional,
+            boolean variadic,
+            Hint hint,
+            DataType targetDataType,
+            String appliesTo
+        ) {
+            this.name = name;
+            this.type = type;
+            this.description = description;
+            this.optional = optional;
+            this.variadic = variadic;
+            this.targetDataType = targetDataType;
+            this.hint = hint;
+            this.appliesTo = appliesTo;
+        }
 
         public ArgSignature(
             String name,
@@ -658,25 +679,19 @@ public class EsqlFunctionRegistry {
             Hint hint,
             DataType targetDataType
         ) {
-            this.name = name;
-            this.type = type;
-            this.description = description;
-            this.optional = optional;
-            this.variadic = variadic;
-            this.targetDataType = targetDataType;
-            this.hint = hint;
+            this(name, type, description, optional, variadic, hint, targetDataType, "");
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, Hint hint, boolean variadic) {
-            this(name, type, description, optional, variadic, hint, UNSUPPORTED);
+            this(name, type, description, optional, variadic, hint, UNSUPPORTED, "");
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic, DataType targetDataType) {
-            this(name, type, description, optional, variadic, null, targetDataType);
+            this(name, type, description, optional, variadic, null, targetDataType, "");
         }
 
         public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic) {
-            this(name, type, description, optional, variadic, null, UNSUPPORTED);
+            this(name, type, description, optional, variadic, null, UNSUPPORTED, "");
         }
 
         public String name() {
@@ -705,6 +720,10 @@ public class EsqlFunctionRegistry {
 
         public Map<String, MapEntryArgSignature> mapParams() {
             return Map.of();
+        }
+
+        public String appliesTo() {
+            return appliesTo;
         }
 
         public boolean mapArg() {
@@ -866,7 +885,7 @@ public class EsqlFunctionRegistry {
             hint = new ArgSignature.Hint(param.hint().entityType().name().toLowerCase(Locale.ROOT), constraints);
         }
 
-        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), variadic, hint, targetDataType);
+        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), variadic, hint, targetDataType, param.applies_to());
     }
 
     public static ArgSignature mapParam(MapParam mapParam) {

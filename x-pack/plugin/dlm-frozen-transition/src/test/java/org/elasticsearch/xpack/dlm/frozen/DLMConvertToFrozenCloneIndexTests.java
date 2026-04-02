@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -31,6 +33,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -44,17 +48,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.xpack.dlm.frozen.DataStreamLifecycleConvertToFrozen.CLONE_INDEX_PREFIX;
+import static org.elasticsearch.xpack.dlm.frozen.DLMConvertToFrozen.CLONE_INDEX_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCase {
+public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
     private ProjectId projectId;
     private String indexName;
     private Index index;
@@ -138,26 +145,14 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
 
     public void testGetIndexForForceMergeReturnsCloneIndexWhenNoExistingClone() {
         createProjectState(2);
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         String indexForForceMerge = convert.getIndexForForceMerge();
         assertThat(indexForForceMerge, is(convert.getDLMCloneIndexName()));
     }
 
     public void testGetIndexForForceMergeReturnsCloneWhenCloneExists() {
         createProjectStateWithClone(true);
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         String indexForForceMerge = convert.getIndexForForceMerge();
         assertThat(indexForForceMerge, is(notNullValue()));
         assertThat(indexForForceMerge, equalTo(convert.getDLMCloneIndexName()));
@@ -169,13 +164,7 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         ClusterHealthResponse healthResponse = new ClusterHealthResponse();
         mockHealthResponse.set(healthResponse);
 
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         String indexForForceMerge = convert.getIndexForForceMerge();
 
         // Should have issued a health request to wait for clone to become active
@@ -192,13 +181,7 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         mockHealthResponse.set(healthResponse);
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::getIndexForForceMerge);
         assertThat(exception.getMessage(), containsString("timed out waiting for clone index"));
@@ -206,27 +189,15 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
 
     public void testGetIndexForForceMergeReturnsOriginalIndexWhenZeroReplicas() {
         createProjectState(0);
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         String indexForForceMerge = convert.getIndexForForceMerge();
         assertThat(indexForForceMerge, is(notNullValue()));
         assertThat(indexForForceMerge, equalTo(indexName));
     }
 
-    public void testMaybeCloneIndexCreatesCloneWithCorrectSettings() {
+    public void testMaybeCloneIndexCreatesCloneWithCorrectSettings() throws InterruptedException {
         createProjectState(2); // replicas > 0 to trigger cloning
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         mockCloneResponse.set(new CreateIndexResponse(true, true, convert.getDLMCloneIndexName()));
         convert.maybeCloneIndex();
 
@@ -243,13 +214,7 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         mockCloneFailure.set(new ElasticsearchException("clone failed"));
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::maybeCloneIndex);
         assertThat(exception.getMessage(), containsString("failed to clone"));
 
@@ -263,13 +228,7 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         createProjectState(1);
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         convert.deleteIndex(convert.getDLMCloneIndexName());
 
         String cloneIndexName = convert.getDLMCloneIndexName();
@@ -281,13 +240,7 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         createProjectState(1);
         mockDeleteResponse.set(AcknowledgedResponse.of(false));
 
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
 
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
@@ -300,12 +253,13 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         createProjectState(1);
         mockDeleteFailure.set(new ElasticsearchException("delete failed"));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             client,
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(
@@ -321,13 +275,7 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         ClusterHealthResponse healthResponse = new ClusterHealthResponse();
         mockHealthResponse.set(healthResponse);
 
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
         // Should not throw
         convert.waitForCloneToBeActive();
 
@@ -344,13 +292,7 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         mockHealthResponse.set(healthResponse);
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
-        DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            projectId,
-            client,
-            clusterService,
-            licenseState
-        );
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(indexName, projectId, client, clusterService, licenseState, Clock.systemUTC());
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::waitForCloneToBeActive);
         assertThat(exception.getMessage(), containsString("timed out waiting for clone index"));
@@ -362,12 +304,13 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         mockHealthFailure.set(new ElasticsearchException("health check failed"));
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             client,
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::waitForCloneToBeActive);
@@ -379,18 +322,21 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         ClusterHealthResponse healthResponse = new ClusterHealthResponse();
         mockHealthResponse.set(healthResponse);
 
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectId,
             client,
             clusterService,
-            licenseState
+            licenseState,
+            Clock.systemUTC()
         );
         converter.waitForCloneToBeActive();
 
         assertThat(capturedHealthRequest.get(), is(notNullValue()));
         assertThat(capturedHealthRequest.get().waitForStatus(), equalTo(org.elasticsearch.cluster.health.ClusterHealthStatus.GREEN));
     }
+
+    private static final String REPO_NAME = "my-repo";
 
     /**
      * Creates a ProjectState with the target index having the specified number of replicas.
@@ -407,9 +353,16 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
                     )
                     .numberOfShards(1)
                     .numberOfReplicas(numberOfReplicas)
+                    .putCustom(
+                        DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                        Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
+                    )
                     .build(),
                 false
             );
+
+        RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);
+        projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
         setState(clusterService, clusterState);
@@ -431,6 +384,10 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
             )
             .numberOfShards(1)
             .numberOfReplicas(1)
+            .putCustom(
+                DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO_NAME)
+            )
             .build();
 
         IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
@@ -442,6 +399,9 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
             .put(originalIndexMetadata, false)
             .put(cloneIndexMetadata, false);
+
+        RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);
+        projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
 
         ShardRouting primaryShard = TestShardRouting.newShardRouting(
             new ShardId(cloneIndexMetadata.getIndex(), 0),

@@ -5,9 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources;
+package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.List;
@@ -16,31 +20,24 @@ import java.util.Objects;
 
 /**
  * Represents a set of files resolved from a glob pattern or comma-separated path list.
- * Uses identity-comparable sentinels for unresolved and empty states.
  * Optionally carries {@link PartitionMetadata} detected from Hive-style file paths.
  */
-public final class FileSet {
-
-    /** Single-file path, no glob applied yet. */
-    public static final FileSet UNRESOLVED = new FileSet(List.of(), null);
-
-    /** Glob matched zero files. */
-    public static final FileSet EMPTY = new FileSet(List.of(), null);
+final class GenericFileList implements FileList {
 
     private final List<StorageEntry> files;
     private final String originalPattern;
     private final PartitionMetadata partitionMetadata;
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo;
 
-    public FileSet(List<StorageEntry> files, String originalPattern) {
+    GenericFileList(List<StorageEntry> files, String originalPattern) {
         this(files, originalPattern, null, null);
     }
 
-    public FileSet(List<StorageEntry> files, String originalPattern, @Nullable PartitionMetadata partitionMetadata) {
+    GenericFileList(List<StorageEntry> files, String originalPattern, @Nullable PartitionMetadata partitionMetadata) {
         this(files, originalPattern, partitionMetadata, null);
     }
 
-    public FileSet(
+    GenericFileList(
         List<StorageEntry> files,
         String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
@@ -49,52 +46,79 @@ public final class FileSet {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
-        this.files = List.copyOf(files);
+        this.files = files;
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
         this.fileSchemaInfo = fileSchemaInfo;
     }
 
-    public List<StorageEntry> files() {
+    List<StorageEntry> files() {
         return files;
     }
 
+    @Override
     public String originalPattern() {
         return originalPattern;
     }
 
+    @Override
     @Nullable
     public PartitionMetadata partitionMetadata() {
         return partitionMetadata;
     }
 
+    @Override
     @Nullable
     public Map<StoragePath, SchemaReconciliation.FileSchemaInfo> fileSchemaInfo() {
         return fileSchemaInfo;
     }
 
     /**
-     * Returns a new FileSet with per-file schema info attached.
+     * Returns a new GenericFileList with per-file schema info attached.
      * Used by schema reconciliation to pass column mappings from planning to split discovery.
      */
-    public FileSet withSchemaInfo(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
-        return new FileSet(files, originalPattern, partitionMetadata, schemaInfo);
+    GenericFileList withSchemaInfo(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
+        return new GenericFileList(files, originalPattern, partitionMetadata, schemaInfo);
     }
 
-    public int size() {
+    int size() {
         return files.size();
     }
 
-    public boolean isUnresolved() {
-        return this == UNRESOLVED;
+    @Override
+    public int fileCount() {
+        return files.size();
     }
 
-    public boolean isEmpty() {
-        return this == EMPTY;
+    @Override
+    public StoragePath path(int i) {
+        return files.get(i).path();
     }
 
+    @Override
+    public long size(int i) {
+        return files.get(i).length();
+    }
+
+    @Override
+    public long lastModifiedMillis(int i) {
+        return files.get(i).lastModified().toEpochMilli();
+    }
+
+    @Override
+    public long estimatedBytes() {
+        // 64B object header + ~700B per StorageEntry (path String + Instant + long)
+        return 64 + files.size() * 700L;
+    }
+
+    @Override
     public boolean isResolved() {
-        return this != UNRESOLVED && this != EMPTY;
+        return true;
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return files.isEmpty();
     }
 
     @Override
@@ -105,10 +129,7 @@ public final class FileSet {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        FileSet other = (FileSet) o;
-        if (this == UNRESOLVED || this == EMPTY || other == UNRESOLVED || other == EMPTY) {
-            return false;
-        }
+        GenericFileList other = (GenericFileList) o;
         return Objects.equals(files, other.files)
             && Objects.equals(originalPattern, other.originalPattern)
             && Objects.equals(partitionMetadata, other.partitionMetadata);
@@ -116,20 +137,11 @@ public final class FileSet {
 
     @Override
     public int hashCode() {
-        if (this == UNRESOLVED || this == EMPTY) {
-            return System.identityHashCode(this);
-        }
         return Objects.hash(files, originalPattern, partitionMetadata);
     }
 
     @Override
     public String toString() {
-        if (this == UNRESOLVED) {
-            return "FileSet[UNRESOLVED]";
-        }
-        if (this == EMPTY) {
-            return "FileSet[EMPTY]";
-        }
-        return "FileSet[" + files.size() + " files, pattern=" + originalPattern + "]";
+        return "GenericFileList[" + files.size() + " files, pattern=" + originalPattern + "]";
     }
 }

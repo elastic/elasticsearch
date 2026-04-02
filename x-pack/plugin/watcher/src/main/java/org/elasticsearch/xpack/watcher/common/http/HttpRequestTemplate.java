@@ -340,6 +340,8 @@ public class HttpRequestTemplate implements ToXContentObject {
                         builder.method(HttpMethod.parse(parser.text()));
                     } else if (HttpRequest.Field.HOST.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.host = parser.text();
+                    } else if (HttpRequest.Field.PORT.match(currentFieldName, parser.getDeprecationHandler())) {
+                        builder.port = parseInteger(currentFieldName, parser);
                     } else {
                         throw new ElasticsearchParseException(
                             "could not parse http request template. unexpected string field [{}]",
@@ -378,6 +380,18 @@ public class HttpRequestTemplate implements ToXContentObject {
             }
 
             return builder.build();
+        }
+
+        private static int parseInteger(String fieldName, XContentParser parser) throws IOException {
+            try {
+                return parser.intValue();
+            } catch (NumberFormatException e) {
+                throw new ElasticsearchParseException(
+                    "Could not parse http request template. Invalid {} value [{}]",
+                    fieldName,
+                    parser.text()
+                );
+            }
         }
 
         private static TextTemplate parseFieldTemplate(String field, XContentParser parser) throws IOException {

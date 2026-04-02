@@ -60,7 +60,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
             .putHeader("_key2", new TextTemplate("_value2"))
             .build();
 
-        HttpRequest result = template.render(new MockTextTemplateEngine(), Collections.emptyMap());
+        HttpRequest result = template.render(new MockTextTemplateEngine(), emptyMap());
         assertThat(result.body(), equalTo("_body"));
         assertThat(result.path(), equalTo("_path"));
         assertThat(result.params(), equalTo(Collections.singletonMap("_key1", "_value1")));
@@ -152,6 +152,31 @@ public class HttpRequestTemplateTests extends ESTestCase {
         // encoded values
         builder = HttpRequestTemplate.builder("www.example.org", 80).putParam("foo", new TextTemplate(" white space"));
         assertThatManualBuilderEqualsParsingFromUrl("http://www.example.org?foo=%20white%20space", builder);
+    }
+
+    public void testParsePortAsString() throws Exception {
+        int expectedPort = 6667;
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("host", "localhost")
+            .field( "port", String.valueOf(expectedPort))
+            .endObject();
+        XContentParser parser = createParser(builder);
+        parser.nextToken();
+
+        HttpRequestTemplate template = HttpRequestTemplate.Parser.parse(parser);
+        assertThat(template.port(), is(expectedPort));
+    }
+
+    public void testParsePortAsStringRejectsNonIntegers() throws Exception {
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("host", "localhost")
+            .field( "port", "not_a_number")
+            .endObject();
+        XContentParser parser = createParser(builder);
+        parser.nextToken();
+
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> HttpRequestTemplate.Parser.parse(parser));
+        assertThat(e.getMessage(), is("Could not parse http request template. Invalid port value [not_a_number]"));
     }
 
     public void testParsingEmptyUrl() throws Exception {

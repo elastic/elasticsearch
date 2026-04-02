@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapshotIntegTestCase {
+public class DLMConvertToFrozenSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     private static final String REPO_NAME = "test-repo";
 
@@ -83,7 +83,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         assertTrue(blockResp.isAcknowledged());
 
         ProjectState projectState = getProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectState.projectId(),
             client(),
@@ -95,7 +95,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         converter.maybeTakeSnapshot(indexName);
 
         // Verify the snapshot was created in the repository
-        String expectedSnapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        String expectedSnapshotName = DLMConvertToFrozen.snapshotName(indexName);
         GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
             .setSnapshots(expectedSnapshotName)
             .get();
@@ -127,7 +127,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
 
         // First call — creates the snapshot
         ProjectState projectState = getProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectState.projectId(),
             client(),
@@ -139,7 +139,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
 
         // Second call — should skip since the snapshot already exists and is valid
         // Get a fresh project state
-        DataStreamLifecycleConvertToFrozen converter2 = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter2 = new DLMConvertToFrozen(
             indexName,
             projectState.projectId(),
             client(),
@@ -150,7 +150,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         converter2.maybeTakeSnapshot(indexName);
 
         // Verify still only one snapshot exists
-        String expectedSnapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        String expectedSnapshotName = DLMConvertToFrozen.snapshotName(indexName);
         GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
             .setSnapshots(expectedSnapshotName)
             .get();
@@ -168,7 +168,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         setFrozenCandidateRepo(indexName, REPO_NAME);
 
         ProjectState projectState = getProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectState.projectId(),
             client(),
@@ -183,11 +183,11 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
 
     public void testSnapshotNameIsConsistent() {
         String indexName = "my-test-index";
-        String snapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
         assertThat(snapshotName, is("dlm-frozen-my-test-index"));
 
         // Calling again should produce the same name (idempotent)
-        assertThat(DataStreamLifecycleConvertToFrozen.snapshotName(indexName), equalTo(snapshotName));
+        assertThat(DLMConvertToFrozen.snapshotName(indexName), equalTo(snapshotName));
     }
 
     public void testSnapshotContainsCorrectMetadata() throws Exception {
@@ -207,7 +207,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         assertTrue(blockResp.isAcknowledged());
 
         ProjectState projectState = getProjectState();
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
+        DLMConvertToFrozen converter = new DLMConvertToFrozen(
             indexName,
             projectState.projectId(),
             client(),
@@ -217,7 +217,7 @@ public class DataStreamLifecycleConvertToFrozenSnapshotIT extends AbstractSnapsh
         );
         converter.maybeTakeSnapshot(indexName);
 
-        String expectedSnapshotName = DataStreamLifecycleConvertToFrozen.snapshotName(indexName);
+        String expectedSnapshotName = DLMConvertToFrozen.snapshotName(indexName);
         GetSnapshotsResponse response = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
             .setSnapshots(expectedSnapshotName)
             .get();

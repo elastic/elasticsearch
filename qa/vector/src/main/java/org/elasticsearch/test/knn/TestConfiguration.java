@@ -59,6 +59,7 @@ record TestConfiguration(
     boolean reindex,
     boolean forceMerge,
     VectorSimilarityFunction vectorSpace,
+    boolean normalizeVectors,
     Integer quantizeBits,
     KnnIndexTester.VectorEncoding vectorEncoding,
     int dimensions,
@@ -212,7 +213,12 @@ record TestConfiguration(
             new ParameterHelp("reindex", "boolean", "Whether to build a new index from the document vectors."),
             new ParameterHelp("force_merge", "boolean", "Whether to force-merge the index after indexing."),
             new ParameterHelp("force_merge_max_num_segments", "int", "Force-merge target number of segments."),
-            new ParameterHelp("vector_space", "string", "Similarity: euclidean, dot_product, or cosine."),
+            new ParameterHelp(
+                "vector_space",
+                "string",
+                "Similarity: euclidean, maximum_inner_product, dot_product, or cosine. "
+                    + "If cosine is selected with float vectors, vectors are L2-normalized and dot_product is used internally."
+            ),
             new ParameterHelp("quantize_bits", "int", "Quantization bits; valid values depend on index_type."),
             new ParameterHelp("vector_encoding", "string", "Vector encoding: byte, float32, or bfloat16."),
             new ParameterHelp("dimensions", "int", "Vector dimensions; -1 uses dimensions from the vector file."),
@@ -756,6 +762,12 @@ record TestConfiguration(
             if (vectorSpace == null) {
                 vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
             }
+            boolean normalizeVectors = false;
+            if (vectorSpace == VectorSimilarityFunction.COSINE && vectorEncoding != KnnIndexTester.VectorEncoding.BYTE) {
+                KnnIndexTester.logger.info("vector_space=cosine: normalizing float vectors and using dot_product internally");
+                vectorSpace = VectorSimilarityFunction.DOT_PRODUCT;
+                normalizeVectors = true;
+            }
             if (numDocs == null) {
                 numDocs = 1000;
             }
@@ -770,6 +782,9 @@ record TestConfiguration(
                 throw new IllegalArgumentException(
                     "dimensions must be a positive integer or -1 for when dimension is available in the vector file"
                 );
+            }
+            if (vectorSpace == VectorSimilarityFunction.COSINE && vectorEncoding == KnnIndexTester.VectorEncoding.BYTE) {
+                KnnIndexTester.logger.info("vector_space=cosine with byte vectors: using cosine directly (no normalization)");
             }
 
             // length of the longest array parameter
@@ -821,6 +836,7 @@ record TestConfiguration(
                 reindex,
                 forceMerge,
                 vectorSpace,
+                normalizeVectors,
                 quantizeBits,
                 vectorEncoding,
                 dimensions,

@@ -11,7 +11,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -1365,8 +1363,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 + "| WHERE @timestamp == \"2021-01-01\"::date_nanos",
             allOf(
                 containsString("Found 1 problem"),
-                containsString(
-                    "line 1:116: Cannot use field [@timestamp] due to ambiguities being mapped as [3] incompatible types: "),
+                containsString("line 1:116: Cannot use field [@timestamp] due to ambiguities being mapped as [3] incompatible types: "),
                 containsString("[keyword] due to loading from _source"),
                 containsString("[date_nanos] in [sample_data_ts_nanos]"),
                 containsString("[datetime] in [sample_data]")

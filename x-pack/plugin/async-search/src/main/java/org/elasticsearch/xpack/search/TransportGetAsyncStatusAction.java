@@ -88,7 +88,7 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
                 store.updateExpirationTime(searchId.getDocId(), expirationTime, ActionListener.wrap(p -> {
                     AsyncSearchTask asyncSearchTask = getTask(taskManager, searchId, AsyncSearchTask.class);
                     if (asyncSearchTask != null) {
-                        asyncSearchTask.setExpirationTime(expirationTime);
+                        asyncSearchTask.setExpirationTime(expirationTime, request.getKeepAlive());
                     }
                     store.retrieveStatus(
                         request,

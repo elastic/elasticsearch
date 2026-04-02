@@ -254,7 +254,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public static InferenceString createRandom() {
         DataType dataType = randomFrom(DataType.values());
-        DataFormat format = randomFrom(dataType.getSupportedFormats());
+        DataFormat format = randomBoolean() ? randomFrom(dataType.getSupportedFormats()) : null;
         return new InferenceString(dataType, format, randomAlphanumericOfLength(10));
     }
 

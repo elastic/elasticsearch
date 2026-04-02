@@ -82,12 +82,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
+import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
@@ -317,6 +319,57 @@ public class SearchServiceTests extends IndexShardTestCase {
             );
             listener.onFailure(e);
         }
+    }
+
+    public void testWrapFailureListenerOnResponse() {
+        var releasableClosed = new AtomicBoolean(false);
+        var response = new AtomicReference<String>();
+
+        var wrapped = wrapFailureListener(
+            ActionListener.<String>wrap(response::set, e -> fail("unexpected failure")),
+            () -> releasableClosed.set(true),
+            e -> fail("cleanup must not run on success")
+        );
+        wrapped.onResponse("ok");
+
+        assertTrue("releasable must be closed after onResponse", releasableClosed.get());
+        assertEquals("ok", response.get());
+    }
+
+    public void testWrapFailureListenerOnFailure() {
+        var releasableClosed = new AtomicBoolean(false);
+        var cleanupRan = new AtomicBoolean(false);
+        var failure = new AtomicReference<Exception>();
+        var cause = new RuntimeException("search failed");
+
+        var wrapped = wrapFailureListener(
+            ActionListener.<String>wrap(r -> fail("unexpected response"), failure::set),
+            () -> releasableClosed.set(true),
+            e -> cleanupRan.set(true)
+        );
+        wrapped.onFailure(cause);
+
+        assertTrue("cleanup must run on failure", cleanupRan.get());
+        assertTrue("releasable must be closed after onFailure", releasableClosed.get());
+        assertSame("original exception must reach the listener", cause, failure.get());
+    }
+
+    public void testWrapFailureListenerCleanupThrows() {
+        var releasableClosed = new AtomicBoolean(false);
+        var failure = new AtomicReference<Exception>();
+        var cause = new RuntimeException("search failed");
+
+        var wrapped = wrapFailureListener(
+            ActionListener.<String>wrap(r -> fail("unexpected response"), failure::set),
+            () -> releasableClosed.set(true),
+            e -> {
+                throw new RuntimeException("cleanup exploded");
+            }
+        );
+
+        expectThrows(RuntimeException.class, () -> wrapped.onFailure(cause));
+        assertTrue("releasable must be closed even when cleanup throws", releasableClosed.get());
+        assertSame("listener.onFailure must be called even when cleanup throws", cause, failure.get());
     }
 
     public void testIsExecutorQueuedBeyondPrewarmingFactor() throws InterruptedException {

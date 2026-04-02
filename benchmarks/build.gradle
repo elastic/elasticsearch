@@ -51,6 +51,7 @@ dependencies {
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')
+  implementation(testFixtures(project(':libs:native')))
   implementation project(path: ':libs:simdvec')
   implementation (testFixtures(project(path: ':libs:simdvec')))
   implementation project(path: ':libs:swisshash')
@@ -103,7 +104,7 @@ tasks.named("run").configure {
 
 tasks.named('test').configure {
   if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
-    jvmArgs '--add-modules=jdk.incubator.vector'
+    jvmArgs '--add-modules=jdk.incubator.vector', '--add-opens=java.base/java.nio=ALL-UNNAMED'
   }
 }
 

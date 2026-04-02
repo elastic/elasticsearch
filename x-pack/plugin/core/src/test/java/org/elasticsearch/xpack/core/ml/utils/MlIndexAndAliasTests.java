@@ -507,6 +507,22 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertEquals(".ml-anomalies-custom-foo-notthisone-000002", latest);
     }
 
+    public void testLatestIndexMatchingBaseName_OnlyCollidingIndicesExist() {
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foobar", IndexVersion.current(), List.of("job1")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foobaz", IndexVersion.current(), List.of("job2")));
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.metadata(metadata);
+        var state = csBuilder.build();
+
+        var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
+            ".ml-anomalies-custom-foo",
+            TestIndexNameExpressionResolver.newInstance(),
+            state
+        );
+        assertEquals(".ml-anomalies-custom-foo", latest);
+    }
+
     public void testBuildIndexAliasesRequest() {
         var anomaliesIndex = ".ml-anomalies-sharedindex";
         var newIndex = anomaliesIndex + "-000001";

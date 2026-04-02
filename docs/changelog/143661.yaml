@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143661
+summary: Support window smaller than time bucket
+type: enhancement

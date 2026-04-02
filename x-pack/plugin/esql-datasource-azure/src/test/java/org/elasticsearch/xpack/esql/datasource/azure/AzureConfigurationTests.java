@@ -139,6 +139,44 @@ public class AzureConfigurationTests extends ESTestCase {
         assertNotEquals(config1, config2);
     }
 
+    public void testAuthNone() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "none");
+        assertNotNull(config);
+        assertTrue(config.isAnonymous());
+        assertFalse(config.hasCredentials());
+    }
+
+    public void testAuthNoneCaseInsensitive() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://endpoint", "NONE");
+        assertTrue(config.isAnonymous());
+        assertEquals("none", config.auth());
+    }
+
+    public void testAuthNoneConflictsWithConnectionString() {
+        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none"));
+    }
+
+    public void testAuthNoneConflictsWithAccountKey() {
+        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none"));
+    }
+
+    public void testAuthNoneConflictsWithSasToken() {
+        expectThrows(IllegalArgumentException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none"));
+    }
+
+    public void testAuthNoneAllowsEndpoint() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, "https://ep", "none");
+        assertTrue(config.isAnonymous());
+        assertEquals("https://ep", config.endpoint());
+    }
+
+    public void testUnsupportedAuthValueThrows() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> AzureConfiguration.fromFields(null, null, null, null, "https://ep", "unsupported")
+        );
+    }
+
     private Literal literal(Object value) {
         Object literalValue = value instanceof String s ? new BytesRef(s) : value;
         DataType dataType = value instanceof String ? DataType.KEYWORD : DataType.KEYWORD;

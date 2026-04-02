@@ -52,7 +52,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -1023,7 +1023,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             }
         }
 
-        for (PaginatedHitSource.SearchFailure failure : response.getSearchFailures()) {
+        for (PaginatedSearchFailure failure : response.getSearchFailures()) {
             RestStatus failureStatus = org.elasticsearch.ExceptionsHelper.status(failure.getReason());
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;

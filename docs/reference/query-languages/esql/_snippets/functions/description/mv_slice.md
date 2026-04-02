@@ -2,7 +2,7 @@
 
 ## Description
 
-Returns a subset of the multivalued field using the start and end index values. This is most useful when reading from a function that emits multivalued columns in a known order like [`SPLIT`](/reference/query-languages/esql/functions-operators/string-functions/split.md) or [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md).
+Returns a subset of the multivalued field using the start and end index values. Indexes are 0-based. This is most useful when reading from a function that emits multivalued columns in a known order like [`SPLIT`](/reference/query-languages/esql/functions-operators/string-functions/split.md) or [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md).
 
 The order that [multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md) are read from
 underlying storage is not guaranteed. It is **frequently** ascending, but don’t

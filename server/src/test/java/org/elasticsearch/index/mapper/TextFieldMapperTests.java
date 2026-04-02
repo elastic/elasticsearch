@@ -42,6 +42,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -148,11 +149,11 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("fielddata", true), m -> {
+        checker.registerUpdateCheck("fielddata", b -> b.field("fielddata", true), m -> {
             TextFieldType ft = (TextFieldType) m.fieldType();
             assertTrue(ft.fielddata());
         });
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("fielddata_frequency_filter", b -> {
             b.field("fielddata", true);
             b.startObject("fielddata_frequency_filter");
             {
@@ -167,16 +168,20 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertEquals(20, ft.fielddataMaxFrequency(), 0);
             assertEquals(100, ft.fielddataMinSegmentSize());
         });
-        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", "true"), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck(
+            "eager_global_ordinals",
+            b -> b.field("eager_global_ordinals", "true"),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals())
+        );
+        checker.registerUpdateCheck("search_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-            b.field("search_quote_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
+            b.field("search_quote_analyzer", "standard");
+        }, m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
@@ -200,7 +205,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.field("type", "text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("norms", b -> {
             b.field("type", "text");
             b.field("norms", true);
         }, b -> {
@@ -1738,7 +1743,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(searchExecutionContext);
         assertThat(q5, is(new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build()));
 
-        MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+        MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
         matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
         Query q6 = matchQueryParser.parse(MatchQueryParser.Type.PHRASE, "synfield", "motor dogs");
         assertThat(
@@ -2006,7 +2011,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
             matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
             Query q = matchQueryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, "synfield", "motor dogs");
             Query expected = new SpanNearQuery.Builder("synfield", true).addClause(new SpanTermQuery(new Term("synfield", "motor")))
@@ -2021,7 +2026,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
             matchQueryParser.setPhraseSlop(1);
             matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
             Query q = matchQueryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, "synfield", "two dogs");

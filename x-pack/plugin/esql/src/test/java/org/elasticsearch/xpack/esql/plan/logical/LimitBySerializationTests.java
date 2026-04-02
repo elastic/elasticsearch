@@ -19,26 +19,26 @@ public class LimitBySerializationTests extends AbstractLogicalPlanSerializationT
     @Override
     protected LimitBy createTestInstance() {
         Source source = randomSource();
-        Expression limit = FieldAttributeTests.createFieldAttribute(0, false);
+        Expression limitPerGroup = FieldAttributeTests.createFieldAttribute(0, false);
         LogicalPlan child = randomChild(0);
         List<Expression> groupings = randomGroupings();
-        return new LimitBy(source, limit, child, groupings, randomBoolean());
+        return new LimitBy(source, limitPerGroup, child, groupings, randomBoolean());
     }
 
     @Override
     protected LimitBy mutateInstance(LimitBy instance) throws IOException {
-        Expression limit = instance.limit();
+        Expression limitPerGroup = instance.limitPerGroup();
         LogicalPlan child = instance.child();
         List<Expression> groupings = instance.groupings();
         boolean duplicated = instance.duplicated();
         switch (randomIntBetween(0, 3)) {
-            case 0 -> limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 0 -> limitPerGroup = randomValueOtherThan(limitPerGroup, () -> FieldAttributeTests.createFieldAttribute(0, false));
             case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 2 -> groupings = randomValueOtherThan(groupings, LimitBySerializationTests::randomGroupings);
             case 3 -> duplicated = duplicated == false;
             default -> throw new IllegalStateException("Should never reach here");
         }
-        return new LimitBy(instance.source(), limit, child, groupings, duplicated);
+        return new LimitBy(instance.source(), limitPerGroup, child, groupings, duplicated);
     }
 
     @Override

@@ -23,7 +23,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean;
@@ -80,7 +80,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         @Param(
             name = "field",
             type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
-            description = "Multivalue expression. If `null`, the function returns `null`."
+            description = "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "order",
@@ -218,7 +218,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
                 ),
                 ElementType.DOUBLE
             );
-            case NULL -> ConstantExpressions.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw new IllegalArgumentException("unsupported type [" + field.dataType() + "]");
         };
     }

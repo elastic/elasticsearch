@@ -16,6 +16,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
+  api project(':libs:arrow')
   api project(':libs:exponential-histogram')
   implementation project(':libs:swisshash')
 
@@ -43,6 +44,11 @@ tasks.named("compileJava").configure {
 tasks.named('checkstyleMain').configure {
   source = "src/main/java"
   excludes = ["**/*.java.st"]
+}
+
+tasks.named("test").configure {
+  // Needed for Arrow tests
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
 tasks.named("spotlessJava") { dependsOn "stringTemplates" }
@@ -629,6 +635,50 @@ tasks.named('stringTemplates').configure {
     it.properties = booleanProperties
     it.inputFile = lookupInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanLookup.java"
+  }
+  // Arrow buffer block implementations
+  File arrowBufBlockInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/arrow/X-ArrowBufBlock.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/IntArrowBufBlock.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/LongArrowBufBlock.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/FloatArrowBufBlock.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/DoubleArrowBufBlock.java"
+  }
+  // Arrow buffer vector implementations
+  File arrowBufVectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/arrow/X-ArrowBufVector.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/IntArrowBufVector.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/LongArrowBufVector.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/FloatArrowBufVector.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/DoubleArrowBufVector.java"
   }
   File arrayStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ArrayState.java.st")
   template {

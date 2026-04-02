@@ -127,7 +127,8 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
                             {"type": "text", "format": "text", "value": "first text input"},
                             {"type": "text", "format": "text", "value": "second text input"}
                         ]
-                    }
+                    },
+                    "third input"
                 ],
                 "input_type": "search"
             }
@@ -141,7 +142,8 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
                         new InferenceString(DataType.TEXT, DataFormat.TEXT, "first text input"),
                         new InferenceString(DataType.TEXT, DataFormat.TEXT, "second text input")
                     )
-                )
+                ),
+                new InferenceStringGroup("third input")
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));

@@ -41,7 +41,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -125,10 +124,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         });
 
         checker.registerUpdateCheck(
+            "search_analyzer",
             b -> b.field("search_analyzer", "standard"),
             m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
-        checker.registerUpdateCheck(b -> b.field("max_input_length", 30), m -> {
+        checker.registerUpdateCheck("max_input_length", b -> b.field("max_input_length", 30), m -> {
             CompletionFieldMapper cfm = (CompletionFieldMapper) m;
             assertEquals(30, cfm.getMaxInputLength());
         });
@@ -153,16 +153,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
-        } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
-            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-            assertThat(((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
+        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            codec = deduplicateFieldInfosCodec.delegate();
         }
+        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+        assertThat(((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
     }
 
     public void testDefaultConfiguration() throws IOException {

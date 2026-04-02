@@ -114,8 +114,13 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(m.ignoreMalformed()));
-        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ExponentialHistogramFieldMapper) m).coerce()));
+        checker.registerUpdateCheck("ignore_malformed", b -> b.field("ignore_malformed", true), m -> assertTrue(m.ignoreMalformed()));
+        checker.registerUpdateCheck(
+            "coerce",
+            b -> b.field("coerce", false),
+            m -> assertFalse(((ExponentialHistogramFieldMapper) m).coerce())
+        );
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "histogram"));
     }
 
     public void testCoerce() throws IOException {

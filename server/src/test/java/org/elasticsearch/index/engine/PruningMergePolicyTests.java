@@ -792,7 +792,7 @@ public class PruningMergePolicyTests extends ESTestCase {
         var tsid = new TsidBuilder().addStringDimension("hostname", hostname)
             .addStringDimension("metric.field", metricField)
             .addLongDimension("metric.value", metricValue)
-            .buildTsid();
+            .buildTsid(IndexVersion.current());
         var routingHashBytes = Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash));
         doc.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, tsid));
         doc.add(SortedNumericDocValuesField.indexedField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));

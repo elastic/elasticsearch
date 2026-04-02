@@ -56,9 +56,12 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
                     for (int i = 0; i < entry.getValue(); i++) {
                         Document document = new Document();
 
-                        var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                        var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                            "field",
+                            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                        );
                         field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
-                        var countField = new NumericDocValuesField("field.counts", 1);
+                        var countField = NumericDocValuesField.indexedField("field.counts", 1);
 
                         if (randomBoolean()) {
                             field.add(new BytesRef("z".getBytes(StandardCharsets.UTF_8)));
@@ -102,9 +105,12 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
                 Document document = new Document();
 
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "field",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
-                var countField = new NumericDocValuesField("field.counts", 1);
+                var countField = NumericDocValuesField.indexedField("field.counts", 1);
                 document.add(field);
                 document.add(countField);
 
@@ -128,9 +134,12 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
                     Document document = new Document();
                     document.add(new SortedSetDocValuesField("baseline_field", new BytesRef(randomValue)));
 
-                    var binaryDVField = new MultiValuedBinaryDocValuesField.SeparateCount("contender_field", false);
+                    var binaryDVField = new MultiValuedBinaryDocValuesField.SeparateCount(
+                        "contender_field",
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
                     binaryDVField.add(new BytesRef(randomValue.getBytes(StandardCharsets.UTF_8)));
-                    var countField = new NumericDocValuesField("contender_field.counts", 1);
+                    var countField = NumericDocValuesField.indexedField("contender_field.counts", 1);
                     document.add(binaryDVField);
                     document.add(countField);
 
@@ -267,11 +276,14 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
     private static void addDoc(RandomIndexWriter writer, String fieldName, String... values) throws IOException {
         Document document = new Document();
-        var field = new MultiValuedBinaryDocValuesField.SeparateCount(fieldName, false);
+        var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+            fieldName,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+        );
         for (String value : values) {
             field.add(new BytesRef(value.getBytes(StandardCharsets.UTF_8)));
         }
-        var countField = new NumericDocValuesField(fieldName + ".counts", field.count());
+        var countField = NumericDocValuesField.indexedField(fieldName + ".counts", field.count());
         document.add(field);
         document.add(countField);
         writer.addDocument(document);

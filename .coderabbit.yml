@@ -7,4 +7,4 @@ reviews:
   auto_review:
     labels:
       - "Team:Delivery"
-      - "Team:Search - Inference"
+      - "Team:Core/Infra"

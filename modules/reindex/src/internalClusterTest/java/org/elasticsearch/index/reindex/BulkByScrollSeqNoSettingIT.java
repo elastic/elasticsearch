@@ -11,7 +11,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -54,14 +53,27 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongPredicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+/**
+ * Integration tests verifying that bulk-by-scroll operations (update-by-query, delete-by-query)
+ * correctly handle the per-index {@link IndexSettings#DISABLE_SEQUENCE_NUMBERS} setting. When an
+ * index has sequence numbers disabled, bulk requests must carry {@link SequenceNumbers#UNASSIGNED_SEQ_NO};
+ * when enabled, they must carry real ({@code >= 0}) sequence numbers. The search phase always requests
+ * {@code seqNoAndPrimaryTerm} regardless of the index setting, because the framework needs it for
+ * optimistic concurrency control (indices with sequence numbers disabled return sentinel values).
+ */
 public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
+
+    public static final LongPredicate SEQ_NO_DISABLED_MATCHER = seqNo -> seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO;
+    public static final LongPredicate SEQ_NO_ENABLED_MATCHER = seqNo -> seqNo >= 0;
 
     @After
     public void cleanupInterceptors() {
@@ -119,10 +131,10 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         indexDoc("test-index", "1", "field", "value");
         refresh("test-index");
 
-        CountDownLatch searchLatch = assertSearchSeqNoFlag(disableSequenceNumbers == false);
+        CountDownLatch searchLatch = assertSearchAlwaysRequestsSeqNo();
         CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
             "test-index",
-            seqNo -> disableSequenceNumbers ? seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : seqNo >= 0
+            disableSequenceNumbers ? SEQ_NO_DISABLED_MATCHER : SEQ_NO_ENABLED_MATCHER
         );
         var updateByQuery = updateByQuery().source("test-index");
         if (randomBoolean()) {
@@ -142,10 +154,10 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         indexDoc("test-index", "1", "field", "value");
         refresh("test-index");
 
-        CountDownLatch searchLatch = assertSearchSeqNoFlag(disableSequenceNumbers == false);
+        CountDownLatch searchLatch = assertSearchAlwaysRequestsSeqNo();
         CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
             "test-index",
-            seqNo -> disableSequenceNumbers ? seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : seqNo >= 0
+            disableSequenceNumbers ? SEQ_NO_DISABLED_MATCHER : SEQ_NO_ENABLED_MATCHER
         );
         var deleteByQuery = deleteByQuery().source("test-index").filter(QueryBuilders.matchAllQuery());
         if (randomBoolean()) {
@@ -158,45 +170,28 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         safeAwait(bulkLatch);
     }
 
-    public void testPatternMatchingMultipleIndicesWithMixedSettingsRejects() {
+    public void testPatternMatchingMultipleIndicesWithMixedSettings() {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
-        createIndex("test-index-1", disableSeqNoSettings(true));
-        createIndex("test-index-2", indexSettings(1, 0).build());
+        createIndex("test-index-1", disableSeqNoSettings(randomBoolean()));
+        createIndex("test-index-2", disableSeqNoSettings(randomBoolean()));
         indexDoc("test-index-1", "1", "field", "value");
         indexDoc("test-index-2", "1", "field", "value");
         refresh("test-index-*");
 
-        var updateByQuery = updateByQuery().source("test-index-*");
-        if (randomBoolean()) {
-            updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
-        }
-        ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, updateByQuery::get);
-        assertThat(e.getMessage(), containsString(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()));
-    }
-
-    public void testPatternMatchingMultipleIndicesWithSameSeqNoDisabledSetting() {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
-        boolean disableSequenceNumbers = randomBoolean();
-        Settings seqNoSettings = disableSeqNoSettings(disableSequenceNumbers);
-        createIndex("test-index-1", seqNoSettings);
-        createIndex("test-index-2", seqNoSettings);
-        indexDoc("test-index-1", "1", "field", "value");
-        indexDoc("test-index-2", "1", "field", "value");
-        refresh("test-index-*");
-
-        CountDownLatch searchLatch = assertSearchSeqNoFlag(disableSequenceNumbers == false);
-        LongPredicate seqNoPredicate = seqNo -> disableSequenceNumbers ? seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : seqNo >= 0;
-        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(Map.of("test-index-1", seqNoPredicate, "test-index-2", seqNoPredicate));
+        CountDownLatch searchLatch = assertSearchAlwaysRequestsSeqNo();
+        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
+            Stream.of("test-index-1", "test-index-2")
+                .collect(Collectors.toMap(Function.identity(), BulkByScrollSeqNoSettingIT::getBulkSeqNoMatcherForIndex))
+        );
         var updateByQuery = updateByQuery().source("test-index-*");
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
         BulkByScrollResponse response = updateByQuery.get();
         assertThat(response, matcher().updated(2));
-        safeAwait(searchLatch);
         safeAwait(bulkLatch);
+        safeAwait(searchLatch);
     }
 
     public void testDataStreamWithSeqNoDisabledOnAllBackingIndices() throws Exception {
@@ -210,11 +205,8 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         refresh(dsName);
         var dataStream = getDataStream(dsName);
 
-        CountDownLatch searchLatch = assertSearchSeqNoFlag(false);
-        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
-            dataStream.getWriteIndex().getName(),
-            seqNo -> seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
-        );
+        CountDownLatch searchLatch = assertSearchAlwaysRequestsSeqNo();
+        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(dataStream.getWriteIndex().getName(), SEQ_NO_DISABLED_MATCHER);
         var updateByQuery = updateByQuery().source(dsName);
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
@@ -225,33 +217,27 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         safeAwait(bulkLatch);
     }
 
-    /**
-     * When backing indices have mixed settings, the resolver disables seq_no because search hits
-     * from backing indices with seq_no disabled will not carry valid sequence numbers.
-     * Because at least one backing index has seq_no disabled, writes with explicit IDs to all
-     * backing indices are allowed without OCC.
-     */
     public void testDataStreamWithMixedBackingIndices() throws Exception {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
         String dsName = "my-data-stream";
-        createDataStreamWithTemplate(dsName, Settings.EMPTY);
+        createDataStreamWithTemplate(dsName, disableSeqNoSettings(randomBoolean()));
         int numDocs = between(1, 5);
         indexDocs(dsName, numDocs);
 
-        updateDataStreamTemplate(dsName, disableSeqNoTemplateSettings(true));
+        updateDataStreamTemplate(dsName, disableSeqNoTemplateSettings(randomBoolean()));
         rolloverDataStream(dsName);
         int numDocs2 = between(1, 5);
         indexDocs(dsName, numDocs2);
         refresh(dsName);
         var dataStream = getDataStream(dsName);
 
-        CountDownLatch searchLatch = assertSearchSeqNoFlag(false);
-        Map<String, LongPredicate> indexSeqNoPredicates = new HashMap<>();
-        for (Index index : dataStream.getIndices()) {
-            indexSeqNoPredicates.put(index.getName(), seqNo -> seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO);
-        }
-        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(indexSeqNoPredicates);
+        CountDownLatch searchLatch = assertSearchAlwaysRequestsSeqNo();
+        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
+            dataStream.getIndices()
+                .stream()
+                .collect(Collectors.toMap(Index::getName, index -> getBulkSeqNoMatcherForIndex(index.getName())))
+        );
         var updateByQuery = updateByQuery().source(dsName);
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
@@ -262,38 +248,29 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         safeAwait(bulkLatch);
     }
 
-    /**
-     * A mixed data stream (resolves to disabled) and a regular index with seq_no also disabled share
-     * the same resolved setting, so the operation is accepted. The regular index doc is updated without
-     * OCC. Because at least one backing index has seq_no disabled, writes with explicit IDs to all
-     * backing indices are allowed without OCC.
-     */
-    public void testMixedDataStreamAndRegularIndexWithSameResolvedSetting() throws Exception {
+    public void testMixedDataStreamAndRegularIndex() throws Exception {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
         String dsName = "test-ds";
-        createDataStreamWithTemplate(dsName, Settings.EMPTY);
+        createDataStreamWithTemplate(dsName, disableSeqNoSettings(randomBoolean()));
         int numDocs = between(1, 5);
         indexDocs(dsName, numDocs);
 
-        updateDataStreamTemplate(dsName, disableSeqNoTemplateSettings(true));
+        updateDataStreamTemplate(dsName, disableSeqNoTemplateSettings(randomBoolean()));
         rolloverDataStream(dsName);
         int numDocs2 = between(1, 5);
         indexDocs(dsName, numDocs2);
 
-        createIndex("test-regular", disableSeqNoSettings(true));
+        createIndex("test-regular", disableSeqNoSettings(randomBoolean()));
         indexDoc("test-regular", "1", "field", "value");
         refresh("test-*");
         var dataStream = getDataStream(dsName);
 
-        CountDownLatch searchLatch = assertSearchSeqNoFlag(false);
-        LongPredicate seqNoPredicate = seqNo -> seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO;
-        Map<String, LongPredicate> indexSeqNoPredicates = new HashMap<>();
-        for (Index index : dataStream.getIndices()) {
-            indexSeqNoPredicates.put(index.getName(), seqNoPredicate);
-        }
-        indexSeqNoPredicates.put("test-regular", seqNoPredicate);
-        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(indexSeqNoPredicates);
+        CountDownLatch searchLatch = assertSearchAlwaysRequestsSeqNo();
+        CountDownLatch bulkLatch = assertBulkShardRequestsMatch(
+            Stream.concat(Stream.of("test-regular"), dataStream.getIndices().stream().map(Index::getName))
+                .collect(Collectors.toMap(Function.identity(), BulkByScrollSeqNoSettingIT::getBulkSeqNoMatcherForIndex))
+        );
         var updateByQuery = updateByQuery().source("test-*");
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
@@ -304,47 +281,27 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         safeAwait(bulkLatch);
     }
 
-    /**
-     * A mixed data stream (resolves to disabled) and a regular index with seq_no enabled have different
-     * resolved settings, so the operation is rejected with a validation error.
-     */
-    public void testMixedDataStreamAndRegularIndexWithDifferentResolvedSettingRejects() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
-        String dsName = "test-ds";
-        createDataStreamWithTemplate(dsName, Settings.EMPTY);
-        indexDocs(dsName, between(1, 5));
-
-        updateDataStreamTemplate(dsName, disableSeqNoTemplateSettings(true));
-        rolloverDataStream(dsName);
-        indexDocs(dsName, between(1, 5));
-
-        createIndex("test-regular", indexSettings(1, 0).build());
-        indexDoc("test-regular", "1", "field", "value");
-        refresh("test-*");
-
-        var updateByQuery = updateByQuery().source("test-*");
-        if (randomBoolean()) {
-            updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
-        }
-        ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, updateByQuery::get);
-        assertThat(e.getMessage(), containsString(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()));
+    private static LongPredicate getBulkSeqNoMatcherForIndex(String index) {
+        var seqNoDisabled = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, index)
+            .get()
+            .getIndexToSettings()
+            .get(index)
+            .getAsBoolean(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);
+        return seqNoDisabled ? SEQ_NO_DISABLED_MATCHER : SEQ_NO_ENABLED_MATCHER;
     }
 
     /**
      * Installs an action filter that intercepts the coordinator-level search request and asserts
-     * that the {@code seqNoAndPrimaryTerm} flag on the search source matches the expected value.
+     * that the {@code seqNoAndPrimaryTerm} flag on the search source is set to true.
      * Returns a latch that counts down once when the search request is observed.
      */
-    private CountDownLatch assertSearchSeqNoFlag(boolean expectSeqNoAndPrimaryTerm) {
+    private CountDownLatch assertSearchAlwaysRequestsSeqNo() {
         CountDownLatch latch = new CountDownLatch(1);
         SearchInterceptorPlugin.searchRequestConsumer.set(searchRequest -> {
             if (searchRequest.source() != null) {
-                assertEquals(
-                    "seqNoAndPrimaryTerm flag on search request",
-                    expectSeqNoAndPrimaryTerm,
-                    searchRequest.source().seqNoAndPrimaryTerm()
-                );
+                assertEquals("seqNoAndPrimaryTerm flag on search request", true, searchRequest.source().seqNoAndPrimaryTerm());
                 latch.countDown();
             }
         });
@@ -374,12 +331,12 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
             byNode.computeIfAbsent(nodeName, k -> new HashMap<>()).put(entry.getKey(), entry.getValue());
         }
         for (var nodeEntry : byNode.entrySet()) {
-            var nodeSeqNoPredicatesByIndes = nodeEntry.getValue();
+            var nodeSeqNoPredicatesByIndex = nodeEntry.getValue();
             MockTransportService.getInstance(nodeEntry.getKey())
                 .addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME + "[p]", (handler, request, channel, task) -> {
                     if (request instanceof TransportReplicationAction.ConcreteShardRequest<?> concreteShardRequest
                         && concreteShardRequest.getRequest() instanceof BulkShardRequest bulkShardRequest) {
-                        LongPredicate seqNoPredicate = nodeSeqNoPredicatesByIndes.get(bulkShardRequest.index());
+                        LongPredicate seqNoPredicate = nodeSeqNoPredicatesByIndex.get(bulkShardRequest.index());
                         assertThat(seqNoPredicate, is(notNullValue()));
                         boolean allMatch = Arrays.stream(bulkShardRequest.items())
                             .allMatch(item -> seqNoPredicate.test(item.request().ifSeqNo()));

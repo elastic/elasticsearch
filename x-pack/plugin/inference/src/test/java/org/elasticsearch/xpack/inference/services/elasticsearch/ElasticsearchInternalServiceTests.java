@@ -2298,7 +2298,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     public void testUpdateServiceSettings_ThrowsExceptionWhenNumThreadsIsUpdated() {
         var existingSettings = new ElasticsearchInternalServiceSettings(1, 4, "test-model", null, null);
 
-        Map<String, Object> serviceSettingsWithNumThreads = Map.of(ElasticsearchInternalServiceSettings.NUM_THREADS, 8);
+        var serviceSettingsWithNumThreads = new HashMap<String, Object>(Map.of(ElasticsearchInternalServiceSettings.NUM_THREADS, 8));
         var exception = expectThrows(
             ValidationException.class,
             () -> existingSettings.updateServiceSettings(serviceSettingsWithNumThreads)
@@ -2390,16 +2390,17 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
         var serviceSettings = mock(ServiceSettings.class);
         when(serviceSettings.modelId()).thenReturn("any-model-id");
-        var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ENTITY_ID_VALUE,
-            TaskType.ANY,
-            ElasticsearchInternalService.NAME,
-            serviceSettings
-        );
+        // Need to use a mock here because ModelConfigurations does not accept TaskType.ANY as a valid argument
+        var modelConfigurationsMock = mock(ModelConfigurations.class);
+        when(modelConfigurationsMock.getInferenceEntityId()).thenReturn(INFERENCE_ENTITY_ID_VALUE);
+        when(modelConfigurationsMock.getTaskType()).thenReturn(TaskType.ANY);
+        when(modelConfigurationsMock.getService()).thenReturn(ElasticsearchInternalService.NAME);
+        when(modelConfigurationsMock.getServiceSettings()).thenReturn(serviceSettings);
+
         try (var inferenceService = createInferenceService()) {
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurationsMock, mock(ModelSecrets.class))
             );
             assertThat(
                 thrownException.getMessage(),

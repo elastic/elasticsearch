@@ -28,6 +28,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -66,6 +67,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -73,6 +75,7 @@ import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
@@ -87,6 +90,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -692,7 +696,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     public void testQueryCachingEqualityFromTerms() {
-        ;
         Query csQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
         Query ciQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termB"));
         assertNotEquals(csQ, ciQ);
@@ -702,6 +705,28 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Query csQ2 = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
+    }
+
+    public void testVisit() {
+        Query query = wildcardFieldType.fieldType().wildcardQuery("*00363faa-1a2a-af71-8353*", null, MOCK_CONTEXT);
+        int[] totalQueries = new int[] { 0 };
+        query.visit(new QueryVisitor() {
+            @Override
+            public void visitLeaf(Query query) {
+                totalQueries[0]++;
+            }
+
+            @Override
+            public void consumeTerms(Query query, Term... terms) {
+                totalQueries[0]++;
+            }
+
+            @Override
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+                totalQueries[0]++;
+            }
+        });
+        assertThat(totalQueries[0], equalTo(11));
     }
 
     @Override
@@ -718,6 +743,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
         checker.registerUpdateCheck(
+            "ignore_above",
             b -> b.field("ignore_above", 256),
             m -> assertEquals(256, ((WildcardFieldMapper) m).ignoreAbove().get())
         );
@@ -1218,13 +1244,19 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
-        return new WildcardSyntheticSourceSupport();
+        // createSytheticSourceMapperService uses standard mode, which stores ignored values in stored fields (no sorting)
+        return new WildcardSyntheticSourceSupport(false);
     }
 
     static class WildcardSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
         private final boolean allIgnored = ignoreAbove != null && rarely();
         private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+        private final boolean sortIgnoredValues;
+
+        WildcardSyntheticSourceSupport(boolean sortIgnoredValues) {
+            this.sortIgnoredValues = sortIgnoredValues;
+        }
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
@@ -1235,17 +1267,28 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
             List<String> docValuesValues = new ArrayList<>();
-            List<String> outExtraValues = new ArrayList<>();
+            List<String> ignoredValues = new ArrayList<>();
             values.stream().map(Tuple::v2).forEach(v -> {
                 if (ignoreAbove != null && v.length() > ignoreAbove) {
-                    outExtraValues.add(v);
+                    ignoredValues.add(v);
                 } else {
                     docValuesValues.add(v);
                 }
             });
+
             List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
             Collections.sort(outList);
-            outList.addAll(outExtraValues);
+
+            if (sortIgnoredValues) {
+                // binary doc values deduplicate and sort values
+                List<String> sortedExtraValues = new ArrayList<>(new HashSet<>(ignoredValues));
+                Collections.sort(sortedExtraValues);
+                outList.addAll(sortedExtraValues);
+            } else {
+                // stored fields preserve insertion order
+                outList.addAll(ignoredValues);
+            }
+
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -1286,5 +1329,56 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    public void testIgnoredFieldStoredInBinaryDocValuesForLogsDbIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong").field("@timestamp", "2025-01-01T00:00:00Z")));
+
+        // then
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    public void testIgnoredFieldStoredInStoredFieldsForStandardIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong")));
+
+        // then
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    public void testIgnoredFieldStoredInStoredFieldsInPreviousIndexVersion() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES),
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong").field("@timestamp", "2025-01-01T00:00:00Z")));
+
+        // then
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
     }
 }

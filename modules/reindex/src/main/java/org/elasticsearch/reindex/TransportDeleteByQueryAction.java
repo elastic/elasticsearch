@@ -14,8 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -38,7 +36,6 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final DeleteByQueryMetrics deleteByQueryMetrics;
-    private final BulkByScrollOCCResolver occResolver;
 
     @Inject
     public TransportDeleteByQueryAction(
@@ -48,8 +45,6 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ProjectResolver projectResolver,
         @Nullable DeleteByQueryMetrics deleteByQueryMetrics
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -58,14 +53,12 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.deleteByQueryMetrics = deleteByQueryMetrics;
-        this.occResolver = new BulkByScrollOCCResolver(clusterService, indexNameExpressionResolver, projectResolver);
     }
 
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         long startTime = System.nanoTime();
-        boolean useOptimisticConcurrencyControl = occResolver.resolveUseOptimisticConcurrencyControl(request);
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,
@@ -86,7 +79,6 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     threadPool,
                     request,
                     scriptService,
-                    useOptimisticConcurrencyControl,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (deleteByQueryMetrics != null) {

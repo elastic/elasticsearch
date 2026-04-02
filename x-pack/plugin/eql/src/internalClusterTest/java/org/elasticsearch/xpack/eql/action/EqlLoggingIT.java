@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.eql.action;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -23,7 +25,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.eql.logging.EqlLogContext;
+import org.elasticsearch.xpack.eql.plugin.EqlAsyncGetResultAction;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -32,6 +38,7 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
@@ -45,7 +52,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class EqlLoggingIT extends AbstractEqlIntegTestCase {
+public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
     static AccumulatingMockAppender appender;
     static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
@@ -143,6 +150,54 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertMessageSuccess(message, "eql", "my_event where i >= 0");
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
+    }
+
+    /**
+     * When an async EQL request runs longer than the wait_for_completion_timeout, the activity log
+     * is written with the correct (non-zero) result count when the query completes in the background.
+     */
+    public void testAsyncLogging() throws Exception {
+        prepareIndex();
+
+        String query = "my_event where i==1";
+        EqlSearchRequest request = new EqlSearchRequest().indices("test")
+            .query(query)
+            .eventCategoryField("event_type")
+            .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
+
+        List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
+
+        EqlSearchResponse initialResponse = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(initialResponse.isRunning(), is(true));
+        assertThat(initialResponse.isPartial(), is(true));
+
+        awaitForBlockedSearches(plugins, "test");
+
+        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(initialResponse.id()).setKeepAlive(
+            TimeValue.timeValueMinutes(10)
+        ).setWaitForCompletionTimeout(TimeValue.THIRTY_SECONDS);
+        ActionFuture<EqlSearchResponse> future = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest);
+        disableBlocks(plugins);
+
+        EqlSearchResponse response = future.get();
+        assertThat(response.isRunning(), is(false));
+        assertThat(response.isPartial(), is(false));
+        assertThat(response.hits().events().size(), equalTo(1));
+
+        var message = appender.events.stream()
+            .map(ActivityLoggingUtils::getMessageData)
+            .filter(m -> EqlLogContext.TYPE.equals(m.get(ES_QUERY_FIELDS_PREFIX + "type")))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("expected EQL log event not found"));
+        assertMessageSuccess(message, EqlLogContext.TYPE, query);
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("1"));
+
+        AcknowledgedResponse deleteResponse = client().execute(
+            TransportDeleteAsyncResultAction.TYPE,
+            new DeleteAsyncResultRequest(response.id())
+        ).actionGet();
+        assertThat(deleteResponse.isAcknowledged(), equalTo(true));
     }
 
     private void prepareIndex() throws Exception {

@@ -13,8 +13,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.BreakingTDigestHolder;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
+import org.elasticsearch.xpack.core.analytics.mapper.ExponentialHistogramToTDigestConverter;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -44,6 +47,14 @@ public class ToTDigest extends AbstractConvertFunction {
         Map.entry(
             DataType.HISTOGRAM,
             (source, in) -> new ToTDigestFromHistogramEvaluator.Factory(source, in, dc -> new EncodedTDigest(), dc -> new TDigestHolder())
+        ),
+        Map.entry(
+            DataType.EXPONENTIAL_HISTOGRAM,
+            (source, in) -> new ToTDigestFromExponentialHistogramEvaluator.Factory(
+                source,
+                in,
+                dc -> BreakingTDigestHolder.create(dc.breaker())
+            )
         )
     );
 
@@ -51,12 +62,17 @@ public class ToTDigest extends AbstractConvertFunction {
         returnType = "tdigest",
         description = "Converts an untyped histogram to a TDigest, assuming the values are centroids.",
         examples = { @Example(file = "histogram", tag = "to_tdigest") },
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") }
     )
     public ToTDigest(
         Source source,
-        @Param(name = "field", type = { "histogram", "tdigest" }, description = "The histogram value to be converted") Expression field
+        @Param(
+            name = "field",
+            type = { "histogram", "tdigest", "exponential_histogram" },
+            description = "The histogram value to be converted"
+        ) Expression field
     ) {
         super(source, field);
     }
@@ -121,6 +137,21 @@ public class ToTDigest extends AbstractConvertFunction {
         }
         scratch.reset(in, min, max, sum, totalCount);
         return scratch;
+    }
+
+    @ConvertEvaluator(extraName = "FromExponentialHistogram")
+    static TDigestHolder fromExponentialHistogram(
+        ExponentialHistogram in,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingTDigestHolder scratch
+    ) {
+        EncodedTDigest.CentroidIterator convertedCentroids = ExponentialHistogramToTDigestConverter.convert(
+            in.negativeBuckets(),
+            in.zeroBucket(),
+            in.positiveBuckets()
+        );
+        double sum = in.valueCount() > 0 ? in.sum() : Double.NaN;
+        scratch.set(convertedCentroids, sum, in.min(), in.max());
+        return scratch.accessor();
     }
 
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
@@ -29,6 +30,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -49,19 +51,32 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -76,10 +91,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
@@ -241,6 +258,90 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(supplier.nodeName(), equalTo("node-1"));
     }
 
+    public void testExternalSourceUsesSliceQueueWhenGenericFileListIsUnresolved() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = context -> {
+            captured.set(context);
+            return new SourceOperator.SourceOperatorFactory() {
+                @Override
+                public SourceOperator get(DriverContext driverContext) {
+                    return new SourceOperator() {
+                        @Override
+                        public Page getOutput() {
+                            return null;
+                        }
+
+                        @Override
+                        public boolean isFinished() {
+                            return true;
+                        }
+
+                        @Override
+                        public void finish() {}
+
+                        @Override
+                        public void close() {}
+                    };
+                }
+
+                @Override
+                public String describe() {
+                    return "test-source";
+                }
+            };
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSplit child1 = new FileSplit(
+            "file",
+            StoragePath.of("s3://test-bucket/warehouse/stress/part-00000.csv"),
+            0,
+            10,
+            ".csv",
+            Map.of(),
+            Map.of()
+        );
+        ExternalSplit child2 = new FileSplit(
+            "file",
+            StoragePath.of("s3://test-bucket/warehouse/stress/part-00001.csv"),
+            0,
+            10,
+            ".csv",
+            Map.of(),
+            Map.of()
+        );
+        ExternalSplit coalesced = new CoalescedSplit("file", List.of(child1, child2));
+
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/warehouse/stress/*.csv",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            FormatReader.NO_LIMIT,
+            10,
+            null,
+            List.of(coalesced)
+        );
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(captured.get().sliceQueue(), notNullValue());
+        assertThat(captured.get().sliceQueue().totalSlices(), equalTo(1));
+    }
+
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
         var blockLoader = constructBlockLoader();
         // In case of stored source we expect bytes based block source loader (this loads source from _source)
@@ -280,6 +381,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         PlannerSettings plannerSettings = new PlannerSettings(
             DataPartitioning.AUTO,
+            PlannerSettings.DEFAULTS.docsThresholdForAutoPartitioning(),
             ByteSizeValue.ofMb(1),
             10_000,
             ByteSizeValue.ofMb(1),
@@ -309,6 +411,97 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         } else {
             assertThat(factory.maxPageSize(), equalTo(2048));
         }
+    }
+
+    /**
+     * When the child EsQueryExec contains a {@code _doc} attribute, the planner should
+     * build the full LuceneSourceOperator pipeline for MetricsInfoExec.
+     */
+    public void testPlanMetricsInfoBuildsLuceneSourceWhenDocAttributePresent() throws IOException {
+        FieldAttribute docAttr = new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(docAttr),
+            null,
+            null,
+            1,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+
+        List<Attribute> outputAttrs = buildMetricsInfoAttributes();
+        MetricsInfoExec metricsInfoExec = new MetricsInfoExec(
+            Source.EMPTY,
+            queryExec,
+            outputAttrs,
+            outputAttrs,
+            MetricsInfoExec.Mode.INITIAL
+        );
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            metricsInfoExec,
+            EmptyIndexedByShardId.instance()
+        );
+        assertThat(plan.driverFactories.size(), equalTo(1));
+        var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
+        assertThat(
+            "Expected LuceneSourceOperator when EsQueryExec child has _doc",
+            sourceFactory,
+            instanceOf(LuceneSourceOperator.Factory.class)
+        );
+    }
+
+    /**
+     * When the child plan does not contain a {@code _doc} attribute,
+     * the planner should correctly fall back to an empty source.
+     */
+    public void testPlanMetricsInfoEmptySourceWhenNoDocAttribute() throws IOException {
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            null,
+            1,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+
+        List<Attribute> outputAttrs = buildMetricsInfoAttributes();
+        MetricsInfoExec metricsInfoExec = new MetricsInfoExec(
+            Source.EMPTY,
+            queryExec,
+            outputAttrs,
+            outputAttrs,
+            MetricsInfoExec.Mode.INITIAL
+        );
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            metricsInfoExec,
+            EmptyIndexedByShardId.instance()
+        );
+        assertThat(plan.driverFactories.size(), equalTo(1));
+        var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
+        assertThat(
+            "Expected LocalSourceOperator (empty source) when no _doc attribute is present",
+            sourceFactory,
+            instanceOf(LocalSourceOperator.LocalSourceFactory.class)
+        );
+    }
+
+    private static List<Attribute> buildMetricsInfoAttributes() {
+        List<Attribute> attributes = new ArrayList<>();
+        for (String name : MetricsInfo.ATTRIBUTES) {
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
+        }
+        return attributes;
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter constructBlockLoader() throws IOException {
@@ -355,6 +548,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private LocalExecutionPlanner planner() throws IOException {
+        return planner(null);
+    }
+
+    private LocalExecutionPlanner planner(OperatorFactoryRegistry operatorFactoryRegistry) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -372,8 +569,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
+            null,
             esPhysicalOperationProviders(shardContexts),
-            null  // OperatorFactoryRegistry - not needed for these tests
+            operatorFactoryRegistry
         );
     }
 

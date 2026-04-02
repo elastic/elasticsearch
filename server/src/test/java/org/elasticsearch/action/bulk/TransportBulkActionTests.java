@@ -358,9 +358,23 @@ public class TransportBulkActionTests extends ESTestCase {
         final var targetBackingIndex = new ConcreteIndex(metadataProvider.apply(targetIdx), dataStream);
         final var targetBackingIndexName = targetIdx.getName();
 
-        // INDEX with an id is allowed:
         IndexRequest request = new IndexRequest(targetBackingIndexName).id("doc-1").opType(DocWriteRequest.OpType.INDEX);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider);
+        if (targetHasSeqNoDisabled) {
+            // INDEX with an id is allowed for indices with seq_no_disabled=true:
+            TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider);
+        } else {
+            // INDEX with an id is not allowed for indices with seq_no_disabled=false:
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider)
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "index request with op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed"
+                )
+            );
+        }
 
         // CREATE is still rejected:
         IndexRequest noIdCreate = new IndexRequest(targetBackingIndexName).opType(DocWriteRequest.OpType.CREATE);

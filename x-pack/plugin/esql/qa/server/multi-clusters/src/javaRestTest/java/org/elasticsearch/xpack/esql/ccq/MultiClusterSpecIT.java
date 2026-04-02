@@ -24,6 +24,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
@@ -37,6 +38,7 @@ import org.junit.rules.TestRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -79,8 +81,10 @@ import static org.mockito.Mockito.when;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
-    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(LOGGING_CLUSTER_SETTINGS);
-    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster, LOGGING_CLUSTER_SETTINGS);
+    private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
+
+    static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(CSV_DATA_PATH, LOGGING_CLUSTER_SETTINGS);
+    static ElasticsearchCluster localCluster = Clusters.localCluster(CSV_DATA_PATH, remoteCluster, LOGGING_CLUSTER_SETTINGS);
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
@@ -131,26 +135,26 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     // TODO: think how to handle this better
     public static final Set<String> NO_REMOTE_LOOKUP_JOIN_TESTS = Set.of(
         // Lookup join after STATS is not supported in CCS yet
-        "StatsAndLookupIPAndMessageFromIndex",
-        "JoinMaskingRegex",
-        "StatsAndLookupIPFromIndex",
-        "StatsAndLookupMessageFromIndex",
-        "MvJoinKeyOnTheLookupIndexAfterStats",
-        "MvJoinKeyOnFromAfterStats",
+        "statsAndLookupIPAndMessageFromIndex",
+        "joinMaskingRegex",
+        "statsAndLookupIPFromIndex",
+        "statsAndLookupMessageFromIndex",
+        "mvJoinKeyOnTheLookupIndexAfterStats",
+        "mvJoinKeyOnFromAfterStats",
         // Lookup join after SORT is not supported in CCS yet
-        "NullifiedJoinKeyToPurgeTheJoin",
-        "SortBeforeAndAfterJoin",
-        "SortEvalBeforeLookup",
-        "SortBeforeAndAfterMultipleJoinAndMvExpand",
-        "LookupJoinAfterTopNAndRemoteEnrich",
-        "LookupJoinOnTwoFieldsAfterTop",
-        "LookupJoinOnTwoFieldsMultipleTimes",
+        "nullifiedJoinKeyToPurgeTheJoin",
+        "sortBeforeAndAfterJoin",
+        "sortEvalBeforeLookup",
+        "sortBeforeAndAfterMultipleJoinAndMvExpand",
+        "lookupJoinAfterTopNAndRemoteEnrich",
+        "lookupJoinOnTwoFieldsAfterTop",
+        "lookupJoinOnTwoFieldsMultipleTimes",
         // Lookup join after LIMIT is not supported in CCS yet
-        "LookupJoinAfterLimitAndRemoteEnrich",
-        "LookupJoinExpressionAfterLimitAndRemoteEnrich",
-        "LookupJoinWithSemanticFilterDeduplicationComplex",
+        "lookupJoinAfterLimitAndRemoteEnrich",
+        "lookupJoinExpressionAfterLimitAndRemoteEnrich",
+        "lookupJoinWithSemanticFilterDeduplicationComplex",
         // Lookup join after FORK is not support in CCS yet
-        "ForkBeforeLookupJoin"
+        "forkBeforeLookupJoin"
     );
 
     @Override
@@ -255,6 +259,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @AfterClass
     public static void closeRemoveFeaturesService() throws IOException {
         IOUtils.close(remoteClusterClient);
+    }
+
+    @Override
+    protected Path getCsvDataPath() {
+        return CSV_DATA_PATH;
     }
 
     @Override
@@ -435,7 +444,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     protected boolean supportsViews() {
         // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
         // In particular, we do not want to load views definitions, because that messes with `FROM *` queries
-        // See, for example, "lookup-join/EnrichLookupStatsBug"
+        // See, for example, "lookup-join/enrichLookupStatsBug"
         return false;
     }
 

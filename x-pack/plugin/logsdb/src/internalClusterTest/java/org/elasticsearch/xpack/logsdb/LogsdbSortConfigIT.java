@@ -469,9 +469,9 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                         .matchOpen(true)
                         .matchClosed(true)
                         .allowEmptyExpressions(true)
-                        .resolveAliases(false)
                         .build()
                 )
+                .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
                 .build()
         );
 

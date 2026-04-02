@@ -11,13 +11,14 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings;
 
 import java.net.URISyntaxException;
 import java.util.Map;
@@ -39,7 +40,8 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        ThreadPool threadPool
     ) {
         this(
             inferenceEntityId,
@@ -47,7 +49,8 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             service,
             AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiCompletionTaskSettings.fromMap(taskSettings, context),
-            AzureOpenAiSecretSettings.fromMap(secrets)
+            AzureOpenAiSecretSettings.fromMap(secrets),
+            threadPool
         );
     }
 
@@ -58,13 +61,18 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         String service,
         AzureOpenAiCompletionServiceSettings serviceSettings,
         AzureOpenAiCompletionTaskSettings taskSettings,
-        @Nullable AzureOpenAiSecretSettings secrets
+        @Nullable AzureOpenAiSecretSettings secrets,
+        ThreadPool threadPool
     ) {
-        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        this(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secrets),
+            threadPool
+        );
     }
 
-    public AzureOpenAiCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets, (AzureOpenAiRateLimitServiceSettings) modelConfigurations.getServiceSettings());
+    public AzureOpenAiCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets, ThreadPool threadPool) {
+        super(modelConfigurations, modelSecrets, (AzureOpenAiServiceSettings) modelConfigurations.getServiceSettings(), threadPool);
         try {
             this.uri = buildUriString();
         } catch (URISyntaxException e) {

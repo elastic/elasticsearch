@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
@@ -26,6 +27,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 public class FlattenedFieldParserTests extends ESTestCase {
     private FlattenedFieldParser parser;
@@ -41,7 +43,11 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             null,
-            false
+            true,
+            true,
+            Map.of(),
+            true,
+            IndexVersion.current()
         );
     }
 
@@ -305,7 +311,11 @@ public class FlattenedFieldParserTests extends ESTestCase {
             2,
             Integer.MAX_VALUE,
             null,
-            false
+            false,
+            true,
+            Map.of(),
+            true,
+            IndexVersion.current()
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -330,7 +340,11 @@ public class FlattenedFieldParserTests extends ESTestCase {
             3,
             Integer.MAX_VALUE,
             null,
-            false
+            false,
+            true,
+            Map.of(),
+            true,
+            IndexVersion.current()
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -350,7 +364,35 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             10,
             null,
-            false
+            true,
+            true,
+            Map.of(),
+            true,
+            IndexVersion.current()
+        );
+
+        TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
+        configuredParser.parse(context);
+        List<IndexableField> fields = context.doc().getFields();
+        assertEquals(0, fields.size());
+    }
+
+    public void testIgnoreAboveWithStoredFields() throws Exception {
+        String input = "{ \"key\": \"a longer field than usual\" }";
+        XContentParser xContentParser = createXContentParser(input);
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser(
+            "field",
+            "field._keyed",
+            "field._keyed._ignored",
+            new FakeFieldType("field"),
+            Integer.MAX_VALUE,
+            10,
+            null,
+            false,
+            true,
+            Map.of(),
+            false,
+            IndexVersion.current()
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -376,7 +418,11 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             "placeholder",
-            false
+            true,
+            true,
+            Map.of(),
+            true,
+            IndexVersion.current()
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -152,6 +153,9 @@ public class PromqlCommand extends UnaryPlan
     }
 
     public PromqlCommand withPromqlPlan(LogicalPlan newPromqlPlan) {
+        if (newPromqlPlan == promqlPlan) {
+            return this;
+        }
         return new PromqlCommand(
             source(),
             child(),
@@ -262,12 +266,24 @@ public class PromqlCommand extends UnaryPlan
         return valueColumnName;
     }
 
+    public String stepColumnName() {
+        return STEP_COLUMN_NAME;
+    }
+
     public NameId valueId() {
         return valueId;
     }
 
     public NameId stepId() {
         return stepId;
+    }
+
+    public ReferenceAttribute valueAttribute() {
+        return new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false);
+    }
+
+    public ReferenceAttribute stepAttribute() {
+        return new ReferenceAttribute(source(), null, stepColumnName(), DataType.DATETIME, Nullability.FALSE, stepId, false);
     }
 
     @Override
@@ -280,8 +296,8 @@ public class PromqlCommand extends UnaryPlan
         if (output == null) {
             List<Attribute> additionalOutput = promqlPlan.output();
             output = new ArrayList<>(additionalOutput.size() + 2);
-            output.add(new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false));
-            output.add(new ReferenceAttribute(source(), null, STEP_COLUMN_NAME, DataType.DATETIME, Nullability.FALSE, stepId, false));
+            output.add(valueAttribute());
+            output.add(stepAttribute());
             output.addAll(additionalOutput);
         }
         return output;
@@ -378,6 +394,18 @@ public class PromqlCommand extends UnaryPlan
                     }
                     if (s.series() == null) {
                         failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
+                    } else if (s.series() instanceof FieldAttribute seriesField) {
+                        if (seriesField.isDimension()) {
+                            failures.add(
+                                fail(
+                                    s,
+                                    "field [{}] of type [{}] cannot be used as a metric; it is a dimension field [{}]",
+                                    seriesField.name(),
+                                    seriesField.dataType().typeName(),
+                                    s.sourceText()
+                                )
+                            );
+                        }
                     }
                     if (s.evaluation() != null) {
                         if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
@@ -388,12 +416,27 @@ public class PromqlCommand extends UnaryPlan
                         }
                     }
                 }
-                case PromqlFunctionCall functionCall -> {
-                    if (functionCall instanceof AcrossSeriesAggregate asa) {
-                        if (asa.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
-                            failures.add(fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText()));
+                case AcrossSeriesAggregate agg -> {
+                    if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
+                        failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
+                    }
+                    // Reject labels whose name collides with the built-in step column.
+                    // If this proves too restrictive, we could add an option to rename the built-in step column.
+                    for (Attribute grouping : agg.groupings()) {
+                        if (stepColumnName().equals(grouping.name())) {
+                            failures.add(
+                                fail(
+                                    agg,
+                                    "label [{}] collides with the built-in [{}] output column [{}]",
+                                    stepColumnName(),
+                                    stepColumnName(),
+                                    agg.sourceText()
+                                )
+                            );
                         }
                     }
+                }
+                case PromqlFunctionCall functionCall -> {
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok
@@ -435,6 +478,9 @@ public class PromqlCommand extends UnaryPlan
                     if (binaryOperator instanceof VectorBinarySet) {
                         failures.add(fail(lp, "set operators are not supported at this time [{}]", lp.sourceText()));
                     }
+                    if (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right())) {
+                        failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
+                    }
                 }
                 case PlaceholderRelation placeholderRelation -> {
                     // ok
@@ -445,5 +491,9 @@ public class PromqlCommand extends UnaryPlan
             }
             root.set(false);
         });
+    }
+
+    private static boolean usesWithoutGrouping(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
     }
 }

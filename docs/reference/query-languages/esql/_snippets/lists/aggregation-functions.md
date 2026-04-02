@@ -2,8 +2,8 @@
 * [`AVG`](../../functions-operators/aggregation-functions/avg.md)
 * [`COUNT`](../../functions-operators/aggregation-functions/count.md)
 * [`COUNT_DISTINCT`](../../functions-operators/aggregation-functions/count_distinct.md)
-% * [`FIRST`](../../functions-operators/aggregation-functions/first.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
-% * [`LAST`](../../functions-operators/aggregation-functions/last.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`FIRST`](../../functions-operators/aggregation-functions/first.md) {applies_to}`stack: ga 9.4` {applies_to}`serverless: preview`
+* [`LAST`](../../functions-operators/aggregation-functions/last.md) {applies_to}`stack: ga 9.4` {applies_to}`serverless: preview`
 * [`MAX`](../../functions-operators/aggregation-functions/max.md)
 * [`MEDIAN`](../../functions-operators/aggregation-functions/median.md)
 * [`MEDIAN_ABSOLUTE_DEVIATION`](../../functions-operators/aggregation-functions/median_absolute_deviation.md)
@@ -11,6 +11,7 @@
 * [`PERCENTILE`](../../functions-operators/aggregation-functions/percentile.md)
 * [`PRESENT`](../../functions-operators/aggregation-functions/present.md) {applies_to}`stack: ga 9.2`
 * [`SAMPLE`](../../functions-operators/aggregation-functions/sample.md) {applies_to}`stack: ga 9.1`
+* [`SPARKLINE`](../../functions-operators/aggregation-functions/sparkline.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`ST_CENTROID_AGG`](../../functions-operators/aggregation-functions/st_centroid_agg.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`ST_EXTENT_AGG`](../../functions-operators/aggregation-functions/st_extent_agg.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`STD_DEV`](../../functions-operators/aggregation-functions/std_dev.md)

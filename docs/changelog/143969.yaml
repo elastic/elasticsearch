@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143969
+summary: Cleanup and bug fixes in NDJSON datasource
+type: bug

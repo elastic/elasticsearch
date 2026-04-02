@@ -21,6 +21,7 @@
 package org.elasticsearch.test.knn;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
@@ -56,6 +57,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.PathUtils;
@@ -109,6 +111,7 @@ class KnnSearcher {
     private final VectorSimilarityFunction similarityFunction;
     private final VectorEncoding vectorEncoding;
     private final boolean doPrecondition;
+    private final boolean normalizeVectors;
 
     KnnSearcher(Path indexPath, TestConfiguration testConfiguration) {
         this.docPath = testConfiguration.docVectors();
@@ -119,6 +122,7 @@ class KnnSearcher {
         this.dim = testConfiguration.dimensions();
         this.similarityFunction = testConfiguration.vectorSpace();
         this.vectorEncoding = testConfiguration.vectorEncoding().luceneEncoding();
+        this.normalizeVectors = testConfiguration.normalizeVectors();
         if (numQueryVectors <= 0) {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
@@ -177,6 +181,29 @@ class KnnSearcher {
             KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding, offsetByteSize);
             long startNS;
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                // Log segment layout
+                int segCount = reader.leaves().size();
+                int totalIndexVectors = 0;
+                StringBuilder segmentInfo = new StringBuilder();
+                segmentInfo.append(segCount).append(" segments: [");
+                for (int s = 0; s < segCount; s++) {
+                    LeafReaderContext leaf = reader.leaves().get(s);
+                    int segVectors;
+                    if (vectorEncoding.equals(VectorEncoding.BYTE)) {
+                        var bvv = leaf.reader().getByteVectorValues(VECTOR_FIELD);
+                        segVectors = bvv != null ? bvv.size() : 0;
+                    } else {
+                        FloatVectorValues fvv = leaf.reader().getFloatVectorValues(VECTOR_FIELD);
+                        segVectors = fvv != null ? fvv.size() : 0;
+                    }
+                    totalIndexVectors += segVectors;
+                    if (s > 0) segmentInfo.append(", ");
+                    segmentInfo.append(segVectors);
+                }
+                segmentInfo.append("]");
+                logger.debug("Segment layout: {}", segmentInfo);
+                finalResults.numSegments = segCount;
+                finalResults.totalIndexVectors = totalIndexVectors;
                 IndexSearcher searcher = searchParameters.searchThreads() > 1
                     ? new IndexSearcher(reader, executorService)
                     : new IndexSearcher(reader);
@@ -189,6 +216,9 @@ class KnnSearcher {
                         doVectorQuery(targetBytes, searcher, filterQuery, searchParameters);
                     } else {
                         targetReader.next(target);
+                        if (normalizeVectors) {
+                            VectorUtil.l2normalize(target);
+                        }
                         doVectorQuery(target, searcher, filterQuery, searchParameters);
                     }
                 }
@@ -212,6 +242,9 @@ class KnnSearcher {
                     float[][] queries = new float[numQueryVectors][dim];
                     for (int i = 0; i < numQueryVectors; i++) {
                         targetReader.next(queries[i]);
+                        if (normalizeVectors) {
+                            VectorUtil.l2normalize(queries[i]);
+                        }
                     }
                     for (int s = 0; s < searchParameters.numSearchers(); s++) {
                         queryConsumers[s] = i -> {
@@ -308,6 +341,9 @@ class KnnSearcher {
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
         finalResults.numCandidates = searchParameters.numCandidates();
         finalResults.earlyTermination = searchParameters.earlyTermination();
+        if (finalResults.totalIndexVectors > 0) {
+            finalResults.actualVisitPercentage = (finalResults.averageVisited / finalResults.totalIndexVectors) * 100.0;
+        }
     }
 
     /**
@@ -379,6 +415,7 @@ class KnnSearcher {
                 numQueryVectors,
                 searchParameters.topK(),
                 similarityFunction.ordinal(),
+                normalizeVectors,
                 searchParameters.filterSelectivity()
             ),
             36
@@ -552,6 +589,9 @@ class KnnSearcher {
                 for (int i = 0; i < numQueryVectors; i++) {
                     float[] queryVector = new float[dim];
                     queryReader.next(queryVector);
+                    if (normalizeVectors) {
+                        VectorUtil.l2normalize(queryVector);
+                    }
                     tasks.add(new ComputeNNFloatTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
                 }
                 ForkJoinPool.commonPool().invokeAll(tasks);

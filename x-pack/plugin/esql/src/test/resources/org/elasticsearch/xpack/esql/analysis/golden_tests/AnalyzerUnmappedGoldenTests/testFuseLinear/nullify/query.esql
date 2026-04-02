@@ -1,0 +1,4 @@
+SET unmapped_fields="nullify"; FROM employees METADATA _score, _index, _id
+| FORK (WHERE does_not_exist::LONG > 0 | EVAL x = 1)
+       (WHERE emp_no > 0 | EVAL y = 2)
+| FUSE LINEAR

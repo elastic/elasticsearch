@@ -61,7 +61,7 @@ public class MvCount extends AbstractMultivalueFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression v
     ) {
         super(source, v);

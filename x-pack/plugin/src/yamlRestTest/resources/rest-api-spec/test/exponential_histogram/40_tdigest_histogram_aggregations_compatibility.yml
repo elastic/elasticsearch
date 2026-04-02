@@ -172,8 +172,8 @@ setup:
 ---
 "Percentiles aggregation over tdigest and exponential_histogram":
   - requires:
-      cluster_features: [ "search.exponential_histogram_querydsl_percentiles" ]
-      reason: exponential_histogram percentile aggregations was introduced
+      cluster_features: [ "search.exponential_histogram_upscaling_removed" ]
+      reason: exponential_histogram percentile computation changed after upscaling removal
   - do:
       search:
         index: test-data-stream
@@ -191,10 +191,10 @@ setup:
   - lte: { aggregations.percentiles_agg.values.5\.0: 0.901 }
   - gte: { aggregations.percentiles_agg.values.25\.0: 1.007 }
   - lte: { aggregations.percentiles_agg.values.25\.0: 1.009 }
-  - gte: { aggregations.percentiles_agg.values.50\.0: 1.999 }
-  - lte: { aggregations.percentiles_agg.values.50\.0: 2.001 }
+  - gte: { aggregations.percentiles_agg.values.50\.0: 1.332 }
+  - lte: { aggregations.percentiles_agg.values.50\.0: 1.335 }
   - gte: { aggregations.percentiles_agg.values.75\.0: 2.665 }
-  - lte: { aggregations.percentiles_agg.values.75\.0: 2.667 }
+  - lte: { aggregations.percentiles_agg.values.75\.0: 2.669 }
 
 ---
 "Percentile ranks aggregation over tdigest and exponential_histogram":
@@ -224,8 +224,8 @@ setup:
 ---
 "Boxplot aggregation over tdigest and exponential_histogram":
   - requires:
-      cluster_features: [ "search.exponential_histogram_querydsl_boxplot" ]
-      reason: exponential_histogram boxplot aggregation was introduced
+      cluster_features: [ "search.exponential_histogram_upscaling_removed" ]
+      reason: exponential_histogram percentile computation changed after upscaling removal
   - do:
       search:
         index: test-data-stream
@@ -242,10 +242,10 @@ setup:
   # Use range comparisons to handle small numeric errors across different machines
   - gte: { aggregations.boxplot_agg.q1: 1.007 }
   - lte: { aggregations.boxplot_agg.q1: 1.009 }
-  - gte: { aggregations.boxplot_agg.q2: 1.999 }
-  - lte: { aggregations.boxplot_agg.q2: 2.001 }
+  - gte: { aggregations.boxplot_agg.q2: 1.332 }
+  - lte: { aggregations.boxplot_agg.q2: 1.335 }
   - gte: { aggregations.boxplot_agg.q3: 2.665 }
-  - lte: { aggregations.boxplot_agg.q3: 2.667 }
+  - lte: { aggregations.boxplot_agg.q3: 2.669 }
 
 ---
 "Exists query over tdigest and exponential_histogram":

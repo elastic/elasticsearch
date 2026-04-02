@@ -59,11 +59,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
-//<<<<<<< knn-multi-tenant-benchmark
-=======
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.io.Channels;
-//>>>>>>> main
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -456,7 +452,6 @@ public class KnnSearcher {
                     if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                         doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                     } else {
-//<<<<<<< knn-multi-tenant-benchmark
                         doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters);
                     }
                 }
@@ -472,47 +467,6 @@ public class KnnSearcher {
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
-=======
-                        targetReader.next(target);
-                        if (normalizeVectors) {
-                            VectorUtil.l2normalize(target);
-                        }
-                        doVectorQuery(target, searcher, filterQuery, searchParameters);
-                    }
-                }
-                targetReader.reset();
-                final IntConsumer[] queryConsumers = new IntConsumer[searchParameters.numSearchers()];
-                if (vectorEncoding.equals(VectorEncoding.BYTE)) {
-                    byte[][] queries = new byte[numQueryVectors][dim];
-                    for (int i = 0; i < numQueryVectors; i++) {
-                        targetReader.next(queries[i]);
-                    }
-                    for (int s = 0; s < searchParameters.numSearchers(); s++) {
-                        queryConsumers[s] = i -> {
-                            try {
-                                results[i] = doVectorQuery(queries[i], searcher, filterQuery, searchParameters);
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        };
-                    }
-                } else {
-                    float[][] queries = new float[numQueryVectors][dim];
-                    for (int i = 0; i < numQueryVectors; i++) {
-                        targetReader.next(queries[i]);
-                        if (normalizeVectors) {
-                            VectorUtil.l2normalize(queries[i]);
-                        }
-                    }
-                    for (int s = 0; s < searchParameters.numSearchers(); s++) {
-                        queryConsumers[s] = i -> {
-                            try {
-                                results[i] = doVectorQuery(queries[i], searcher, filterQuery, searchParameters);
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        };
-//>>>>>>> main
                     }
                 };
 

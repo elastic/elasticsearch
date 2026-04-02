@@ -10,6 +10,7 @@
 package org.elasticsearch.test.knn.data;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.test.knn.IndexVectorReader;
 import org.elasticsearch.test.knn.KnnIndexTester;
@@ -98,6 +99,9 @@ public class FileDataGenerator implements DataGenerator {
                     floatQueries = new float[searcher.numQueryVectors()][searcher.dim()];
                     for (int i = 0; i < searcher.numQueryVectors(); i++) {
                         targetReader.next(floatQueries[i]);
+                        if (config.normalizeVectors()) {
+                            VectorUtil.l2normalize(floatQueries[i]);
+                        }
                     }
                 }
             }

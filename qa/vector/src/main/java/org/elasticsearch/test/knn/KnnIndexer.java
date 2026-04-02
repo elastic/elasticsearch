@@ -43,11 +43,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PrintStreamInfoStream;
-//<<<<<<< knn-multi-tenant-benchmark
-=======
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.io.Channels;
-//>>>>>>> main
 import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
@@ -135,7 +131,6 @@ public class KnnIndexer {
         }
     }
 
-//<<<<<<< knn-multi-tenant-benchmark
     /**
      * Core indexing method that uses the provided vector reader and document factory to build the index.
      */
@@ -154,13 +149,6 @@ public class KnnIndexer {
             case BYTE -> KnnByteVectorField.createFieldType(dim, similarityFunction);
             case FLOAT32 -> KnnFloatVectorField.createFieldType(dim, similarityFunction);
         };
-=======
-        iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
-            @Override
-            public boolean isEnabled(String component) {
-                return Objects.equals(component, "IVF");
-            }
-        });
         logger.debug(
             "KnnIndexer: using codec={}, vectorEncoding={}, dim={}, similarityFunction={}, normalizeVectors={}",
             codec.getName(),
@@ -169,7 +157,6 @@ public class KnnIndexer {
             similarityFunction,
             normalizeVectors
         );
-//>>>>>>> main
 
         if (Files.exists(indexPath)) {
             logger.debug("KnnIndexer: existing index at {}", indexPath);
@@ -186,46 +173,21 @@ public class KnnIndexer {
                 for (int i = 0; i < numIndexThreads; i++) {
                     futures.add(
                         exec.submit(
-                            new IndexerThread(iw, vectorReader, vectorEncoding, fieldType, documentFactory, numDocsIndexed, totalDocs)
+                            new IndexerThread(
+                                iw,
+                                vectorReader,
+                                vectorEncoding,
+                                fieldType,
+                                documentFactory,
+                                normalizeVectors,
+                                numDocsIndexed,
+                                totalDocs
+                            )
                         )
                     );
-//<<<<<<< knn-multi-tenant-benchmark
                 }
                 for (Future<?> future : futures) {
                     future.get();
-=======
-                    // adjust numDocs to account for the number of documents already indexed
-                    // numDocsIndexed tracks the total docs read in order and is used for docIds
-                    // numDocs is the total number of docs to index from this file
-                    numDocs += numDocsIndexed.get();
-
-                    VectorReader inReader = VectorReader.create(in, dim, vectorEncoding, offsetByteSize);
-                    try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
-                        List<Future<?>> futures = new ArrayList<>();
-                        List<IndexerThread> threads = new ArrayList<>();
-                        for (int i = 0; i < numIndexThreads; i++) {
-                            var t = new IndexerThread(
-                                iw,
-                                inReader,
-                                dim,
-                                vectorEncoding,
-                                fieldType,
-                                normalizeVectors,
-                                numDocsIndexed,
-                                numDocs
-                            );
-                            threads.add(t);
-                            t.setDaemon(true);
-                            futures.add(exec.submit(t));
-                        }
-                        for (Future<?> future : futures) {
-                            future.get();
-                        }
-                        result.docAddTimeMS = TimeUnit.NANOSECONDS.toMillis(
-                            threads.stream().mapToLong(x -> x.docAddTime).sum() / numIndexThreads
-                        );
-                    }
-//>>>>>>> main
                 }
             }
             logger.info("KnnIndexer: indexed {} documents", totalDocs);
@@ -386,26 +348,15 @@ public class KnnIndexer {
         private final DocumentFactory documentFactory;
         private final AtomicInteger numDocsIndexed;
         private final int numDocsToIndex;
-//<<<<<<< knn-multi-tenant-benchmark
-=======
-        private final FieldType fieldType;
-        private final VectorEncoding vectorEncoding;
         private final boolean normalizeVectors;
-        private final byte[] byteVectorBuffer;
-        private final float[] floatVectorBuffer;
-        private final VectorReader in;
-//>>>>>>> main
 
         IndexerThread(
             IndexWriter iw,
             IndexVectorReader vectorReader,
             VectorEncoding vectorEncoding,
             FieldType fieldType,
-//<<<<<<< knn-multi-tenant-benchmark
             DocumentFactory documentFactory,
-=======
             boolean normalizeVectors,
-//>>>>>>> main
             AtomicInteger numDocsIndexed,
             int numDocsToIndex
         ) {
@@ -413,11 +364,8 @@ public class KnnIndexer {
             this.vectorReader = vectorReader;
             this.vectorEncoding = vectorEncoding;
             this.fieldType = fieldType;
-//<<<<<<< knn-multi-tenant-benchmark
             this.documentFactory = documentFactory;
-=======
             this.normalizeVectors = normalizeVectors;
-//>>>>>>> main
             this.numDocsIndexed = numDocsIndexed;
             this.numDocsToIndex = numDocsToIndex;
         }
@@ -425,7 +373,6 @@ public class KnnIndexer {
         @Override
         public void run() {
             try {
-//<<<<<<< knn-multi-tenant-benchmark
                 int idx;
                 while ((idx = numDocsIndexed.getAndIncrement()) < numDocsToIndex) {
 
@@ -437,39 +384,12 @@ public class KnnIndexer {
                         }
                         case FLOAT32 -> {
                             float[] vector = vectorReader.nextFloatVector(idx);
+                            if (normalizeVectors) {
+                                VectorUtil.l2normalize(vector);
+                            }
                             field = new KnnFloatVectorField(VECTOR_FIELD, vector, fieldType);
                         }
                         default -> throw new UnsupportedOperationException();
-=======
-                _run();
-            } catch (IOException ioe) {
-                throw new UncheckedIOException(ioe);
-            }
-        }
-
-        private void _run() throws IOException {
-            while (true) {
-                int id = numDocsIndexed.get();
-                if (id == numDocsToIndex) {
-                    break;
-                } else if (numDocsIndexed.compareAndSet(id, id + 1) == false) {
-                    continue;
-                }
-
-                var startRead = System.nanoTime();
-                final IndexableField field;
-                switch (vectorEncoding) {
-                    case BYTE -> {
-                        in.next(byteVectorBuffer);
-                        field = new KnnByteVectorField(VECTOR_FIELD, byteVectorBuffer, fieldType);
-                    }
-                    case FLOAT32 -> {
-                        in.next(floatVectorBuffer);
-                        if (normalizeVectors) {
-                            VectorUtil.l2normalize(floatVectorBuffer);
-                        }
-                        field = new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType);
-//>>>>>>> main
                     }
 
                     Document doc = documentFactory.createDocument(field, idx);

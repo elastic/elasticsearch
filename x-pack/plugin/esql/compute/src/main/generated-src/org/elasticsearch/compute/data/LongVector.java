@@ -25,6 +25,15 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
 
     long getLong(int position);
 
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getLong(srcPosition + i);
+        }
+    }
+
     @Override
     LongBlock asBlock();
 
@@ -49,6 +58,15 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
 
     @Override
     ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    LongVector slice(int beginInclusive, int endExclusive);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

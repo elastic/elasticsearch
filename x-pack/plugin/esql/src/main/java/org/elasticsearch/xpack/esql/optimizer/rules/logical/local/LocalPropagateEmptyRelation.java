@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -41,11 +42,16 @@ public class LocalPropagateEmptyRelation extends PropagateEmptyRelation {
         for (Attribute o : output) {
             DataType dataType = o.dataType();
             // boolean right now is used for the internal #seen so always return true
-            var value = dataType == DataType.BOOLEAN ? true
-                // look for count(literal) with literal != null
-                : aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null) ? 0L
-                // otherwise nullify
-                : null;
+            Object value;
+            if (dataType == DataType.BOOLEAN) {
+                value = true;
+            } else if (aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null)) {
+                value = 0L;
+            } else if (aggFunc instanceof CountApproximate count && (count.foldable() == false || count.fold(foldCtx) != null)) {
+                value = 0.0;
+            } else {
+                value = null;
+            }
             var wrapper = BlockUtils.wrapperFor(blockFactory, PlannerUtils.toElementType(dataType), 1);
             wrapper.accept(value);
             blocks.add(wrapper.builder().build());

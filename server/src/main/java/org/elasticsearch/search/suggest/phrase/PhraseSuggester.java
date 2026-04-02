@@ -135,8 +135,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                             .createParser(searchExecutionContext.getParserConfig(), querySource)
                     ) {
                         QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(parser);
-                        final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
-                        collateMatch = Lucene.exists(searcher, parsedQuery.query());
+                        try {
+                            final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
+                            collateMatch = Lucene.exists(searcher, parsedQuery.query());
+                        } finally {
+                            searchExecutionContext.releaseQueryConstructionMemory();
+                        }
                     }
                 }
                 if (collateMatch == false && collatePrune == false) {

@@ -9,8 +9,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 
 versions << [
-  'hadoop'       : '3.4.2',
-  'parquet'      : '1.16.0',
+  'hadoop'       : '3.4.3',
   'arrow'        : '18.3.0',
   'caffeine'     : '2.9.3',
   'checker_qual' : '3.42.0',
@@ -21,7 +20,7 @@ esplugin {
   name = 'esql-datasource-iceberg'
   description = 'Iceberg table catalog support for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.iceberg.IcebergDataSourcePlugin'
-  extendedPlugins = ['x-pack-esql']
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-compression-libs']
 }
 
 base {
@@ -49,6 +48,8 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    // aircompressor provided by esql-datasource-compression-libs parent plugin
+    exclude group: 'io.airlift', module: 'aircompressor'
   }
   implementation("org.apache.iceberg:iceberg-aws:${versions.iceberg}") {
     // Exclude AWS SDK bundle - we'll declare individual modules explicitly
@@ -60,6 +61,8 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    // aircompressor provided by esql-datasource-compression-libs parent plugin
+    exclude group: 'io.airlift', module: 'aircompressor'
   }
   implementation("org.apache.iceberg:iceberg-parquet:${versions.iceberg}") {
     exclude group: 'org.apache.parquet', module: 'parquet-hadoop'
@@ -76,6 +79,8 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    // aircompressor provided by esql-datasource-compression-libs parent plugin
+    exclude group: 'io.airlift', module: 'aircompressor'
   }
   // Iceberg Arrow integration for vectorized data reading
   implementation("org.apache.iceberg:iceberg-arrow:${versions.iceberg}") {
@@ -95,6 +100,8 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    // aircompressor provided by esql-datasource-compression-libs parent plugin
+    exclude group: 'io.airlift', module: 'aircompressor'
   }
   implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
   implementation("com.github.ben-manes.caffeine:caffeine:${versions.caffeine}") {
@@ -108,8 +115,8 @@ dependencies {
   // 2. ParquetReadOptions.Builder() constructor creates HadoopParquetConfiguration internally,
   //    which requires the Configuration class to be present even when using non-Hadoop code paths
   // 3. parquet-hadoop-bundle includes shaded Parquet classes but not Hadoop Configuration
-  implementation('org.apache.hadoop:hadoop-client-api:3.4.2')
-  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.2')
+  implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
+  implementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}")
   
   // Arrow dependencies for compile time - provided at runtime by x-pack-esql's arrow module
   compileOnly("org.apache.arrow:arrow-vector:${versions.arrow}")
@@ -170,9 +177,11 @@ dependencies {
   testImplementation project(xpackModule('esql-core'))
 }
 
-configurations.all {
-  resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
+tasks.named('test').configure {
+  enabled = buildParams.snapshotBuild
 }
+
+// aircompressor provided by esql-datasource-compression-libs parent plugin (excluded from transitives above)
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
@@ -180,7 +189,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /parquet-.*/, to: 'parquet'
   mapping from: /hadoop-.*/, to: 'hadoop'
   mapping from: /log4j-.*/, to: 'log4j'
-  mapping from: /aircompressor-.*/, to: 'iceberg'
 }
 
 tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
@@ -215,7 +223,6 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
   mapping from: 'third-party-jackson-core', to: 'aws-sdk-2'
   mapping from: 'url-connection-client',    to: 'aws-sdk-2'
   mapping from: 'utils',                    to: 'aws-sdk-2'
-  mapping from: /aircompressor-.*/, to: 'iceberg'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -297,7 +304,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'org.apache.hadoop.shaded.com.google.common.hash.Striped64',
     'org.apache.hadoop.shaded.com.google.common.hash.Striped64$1',
     'org.apache.hadoop.shaded.com.google.common.hash.Striped64$Cell',
@@ -343,19 +349,11 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
     // Hadoop thirdparty Guava uses sun.misc.Unsafe
-    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64',
-    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$1',
-    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$Cell',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$1',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$Cell',
     'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     // Parquet shaded hashing uses sun.misc.Unsafe
     'shaded.parquet.net.openhft.hashing.HotSpotPrior7u6StringHash',
     'shaded.parquet.net.openhft.hashing.LongHashFunction',

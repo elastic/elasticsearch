@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -234,7 +233,7 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
 
     @Override
     public T updatedTaskSettings(Map<String, Object> newSettings) {
-        var updated = parseSettingsFromMap(new HashMap<>(newSettings), ConfigurationParseContext.REQUEST, factory);
+        var updated = parseSettingsFromMap(newSettings, ConfigurationParseContext.REQUEST, factory);
 
         var userToUse = taskSettings.user();
         if (updated.user().isPresent()) {

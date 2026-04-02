@@ -75,4 +75,18 @@ public final class LongArrowBufVector extends AbstractArrowBufVector<LongVector,
         return new LongLookup(asBlock(), positions, targetBlockSize);
     }
 
+    @Override
+    public LongVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (LongVector.FixedBuilder builder = blockFactory().newLongVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendLong(getLong(i));
+            }
+            return builder.build();
+        }
+    }
+
 }

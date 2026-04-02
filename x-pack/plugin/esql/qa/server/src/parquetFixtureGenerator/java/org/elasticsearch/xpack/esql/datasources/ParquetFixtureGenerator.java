@@ -118,10 +118,11 @@ public final class ParquetFixtureGenerator {
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
                 .named(col.name());
-            default -> Types.optionalList()
+            case "text", "txt" -> Types.optionalList()
                 .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
                 .as(LogicalTypeAnnotation.stringType())
                 .named(col.name());
+            default -> Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.BINARY).named(col.name());
         };
     }
 
@@ -132,20 +133,28 @@ public final class ParquetFixtureGenerator {
             case "double", "scaled_float" -> Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE);
             case "float", "half_float" -> Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT);
             case "boolean" -> Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN);
-            case "ip" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType());
+            case "ip" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY);
             case "date" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
-            default -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType());
+            case "text", "txt" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType());
+            default -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY);
         };
     }
 
-    @SuppressWarnings("unchecked")
     private static void addValue(Group g, CsvFixtureParser.ColumnSpec col, boolean isList, Object value) {
         if (value == null) {
             return;
         }
         if (isList) {
-            addListValue(g, col, (List<Object>) value);
+            List<Object> listValue;
+            if (value instanceof List<?> lv) {
+                @SuppressWarnings("unchecked")
+                List<Object> cast = (List<Object>) lv;
+                listValue = cast;
+            } else {
+                listValue = List.of(value);
+            }
+            addListValue(g, col, listValue);
         } else {
             addScalarValue(g, col, value);
         }

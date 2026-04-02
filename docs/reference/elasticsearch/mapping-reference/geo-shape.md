@@ -50,7 +50,7 @@ In [GeoJSON](https://datatracker.ietf.org/doc/html/rfc7946) and [WKT](https://ww
 
 ### Indexing approach [geoshape-indexing-approach]
 
-Geoshape types are indexed by decomposing the shape into a triangular mesh and indexing each triangle as a 7 dimension point in a BKD tree. This provides near perfect spatial resolution (down to 1e-7 decimal degree precision) since all spatial relations are computed using an encoded vector representation of the original shape. Performance of the tessellator primarily depends on the number of vertices that define the polygon/multi-polygon.
+Geoshape types are indexed by decomposing the shape into a triangular mesh and indexing each triangle as a 7 dimension point in a BKD tree. This provides near perfect spatial resolution (down to 1e-7 decimal degree precision) because all spatial relations are computed using an encoded vector representation of the original shape. Performance of the tessellator primarily depends on the number of vertices that define the polygon/multi-polygon. For how `intersects`, `contains`, `within`, and `disjoint` are interpreted at query time—including 2D versus geodesic behavior and indexing effects—see [Spatial relations semantics](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md#geo-shape-spatial-relations-semantics) in the `geo_shape` query documentation.
 
 
 #### Example [_example]

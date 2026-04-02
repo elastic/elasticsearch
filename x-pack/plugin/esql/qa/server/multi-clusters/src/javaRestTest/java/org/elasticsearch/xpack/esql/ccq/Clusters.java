@@ -11,6 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 
 import java.nio.file.Path;
@@ -34,6 +35,7 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .feature(FeatureFlag.ESQL_VIEWS)
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
@@ -100,6 +102,7 @@ public class Clusters {
             .setting("cluster.remote.connections_per_cluster", "1")
             .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", skipUnavailable.toString())
             .setting("path.repo", csvDataPath::toString)
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .feature(FeatureFlag.ESQL_VIEWS)
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
@@ -150,7 +153,10 @@ public class Clusters {
 
     private static Version distributionVersion(String key) {
         final String val = System.getProperty(key);
-        return val != null ? Version.fromString(val) : Version.CURRENT;
+        if (val == null) {
+            throw new IllegalStateException("System property [" + key + "] is required but not set");
+        }
+        return Version.fromString(val);
     }
 
     private static boolean supportRetryOnShardFailures(Version version) {

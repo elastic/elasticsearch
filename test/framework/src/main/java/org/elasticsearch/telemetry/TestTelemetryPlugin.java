@@ -12,9 +12,9 @@ package org.elasticsearch.telemetry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.telemetry.TelemetryProvider.NoopTelemetryProvider;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -85,12 +85,7 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     @Override
     public TelemetryProvider getTelemetryProvider(Settings settings) {
-        return new TelemetryProvider() {
-            @Override
-            public Tracer getTracer() {
-                return Tracer.NOOP;
-            }
-
+        return new NoopTelemetryProvider() {
             @Override
             public MeterRegistry getMeterRegistry() {
                 return meter;

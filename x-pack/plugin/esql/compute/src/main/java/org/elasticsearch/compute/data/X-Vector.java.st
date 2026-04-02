@@ -45,6 +45,15 @@ $if(BytesRef)$
 
 $else$
     $type$ get$Type$(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = get$Type$(srcPosition + i);
+        }
+    }
 $endif$
 
     @Override
@@ -79,6 +88,15 @@ $endif$
 
     @Override
     ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    $Type$Vector slice(int beginInclusive, int endExclusive);
 
 $if(int)$
     /**

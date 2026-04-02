@@ -12,19 +12,24 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
@@ -38,8 +43,13 @@ import java.util.OptionalLong;
  * required statistics are available in the file metadata. Replaces the AggregateExec +
  * ExternalSourceExec subtree with a LocalSourceExec containing pre-computed results.
  * <p>
- * Currently supports single-file queries only (no splits or exactly one split).
- * Multi-file queries fall through to normal execution.
+ * Handles intermediate EvalExec (from EVAL) and ProjectExec (from RENAME) nodes between
+ * the aggregate and external source by resolving aliased attribute names back to the
+ * original column names before metadata lookup.
+ * <p>
+ * Supports multi-split queries when per-split statistics are available in
+ * {@link FileSplit#statistics()}. Statistics are merged across splits (sum row counts,
+ * min-of-mins, max-of-maxes). Falls back to normal execution when any split lacks stats.
  * <p>
  * Note: MIN/MAX pushdown uses raw values from file metadata. For DATE/TIMESTAMP columns,
  * the raw values may not match ESQL's millisecond representation. A future enhancement
@@ -49,18 +59,31 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
 
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec) {
-        if (aggregateExec.child() instanceof ExternalSourceExec == false) {
-            return aggregateExec;
-        }
-        ExternalSourceExec externalExec = (ExternalSourceExec) aggregateExec.child();
-        if (aggregateExec.groupings().isEmpty() == false) {
-            return aggregateExec;
-        }
-        if (externalExec.splits().size() > 1) {
+        PhysicalPlan child = aggregateExec.child();
+        ExternalSourceExec externalExec;
+        AttributeMap<Attribute> aliasReplacedBy;
+
+        if (child instanceof ExternalSourceExec ext) {
+            externalExec = ext;
+            aliasReplacedBy = AttributeMap.emptyAttributeMap();
+        } else if (child instanceof EvalExec evalExec && evalExec.child() instanceof ExternalSourceExec ext) {
+            externalExec = ext;
+            aliasReplacedBy = PushFiltersToSource.getAliasReplacedBy(evalExec);
+        } else if (child instanceof ProjectExec projectExec && projectExec.child() instanceof ExternalSourceExec ext) {
+            externalExec = ext;
+            aliasReplacedBy = PushFiltersToSource.getAliasReplacedBy(projectExec);
+        } else {
             return aggregateExec;
         }
 
-        Map<String, Object> sourceMetadata = externalExec.sourceMetadata();
+        if (aggregateExec.groupings().isEmpty() == false) {
+            return aggregateExec;
+        }
+
+        Map<String, Object> sourceMetadata = resolveEffectiveMetadata(externalExec);
+        if (sourceMetadata == null) {
+            return aggregateExec;
+        }
         List<? extends NamedExpression> aggregates = aggregateExec.aggregates();
 
         List<Object> values = new ArrayList<>(aggregates.size());
@@ -71,8 +94,11 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
                 return aggregateExec;
             }
             Alias alias = (Alias) agg;
-            Expression child = alias.child();
-            Object value = resolveFromMetadata(child, sourceMetadata);
+            Expression aggExpr = alias.child();
+            if (aliasReplacedBy.isEmpty() == false) {
+                aggExpr = aggExpr.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+            }
+            Object value = resolveFromMetadata(aggExpr, sourceMetadata);
             if (value == null) {
                 return aggregateExec;
             }
@@ -136,6 +162,22 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             return maxVal.orElse(null);
         }
         return null;
+    }
+
+    private static Map<String, Object> resolveEffectiveMetadata(ExternalSourceExec externalExec) {
+        List<? extends ExternalSplit> splits = externalExec.splits();
+        if (splits.size() <= 1) {
+            return externalExec.sourceMetadata();
+        }
+        List<Map<String, Object>> splitStats = new ArrayList<>(splits.size());
+        for (ExternalSplit split : splits) {
+            if (split instanceof FileSplit fileSplit) {
+                splitStats.add(fileSplit.statistics());
+            } else {
+                return null;
+            }
+        }
+        return SourceStatisticsSerializer.mergeStatistics(splitStats);
     }
 
     private static Block[] buildBlocks(List<Object> values) {

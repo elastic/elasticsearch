@@ -130,7 +130,8 @@ public final class OrcFixtureGenerator {
             case "double", "scaled_float", "float", "half_float" -> TypeDescription.createList(TypeDescription.createDouble());
             case "boolean" -> TypeDescription.createList(TypeDescription.createBoolean());
             case "date" -> TypeDescription.createList(TypeDescription.createTimestampInstant());
-            default -> TypeDescription.createList(TypeDescription.createString());
+            case "text", "txt" -> TypeDescription.createList(TypeDescription.createString());
+            default -> TypeDescription.createList(orcKeywordStringType());
         };
     }
 
@@ -141,11 +142,15 @@ public final class OrcFixtureGenerator {
             case "double", "scaled_float", "float", "half_float" -> TypeDescription.createDouble();
             case "boolean" -> TypeDescription.createBoolean();
             case "date" -> TypeDescription.createTimestampInstant();
-            default -> TypeDescription.createString();
+            case "text", "txt" -> TypeDescription.createString();
+            default -> orcKeywordStringType();
         };
     }
 
-    @SuppressWarnings("unchecked")
+    private static TypeDescription orcKeywordStringType() {
+        return TypeDescription.createVarchar().withMaxLength(65535);
+    }
+
     private static void setOrcValue(
         Object col,
         CsvFixtureParser.ColumnSpec spec,
@@ -160,7 +165,16 @@ public final class OrcFixtureGenerator {
             return;
         }
         if (isList) {
-            setOrcListValue(col, spec, row, (List<Object>) value, listChildIndex, colIndex);
+            // Some rows may be scalar (e.g. plain author) while others use bracket multi-values.
+            List<Object> listValue;
+            if (value instanceof List<?> lv) {
+                @SuppressWarnings("unchecked")
+                List<Object> cast = (List<Object>) lv;
+                listValue = cast;
+            } else {
+                listValue = List.of(value);
+            }
+            setOrcListValue(col, spec, row, listValue, listChildIndex, colIndex);
         } else {
             setOrcScalarValue(col, spec, row, value);
         }

@@ -75,6 +75,20 @@ public final class $Type$ArrowBufVector extends AbstractArrowBufVector<$Type$Vec
         return new $Type$Lookup(asBlock(), positions, targetBlockSize);
     }
 
+    @Override
+    public $Type$Vector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try ($Type$Vector.FixedBuilder builder = blockFactory().new$Type$VectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.append$Type$(get$Type$(i));
+            }
+            return builder.build();
+        }
+    }
+
 $if(int)$
     @Override
     public int min() {

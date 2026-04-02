@@ -10,12 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -40,8 +37,18 @@ import static java.util.Collections.emptyList;
  * @param <T> node type
  */
 public abstract class Node<T extends Node<T>> implements NamedWriteable {
+    /**
+     * Maximum number of properties rendered by {@link #toString}.
+     */
     private static final int TO_STRING_MAX_PROP = 10;
+    /**
+     * Maximum number of characters per line rendered by {@link #toString}.
+     */
     public static final int TO_STRING_MAX_WIDTH = 110;
+    /**
+     * Maximum number of lines rendered by {@link #toString}.
+     */
+    public static final int TO_STRING_MAX_LINES = 25;
 
     private final Source source;
     private final List<T> children;
@@ -66,7 +73,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return source.text();
     }
 
-    public List<T> children() {
+    public final List<T> children() {
         return children;
     }
 
@@ -444,16 +451,18 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     public enum NodeStringFormat {
         /** No list truncation, no line breaks due to string width. */
-        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE),
+        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE),
         /** List truncation and line breaks due to string width applied. */
-        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH);
+        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES);
 
-        private final int maxProperties;
-        private final int maxWidth;
+        final int maxProperties;
+        final int maxWidth;
+        final int maxLines;
 
-        NodeStringFormat(int maxProperties, int maxWidth) {
+        NodeStringFormat(int maxProperties, int maxWidth, int maxLines) {
             this.maxProperties = maxProperties;
             this.maxWidth = maxWidth;
+            this.maxLines = maxLines;
         }
     }
 
@@ -476,130 +485,11 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     public String toString(NodeStringFormat format) {
-        return treeString(new StringBuilder(), 0, new BitSet(), format).toString();
+        return new NodeToString(format).treeString(this, 0).toString();
     }
 
-    /**
-     * Render this {@link Node} as a tree like
-     * <pre>
-     * {@code
-     * Project[[i{f}#0]]
-     * \_Filter[i{f}#1]
-     *   \_SubQueryAlias[test]
-     *     \_EsRelation[test][i{f}#2]
-     * }
-     * </pre>
-     */
-    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth, NodeStringFormat format) {
-        if (depth > 0) {
-            // draw children
-            for (int column = 0; column < depth; column++) {
-                if (hasParentPerDepth.get(column)) {
-                    sb.append("|");
-                    // if not the last elder, adding padding (since each column has two chars ("|_" or "\_")
-                    if (column < depth - 1) {
-                        sb.append(" ");
-                    }
-                } else {
-                    // if the child has no parent (elder on the previous level), it means its the last sibling
-                    sb.append((column == depth - 1) ? "\\" : "  ");
-                }
-            }
-
-            sb.append("_");
-        }
-
-        sb.append(nodeString(format));
-
-        @SuppressWarnings("HiddenField")
-        List<T> children = children();
-        if (children.isEmpty() == false) {
-            sb.append("\n");
-        }
-        for (int i = 0; i < children.size(); i++) {
-            T t = children.get(i);
-            hasParentPerDepth.set(depth, i < children.size() - 1);
-            t.treeString(sb, depth + 1, hasParentPerDepth, format);
-            if (i < children.size() - 1) {
-                sb.append("\n");
-            }
-        }
-        return sb;
-    }
-
-    /**
-     * Render the properties of this {@link Node} one by
-     * one like {@code foo bar baz}. These go inside the
-     * {@code [} and {@code ]} of the output of {@link #treeString}.
-     */
     protected String propertiesToString(boolean skipIfChild, NodeStringFormat format) {
-        StringBuilder sb = new StringBuilder();
-
-        @SuppressWarnings("HiddenField")
-        List<?> children = children();
-        // eliminate children (they are rendered as part of the tree)
-        int remainingProperties = format.maxProperties;
-        int currentMaxWidth = 0;
-        boolean needsComma = false;
-
-        List<Object> props = nodeProperties();
-        for (Object prop : props) {
-            // consider a property if it is not ignored AND
-            // it's not a child (optional)
-            if ((skipIfChild && (children.contains(prop) || children.equals(prop))) == false) {
-                if (remainingProperties-- < 0) {
-                    sb.append("...").append(props.size() - format.maxProperties).append("fields not shown");
-                    break;
-                }
-
-                if (needsComma) {
-                    sb.append(",");
-                }
-
-                String stringValue = toString(prop, format);
-
-                // : Objects.toString(prop);
-                if (currentMaxWidth + stringValue.length() > format.maxWidth) {
-                    int cutoff = Math.max(0, format.maxWidth - currentMaxWidth);
-                    sb.append(stringValue, 0, cutoff);
-                    sb.append("\n");
-                    stringValue = stringValue.substring(cutoff);
-                    currentMaxWidth = 0;
-                }
-                currentMaxWidth += stringValue.length();
-                sb.append(stringValue);
-
-                needsComma = true;
-            }
-        }
-
-        return sb.toString();
-    }
-
-    private static String toString(Object obj, NodeStringFormat format) {
-        StringBuilder sb = new StringBuilder();
-        toString(sb, obj, format);
-        return sb.toString();
-    }
-
-    private static void toString(StringBuilder sb, Object obj, NodeStringFormat format) {
-        if (obj instanceof Iterable<?> iterable) {
-            sb.append("[");
-            for (Iterator<?> it = iterable.iterator(); it.hasNext();) {
-                Object o = it.next();
-                toString(sb, o, format);
-                if (it.hasNext()) {
-                    sb.append(", ");
-                }
-            }
-            sb.append("]");
-        } else if (obj instanceof Node<?> node) {
-            sb.append(node.nodeString(format));
-        } else if (obj instanceof NameId) {
-            sb.append("#").append(obj);
-        } else {
-            sb.append(obj);
-        }
+        return new NodePropertiesToString(format, this, skipIfChild).propertiesToString();
     }
 
     private <U> boolean containsNull(List<U> us) {

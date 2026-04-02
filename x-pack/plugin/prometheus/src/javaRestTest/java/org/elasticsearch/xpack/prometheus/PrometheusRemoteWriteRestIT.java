@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.prometheus;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.compression.Snappy;
-
 import org.apache.http.HttpHeaders;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
@@ -18,16 +14,8 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,34 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
-
-    private static final String USER = "test_admin";
-    private static final String PASS = "x-pack-test-password";
-    private static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .user(USER, PASS, "superuser", false)
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.autoconfiguration.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.ml.enabled", "false")
-        .setting("xpack.watcher.enabled", "false")
-        .feature(FeatureFlag.PROMETHEUS_FEATURE_FLAG)
-        .build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
+public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
 
     public void testRemoteWriteEndpointWithEmptyRequest() throws Exception {
         RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder().build();
@@ -74,8 +35,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteEndpointWithEmptyBody() throws Exception {
         sendEmptyBodyAndAssertSuccess("/_prometheus/api/v1/write");
-        sendEmptyBodyAndAssertSuccess("/_prometheus/myapp/api/v1/write");
-        sendEmptyBodyAndAssertSuccess("/_prometheus/myapp/production/api/v1/write");
+        sendEmptyBodyAndAssertSuccess("/_prometheus/metrics/myapp/api/v1/write");
+        sendEmptyBodyAndAssertSuccess("/_prometheus/metrics/myapp/production/api/v1/write");
     }
 
     public void testRemoteWriteIndexesGaugeMetric() throws Exception {
@@ -199,7 +160,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteWithCustomDataset() throws Exception {
         String metricName = "custom_dataset_metric";
-        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/myapp/api/v1/write");
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/metrics/myapp/api/v1/write");
 
         ObjectPath source = searchSingleDoc("metrics-myapp.prometheus-default", metricName);
         assertThat(source.evaluate("data_stream.type"), equalTo("metrics"));
@@ -209,7 +170,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     public void testRemoteWriteWithCustomDatasetAndNamespace() throws Exception {
         String metricName = "custom_ns_metric";
-        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/myapp/production/api/v1/write");
+        sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/metrics/myapp/production/api/v1/write");
 
         ObjectPath source = searchSingleDoc("metrics-myapp.prometheus-production", metricName);
         assertThat(source.evaluate("data_stream.type"), equalTo("metrics"));
@@ -218,12 +179,15 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     }
 
     public void testRemoteWriteWithInvalidCustomDatasetReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/my-app/api/v1/write");
+        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/metrics/my-app/api/v1/write");
         assertThat(body, containsString("data stream dataset 'my-app' contains disallowed characters, must conform to regex ["));
     }
 
     public void testRemoteWriteWithInvalidCustomNamespaceReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_namespace_metric"), "/_prometheus/myapp/foo:bar/api/v1/write");
+        String body = sendAndAssertBadRequest(
+            simpleWriteRequest("invalid_namespace_metric"),
+            "/_prometheus/metrics/myapp/foo:bar/api/v1/write"
+        );
         assertThat(body, containsString("data stream namespace 'foo:bar' contains disallowed characters, must conform to regex ["));
     }
 
@@ -244,14 +208,6 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         return builder.build();
     }
 
-    private static RemoteWrite.Label label(String name, String value) {
-        return RemoteWrite.Label.newBuilder().setName(name).setValue(value).build();
-    }
-
-    private static RemoteWrite.Sample sample(double value, long timestamp) {
-        return RemoteWrite.Sample.newBuilder().setValue(value).setTimestamp(timestamp).build();
-    }
-
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest) throws IOException {
         sendAndAssertSuccess(writeRequest, "/_prometheus/api/v1/write");
     }
@@ -259,7 +215,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
         Request request = new Request("POST", endpoint);
         request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
-        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
+        addWriteAuth(request);
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
     }
@@ -271,7 +228,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     private String sendAndAssertBadRequest(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
         Request request = new Request("POST", endpoint);
         request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
-        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
+        addWriteAuth(request);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         return EntityUtils.toString(e.getResponse().getEntity());
@@ -279,84 +237,9 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     private void sendEmptyBodyAndAssertSuccess(String endpoint) throws IOException {
         Request request = new Request("POST", endpoint);
+        addWriteAuth(request);
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
-    }
-
-    /**
-     * Searches for all indexed documents matching the given metric name and returns their _source maps.
-     */
-    private List<Map<String, Object>> searchDocs(String metricName) throws IOException {
-        return searchDocs(DEFAULT_DATA_STREAM, metricName);
-    }
-
-    private List<Map<String, Object>> searchDocs(String dataStream, String metricName) throws IOException {
-        Request refresh = new Request("POST", "/" + dataStream + "/_refresh");
-        client().performRequest(refresh);
-
-        Request search = new Request("GET", "/" + dataStream + "/_search");
-        search.setJsonEntity(org.elasticsearch.common.Strings.format("""
-            {
-              "query": {
-                "term": {
-                  "labels.__name__": "%s"
-                }
-              }
-            }
-            """, metricName));
-        Response response = client().performRequest(search);
-        Map<String, Object> searchResult = entityAsMap(response);
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> hitsWrapper = (Map<String, Object>) searchResult.get("hits");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> hits = (List<Map<String, Object>>) hitsWrapper.get("hits");
-
-        return hits.stream().map(hit -> {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> src = (Map<String, Object>) hit.get("_source");
-            return src;
-        }).toList();
-    }
-
-    /**
-     * Convenience method that asserts exactly one document was indexed for the given metric and returns its _source.
-     */
-    private ObjectPath searchSingleDoc(String metricName) throws IOException {
-        return searchSingleDoc(DEFAULT_DATA_STREAM, metricName);
-    }
-
-    private ObjectPath searchSingleDoc(String dataStream, String metricName) throws IOException {
-        List<Map<String, Object>> docs = searchDocs(dataStream, metricName);
-        assertThat(docs, hasSize(1));
-        return new ObjectPath(docs.getFirst());
-    }
-
-    private boolean dataStreamExists(String dataStream) throws IOException {
-        Request request = new Request("GET", "/_data_stream/" + dataStream);
-        try {
-            client().performRequest(request);
-            return true;
-        } catch (ResponseException e) {
-            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
-                return false;
-            }
-            throw e;
-        }
-    }
-
-    private static byte[] snappyEncode(byte[] input) {
-        ByteBuf in = Unpooled.wrappedBuffer(input);
-        ByteBuf out = Unpooled.buffer(input.length);
-        try {
-            new Snappy().encode(in, out, input.length);
-            byte[] result = new byte[out.readableBytes()];
-            out.readBytes(result);
-            return result;
-        } finally {
-            in.release();
-            out.release();
-        }
     }
 
 }

@@ -41,8 +41,9 @@ public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest 
         "missing references \\[.*\\]",
         // https://github.com/elastic/elasticsearch/issues/142026
         "column \\[.*\\] already resolved",
-        // https://github.com/elastic/elasticsearch/issues/142033
-        "cannot use \\[SET unmapped_fields\\] with FORK",
+        // https://github.com/elastic/elasticsearch/issues/142033, https://github.com/elastic/elasticsearch/issues/142026
+        "is not supported with unmapped_fields",
+        "does not support full-text search function",
         "type \\[null\\] .* not supported"
     );
 

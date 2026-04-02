@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.qa.csv;
 
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
@@ -40,7 +38,7 @@ public class Clusters {
             .setting("xpack.ml.enabled", "false")
             // Allow the LOCAL storage backend to read fixture files from the test resources directory.
             // The esql-datasource-http plugin's entitlement policy uses shared_repo for file read access.
-            .setting("path.repo", fixturesPath())
+            .setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
             // S3 credentials must be stored in keystore, not as regular settings
@@ -60,18 +58,5 @@ public class Clusters {
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return testCluster(s3EndpointSupplier, config -> {});
-    }
-
-    private static String fixturesPath() {
-        URL resourceUrl = Clusters.class.getResource("/iceberg-fixtures");
-        if (resourceUrl != null && resourceUrl.getProtocol().equals("file")) {
-            try {
-                return PathUtils.get(resourceUrl.toURI()).toAbsolutePath().toString();
-            } catch (URISyntaxException e) {
-                throw new IllegalStateException("Failed to resolve fixtures path", e);
-            }
-        }
-        // Fall back to a safe default; LOCAL tests will fail gracefully
-        return "/tmp";
     }
 }

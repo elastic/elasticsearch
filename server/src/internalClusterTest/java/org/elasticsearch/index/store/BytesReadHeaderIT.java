@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -39,6 +40,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.search.SearchService.FETCH_PHASE_CHUNKED_ENABLED;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
@@ -189,6 +192,34 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
             .source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
         long bytesRead = assertBytesReadHeader(request);
         assertThat(bytesRead, greaterThan(0L));
+    }
+
+    public void testChunkedFetching() throws InterruptedException {
+        final String indexName = randomIndexName();
+        createIndex(indexName, between(2, 5), 0);
+        // each document has at least 10kb of source
+        IntStream.range(0, between(100, 200))
+            .forEach(i -> indexDoc(indexName, "id" + i, "field", "value value" + i + " " + randomAlphaOfLength(10000)));
+        flushAndRefresh(indexName);
+
+        // warmup
+        SearchRequest request = new SearchRequest(indexName).source(
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).size(50)
+        );
+
+        // it should not matter if chunked fetching is enabled or disabled, the number of bytes should remain the same
+        assertAcked(client().admin().cluster().prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+            .setPersistentSettings(Settings.builder().put(FETCH_PHASE_CHUNKED_ENABLED.getKey(), true)));
+
+        long bytesReadChunkedFetch = assertBytesReadHeader(request);
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+            .setPersistentSettings(Settings.builder().putNull(FETCH_PHASE_CHUNKED_ENABLED.getKey())).get());
+
+        long bytesRead = assertBytesReadHeader(request);
+
+        assertThat(bytesRead, greaterThan(0L));
+        assertThat(bytesRead, equalTo(bytesReadChunkedFetch));
     }
 
     private String setupIndex() {

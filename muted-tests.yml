@@ -404,6 +404,24 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidLongWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145580
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:stats_percentile.percentileOfLong}
+  issue: https://github.com/elastic/elasticsearch/issues/145589
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testUpdateInferenceId_GivenCurrentHasNoModelSettingsAndNewIsIncompatibleTaskType_ShouldSucceed {p0=true}
+  issue: https://github.com/elastic/elasticsearch/issues/145591
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcFetchSizeIT
+  method: testScrollWithDatetimeAndTimezoneParam
+  issue: https://github.com/elastic/elasticsearch/issues/145592
+- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
+  method: testLicenseCheck
+  issue: https://github.com/elastic/elasticsearch/issues/145600
+- class: org.elasticsearch.indices.IndexingMemoryControllerIT
+  method: testDeletesAloneCanTriggerRefresh
+  issue: https://github.com/elastic/elasticsearch/issues/145609
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse}
+  issue: https://github.com/elastic/elasticsearch/issues/145616
 
 # Examples:
 #

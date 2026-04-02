@@ -130,7 +130,8 @@
                   "index": false
                 },
                 "query": {
-                  "type": "pattern_text"
+                  "type": "keyword",
+                  "ignore_above": 2048
                 },
                 "result_count": {
                   "type": "long",

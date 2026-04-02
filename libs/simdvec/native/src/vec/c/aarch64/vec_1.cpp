@@ -237,7 +237,7 @@ static inline int32_t doti8_common(const int8_t* a, const int8_t* b, const int32
         res = doti8_inner(a, b, i);
     }
     for (; i < dims; i++) {
-        res += a[i] * b[i];
+        res += dot_scalar(a[i], b[i]);
     }
     return res;
 }

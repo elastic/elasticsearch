@@ -209,6 +209,11 @@ Because `labels` is a `flattened` field type, the entire object is mapped as a s
 
 ## Mapped sub-fields [flattened-properties]
 
+```{applies_to}
+stack: ga 9.4.0
+serverless: all
+```
+
 By default, all keys in a flattened field are indexed as untyped keyword values. The `properties` parameter allows specific keys to be mapped as their own typed fields, such as `keyword`, `ip`, `long`, `date`, or any other leaf field type. Mapped keys are indexed exclusively through their sub-field and are excluded from the flattened field's representation.
 
 This is useful when certain keys within the flattened object need functionality that plain flattened indexing does not support, such as index sorting, field aliases, or typed queries (for example, IP range queries on an `ip` field).
@@ -254,6 +259,46 @@ Only leaf field types are allowed as sub-field types.
 Object, nested, and flattened types cannot be used as properties of a flattened field.
 Sub-fields may not use `copy_to` or `fields` (multi-fields) parameters.
 
+## Passthrough sub-fields [flattened-passthrough]
+
+```{applies_to}
+stack: ga 9.4.0
+serverless: all
+```
+
+The `passthrough` parameter makes the typed sub-fields defined in `properties` queryable at the root level of the index, without prefixing them with the flattened field name. This behaves similarly to [pass-through object fields](/reference/elasticsearch/mapping-reference/passthrough.md).
+
+```console
+PUT events
+{
+  "mappings": {
+    "properties": {
+      "labels": {
+        "type": "flattened",
+        "passthrough": { "priority": 10 },
+        "properties": {
+          "status": { "type": "keyword" },
+          "count":  { "type": "long" }
+        }
+      }
+    }
+  }
+}
+```
+
+With this mapping, `status` and `count` can be queried directly at the root level in addition to the standard prefixed path:
+
+```console
+POST events/_search
+{
+  "query": {
+    "term": { "status": "active" }
+  }
+}
+```
+
+The `priority` field inside the `passthrough` object is used to resolve conflicts when multiple passthrough sources (flattened fields or pass-through objects) expose sub-fields with the same leaf name. The source with the higher priority wins. Root-level concrete fields always take precedence over any passthrough alias, regardless of priority.
+
 ## Parameters for flattened object fields [flattened-params]
 
 The following mapping parameters are accepted:
@@ -278,6 +323,9 @@ The following mapping parameters are accepted:
 
 [`null_value`](/reference/elasticsearch/mapping-reference/null-value.md)
 :   A string value which is substituted for any explicit `null` values within the flattened object field. Defaults to `null`, which means null fields are treated as if they were missing.
+
+`passthrough`
+:   (Optional, object) When set, the typed sub-fields defined in `properties` become queryable at the root level without a prefix. Requires a `priority` field (non-negative integer) used to resolve conflicts when multiple passthrough sources expose a sub-field with the same name; the higher priority wins, and root-level concrete fields always take precedence. Omitting this parameter disables passthrough behavior. Refer to [Passthrough sub-fields](#flattened-passthrough).
 
 `properties`
 :   (Optional, object) A map of key names to field mappings. Allows specific keys within the flattened object to be mapped as typed sub-fields. Each entry maps a key (using dot notation for nested keys) to a leaf field type definition. See [Mapped sub-fields](#flattened-properties).

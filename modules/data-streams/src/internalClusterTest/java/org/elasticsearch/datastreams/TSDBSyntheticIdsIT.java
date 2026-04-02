@@ -48,6 +48,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
@@ -1658,7 +1659,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      */
     public void testNoopTombstones() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        internalCluster().startDataOnlyNodes(2);
+        internalCluster().startMasterOnlyNode();
+        List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2);
 
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
@@ -1669,6 +1671,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), Integer.MAX_VALUE)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put("index.routing.allocation.include._name", String.join(",", dataNodeNames))
                 .build(),
             useNestedDocs
         );
@@ -1826,6 +1831,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         // Verify GET and search by synthetic _id after snapshot restore
         assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
+
+        // Remove allocation filter to allow shards on any data node
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.include._name"), backingIndex);
 
         internalCluster().startDataOnlyNode();
 

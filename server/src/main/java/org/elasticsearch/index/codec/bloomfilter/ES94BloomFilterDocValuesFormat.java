@@ -789,6 +789,29 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         }
 
         @Override
+        public double saturation() throws IOException {
+            if (cachedSaturation >= 0.0) {
+                return cachedSaturation;
+            }
+            final int sizeInBytes = getBloomFilterBitSetSizeInBytes();
+            long setBits = 0;
+            final byte[] scratch = new byte[PageCacheRecycler.PAGE_SIZE_IN_BYTES];
+            int remaining = sizeInBytes;
+            int offset = 0;
+            while (remaining > 0) {
+                int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
+                bloomFilterIn.readBytes(offset, scratch, 0, pageLen);
+                for (int i = 0; i < pageLen; i++) {
+                    setBits += Integer.bitCount(scratch[i] & 0xFF);
+                }
+                offset += pageLen;
+                remaining -= pageLen;
+            }
+            cachedSaturation = (double) setBits / bloomFilterBitSetSizeInBits;
+            return cachedSaturation;
+        }
+
+        @Override
         public int docID() {
             return -1;
         }

@@ -416,6 +416,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
   method: testLicenseCheck
   issue: https://github.com/elastic/elasticsearch/issues/145600
+- class: org.elasticsearch.indices.IndexingMemoryControllerIT
+  method: testDeletesAloneCanTriggerRefresh
+  issue: https://github.com/elastic/elasticsearch/issues/145609
 
 # Examples:
 #

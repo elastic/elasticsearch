@@ -21,6 +21,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.reindex.ReindexValidator.buildAllowedRemotes;
 import static org.elasticsearch.reindex.ReindexValidator.checkAllowedRemote;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -32,11 +33,11 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
     private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
 
     public void testLocalRequestWithoutWhitelist() {
-        checkAllowedRemote(ReindexValidator.buildAllowedRemotes(Collections.emptyList(), List.of()), false, null);
+        checkAllowedRemote(buildAllowedRemotes(emptyList(), emptyList()), false, null);
     }
 
     public void testLocalRequestWithWhitelist() {
-        checkAllowedRemote(ReindexValidator.buildAllowedRemotes(randomWhitelist(), List.of()), false, null);
+        checkAllowedRemote(buildAllowedRemotes(randomWhitelist(), emptyList()), false, null);
     }
 
     /**
@@ -62,12 +63,12 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         String[] inList = whitelist.iterator().next().split(":");
         String host = inList[0];
         int port = Integer.valueOf(inList[1]);
-        checkAllowedRemote(ReindexValidator.buildAllowedRemotes(whitelist, List.of()), false, newRemoteInfo(host, port));
+        checkAllowedRemote(buildAllowedRemotes(whitelist, emptyList()), false, newRemoteInfo(host, port));
     }
 
     public void testWhitelistedByPrefix() {
         checkAllowedRemote(
-            ReindexValidator.buildAllowedRemotes(Collections.singletonList("*.example.com:9200"), List.of()),
+            buildAllowedRemotes(Collections.singletonList("*.example.com:9200"), emptyList()),
             false,
             new RemoteInfo(
                 randomAlphaOfLength(5),
@@ -83,7 +84,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
             )
         );
         checkAllowedRemote(
-            ReindexValidator.buildAllowedRemotes(Collections.singletonList("*.example.com:9200"), List.of()),
+            buildAllowedRemotes(Collections.singletonList("*.example.com:9200"), emptyList()),
             false,
             newRemoteInfo("6e134134a1.us-east-1.aws.example.com", 9200)
         );
@@ -91,7 +92,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
 
     public void testWhitelistedBySuffix() {
         checkAllowedRemote(
-            ReindexValidator.buildAllowedRemotes(Collections.singletonList("es.example.com:*"), List.of()),
+            buildAllowedRemotes(Collections.singletonList("es.example.com:*"), emptyList()),
             false,
             newRemoteInfo("es.example.com", 9200)
         );
@@ -99,7 +100,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
 
     public void testWhitelistedByInfix() {
         checkAllowedRemote(
-            ReindexValidator.buildAllowedRemotes(Collections.singletonList("es*.example.com:9200"), List.of()),
+            buildAllowedRemotes(Collections.singletonList("es*.example.com:9200"), emptyList()),
             false,
             newRemoteInfo("es1.example.com", 9200)
         );
@@ -108,7 +109,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
     public void testLoopbackInWhitelistRemote() throws UnknownHostException {
         List<String> whitelist = randomWhitelist();
         whitelist.add("127.0.0.1:*");
-        checkAllowedRemote(ReindexValidator.buildAllowedRemotes(whitelist, List.of()), false, newRemoteInfo("127.0.0.1", 9200));
+        checkAllowedRemote(buildAllowedRemotes(whitelist, emptyList()), false, newRemoteInfo("127.0.0.1", 9200));
     }
 
     public void testUnwhitelistedRemote() {
@@ -116,7 +117,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         List<String> whitelist = randomBoolean() ? randomWhitelist() : emptyList();
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> checkAllowedRemote(ReindexValidator.buildAllowedRemotes(whitelist, List.of()), false, newRemoteInfo("not in list", port))
+            () -> checkAllowedRemote(buildAllowedRemotes(whitelist, emptyList()), false, newRemoteInfo("not in list", port))
         );
         assertThat(e.getMessage(), equalTo("[not in list:" + port + "] not whitelisted in reindex.remote.whitelist"));
     }
@@ -124,12 +125,12 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
     public void testIPv6Address() {
         List<String> whitelist = randomWhitelist();
         whitelist.add("[::1]:*");
-        checkAllowedRemote(ReindexValidator.buildAllowedRemotes(whitelist, List.of()), false, newRemoteInfo("[::1]", 9200));
+        checkAllowedRemote(buildAllowedRemotes(whitelist, emptyList()), false, newRemoteInfo("[::1]", 9200));
     }
 
     public void testRemoteUnaffectedByBlocklist() {
         checkAllowedRemote(
-            ReindexValidator.buildAllowedRemotes(List.of("*.example.com:9200"), List.of("*.qa.example.com:*")),
+            buildAllowedRemotes(List.of("*.example.com:9200"), List.of("*.qa.example.com:*")),
             true,
             newRemoteInfo("6e134134a1.us-east-1.aws.example.com", 9200)
         );
@@ -139,7 +140,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> checkAllowedRemote(
-                ReindexValidator.buildAllowedRemotes(List.of("*.example.com:9200"), List.of("*.qa.example.com:*")),
+                buildAllowedRemotes(List.of("*.example.com:9200"), List.of("*.qa.example.com:*")),
                 true,
                 newRemoteInfo("6e134134a1.us-east-1.aws.qa.example.com", 9200)
             )
@@ -157,7 +158,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> checkAllowedRemote(
-                ReindexValidator.buildAllowedRemotes(List.of("*.example.com:9200"), List.of("*.qa.example.com:*")),
+                buildAllowedRemotes(List.of("*.example.com:9200"), List.of("*.qa.example.com:*")),
                 true,
                 newRemoteInfo("6e134134a1.us-east-1.aws.notexample.com", 9200)
             )
@@ -175,7 +176,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> checkAllowedRemote(
-                ReindexValidator.buildAllowedRemotes(List.of("*.example.com:9200"), List.of("*.notexample.com:*")),
+                buildAllowedRemotes(List.of("*.example.com:9200"), List.of("*.notexample.com:*")),
                 true,
                 newRemoteInfo("6e134134a1.us-east-1.aws.notexample.com", 9200)
             )

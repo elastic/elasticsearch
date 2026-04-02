@@ -113,12 +113,12 @@ public class ReindexValidator {
         }
     }
 
-    static void checkAllowedRemote(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {
+    static void checkAllowedRemote(CharacterRunAutomaton allowedRemotes, boolean remoteBlocklistSettingInUse, RemoteInfo remoteInfo) {
         if (remoteInfo == null) {
             return;
         }
         String check = remoteInfo.getHost() + ':' + remoteInfo.getPort();
-        if (whitelist.run(check)) {
+        if (allowedRemotes.run(check)) {
             return;
         }
         throw new IllegalArgumentException(
@@ -134,8 +134,8 @@ public class ReindexValidator {
     }
 
     /**
-     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and make sure that it doesn't whitelist
-     * the world.
+     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and blocklist and make sure that it doesn't
+     * whitelist the world.
      */
     static CharacterRunAutomaton buildAllowedRemotes(List<String> whitelist, List<String> blocklist) {
         if (whitelist.isEmpty()) {
@@ -144,7 +144,6 @@ public class ReindexValidator {
         Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(String[]::new));
         if (!blocklist.isEmpty()) {
             Automaton toBlock = Regex.simpleMatchToAutomaton(blocklist.toArray(String[]::new));
-            ;
             automaton = Operations.minus(automaton, toBlock, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
         automaton = Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);

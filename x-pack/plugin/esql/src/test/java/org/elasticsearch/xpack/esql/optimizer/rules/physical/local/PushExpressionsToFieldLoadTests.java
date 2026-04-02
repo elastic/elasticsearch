@@ -197,6 +197,133 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertThat(firstNamePushed, hasSize(1));
     }
 
+    // ---- ROUND_TO push tests ----
+
+    public void testRoundToInEval() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | EVAL r = ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime)
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP r
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testRoundToInWhere() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | WHERE ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime) > "2023-01-01"::datetime
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+
+        FilterExec filterExec = findFirst(plan, FilterExec.class);
+        assertNotNull("Should find FilterExec", filterExec);
+        GreaterThan gt = as(filterExec.condition(), GreaterThan.class);
+        assertRoundToPushdown(gt.left(), "hire_date");
+    }
+
+    public void testRoundToInEvalWithLongField() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL r = ROUND_TO(long, 100, 200, 300)
+            | SORT integer
+            | LIMIT 10
+            | KEEP r
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testRoundToInEvalAfterManyRenames() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | EVAL h1 = hire_date
+            | EVAL h2 = h1
+            | EVAL h3 = h2
+            | EVAL r = ROUND_TO(h3, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime)
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP r
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+    }
+
+    public void testRoundToInWhereAndEval() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | WHERE ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime) > "2023-01-01"::datetime
+            | EVAL r = ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime)
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat("Duplicate ROUND_TO(hire_date, ...) should be deduplicated to one pushed field", pushed, hasSize(1));
+    }
+
+    public void testRoundToPushdownZoo() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL a1 = ROUND_TO(long, 100, 200, 300), a2 = ROUND_TO(long, 100, 200, 300), a3 = ROUND_TO(long, 100, 200, 300),
+                   a4 = abs(ROUND_TO(long, 100, 200, 300)) + a1,
+                   b1 = ROUND_TO(date, "2023-01-01"::date, "2024-01-01"::date)
+            | WHERE a1 > 1 AND ROUND_TO(long, 100, 200, 300) > 1
+            | SORT integer
+            | LIMIT 10
+            | KEEP a1, a2, a3, a4, b1
+            """);
+
+        List<FieldAttribute> longPushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        List<FieldAttribute> datePushed = findPushedFields(plan, "date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+
+        assertThat("All ROUND_TO(long, ...) should share one pushed field", longPushed, hasSize(1));
+        assertThat("ROUND_TO(date, ...) should have its own pushed field", datePushed, hasSize(1));
+    }
+
+    public void testRoundToInEvalTwice() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL l1 = ROUND_TO(long, 100, 200, 300), l2 = ROUND_TO(long, 100, 200, 300) + 1
+            | SORT integer
+            | LIMIT 10
+            | KEEP l1, l2
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat("Duplicate ROUND_TO(long, ...) should share one pushed field", pushed, hasSize(1));
+    }
+
+    public void testRoundToTwoFields() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
+            FROM test_all
+            | EVAL d = ROUND_TO(date, "2023-01-01"::date, "2024-01-01"::date),
+                  l = ROUND_TO(long, 100, 200, 300)
+            | SORT integer
+            | LIMIT 10
+            | KEEP d, l
+            """);
+
+        List<FieldAttribute> datePushed = findPushedFields(plan, "date", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        List<FieldAttribute> longPushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
+
+        assertThat(datePushed, hasSize(1));
+        assertThat(longPushed, hasSize(1));
+    }
+
     // ---- Vector function push tests ----
 
     public void testVectorFunctionsReplaced() {
@@ -535,6 +662,15 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertThat(attr.name(), startsWith("$$" + fieldName + "$LENGTH$"));
         FunctionEsField field = as(attr.field(), FunctionEsField.class);
         assertThat(field.functionConfig().function(), is(BlockLoaderFunctionConfig.Function.LENGTH));
+        assertThat(field.getName(), equalTo(fieldName));
+        return attr;
+    }
+
+    private Attribute assertRoundToPushdown(Expression e, String fieldName) {
+        FieldAttribute attr = as(e, FieldAttribute.class);
+        assertThat(attr.name(), startsWith("$$" + fieldName + "$ROUND_TO$"));
+        FunctionEsField field = as(attr.field(), FunctionEsField.class);
+        assertThat(field.functionConfig().function(), is(BlockLoaderFunctionConfig.Function.ROUND_TO));
         assertThat(field.getName(), equalTo(fieldName));
         return attr;
     }

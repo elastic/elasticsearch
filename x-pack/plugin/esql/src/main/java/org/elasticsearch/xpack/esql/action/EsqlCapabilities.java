@@ -1197,6 +1197,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY,
 
         /**
+         * Prune no-fields in subquery project.
+         */
+        SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE(EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
@@ -1217,6 +1222,10 @@ public class EsqlCapabilities {
          * Added telemetry for views
          */
         VIEWS_TELEMETRY,
+        /**
+         * Fixed a bug where views are incorrectly de-duplicated.
+         */
+        VIEWS_DEDUPLICATION_BUGFIX,
 
         /**
          * Support for the {@code leading_zeros} named parameter.

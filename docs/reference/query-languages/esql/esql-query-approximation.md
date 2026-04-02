@@ -4,9 +4,9 @@ applies_to:
    serverless: ga
 navigation_title: "Approximate STATS queries"
 mapped_pages:
- - https://www.elastic.co/guide/en/elasticsearch/reference/9.4/_esql_query_approximation.html
+ - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-query-approximation.html
 ---
-# Approximate ES|QL STATS
+# Approximate `STATS` queries
 
 ES|QL STATS commands summarize large volumes of data into aggregated statistics. For many analytics workloads, exact results are not strictly necessary — approximate results with known error bounds are sufficient, and can be computed dramatically faster. The `approximation` setting enables this: ES|QL rewrites your query to use random sampling and extrapolation, returning estimates together with confidence intervals and a certification flag.
 

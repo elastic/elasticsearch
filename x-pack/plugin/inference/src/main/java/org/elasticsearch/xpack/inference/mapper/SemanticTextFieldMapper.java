@@ -62,6 +62,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -106,6 +107,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
@@ -158,6 +160,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID = new NodeFeature("semantic_text.updatable_inference_id");
     public static final NodeFeature SEMANTIC_TEXT_AUTO_PREFILTERING = new NodeFeature("semantic_text.auto_prefiltering");
     public static final NodeFeature SEMANTIC_TEXT_BFLOAT16_SUPPORT = new NodeFeature("semantic_text.bfloat16_support");
+    public static final NodeFeature SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS = new NodeFeature(
+        "semantic_text.element_type_in_index_options"
+    );
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -344,21 +349,53 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated(), experimentalFeaturesEnabled),
                 mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
                 (b, n, v) -> {
-                    if (v == null) {
-                        MinimalServiceSettings resolvedModelSettings = modelSettings.get() != null
-                            ? modelSettings.get()
-                            : modelRegistry.getMinimalServiceSettings(inferenceId.get());
-                        b.field(INDEX_OPTIONS_FIELD, defaultIndexOptions(indexVersionCreated, resolvedModelSettings));
-                    } else {
-                        b.field(INDEX_OPTIONS_FIELD, v);
-                    }
+                    throw new IllegalStateException("Serializer for [" + INDEX_OPTIONS_FIELD + "] should not be called");
                 },
                 Objects::toString
-            ).acceptsNull();
+            ) {
+                @Override
+                protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+                    SemanticTextIndexOptions value = getValue();
+                    if (includeDefaults || isConfigured()) {
+                        if (value == null) {
+                            // Default value, serialize resolved defaults
+                            MinimalServiceSettings resolvedModelSettings = getResolvedModelSettings(null, false);
+                            value = defaultIndexOptions(indexVersionCreated, resolvedModelSettings);
+                        } else if (value.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+                            DenseVectorFieldMapper.ElementType elementTypeOverride;
+                            DenseVectorFieldMapper.DenseVectorIndexOptions dvio;
+                            if (value.indexOptions() instanceof ExtendedDenseVectorIndexOptions edvio) {
+                                elementTypeOverride = edvio.getElementType();
+                                dvio = edvio.getBaseIndexOptions();
+                            } else {
+                                throw new IllegalStateException(
+                                    "Unexpected inner index options type [" + value.indexOptions().getClass().getSimpleName() + "]"
+                                );
+                            }
+
+                            MinimalServiceSettings resolvedModelSettings = getResolvedModelSettings(null, false);
+                            if (resolvedModelSettings == null) {
+                                throw new IllegalStateException("Model settings should be resolvable when explicit index options are set");
+                            }
+
+                            if (defaultElementTypeToBfloat16(indexVersionCreated, resolvedModelSettings.elementType())
+                                && includeDefaults
+                                && elementTypeOverride == null) {
+                                value = new SemanticTextIndexOptions(
+                                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                                    new ExtendedDenseVectorIndexOptions(dvio, DenseVectorFieldMapper.ElementType.BFLOAT16)
+                                );
+                            }
+                        }
+
+                        builder.field(INDEX_OPTIONS_FIELD, value);
+                    }
+                }
+            }.acceptsNull();
 
             this.inferenceFieldBuilder = c -> {
                 // Resolve the model setting from the registry if it has not been set yet.
-                var resolvedModelSettings = modelSettings.get() != null ? modelSettings.get() : getResolvedModelSettings(c, false);
+                var resolvedModelSettings = getResolvedModelSettings(c, false);
                 return createInferenceFieldBuilder(
                     useLegacyFormat,
                     resolvedModelSettings,
@@ -471,11 +508,16 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
          * Returns the {@link MinimalServiceSettings} defined in this builder if set;
          * otherwise, resolves and returns the settings from the registry.
          */
-        private MinimalServiceSettings getResolvedModelSettings(MapperBuilderContext context, boolean logWarning) {
-            if (context.getMergeReason() == MapperService.MergeReason.MAPPING_RECOVERY) {
+        private MinimalServiceSettings getResolvedModelSettings(@Nullable MapperBuilderContext context, boolean logWarning) {
+            if (modelSettings.get() != null) {
+                return modelSettings.get();
+            }
+
+            if (context != null && context.getMergeReason() == MapperService.MergeReason.MAPPING_RECOVERY) {
                 // the model registry is not available yet
                 return null;
             }
+
             try {
                 /*
                  * If the model is not already set and we are not in a recovery scenario, resolve it using the registry.
@@ -517,13 +559,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
             }
 
-            var resolvedModelSettings = modelSettings.get();
-            if (modelSettings.get() == null) {
-                resolvedModelSettings = getResolvedModelSettings(context, true);
-            }
-
-            if (modelSettings.get() != null) {
-                validateServiceSettings(modelSettings.get(), resolvedModelSettings);
+            var resolvedModelSettings = getResolvedModelSettings(context, true);
+            if (resolvedModelSettings != null) {
+                validateTaskType(resolvedModelSettings);
             }
 
             // If index_options are specified by the user, we will validate them against the model settings to ensure compatibility.
@@ -560,8 +598,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             );
         }
 
-        private void validateServiceSettings(MinimalServiceSettings settings, MinimalServiceSettings resolved) {
-            switch (settings.taskType()) {
+        private void validateTaskType(MinimalServiceSettings modelSettings) {
+            switch (modelSettings.taskType()) {
                 case SPARSE_EMBEDDING, TEXT_EMBEDDING -> {
                 }
                 default -> throw new IllegalArgumentException(
@@ -572,17 +610,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         + " or "
                         + SPARSE_EMBEDDING
                         + ", got "
-                        + settings.taskType().name()
-                );
-            }
-            if (resolved != null && settings.canMergeWith(resolved) == false) {
-                throw new IllegalArgumentException(
-                    "Mismatch between provided and registered inference model settings. "
-                        + "Provided: ["
-                        + settings
-                        + "], Expected: ["
-                        + resolved
-                        + "]."
+                        + modelSettings.taskType().name()
                 );
             }
         }
@@ -618,10 +646,45 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     );
                 }
 
-                int dims = modelSettings.dimensions() != null ? modelSettings.dimensions() : 0;
-                DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
-                    (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
-                denseVectorIndexOptions.validate(modelSettings.elementType(), dims, true);
+                DenseVectorFieldMapper.ElementType elementType = modelSettings.elementType();
+                DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions;
+                IndexOptions innerIndexOptions = indexOptions.indexOptions();
+                if (innerIndexOptions instanceof ExtendedDenseVectorIndexOptions edvio) {
+                    denseVectorIndexOptions = edvio.getBaseIndexOptions();
+
+                    if (edvio.getElementType() != null) {
+                        validateElementTypeOverride(elementType, edvio.getElementType());
+                        elementType = edvio.getElementType();
+                    }
+                } else {
+                    throw new IllegalStateException(
+                        "Unexpected inner index options type [" + innerIndexOptions.getClass().getSimpleName() + "]"
+                    );
+                }
+
+                if (denseVectorIndexOptions != null) {
+                    int dims = modelSettings.dimensions() != null ? modelSettings.dimensions() : 0;
+                    denseVectorIndexOptions.validate(elementType, dims, true);
+                }
+            }
+        }
+
+        private static void validateElementTypeOverride(
+            DenseVectorFieldMapper.ElementType modelElementType,
+            DenseVectorFieldMapper.ElementType overrideElementType
+        ) {
+            boolean valid;
+            if (modelElementType == DenseVectorFieldMapper.ElementType.FLOAT) {
+                valid = overrideElementType == DenseVectorFieldMapper.ElementType.FLOAT
+                    || overrideElementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
+            } else {
+                valid = overrideElementType == modelElementType;
+            }
+
+            if (valid == false) {
+                throw new IllegalArgumentException(
+                    "Model element type [" + modelElementType + "] is incompatible with element type override [" + overrideElementType + "]"
+                );
             }
         }
 
@@ -1359,16 +1422,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         );
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
         if (modelSettings != null) {
-            chunksField.add(
-                createEmbeddingsField(
-                    indexSettings.getIndexVersionCreated(),
-                    modelSettings,
-                    indexOptions,
-                    useLegacyFormat,
-                    indexSettings.getValue(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING),
-                    vectorsFormatProviders
-                )
-            );
+            chunksField.add(createEmbeddingsField(indexSettings, modelSettings, indexOptions, useLegacyFormat, vectorsFormatProviders));
         }
         if (useLegacyFormat) {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexSettings).indexed(false).docValues(false);
@@ -1380,35 +1434,39 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     private static Mapper.Builder createEmbeddingsField(
-        IndexVersion indexVersionCreated,
+        IndexSettings indexSettings,
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions,
         boolean useLegacyFormat,
-        boolean experimentalFeaturesEnabled,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> {
                 SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexVersionCreated,
+                    indexSettings.getIndexVersionCreated(),
                     false
                 ).setStored(useLegacyFormat == false);
 
-                configureSparseVectorMapperBuilder(indexVersionCreated, sparseVectorMapperBuilder, indexOptions);
+                configureSparseVectorMapperBuilder(indexSettings.getIndexVersionCreated(), sparseVectorMapperBuilder, indexOptions);
 
                 yield sparseVectorMapperBuilder;
             }
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexVersionCreated,
+                    indexSettings.getIndexVersionCreated(),
                     false,
-                    experimentalFeaturesEnabled,
+                    IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(indexSettings.getSettings()),
                     vectorsFormatProviders
                 );
 
-                configureDenseVectorMapperBuilder(indexVersionCreated, denseVectorMapperBuilder, modelSettings, indexOptions);
+                configureDenseVectorMapperBuilder(
+                    indexSettings.getIndexVersionCreated(),
+                    denseVectorMapperBuilder,
+                    modelSettings,
+                    indexOptions
+                );
 
                 yield denseVectorMapperBuilder;
             }
@@ -1453,15 +1511,35 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         assert modelSettings.dimensions() != null : "Model settings should have dimensions set by now for text embedding models";
         denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
-        denseVectorMapperBuilder.elementType(modelSettings.elementType());
         // Here is where we persist index_options. If they are specified by the user, we will use those index_options,
         // otherwise we will determine if we can set default index options. If we can't, we won't persist any index_options
         // and the field will use the defaults for the dense_vector field.
+        DenseVectorFieldMapper.ElementType resolvedElementType = defaultElementTypeToBfloat16(
+            indexVersionCreated,
+            modelSettings.elementType()
+        ) ? DenseVectorFieldMapper.ElementType.BFLOAT16 : modelSettings.elementType();
         if (indexOptions != null) {
-            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
-                (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
-            denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
-            denseVectorIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), true);
+            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions;
+            IndexOptions innerIndexOptions = indexOptions.indexOptions();
+            if (innerIndexOptions instanceof ExtendedDenseVectorIndexOptions edvio) {
+                denseVectorIndexOptions = edvio.getBaseIndexOptions();
+                if (edvio.getElementType() != null) {
+                    resolvedElementType = edvio.getElementType();
+                }
+            } else {
+                throw new IllegalStateException(
+                    "Unexpected inner index options type [" + innerIndexOptions.getClass().getSimpleName() + "]"
+                );
+            }
+
+            if (denseVectorIndexOptions == null) {
+                denseVectorIndexOptions = defaultDenseVectorIndexOptions(indexVersionCreated, modelSettings);
+            }
+
+            if (denseVectorIndexOptions != null) {
+                denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
+                denseVectorIndexOptions.validate(resolvedElementType, modelSettings.dimensions(), true);
+            }
         } else {
             DenseVectorFieldMapper.DenseVectorIndexOptions defaultIndexOptions = defaultDenseVectorIndexOptions(
                 indexVersionCreated,
@@ -1471,6 +1549,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
             }
         }
+        denseVectorMapperBuilder.elementType(resolvedElementType);
     }
 
     static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(
@@ -1499,6 +1578,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             || indexVersion.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
     }
 
+    private static boolean defaultElementTypeToBfloat16(
+        IndexVersion indexVersionCreated,
+        DenseVectorFieldMapper.ElementType modelElementType
+    ) {
+        return indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
+            && modelElementType == DenseVectorFieldMapper.ElementType.FLOAT;
+    }
+
     public static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
         int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
         int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
@@ -1516,9 +1603,16 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 indexVersionCreated,
                 modelSettings
             );
-            return denseVectorIndexOptions == null
+            DenseVectorFieldMapper.ElementType elementType = defaultElementTypeToBfloat16(indexVersionCreated, modelSettings.elementType())
+                ? DenseVectorFieldMapper.ElementType.BFLOAT16
+                : null;
+
+            return denseVectorIndexOptions == null && elementType == null
                 ? null
-                : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, denseVectorIndexOptions);
+                : new SemanticTextIndexOptions(
+                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                    new ExtendedDenseVectorIndexOptions(denseVectorIndexOptions, elementType)
+                );
         }
 
         if (modelSettings.taskType() == SPARSE_EMBEDDING) {

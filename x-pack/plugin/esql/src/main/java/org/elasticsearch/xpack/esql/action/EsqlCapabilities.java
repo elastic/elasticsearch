@@ -2425,6 +2425,12 @@ public class EsqlCapabilities {
          */
         USER_AGENT_COMMAND,
 
+        /**
+         * Fix for 500 error when querying multiple indices with {@code unmapped_fields="load"}.
+         * See https://github.com/elastic/elasticsearch/issues/145555
+         */
+        FIX_UNMAPPED_LOAD_MULTI_INDEX_PATTERN
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

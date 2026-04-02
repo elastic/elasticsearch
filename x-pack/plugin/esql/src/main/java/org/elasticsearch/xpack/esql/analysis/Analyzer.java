@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.logging.Logger;
@@ -1274,9 +1273,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     throw new IllegalStateException("Unmapped fields with empty index resolutions.");
                 }
                 if (indexResolutions.size() > 1) {
-                    throw new IllegalStateException(
-                        Strings.format("Multiple index patterns should be disabled with unmapped fields", indexResolutions)
-                    );
+                    throw new VerificationException("Multiple index patterns are not supported with unmapped_fields=\"load\"");
                 }
                 EsIndex esIndex = indexResolutions.getFirst().get();
                 if (esIndex.isPartiallyUnmappedField(fa.name())) {

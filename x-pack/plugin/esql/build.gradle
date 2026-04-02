@@ -687,8 +687,8 @@ tasks.named("test").configure {
     systemProperty "golden.overwrite", "true"
   }
 
-  systemProperty "policy.directory", file("${projectDir}").absolutePath
-  systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath
+  systemProperty "policy.directory", "."
+  systemProperty "java.security.policy", "."
 }
 
 tasks.register("analyzePromqlQueries", JavaExec) {

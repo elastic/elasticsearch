@@ -71,7 +71,7 @@ csvToParquetFixtures.each { baseName ->
     classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
     mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
     args = [csvFile.absolutePath, parquetFile.absolutePath]
-    inputs.file(csvFile)
+    inputs.file(csvFile).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.file(parquetFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
   }

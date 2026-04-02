@@ -14,6 +14,10 @@ jobs:
     uses: elastic/docs-actions/.github/workflows/docs-deploy.yml@v1
     with:
       enable-vale-linting: true
+      vale-paths: |
+        docs/reference/**
+        docs/extend/**
+        !docs/reference/query-languages/esql/**
       path-pattern: docs/**
       path-pattern-ignore: docs/changelog/**/*.yaml
       enable-cumulative-comment: true

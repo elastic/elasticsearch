@@ -102,7 +102,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
             @Override
             public long getSumDocFreq() {
-                return 0;
+                return maxDocs;
             }
 
             @Override
@@ -203,16 +203,18 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
         @Override
         public SeekStatus seekCeil(BytesRef id) throws IOException {
-
             assert id != null;
-            assert Long.BYTES + Integer.BYTES < id.length : id.length;
-            if (id == null || id.length <= Long.BYTES + Integer.BYTES) {
-                return SeekStatus.NOT_FOUND;
-            }
 
-            // Extract the _tsid
-            final BytesRef tsId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(id);
-            int tsIdOrd = docValues.lookupTsIdTerm(tsId);
+            int tsIdOrd;
+            if (id != null && id.length > Long.BYTES + Integer.BYTES) {
+                // Extract and lookup the _tsid
+                tsIdOrd = docValues.lookupTsIdTerm(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(id));
+            } else if (id != null) {
+                // Lookup whatever term `id` has been provided
+                tsIdOrd = docValues.lookupTsIdTerm(id);
+            } else {
+                tsIdOrd = -1;
+            }
 
             // _tsid not found
             if (tsIdOrd < 0) {

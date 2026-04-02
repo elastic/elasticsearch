@@ -79,6 +79,90 @@ emp_no:integer | languages:integer
 10093          | 3
 ;
 
+subqueryInFromWithNoFieldCountEmptyInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_without_implicit_limit
+required_capability: subquery_in_from_command_prune_no_fields
+
+FROM employees, (FROM employees)
+| STATS cnt = count()
+;
+
+cnt:long
+200
+;
+
+subqueryInFromWithNoFieldCountStarInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_without_implicit_limit
+required_capability: subquery_in_from_command_prune_no_fields
+
+FROM employees, (FROM employees)
+| STATS cnt = count(*)
+;
+
+cnt:long
+200
+;
+
+subqueryInFromWithNoFieldCountOneInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_without_implicit_limit
+required_capability: subquery_in_from_command_prune_no_fields
+
+FROM employees, (FROM employees)
+| STATS cnt = count(1)
+;
+
+cnt:long
+200
+;
+
+subqueryInFromWithNoFieldCountEmptyInSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_without_implicit_limit
+required_capability: subquery_in_from_command_prune_no_fields
+
+FROM
+    (FROM employees | STATS cnt = count()),
+    (FROM employees | STATS cnt = count())
+;
+
+cnt:long
+100
+100
+;
+
+subqueryInFromWithNoFieldCountStarInSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_without_implicit_limit
+required_capability: subquery_in_from_command_prune_no_fields
+
+FROM
+    (FROM employees | STATS cnt = count(*)),
+    (FROM employees | STATS cnt = count(*))
+;
+
+cnt:long
+100
+100
+;
+
+subqueryInFromWithNoFieldCountOneInSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_without_implicit_limit
+required_capability: subquery_in_from_command_prune_no_fields
+
+FROM
+    (FROM employees | STATS cnt = count(1)),
+    (FROM employees | STATS cnt = count(1))
+| STATS s = sum(cnt)
+;
+
+s:long
+200
+;
+
 subqueryInFromWithEvalInSubquery
 required_capability: subquery_in_from_command
 

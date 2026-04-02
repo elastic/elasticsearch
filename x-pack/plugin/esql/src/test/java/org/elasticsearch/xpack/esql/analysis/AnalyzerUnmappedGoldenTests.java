@@ -675,9 +675,34 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // All fields are partially unmapped (no_mapping_sample_data has no mapped fields).
+    // Keyword fields should become PotentiallyUnmappedKeywordEsField; non-keyword fields should become InvalidMappedField.
+    // No explicit field reference — all fields come from the implicit output of FROM.
+    public void testPartiallyMappedFieldsAutomaticallyFound() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            """);
+    }
+
+    // Same as testPartiallyMappedFieldsAutomaticallyFound, but with an explicit KEEP * to verify wildcard expansion
+    // handles partially-mapped fields correctly.
+    public void testPartiallyMappedFieldsAutomaticallyFoundKeepStar() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | KEEP *
+            """);
+    }
+
+    public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | KEEP @timestamp, event_duration
+            """);
+    }
+
+    // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).
+    // They should appear as PotentiallyUnmappedKeywordEsField in the EsRelation without being explicitly referenced.
     public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference() throws Exception {
-        // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).
-        // They should appear as PotentiallyUnmappedKeywordEsField in the EsRelation without being explicitly referenced.
         runTests("""
             FROM employees, employees_no_names
             | SORT emp_no
@@ -685,39 +710,37 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
-    public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped() throws Exception {
-        // event_duration is long, partially unmapped (missing in no_mapping_sample_data).
-        // It should appear as InvalidMappedField (unsupported) in the EsRelation.
+    // first_name (keyword, partially unmapped) should become PotentiallyUnmappedKeywordEsField.
+    // gender (keyword, fully mapped in both indices) should remain a regular KeywordEsField.
+    public void testNonPartiallyMappedKeywordFieldNotLoadedFromSource() throws Exception {
         runTests("""
-            FROM sample_data, no_mapping_sample_data
-            | KEEP @timestamp, event_duration
+            FROM employees, employees_no_names
+            | KEEP first_name, gender
             """);
     }
 
+    // gender is text in employees_gender_text but missing in employees_no_gender.
+    // It should appear as InvalidMappedField (unsupported) in the EsRelation.
     public void testPartiallyMappedTextFieldMarkedAsPotentiallyUnmapped() throws Exception {
-        // gender is text in employees_gender_text but missing in employees_no_gender.
-        // It should appear as InvalidMappedField (unsupported) in the EsRelation.
         runTests("""
             FROM employees_gender_text, employees_no_gender
             | KEEP gender
             """);
     }
 
-    public void testOnlyPartiallyMappedKeywordFieldLoaded() throws Exception {
-        // message (keyword) and event_duration (long) are both partially unmapped.
-        // Only message should become PotentiallyUnmappedKeywordEsField; event_duration should be InvalidMappedField.
+    // DROP with wildcards on partially-mapped non-keyword fields, leaving only the keyword field (message).
+    public void testPartiallyMappedFieldsDropNonKeywordWithWildcards() throws Exception {
         runTests("""
             FROM sample_data, no_mapping_sample_data
-            | KEEP message, event_duration
+            | DROP *_ip, *_duration, @timestamp
             """);
     }
 
-    public void testNonPartiallyMappedKeywordFieldNotLoadedFromSource() throws Exception {
-        // first_name (keyword, partially unmapped) should become PotentiallyUnmappedKeywordEsField.
-        // gender (keyword, fully mapped in both indices) should remain a regular KeywordEsField.
+    // DROP with wildcards on partially-mapped keyword fields, leaving only a few non-keyword fields.
+    public void testPartiallyMappedFieldsDropKeywordWithWildcards() throws Exception {
         runTests("""
             FROM employees, employees_no_names
-            | KEEP first_name, gender
+            | DROP *date*, gender, height*, languages*, *_hired, *_seconds, *_positions, salary_change*
             """);
     }
 

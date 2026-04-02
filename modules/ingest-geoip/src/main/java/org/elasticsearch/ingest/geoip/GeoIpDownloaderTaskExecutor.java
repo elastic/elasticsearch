@@ -61,9 +61,6 @@ import static org.elasticsearch.ingest.geoip.GeoIpProcessor.IP_LOCATION_TYPE;
 /// Task lifecycle (start/stop) is managed externally by the [PersistentTaskLifecycleManager], which reconciles the
 /// task presence in cluster state based on [#ENABLED_SETTING].
 ///
-/// On node shutdown the persistent tasks framework automatically reassigns this task (default
-/// [PersistentTasksExecutor#automaticReassignmentOnShutdown]); the executor does not mark it locally aborted.
-///
 /// This executor additionally tracks geoip processor presence across projects. The `.geoip_databases` index is
 /// cleaned up by [#deleteGeoIpDatabasesIndex] when the lifecycle manager removes the task from cluster state.
 public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {

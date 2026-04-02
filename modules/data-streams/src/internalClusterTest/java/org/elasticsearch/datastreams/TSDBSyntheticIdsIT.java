@@ -2033,8 +2033,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testTermInSetQueryWithSyntheticIds() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, 1, 0, rarely());
 

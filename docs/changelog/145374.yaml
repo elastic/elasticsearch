@@ -1,4 +1,4 @@
-area: "Mapping, Vector Search"
+area: "Mapping"
 issues: []
 pr: 145374
 summary: Set default `semantic_text` index type to `disk_bbq` by using `dense_vector`

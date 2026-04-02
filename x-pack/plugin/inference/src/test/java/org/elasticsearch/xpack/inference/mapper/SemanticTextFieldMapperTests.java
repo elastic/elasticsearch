@@ -111,6 +111,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD;
@@ -163,12 +164,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
         VariableLicenseDiskBBQPlugin(Settings settings, XPackLicenseState licenseState) {
             super(settings);
-            this.licenseState = licenseState;
+            this.licenseState = requireNonNull(licenseState);
         }
 
         @Override
         protected XPackLicenseState getLicenseState() {
-            return licenseState != null ? licenseState : super.getLicenseState();
+            return licenseState;
         }
     }
 
@@ -222,10 +223,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             protected Supplier<ModelRegistry> getModelRegistry() {
                 return () -> globalModelRegistry;
             }
-        },
-            new XPackClientPlugin(),
-            operationMode == License.OperationMode.ENTERPRISE ? VariableLicenseDiskBBQPlugin.ENTERPRISE : VariableLicenseDiskBBQPlugin.BASIC
-        );
+        }, new XPackClientPlugin(), switch (operationMode) {
+            case ENTERPRISE -> VariableLicenseDiskBBQPlugin.ENTERPRISE;
+            case BASIC -> VariableLicenseDiskBBQPlugin.BASIC;
+            default -> throw new AssertionError("unknown operation mode: " + operationMode);
+        });
     }
 
     private void registerDefaultEisEndpoint() {
@@ -2082,9 +2084,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
         }
 
-        int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
-        int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-        return new DenseVectorFieldMapper.Int8HnswIndexOptions(m, efConstruction, false, null, -1);
+        return null;
     }
 
     private static SemanticTextIndexOptions defaultDenseVectorSemanticIndexOptions(

@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.TaskType;
@@ -97,6 +100,10 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class, ReindexPlugin.class);
     }
 
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     @Before
     public void resetLicense() throws Exception {
         setLicense(License.LicenseType.TRIAL);
@@ -147,6 +154,65 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
 
         final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(inferenceFieldName, inferenceId, indexOptions);
         assertThat(getFieldMappings(inferenceFieldName, false), equalTo(expectedFieldMapping));
+    }
+
+    // Test that default bbq_hnsw options are set.
+    public void testSetDefaultBBQIndexOptionsWithBasicLicense() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final String inferenceFieldName = "inference_field";
+        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
+        downgradeLicenseAndRestartCluster();
+
+        assertAcked(
+            safeGet(
+                prepareCreate(INDEX_NAME).setSettings(indexSettingsWithVersion(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK))
+                    .setMapping(generateMapping(inferenceFieldName, inferenceId, null))
+                    .execute()
+            )
+        );
+
+        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
+            inferenceFieldName,
+            inferenceId,
+            SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
+        );
+
+        // Filter out null/empty values from params we didn't set to make comparison easier
+        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
+        assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
+    }
+
+    // Test that default bbq_hnsw options are set along with element_type overridden to bfloat16
+    public void testSetDefaultBBQIndexOptionsAndBFloat16WithBasicLicense() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final String inferenceFieldName = "inference_field";
+        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
+        downgradeLicenseAndRestartCluster();
+
+        assertAcked(
+            safeGet(
+                prepareCreate(INDEX_NAME).setSettings(indexSettingsWithVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16))
+                    .setMapping(generateMapping(inferenceFieldName, inferenceId, null))
+                    .execute()
+            )
+        );
+
+        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
+            inferenceFieldName,
+            inferenceId,
+            new ExtendedDenseVectorIndexOptions(
+                SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions(),
+                DenseVectorFieldMapper.ElementType.BFLOAT16
+            )
+        );
+
+        // Filter out null/empty values from params we didn't set to make comparison easier
+        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
+        assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
+    }
+
+    private Settings indexSettingsWithVersion(IndexVersion version) {
+        return Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
     }
 
     public void testGetDefaultIndexOptionsWithElementTypeOverride() throws Exception {

@@ -42,6 +42,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -1098,7 +1099,8 @@ public class CsvTests extends ESTestCase {
      * containing the custom-regexes.yml test resource, so csv-spec tests can exercise the {@code regex_file} option.
      */
     private static UserAgentParserRegistry createUserAgentRegistry() {
-        Path userAgentConfigDir = TestPhysicalOperationProviders.TEST_ENV.configDir().resolve("user-agent");
+        Environment env = TestPhysicalOperationProviders.TEST_ENV.getOrCompute();
+        Path userAgentConfigDir = env.configDir().resolve("user-agent");
         Path customRegexes = userAgentConfigDir.resolve("custom-regexes.yml");
         if (Files.exists(customRegexes) == false) {
             try (InputStream is = CsvTests.class.getResourceAsStream("/custom-regexes.yml")) {
@@ -1109,6 +1111,6 @@ public class CsvTests extends ESTestCase {
                 throw new UncheckedIOException(e);
             }
         }
-        return UserAgentPlugin.createRegistry(TestPhysicalOperationProviders.TEST_ENV, Settings.EMPTY);
+        return UserAgentPlugin.createRegistry(env, Settings.EMPTY);
     }
 }

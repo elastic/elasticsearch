@@ -1,3 +1,11 @@
+---
+applies_to:
+   stack: ga 9.4+
+   serverless: ga
+navigation_title: "Approximate STATS queries"
+mapped_pages:
+ - https://www.elastic.co/guide/en/elasticsearch/reference/9.4/_esql_query_approximation.html
+---
 # Approximate ES|QL STATS
 
 ES|QL STATS commands summarize large volumes of data into aggregated statistics. For many analytics workloads, exact results are not strictly necessary — approximate results with known error bounds are sufficient, and can be computed dramatically faster. The `approximation` setting enables this: ES|QL rewrites your query to use random sampling and extrapolation, returning estimates together with confidence intervals and a certification flag.
@@ -38,13 +46,13 @@ Consider a query that counts page hits and computes the average page load time p
 
 The approximate query returns additional columns for each estimated quantity:
 
-| country_code | total_hits | \_approximation\_confidence\_interval(total_hits) | \_approximation\_certified(total_hits) | avg_load_time | \_approximation\_confidence\_interval(avg_load_time) | \_approximation\_certified(avg_load_time) |
+| country_code | total_hits | avg_load_time | \_approximation\_confidence\_interval(total_hits) | \_approximation\_certified(total_hits) | \_approximation\_confidence\_interval(avg_load_time) | \_approximation\_certified(avg_load_time) |
 |--------------|------------|---------------------------------------------------|---------------------------------------|---------------|------------------------------------------------------|------------------------------------------|
-| US           | 12510000   | [12430000, 12590000]                              | true                                  | 237.1         | [235.8, 238.4]                                       | true                                     |
-| DE           | 4284000    | [4240000, 4328000]                                | true                                  | 189.5         | [187.9, 191.1]                                       | true                                     |
-| GB           | 3790000    | [3752000, 3828000]                                | true                                  | 212.3         | [210.1, 214.5]                                       | true                                     |
-| FR           | 2162000    | [2134000, 2190000]                                | true                                  | 195.1         | [192.8, 197.4]                                       | true                                     |
-| JP           | 1839000    | [1814000, 1864000]                                | true                                  | 303.8         | [300.2, 307.4]                                       | true                                     |
+| US           | 12510000   | 237.1         | [12430000, 12590000]                              | true                                  | [235.8, 238.4]                                       | true                                     |
+| DE           | 4284000    | 189.5         | [4240000, 4328000]                                | true                                  | [187.9, 191.1]                                       | true                                     |
+| GB           | 3790000    | 212.3         | [3752000, 3828000]                                | true                                  | [210.1, 214.5]                                       | true                                     |
+| FR           | 2162000    | 195.1         | [2134000, 2190000]                                | true                                  | [192.8, 197.4]                                       | true                                     |
+| JP           | 1839000    | 303.8         | [1814000, 1864000]                                | true                                  | [300.2, 307.4]                                       | true                                     |
 
 The additional columns are:
 
@@ -89,16 +97,18 @@ Larger sample sizes improve accuracy at the cost of reduced speedup. As long as 
 
 ## Queries that use index summary statistics
 
-Some aggregations can be computed directly from summary statistics maintained in the index (for example, simple `COUNT(*)` or `SUM` over an indexed numeric field with no grouping). The query planner detects these cases automatically and executes the query exactly, since it is already fast. You do not need to handle this yourself — when this happens, the confidence intervals will have zero length, indicating that the results are exact.
+Some aggregations can be computed directly from summary statistics maintained in the index (for example, simple `COUNT(*)` over an indexed numeric field with no grouping). The query planner detects these cases automatically and executes the query exactly, since it is already fast. You do not need to handle this yourself — when this happens, the confidence intervals will have zero length, indicating that the results are exact.
 
 
 ## Supported aggregation functions
 
-Approximation works with aggregation functions where sampling and extrapolation produce statistically sound estimates. The following functions are **not currently supported** and will cause the query to fall back to exact execution:
+Approximation works with aggregation functions where sampling and extrapolation produce statistically sound estimates. The functions that are **not currently supported** and will cause the query to fall back to exact execution include:
 
-- `DISTINCT_COUNT`
+- `COUNT_DISTINCT`
 - `MIN`
 - `MAX`
+- `FIRST`
+- `LAST`
 - `TOP`
 - `ABSENT`
 - `PRESENT`
@@ -142,12 +152,12 @@ For expert users who want full control, ES|QL provides the `SAMPLE` command. Thi
 
 ```esql
 FROM web_traffic | SAMPLE 0.01
-                 | STATS unique_visitors = DISTINCT_COUNT(client_ip)
+                 | STATS unique_visitors = COUNT_DISTINCT(client_ip)
 ```
 
-This computes the distinct count of client IPs on roughly 1% of the data. Since `DISTINCT_COUNT` is not supported by automatic approximation, `SAMPLE` is the alternative — but interpreting the result and accounting for sampling bias is your responsibility.
+This computes the distinct count of client IPs on roughly 1% of the data. Since `COUNT_DISTINCT` is not supported by automatic approximation, `SAMPLE` is the alternative — but interpreting the result and accounting for sampling bias is your responsibility.
 
-You can also use `SAMPLE` to build custom estimation pipelines, for example by extracting frequency profiles:
+You can also use {{esql}} [`SAMPLE`](/reference/query-languages/esql/commands/sample.md) to build custom estimation pipelines, for example by extracting frequency profiles:
 
 ```esql
 FROM web_traffic | SAMPLE 0.01

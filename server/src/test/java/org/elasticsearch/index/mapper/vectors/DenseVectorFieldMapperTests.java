@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -79,7 +80,11 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAUL
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BFLOAT16_DEFAULT_INDEX_OPTIONS;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ES_VERSION_94;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -220,6 +225,61 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             list.add(v);
         }
         return list;
+    }
+
+    // this method replicates the logic used in DenseVectorFieldMapper.Builder::defaultIndexOptions as this is the best and easiest way
+    // to get expected default index options.
+    public static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(
+        IndexVersion indexVersionCreated,
+        boolean enterpriseLicense,
+        Integer dims,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        if (elementType == DenseVectorFieldMapper.ElementType.BFLOAT16
+            && (indexVersionCreated.onOrAfter(BFLOAT16_DEFAULT_INDEX_OPTIONS)
+            || indexVersionCreated.between(BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT, ES_VERSION_94)) == false) {
+            return null;
+        }
+        // These are the default index options for dense_vector fields, used then semantic_text does not default to bbq_disk.
+        final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
+        final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
+        final boolean defaultBBQDisk = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK);
+
+        if (defaultBBQDisk && enterpriseLicense) {
+            int bits = dims < BBQ_DIMS_DEFAULT_THRESHOLD ? 4 : 1;
+            return new DenseVectorFieldMapper.BBQIVFIndexOptions(
+                ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
+                -1,
+                0d,
+                false,
+                new DenseVectorFieldMapper.RescoreVector(DEFAULT_OVERSAMPLE),
+                indexVersionCreated,
+                false,
+                bits,
+                true
+            );
+        }
+
+        if (defaultBBQHnsw && dims >= BBQ_DIMS_DEFAULT_THRESHOLD) {
+            return new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
+                Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+                false,
+                new DenseVectorFieldMapper.RescoreVector(DEFAULT_OVERSAMPLE),
+                -1
+            );
+        }
+        if (defaultInt8Hnsw) {
+            return new DenseVectorFieldMapper.Int8HnswIndexOptions(
+                Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
+                Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+                false,
+                null,
+                -1
+            );
+        }
+
+        return null;
     }
 
     private static void registerConflict(

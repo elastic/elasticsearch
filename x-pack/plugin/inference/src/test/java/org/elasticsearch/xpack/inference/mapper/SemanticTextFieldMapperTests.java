@@ -114,11 +114,7 @@ import java.util.function.Supplier;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_DIMS_DEFAULT_THRESHOLD;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BFLOAT16_DEFAULT_INDEX_OPTIONS;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ES_VERSION_94;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.defaultDenseVectorIndexOptions;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests.randomIndexOptionsAll;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests.randomSparseVectorIndexOptions;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
@@ -2032,61 +2028,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(parsedMapper.fieldType().getModelSettings().endpointMetadata(), equalTo(EndpointMetadata.EMPTY_INSTANCE));
     }
 
-    // this method replicates the logic used in DenseVectorFieldMapper.Builder::defaultIndexOptions as this is the best and easiest way
-    // to get expected default index options.
-    private static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(
-        IndexVersion indexVersionCreated,
-        License.OperationMode operationMode,
-        Integer dims,
-        DenseVectorFieldMapper.ElementType elementType
-    ) {
-        if (elementType == DenseVectorFieldMapper.ElementType.BFLOAT16
-            && (indexVersionCreated.onOrAfter(BFLOAT16_DEFAULT_INDEX_OPTIONS)
-                || indexVersionCreated.between(BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT, ES_VERSION_94)) == false) {
-            return null;
-        }
-        // These are the default index options for dense_vector fields, used then semantic_text does not default to bbq_disk.
-        final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
-        final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
-        final boolean defaultBBQDisk = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK);
-
-        if (defaultBBQDisk && operationMode == License.OperationMode.ENTERPRISE) {
-            int bits = dims < BBQ_DIMS_DEFAULT_THRESHOLD ? 4 : 1;
-            return new DenseVectorFieldMapper.BBQIVFIndexOptions(
-                ES940DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER,
-                -1,
-                0d,
-                false,
-                new DenseVectorFieldMapper.RescoreVector(DEFAULT_OVERSAMPLE),
-                indexVersionCreated,
-                false,
-                bits,
-                true
-            );
-        }
-
-        if (defaultBBQHnsw && dims >= BBQ_DIMS_DEFAULT_THRESHOLD) {
-            return new DenseVectorFieldMapper.BBQHnswIndexOptions(
-                Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
-                Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
-                false,
-                new DenseVectorFieldMapper.RescoreVector(DEFAULT_OVERSAMPLE),
-                -1
-            );
-        }
-        if (defaultInt8Hnsw) {
-            return new DenseVectorFieldMapper.Int8HnswIndexOptions(
-                Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
-                Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
-                false,
-                null,
-                -1
-            );
-        }
-
-        return null;
-    }
-
     private static SemanticTextIndexOptions defaultDenseVectorSemanticIndexOptions(
         IndexVersion indexVersionCreated,
         License.OperationMode operationMode,
@@ -2095,7 +2036,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     ) {
         return new SemanticTextIndexOptions(
             SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-            defaultDenseVectorIndexOptions(indexVersionCreated, operationMode, dims, elementType)
+            defaultDenseVectorIndexOptions(indexVersionCreated, operationMode == License.OperationMode.ENTERPRISE, dims, elementType)
         );
     }
 

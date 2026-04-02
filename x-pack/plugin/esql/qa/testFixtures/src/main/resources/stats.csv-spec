@@ -4184,5 +4184,45 @@ from employees
 ;
 
     max(c):l   |    min(c):l   |    min(s):d   |    avg(s):d
-null           |null           |null           |null           
+null           |null           |null           |null
+;
+
+// Tests for SUM(field + constant) expressions
+// These verify correctness with single-valued, multi-valued, and null field values,
+// and that multiple SUM(field + c) clauses over the same field produce correct results.
+
+sumExpressionMultipleClausesInteger
+// salary is always single-valued and non-null: SUM(salary + c) = SUM(salary) + c * COUNT(salary)
+// SUM(salary) = 4824855, COUNT(salary) = 100
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+;
+
+s1:long  | s2:long
+4824955  | 4825055
+;
+
+sumExpressionMultipleClausesDoubleFiltered
+// salary_change has 24 single-valued, 55 multi-valued, and 21 null rows.
+// Filtering to single-valued rows verifies that both SUM clauses see the same values.
+// SUM(salary_change) over single-valued-only rows = -25.47
+// round(-25.47 + 24 * 1.0, 2) = -1.47; round(-25.47 + 24 * 2.0, 2) = 22.53
+FROM employees
+| WHERE mv_count(salary_change) == 1
+| STATS s1 = round(SUM(salary_change + 1.0), 2), s2 = round(SUM(salary_change + 2.0), 2)
+;
+
+s1:double | s2:double
+-1.47     | 22.53
+;
+
+sumExpressionNullField
+// When the field is null for all rows, SUM(null + c) = null.
+FROM employees
+| WHERE salary_change IS NULL
+| STATS s = SUM(salary_change + 1.0)
+;
+
+s:double
+null
 ;

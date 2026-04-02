@@ -21,7 +21,7 @@ To approximate a STATS query, prepend `SET approximation=true;` to your existing
 SET approximation=true;
 FROM web_traffic | WHERE @timestamp >= NOW()-1w
                  | STATS total_hits = COUNT(),
-                      avg_load_time = AVG(page_load_ms)
+                         avg_load_time = AVG(page_load_ms)
                    BY country_code
                  | SORT total_hits DESC
                  | LIMIT 5
@@ -70,7 +70,7 @@ Computing confidence intervals adds overhead. If you only need point estimates, 
 SET approximation={"confidence_level":null};
 FROM web_traffic | WHERE @timestamp >= NOW()-1d
                  | STATS total_bytes = SUM(response_bytes),
-                       avg_load_time = AVG(page_load_ms)
+                         avg_load_time = AVG(page_load_ms)
                    BY datacenter_region
                  | SORT total_bytes DESC
                  | LIMIT 10
@@ -86,7 +86,7 @@ The default sample size is 1,000,000 rows for grouped STATS (queries with a `BY`
 SET approximation={"rows":5000000};
 FROM web_traffic | WHERE @timestamp >= NOW()-1w
                  | STATS total_hits = COUNT(*),
-                      avg_load_time = AVG(page_load_ms)
+                         avg_load_time = AVG(page_load_ms)
                    BY url_path
                  | SORT total_hits DESC
                  | LIMIT 25

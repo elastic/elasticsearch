@@ -3,7 +3,7 @@
 ### `approximation` [esql-approximation]
 ```{applies_to}
 serverless: preview
-stack: preview
+stack: preview 9.4.0
 ```
 Enables query approximation if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings.
 

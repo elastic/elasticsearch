@@ -2427,6 +2427,11 @@ public class EsqlCapabilities {
 
         KEYWORDS_MV_COUNT_AS_SINGLE_VALUE_FIX,
 
+        /**
+         * Parquet and ORC filter pushdown for StartsWith (prefix range predicates).
+         */
+        PARQUET_ORC_STARTS_WITH_PUSHDOWN,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

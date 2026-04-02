@@ -11,6 +11,12 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ChangeCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -44,12 +50,49 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
             if (match != null) {
                 Literal literal = Literal.keyword(regexMatch.source(), match);
                 e = regexToEquals(regexMatch, literal);
-            }
+            } else if (regexMatch instanceof WildcardLike wl
+                && wl.caseInsensitive() == false
+                && (wl.field() instanceof ChangeCase) == false) {
+                    Expression decomposed = decomposeWildcardLike(wl);
+                    if (decomposed != null) {
+                        e = decomposed;
+                    }
+                }
         }
         return e;
     }
 
     protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
         return new Equals(regexMatch.source(), regexMatch.field(), literal);
+    }
+
+    private static Expression decomposeWildcardLike(WildcardLike wl) {
+        WildcardPattern wp = wl.pattern();
+        String prefix = wp.extractPrefix();
+        String suffix = wp.extractSuffix();
+        String raw = wp.pattern();
+
+        if (prefix != null && raw.equals(escapeWildcard(prefix) + "*")) {
+            return new StartsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), prefix));
+        }
+        if (suffix != null && raw.equals("*" + escapeWildcard(suffix))) {
+            return new EndsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), suffix));
+        }
+        if (prefix != null) {
+            return new And(wl.source(), new StartsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), prefix)), wl);
+        }
+        return null;
+    }
+
+    private static String escapeWildcard(String literal) {
+        StringBuilder sb = new StringBuilder(literal.length());
+        for (int i = 0; i < literal.length(); i++) {
+            char c = literal.charAt(i);
+            if (c == '*' || c == '?' || c == '\\') {
+                sb.append('\\');
+            }
+            sb.append(c);
+        }
+        return sb.toString();
     }
 }

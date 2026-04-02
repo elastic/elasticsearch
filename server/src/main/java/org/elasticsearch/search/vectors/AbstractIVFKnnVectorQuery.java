@@ -12,7 +12,6 @@ package org.elasticsearch.search.vectors;
 import com.carrotsearch.hppc.IntHashSet;
 
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -61,9 +60,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     private final String sliceField; // null no slice
     private final BytesRef sliceId;
 
-    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
-        this(field, visitRatio, k, numCands, filter, doPrecondition, null, null);
-    }
+    private final String sliceField; // null no slice
+    private final BytesRef sliceId;
 
     protected AbstractIVFKnnVectorQuery(
         String field,
@@ -107,6 +105,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (o == null || getClass() != o.getClass()) return false;
         AbstractIVFKnnVectorQuery that = (AbstractIVFKnnVectorQuery) o;
         return k == that.k
+            && numCands == that.numCands
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
             && Objects.equals(providedVisitRatio, that.providedVisitRatio)
@@ -155,26 +154,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
-        assert this instanceof IVFKnnFloatVectorQuery;
-        int totalVectors = 0;
-        for (LeafReaderContext leafReaderContext : leafReaderContexts) {
-            LeafReader leafReader = leafReaderContext.reader();
-            FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
-            if (floatVectorValues != null) {
-                totalVectors += floatVectorValues.size();
-            }
-        }
-
-        final float visitRatio;
-        if (providedVisitRatio == 0.0f) {
-            // dynamically set the percentage
-            float expected = (float) Math.round(
-                Math.log10(totalVectors) * Math.log10(totalVectors) * (Math.min(10_000, Math.max(numCands, 5 * k)))
-            );
-            visitRatio = expected / totalVectors;
-        } else {
-            visitRatio = providedVisitRatio;
-        }
+        // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
+        // per-segment using the Two-Signal model with segment-size awareness.
+        final float visitRatio = providedVisitRatio;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext context : leafReaderContexts) {
@@ -221,6 +203,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
         final int maxDoc = reader.maxDoc();
+
         AcceptDocs acceptDocs;
         int sliceOrd = -1;
         if (sliceId != null) {

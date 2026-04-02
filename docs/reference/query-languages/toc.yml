@@ -131,6 +131,7 @@ toc:
                   - file: esql/commands/sample.md
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
+                  - hidden: esql/commands/user-agent.md
                   - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
           - file: esql/esql-functions-operators.md
@@ -261,7 +262,9 @@ toc:
                   - file: esql/functions-operators/spatial-functions/st_x.md
                   - file: esql/functions-operators/spatial-functions/st_y.md
                   - file: esql/functions-operators/spatial-functions/st_npoints.md
+                  - file: esql/functions-operators/spatial-functions/st_buffer.md
                   - file: esql/functions-operators/spatial-functions/st_simplify.md
+                  - file: esql/functions-operators/spatial-functions/st_simplifypreservetopology.md
                   - file: esql/functions-operators/spatial-functions/st_geometrytype.md
                   - file: esql/functions-operators/spatial-functions/st_dimension.md
                   - file: esql/functions-operators/spatial-functions/st_isempty.md

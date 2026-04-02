@@ -125,18 +125,23 @@ static inline void dotd1q4_inner_bulk(
     // prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
-    for (; c + batches < count; c += batches) {
+    for (; c + batches - 1 < count; c += batches) {
         const int8_t* next_vecs[batches];
-        apply_indexed<batches>([&](auto I) {
-            next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-            prefetch(next_vecs[I], lines_to_fetch);
-        });
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
 
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)dotd1q4_inner(current_vecs[I], query, length);
         });
 
-        std::copy_n(next_vecs, batches, current_vecs);
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Tail-handling: remaining vectors
@@ -197,13 +202,16 @@ static inline void dotd2q4_inner_bulk(
 
     // Process 2 vectors at a time, after instructing the CPU to
     // prefetch the next vectors (both stripes).
-    for (; c + batches < count; c += batches) {
+    for (; c + batches - 1 < count; c += batches) {
         const int8_t* next_vecs[batches];
-        apply_indexed<batches>([&](auto I) {
-            next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
-            prefetch(next_vecs[I], lines_to_fetch);
-            prefetch(next_vecs[I] + bit_length, lines_to_fetch);
-        });
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+                prefetch(next_vecs[I] + bit_length, lines_to_fetch);
+            });
+        }
 
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)(
@@ -211,7 +219,9 @@ static inline void dotd2q4_inner_bulk(
                 + (dotd1q4_inner(current_vecs[I] + bit_length, query, bit_length) << 1));
         });
 
-        std::copy_n(next_vecs, batches, current_vecs);
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Tail-handling: remaining vectors

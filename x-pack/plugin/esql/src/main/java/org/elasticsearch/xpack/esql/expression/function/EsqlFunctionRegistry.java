@@ -185,6 +185,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialCo
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StBuffer;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
@@ -195,6 +196,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIsEmpty;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopology;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -492,7 +494,9 @@ public class EsqlFunctionRegistry {
                 def(SpatialWithin.class, SpatialWithin::new, "st_within"),
                 def(StDistance.class, StDistance::new, "st_distance"),
                 def(StEnvelope.class, StEnvelope::new, "st_envelope"),
+                def(StBuffer.class, StBuffer::new, "st_buffer"),
                 def(StSimplify.class, StSimplify::new, "st_simplify"),
+                def(StSimplifyPreserveTopology.class, StSimplifyPreserveTopology::new, "st_simplifypreservetopology"),
                 def(StGeohash.class, StGeohash::new, "st_geohash"),
                 def(StGeotile.class, StGeotile::new, "st_geotile"),
                 def(StGeohex.class, StGeohex::new, "st_geohex"),

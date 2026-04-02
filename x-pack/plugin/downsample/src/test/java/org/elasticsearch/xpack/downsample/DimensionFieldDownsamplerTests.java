@@ -25,54 +25,54 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
 
     public void testKeywordDimension() throws IOException {
         DimensionFieldDownsampler dimensionDownsampler = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        assertThat(dimensionDownsampler.dimensionValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new String[] { "aaa", "aaa", "aaa" });
         dimensionDownsampler.collectOnce(values, docIdBuffer);
-        assertThat(dimensionDownsampler.lastValue(), equalTo("aaa"));
+        assertThat(dimensionDownsampler.dimensionValue(), equalTo("aaa"));
         dimensionDownsampler.reset();
-        assertThat(dimensionDownsampler.lastValue(), equalTo("aaa"));
+        assertThat(dimensionDownsampler.dimensionValue(), equalTo("aaa"));
         dimensionDownsampler.tsidReset();
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        assertThat(dimensionDownsampler.dimensionValue(), nullValue());
     }
 
     public void testDoubleDimension() throws IOException {
         DimensionFieldDownsampler dimensionDownsampler = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        assertThat(dimensionDownsampler.dimensionValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Double[] { 10.20D, 10.20D, 10.20D });
         dimensionDownsampler.collectOnce(values, docIdBuffer);
-        assertThat(dimensionDownsampler.lastValue(), equalTo(10.20D));
+        assertThat(dimensionDownsampler.dimensionValue(), equalTo(10.20D));
         dimensionDownsampler.reset();
-        assertThat(dimensionDownsampler.lastValue(), equalTo(10.20D));
+        assertThat(dimensionDownsampler.dimensionValue(), equalTo(10.20D));
         dimensionDownsampler.tsidReset();
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        assertThat(dimensionDownsampler.dimensionValue(), nullValue());
     }
 
     public void testIntegerDimension() throws IOException {
         DimensionFieldDownsampler dimensionDownsampler = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        assertThat(dimensionDownsampler.dimensionValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Integer[] { 10, 10, 10 });
         dimensionDownsampler.collectOnce(values, docIdBuffer);
-        assertThat(dimensionDownsampler.lastValue(), equalTo(10));
+        assertThat(dimensionDownsampler.dimensionValue(), equalTo(10));
         dimensionDownsampler.reset();
-        assertThat(dimensionDownsampler.lastValue(), equalTo(10));
+        assertThat(dimensionDownsampler.dimensionValue(), equalTo(10));
         dimensionDownsampler.tsidReset();
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        assertThat(dimensionDownsampler.dimensionValue(), nullValue());
     }
 
     public void testBooleanDimension() throws IOException {
         DimensionFieldDownsampler dimensionDownsampler = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        assertThat(dimensionDownsampler.dimensionValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new Boolean[] { true, true, true });
         dimensionDownsampler.collectOnce(values, docIdBuffer);
-        assertThat(dimensionDownsampler.lastValue(), equalTo(true));
+        assertThat(dimensionDownsampler.dimensionValue(), equalTo(true));
         dimensionDownsampler.reset();
-        assertThat(dimensionDownsampler.lastValue(), equalTo(true));
+        assertThat(dimensionDownsampler.dimensionValue(), equalTo(true));
         dimensionDownsampler.tsidReset();
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        assertThat(dimensionDownsampler.dimensionValue(), nullValue());
     }
 
     public void testMultiValueDimensions() throws IOException {
@@ -100,15 +100,15 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
 
         values.iterator = Arrays.stream(multiValue).iterator();
         DimensionFieldDownsampler multiLastValueProducer = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(multiLastValueProducer.lastValue(), nullValue());
+        assertThat(multiLastValueProducer.dimensionValue(), nullValue());
         multiLastValueProducer.collectOnce(values, docIdBuffer);
-        assertThat(multiLastValueProducer.lastValue(), instanceOf(Object[].class));
-        assertThat((Object[]) multiLastValueProducer.lastValue(), arrayContainingInAnyOrder(true, false));
+        assertThat(multiLastValueProducer.dimensionValue(), instanceOf(Object[].class));
+        assertThat((Object[]) multiLastValueProducer.dimensionValue(), arrayContainingInAnyOrder(true, false));
     }
 
     public void testCollectIsNotSupported() {
         DimensionFieldDownsampler dimensionDownsampler = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        assertThat(dimensionDownsampler.dimensionValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new String[] { "aaa", "aaa", "aaa" });
         expectThrows(UnsupportedOperationException.class, () -> dimensionDownsampler.collect(values, docIdBuffer));
@@ -116,7 +116,7 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
 
     public void testTwiceIsDiscouraged() throws IOException {
         DimensionFieldDownsampler dimensionDownsampler = new DimensionFieldDownsampler(randomAlphanumericOfLength(10), null, null);
-        assertThat(dimensionDownsampler.lastValue(), nullValue());
+        assertThat(dimensionDownsampler.dimensionValue(), nullValue());
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createValuesInstance(docIdBuffer, new String[] { "aaa", "aaa", "aaa" });
         dimensionDownsampler.collectOnce(values, docIdBuffer);

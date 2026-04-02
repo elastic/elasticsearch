@@ -32,7 +32,7 @@ import java.util.Objects;
 public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<FormattedDocValues> {
 
     private final MappedFieldType fieldType;
-    private Object lastValue = null;
+    private Object dimensionValue = null;
 
     DimensionFieldDownsampler(final String name, final MappedFieldType fieldType, final IndexFieldData<?> fieldData) {
         super(name, fieldData);
@@ -46,7 +46,7 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
 
     public void tsidReset() {
         isEmpty = true;
-        lastValue = null;
+        dimensionValue = null;
     }
 
     /**
@@ -71,11 +71,12 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
                 assert docValueCount > 0;
                 var value = retrieveDimensionValues(docValues);
                 Objects.requireNonNull(value);
-                this.lastValue = value;
+                this.dimensionValue = value;
                 this.isEmpty = false;
             }
         }
     }
+
     @Override
     public FormattedDocValues getLeaf(LeafReaderContext context) {
         DocValueFormat format = fieldType.docValueFormat(null, null);
@@ -85,12 +86,12 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
     @Override
     public void write(XContentBuilder builder) throws IOException {
         if (isEmpty() == false) {
-            builder.field(name(), lastValue);
+            builder.field(name(), dimensionValue);
         }
     }
 
-    public Object lastValue() {
-        return lastValue;
+    public Object dimensionValue() {
+        return dimensionValue;
     }
 
     private Object retrieveDimensionValues(FormattedDocValues docValues) throws IOException {

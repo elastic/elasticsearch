@@ -230,7 +230,12 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         LuceneDocument doc = new LuceneDocument();
 
         // when
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, "field", new BytesRef("val"));
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            doc,
+            "field",
+            new BytesRef("val"),
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+        );
 
         // then
         assertNotNull(doc.getByKey("field"));
@@ -244,7 +249,13 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
 
         // when
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, "field", new BytesRef("val"), previousVersion);
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            doc,
+            "field",
+            new BytesRef("val"),
+            previousVersion,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+        );
 
         // then
         assertNotNull(doc.getByKey("field"));
@@ -257,8 +268,18 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         LuceneDocument doc = new LuceneDocument();
 
         // when
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, "field", new BytesRef("aaa"));
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, "field", new BytesRef("bbb"));
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            doc,
+            "field",
+            new BytesRef("aaa"),
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+        );
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            doc,
+            "field",
+            new BytesRef("bbb"),
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+        );
 
         // then
         var field = (SeparateCount) doc.getByKey("field");

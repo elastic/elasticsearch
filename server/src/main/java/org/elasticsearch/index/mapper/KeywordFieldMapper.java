@@ -1435,7 +1435,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (fieldType().usesBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
-            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldType().name(), binaryValue);
+            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                context.doc(),
+                fieldType().name(),
+                binaryValue,
+                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+            );
         }
 
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)

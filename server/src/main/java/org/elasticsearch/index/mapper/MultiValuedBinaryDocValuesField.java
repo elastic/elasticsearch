@@ -102,17 +102,10 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
     }
 
-    public static void addToBinaryFieldInDoc(LuceneDocument doc, String fieldName, BytesRef value, IndexVersion indexVersion) {
-        addToBinaryFieldInDoc(doc, fieldName, value, indexVersion, ValueOrdering.SORTED_UNIQUE);
-    }
-
     public static void addToBinaryFieldInDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
         addToBinaryFieldInDoc(doc, fieldName, value, IndexVersion.current(), ordering);
     }
 
-    public static void addToBinaryFieldInDoc(LuceneDocument doc, String fieldName, BytesRef value) {
-        addToBinaryFieldInDoc(doc, fieldName, value, IndexVersion.current(), ValueOrdering.SORTED_UNIQUE);
-    }
 
     /**
      * Format that integrates the value count into the binary payload itself.

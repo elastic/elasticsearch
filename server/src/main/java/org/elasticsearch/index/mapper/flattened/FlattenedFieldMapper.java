@@ -1432,7 +1432,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             mappedSubFields,
             builder.storeIgnoredFieldsInBinaryDocValues,
             builder.preserveLeafArrays.get(),
-            builder.indexCreatedVersion
+            builder.indexSettings.getIndexVersionCreated()
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
     }
@@ -1514,7 +1514,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         if (preserveLeafArrays == PreserveLeafArrays.LOSSY) {
             arrayContext = null;
         } else {
-            arrayContext = new FlattenedFieldArrayContext(mappedFieldType.name());
+            arrayContext = new FlattenedFieldArrayContext(mappedFieldType.name(), builder.indexSettings.getIndexVersionCreated());
         }
 
         try {

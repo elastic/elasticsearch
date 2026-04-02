@@ -1705,7 +1705,12 @@ public final class TextFieldMapper extends FieldMapper {
         if (docValuesParameters.enabled()) {
             BytesRef binaryValue = new BytesRef(value);
             if (fieldType().usesBinaryDocValues()) {
-                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldType().name(), binaryValue);
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+                    context.doc(),
+                    fieldType().name(),
+                    binaryValue,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
             } else if (binaryValue.length > IndexWriter.MAX_TERM_LENGTH) {
                 // if the binary value's length exceeds Lucene's max term length, then we cannot store it in SortedSetDocValuesField
                 // in such cases, store the value in binary doc values instead, which don't have these length limitations

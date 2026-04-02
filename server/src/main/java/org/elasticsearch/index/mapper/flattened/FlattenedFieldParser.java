@@ -185,7 +185,8 @@ class FlattenedFieldParser {
                         context.documentParserContext.doc(),
                         keyedIgnoredValuesFieldFullPath,
                         BytesRef.deepCopyOf(bytesKeyedValue),
-                        indexVersion
+                        indexVersion,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                     );
                 } else {
                     context.documentParserContext.doc().add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
@@ -223,13 +224,15 @@ class FlattenedFieldParser {
                     MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                         context.documentParserContext.doc(),
                         rootFieldFullPath,
-                        bytesValue
+                        bytesValue,
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                     );
                 }
                 MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                     context.documentParserContext.doc(),
                     keyedFieldFullPath,
-                    bytesKeyedValue
+                    bytesKeyedValue,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                 );
             } else {
                 if (hasRootDocValues) {

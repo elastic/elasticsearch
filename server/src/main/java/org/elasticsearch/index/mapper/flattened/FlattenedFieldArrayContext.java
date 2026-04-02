@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -21,13 +22,15 @@ import java.io.IOException;
 
 public final class FlattenedFieldArrayContext extends FieldArrayContext {
     private final String offsetsFieldName;
+    private final IndexVersion indexVersion;
 
     static String getFlattenedOffsetsFieldName(String flattenedFieldName) {
         return flattenedFieldName + OFFSETS_FIELD_NAME_SUFFIX;
     }
 
-    FlattenedFieldArrayContext(String flattenedFieldName) {
+    FlattenedFieldArrayContext(String flattenedFieldName, IndexVersion indexVersion) {
         this.offsetsFieldName = getFlattenedOffsetsFieldName(flattenedFieldName);
+        this.indexVersion = indexVersion;
     }
 
     /**
@@ -60,10 +63,12 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
             BytesRef encoded = encodeKeyedOffsetsArray(fieldName, offsets);
 
             if (encoded != null) {
-                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
                     context.doc(),
                     offsetsFieldName,
-                    encoded
+                    encoded,
+                    indexVersion,
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                 );
             }
         }

@@ -91,14 +91,33 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         slice.seek(0);
         return IndexInputUtils.withSlice(slice, slice.length(), this::getScratch, segment -> {
             if (SUPPORTS_HEAP_SEGMENTS) {
+                var nodesSegment = MemorySegment.ofArray(nodes);
+                var scoresSegment = MemorySegment.ofArray(scores);
                 Similarities.dotProductD1Q4BulkWithOffsets(
                     segment,
                     MemorySegment.ofArray(q),
                     numBytes,
                     byteSize,
-                    MemorySegment.ofArray(nodes),
+                    nodesSegment,
                     bulkSize,
-                    MemorySegment.ofArray(scores)
+                    scoresSegment
+                );
+                return ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                    similarityFunction,
+                    segment,
+                    bulkSize,
+                    numBytes,
+                    byteSize,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryQuantizedComponentSum,
+                    queryAdditionalCorrection,
+                    FOUR_BIT_SCALE,
+                    1.0f,
+                    centroidDp,
+                    nodesSegment,
+                    scoresSegment
                 );
             } else {
                 try (var arena = Arena.ofConfined()) {
@@ -116,40 +135,27 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
                         bulkSize,
                         scoresSegment
                     );
+                    var maxScore = ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                        similarityFunction,
+                        segment,
+                        bulkSize,
+                        numBytes,
+                        byteSize,
+                        dimensions,
+                        queryLowerInterval,
+                        queryUpperInterval,
+                        queryQuantizedComponentSum,
+                        queryAdditionalCorrection,
+                        FOUR_BIT_SCALE,
+                        1.0f,
+                        centroidDp,
+                        offsetsSegment,
+                        scoresSegment
+                    );
                     MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, bulkSize);
+                    return maxScore;
                 }
             }
-
-            // We can consider optimizing this loop with SIMD instructions/native code. However profiling shows that the cost of this
-            // is negligible.
-            float maxScore = Float.NEGATIVE_INFINITY;
-            for (int i = 0; i < bulkSize; i++) {
-                var offset = ((long) nodes[i] * byteSize);
-
-                var indexLowerInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes);
-                var indexUpperInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes + Float.BYTES);
-                var indexAdditionalCorrection = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, offset + numBytes + 2 * Float.BYTES);
-                var indexQuantizedComponentSum = Short.toUnsignedInt(
-                    segment.get(ValueLayout.JAVA_SHORT_UNALIGNED, offset + numBytes + 3 * Float.BYTES)
-                );
-
-                scores[i] = applyCorrections(
-                    dimensions,
-                    similarityFunction,
-                    centroidDp,
-                    scores[i],
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryAdditionalCorrection,
-                    queryQuantizedComponentSum,
-                    indexLowerInterval,
-                    indexUpperInterval,
-                    indexAdditionalCorrection,
-                    indexQuantizedComponentSum
-                );
-                maxScore = Math.max(maxScore, scores[i]);
-            }
-            return maxScore;
         });
     }
 

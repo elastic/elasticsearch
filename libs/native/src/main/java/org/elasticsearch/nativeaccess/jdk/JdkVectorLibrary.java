@@ -50,6 +50,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final MethodHandle applyCorrectionsMaxInnerProductBulk$mh;
     static final MethodHandle applyCorrectionsDotProductBulk$mh;
 
+    static final MethodHandle bbqApplyCorrectionsEuclideanBulk$mh;
+    static final MethodHandle bbqApplyCorrectionsMaxInnerProductBulk$mh;
+    static final MethodHandle bbqApplyCorrectionsDotProductBulk$mh;
+
     private static final JdkVectorSimilarityFunctions INSTANCE;
 
     /**
@@ -219,6 +223,33 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 applyCorrectionsMaxInnerProductBulk$mh = bindFunction("diskbbq_apply_corrections_maximum_inner_product_bulk", caps, score);
                 applyCorrectionsDotProductBulk$mh = bindFunction("diskbbq_apply_corrections_dot_product_bulk", caps, score);
 
+                // BBQ corrections: per-vector inline layout with nodes array
+                FunctionDescriptor bbqScore = FunctionDescriptor.of(
+                    JAVA_FLOAT,
+                    ADDRESS,     // data (entire vector data segment)
+                    JAVA_INT,    // bulkSize
+                    JAVA_INT,    // vectorSizeInBytes
+                    JAVA_INT,    // pitchInBytes
+                    JAVA_INT,    // dimensions
+                    JAVA_FLOAT,  // queryLowerInterval
+                    JAVA_FLOAT,  // queryUpperInterval
+                    JAVA_INT,    // queryComponentSum
+                    JAVA_FLOAT,  // queryAdditionalCorrection
+                    JAVA_FLOAT,  // queryBitScale
+                    JAVA_FLOAT,  // indexBitScale
+                    JAVA_FLOAT,  // centroidDp
+                    ADDRESS,     // nodes
+                    ADDRESS      // scores
+                );
+
+                bbqApplyCorrectionsEuclideanBulk$mh = bindFunction("bbq_apply_corrections_euclidean_bulk", caps, bbqScore);
+                bbqApplyCorrectionsMaxInnerProductBulk$mh = bindFunction(
+                    "bbq_apply_corrections_maximum_inner_product_bulk",
+                    caps,
+                    bbqScore
+                );
+                bbqApplyCorrectionsDotProductBulk$mh = bindFunction("bbq_apply_corrections_dot_product_bulk", caps, bbqScore);
+
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
                 if (caps < 0) {
@@ -230,6 +261,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 applyCorrectionsEuclideanBulk$mh = null;
                 applyCorrectionsMaxInnerProductBulk$mh = null;
                 applyCorrectionsDotProductBulk$mh = null;
+                bbqApplyCorrectionsEuclideanBulk$mh = null;
+                bbqApplyCorrectionsMaxInnerProductBulk$mh = null;
+                bbqApplyCorrectionsDotProductBulk$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -734,11 +768,129 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
+        private static float bbqApplyCorrectionsEuclideanBulk(
+            MemorySegment data,
+            int bulkSize,
+            int vectorSizeInBytes,
+            int pitchInBytes,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            MemorySegment nodes,
+            MemorySegment scores
+        ) {
+            try {
+                return (float) bbqApplyCorrectionsEuclideanBulk$mh.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    nodes,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static float bbqApplyCorrectionsMaxInnerProductBulk(
+            MemorySegment data,
+            int bulkSize,
+            int vectorSizeInBytes,
+            int pitchInBytes,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            MemorySegment nodes,
+            MemorySegment scores
+        ) {
+            try {
+                return (float) bbqApplyCorrectionsMaxInnerProductBulk$mh.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    nodes,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        private static float bbqApplyCorrectionsDotProductBulk(
+            MemorySegment data,
+            int bulkSize,
+            int vectorSizeInBytes,
+            int pitchInBytes,
+            int dimensions,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            float queryBitScale,
+            float indexBitScale,
+            float centroidDp,
+            MemorySegment nodes,
+            MemorySegment scores
+        ) {
+            try {
+                return (float) bbqApplyCorrectionsDotProductBulk$mh.invokeExact(
+                    data,
+                    bulkSize,
+                    vectorSizeInBytes,
+                    pitchInBytes,
+                    dimensions,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    queryBitScale,
+                    indexBitScale,
+                    centroidDp,
+                    nodes,
+                    scores
+                );
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
         private static final Map<OperationSignature<?>, MethodHandle> HANDLES_WITH_CHECKS;
 
         static final MethodHandle APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
         static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
         static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
+
+        static final MethodHandle BBQ_APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
+        static final MethodHandle BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
+        static final MethodHandle BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
 
         static {
             MethodHandles.Lookup lookup = MethodHandles.lookup();
@@ -1017,6 +1169,40 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     "applyCorrectionsDotProductBulk",
                     scoringFunction
                 );
+
+                MethodType bbqScoringFunction = MethodType.methodType(
+                    float.class,
+                    MemorySegment.class,  // data
+                    int.class,            // bulkSize
+                    int.class,            // vectorSizeInBytes
+                    int.class,            // pitchInBytes
+                    int.class,            // dimensions
+                    float.class,          // queryLowerInterval
+                    float.class,          // queryUpperInterval
+                    int.class,            // queryComponentSum
+                    float.class,          // queryAdditionalCorrection
+                    float.class,          // queryBitScale
+                    float.class,          // indexBitScale
+                    float.class,          // centroidDp
+                    MemorySegment.class,  // nodes
+                    MemorySegment.class   // scores
+                );
+
+                BBQ_APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "bbqApplyCorrectionsEuclideanBulk",
+                    bbqScoringFunction
+                );
+                BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "bbqApplyCorrectionsMaxInnerProductBulk",
+                    bbqScoringFunction
+                );
+                BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "bbqApplyCorrectionsDotProductBulk",
+                    bbqScoringFunction
+                );
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
@@ -1059,6 +1245,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
         @Override
         public MethodHandle applyCorrectionsDotProductBulk() {
             return APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
+        }
+
+        @Override
+        public MethodHandle bbqApplyCorrectionsEuclideanBulk() {
+            return BBQ_APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
+        }
+
+        @Override
+        public MethodHandle bbqApplyCorrectionsMaxInnerProductBulk() {
+            return BBQ_APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
+        }
+
+        @Override
+        public MethodHandle bbqApplyCorrectionsDotProductBulk() {
+            return BBQ_APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
         }
     }
 }

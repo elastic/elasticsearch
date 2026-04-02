@@ -27,33 +27,32 @@
 #include "amd64/amd64_vec_common.h"
 
 static inline f32_t dotDbf16Qbf16_inner_avx512(const bf16_t* d, const bf16_t* q, int32_t elementCount) {
-    __m512 acc = _mm512_setzero_ps();
 
     int i = 0;
-    constexpr int stride = sizeof(__m512bh) / sizeof(bf16_t);
-    for (; i < (elementCount & ~(stride - 1)); i += stride) {
-        acc = _mm512_dpbf16_ps(acc,
+    constexpr int stride512 = sizeof(__m512bh) / sizeof(bf16_t);
+    __m512 acc512 = _mm512_setzero_ps();
+    for (; i < (elementCount & ~(stride512 - 1)); i += stride512) {
+        acc512 = _mm512_dpbf16_ps(acc512,
           (__m512bh)_mm512_loadu_epi16(d + i),
           (__m512bh)_mm512_loadu_epi16(q + i));
     }
 
-    // Masked tail: handle remaining bytes that don't fill a full 512-bit register.
-    // Masked-off lanes load as zero, contributing nothing to the dot product.
-    const int rem = elementCount - i;
-    if (rem > 0) {
-        __mmask32 readMask = (__mmask32)((1UL << rem) - 1);
-        __mmask16 dpMask = (__mmask16)((1U << (rem/2)) - 1);
+    f32_t total = _mm512_reduce_add_ps(acc512);
 
-        __m512bh d_rem = (__m512bh)_mm512_maskz_loadu_epi16(readMask, d + i);
-        __m512bh q_rem = (__m512bh)_mm512_maskz_loadu_epi16(readMask, q + i);
-        acc = _mm512_maskz_dpbf16_ps(dpMask, acc, d_rem, q_rem);
+    constexpr int stride256 = sizeof(__m256bh) / sizeof(bf16_t);
+    if (elementCount - i >= stride256) {
+        // do a 256-bit dot product cycle
+        __m256 acc256 = _mm256_setzero_ps();
+        acc256 = _mm256_dpbf16_ps(acc256,
+          (__m256bh)_mm256_loadu_epi16(d + i),
+          (__m256bh)_mm256_loadu_epi16(q + i));
+        total += mm256_reduce_ps<_mm_add_ps>(acc256);
+        i += stride256;
     }
 
-    f32_t total = _mm512_reduce_add_ps(acc);
-
-    if (rem & 1) {
-        // odd number of elements at the end
-        total += dot_scalar(d[i + rem - 1], q[i + rem - 1]);
+    // finish scalar
+    for (; i < elementCount; ++i) {
+        total += dot_scalar(d[i], q[i]);
     }
 
     return total;

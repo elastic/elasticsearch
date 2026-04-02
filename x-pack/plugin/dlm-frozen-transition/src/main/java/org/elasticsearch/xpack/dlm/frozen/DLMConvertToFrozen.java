@@ -60,7 +60,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
-import org.elasticsearch.snapshots.SnapshotState;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -302,19 +301,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
 
-        ProjectState projectState = getProjectState();
-        ProjectMetadata projectMetadata = projectState.metadata();
-        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
-        String snapshotName = snapshotName(indexName);
-
-        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(projectState.cluster());
-        long snapshotStartTime = findSnapshotStartTime(snapshotsInProgress, projectId, repositoryName, snapshotName);
-
-        if (snapshotStartTime >= 0) {
-            handleInProgressSnapshot(indexName, repositoryName, snapshotName, snapshotStartTime);
-        } else {
-            checkForOrphanedSnapshotAndStart(indexName, repositoryName, snapshotName);
-        }
+        // todo
     }
 
     public void maybeMountSearchableSnapshot() throws InterruptedException {
@@ -362,6 +349,17 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 Thread.currentThread().interrupt();
             }
             throw new ElasticsearchException("DLM unable to check segment count for index [{}]", e, indexName);
+        }
+    }
+
+    /**
+     * Checks if the current thread has been interrupted and, if so, throws an {@link InterruptedException}.
+     * This allows long-running multi-step operations to detect interrupts quickly at the beginning
+     * of each step rather than waiting for a blocking call to fail.
+     */
+    private static void checkIfThreadInterrupted() throws InterruptedException {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException("DLM frozen conversion was interrupted");
         }
     }
 
@@ -604,23 +602,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * than {@link #SNAPSHOT_TIMEOUT}, delete it and start again; otherwise wait for it to complete.
      */
     void handleInProgressSnapshot(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
-        if ((clock.millis() - snapshotStartTime) > SNAPSHOT_TIMEOUT.millis()) {
-            logger.warn(
-                "DLM snapshot [{}] for index [{}] has been running for over [{}], cancelling and restarting",
-                snapshotName,
-                indexName,
-                SNAPSHOT_TIMEOUT
-            );
-            deleteAndRestartSnapshot(indexName, repositoryName, snapshotName);
-        } else {
-            logger.info(
-                "DLM snapshot [{}] for index [{}] is currently in progress and has been running for [{}], waiting for completion",
-                snapshotName,
-                indexName,
-                TimeValue.timeValueMillis(clock.millis() - snapshotStartTime)
-            );
-            waitForSnapshotCompletion(indexName, repositoryName, snapshotName, snapshotStartTime);
-        }
+        // todo
     }
 
     /**
@@ -629,42 +611,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * does not complete successfully for any reason (timeout, disappearance, failure), throws an exception.
      */
     void waitForSnapshotCompletion(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
-        while (true) {
-            long elapsed = clock.millis() - snapshotStartTime;
-            if (elapsed > SNAPSHOT_TIMEOUT.millis()) {
-                throw new ElasticsearchException(
-                    "DLM snapshot [{}] for index [{}] has exceeded timeout of [{}]",
-                    snapshotName,
-                    indexName,
-                    SNAPSHOT_TIMEOUT
-                );
-            }
-
-            sleepBeforePoll(snapshotName, indexName);
-
-            List<SnapshotInfo> snapshots = getSnapshots(repositoryName, snapshotName, indexName);
-            if (snapshots.isEmpty()) {
-                throw new ElasticsearchException(
-                    "DLM snapshot [{}] for index [{}] disappeared while waiting for completion",
-                    snapshotName,
-                    indexName
-                );
-            }
-
-            SnapshotInfo snapshotInfo = snapshots.getFirst();
-            if (snapshotInfo.state() == SnapshotState.IN_PROGRESS) {
-                logger.debug(
-                    "DLM snapshot [{}] for index [{}] is still in progress (elapsed [{}])",
-                    snapshotName,
-                    indexName,
-                    TimeValue.timeValueMillis(elapsed)
-                );
-                continue;
-            }
-
-            checkSnapshotInfoSuccess(indexName, snapshotName, snapshotInfo);
-            return;
-        }
+        // todo
     }
 
     /**
@@ -672,12 +619,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * Extracted into its own method so that tests can override to avoid blocking.
      */
     void sleepBeforePoll(String snapshotName, String indexName) {
-        try {
-            Thread.sleep(SNAPSHOT_POLL_INTERVAL.millis());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new ElasticsearchException("DLM interrupted while waiting for snapshot [{}] for index [{}]", e, snapshotName, indexName);
-        }
+        // todo
     }
 
     /**
@@ -687,35 +629,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * Otherwise, start a fresh snapshot.
      */
     void checkForOrphanedSnapshotAndStart(String indexName, String repositoryName, String snapshotName) {
-        List<SnapshotInfo> snapshots = getSnapshots(repositoryName, snapshotName, indexName);
-        if (snapshots.isEmpty()) {
-            createSnapshot(indexName, repositoryName, snapshotName);
-            return;
-        }
-        SnapshotInfo existingSnapshot = snapshots.getFirst();
-        if (existingSnapshot.state() == SnapshotState.SUCCESS && existingSnapshot.failedShards() == 0) {
-            logger.info("DLM found valid orphaned snapshot [{}] for index [{}]", snapshotName, indexName);
-        } else {
-            logger.info(
-                "DLM found invalid orphaned snapshot [{}] for index [{}] (state [{}], failed shards [{}]), " + "deleting and recreating",
-                snapshotName,
-                indexName,
-                existingSnapshot.state(),
-                existingSnapshot.failedShards()
-            );
-            deleteAndRestartSnapshot(indexName, repositoryName, snapshotName);
-        }
-    }
-
-    /**
-     * Checks if the current thread has been interrupted and, if so, throws an {@link InterruptedException}.
-     * This allows long-running multi-step operations to detect interrupts quickly at the beginning
-     * of each step rather than waiting for a blocking call to fail.
-     */
-    private static void checkIfThreadInterrupted() throws InterruptedException {
-        if (Thread.currentThread().isInterrupted()) {
-            throw new InterruptedException("DLM frozen conversion was interrupted");
-        }
+        // todo
     }
 
     /**
@@ -723,15 +637,14 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * If the snapshot is already missing, proceeds directly to creation.
      */
     void deleteAndRestartSnapshot(String indexName, String repositoryName, String snapshotName) {
-        deleteSnapshotIfExists(repositoryName, snapshotName, indexName);
-        createSnapshot(indexName, repositoryName, snapshotName);
+        // Todo
     }
 
     /**
      * Attempts to delete a snapshot. If the snapshot is already missing, logs and returns.
      * Throws on any other failure.
      */
-    private void deleteSnapshotIfExists(String repositoryName, String snapshotName, String indexName) {
+    void deleteSnapshotIfExists(String repositoryName, String snapshotName, String indexName) {
         DeleteSnapshotRequest deleteRequest = new DeleteSnapshotRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName, snapshotName);
         try {
             AcknowledgedResponse resp = client.projectClient(projectId).execute(TransportDeleteSnapshotAction.TYPE, deleteRequest).get();
@@ -759,7 +672,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     /**
      * Fetches snapshot info from the repository. Returns an empty list if the snapshot does not exist.
      */
-    private List<SnapshotInfo> getSnapshots(String repositoryName, String snapshotName, String indexName) {
+    List<SnapshotInfo> getSnapshots(String repositoryName, String snapshotName, String indexName) {
         GetSnapshotsRequest getRequest = new GetSnapshotsRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName);
         getRequest.snapshots(new String[] { snapshotName });
         getRequest.ignoreUnavailable(true);
@@ -788,6 +701,10 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         return e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
     }
 
+    /**
+     * Creates a snapshot for the given index and waits for completion.
+     * Throws an exception if the snapshot fails to complete successfully for any reason.
+     */
     void createSnapshot(String indexName, String repositoryName, String snapshotName) {
         CreateSnapshotRequest createRequest = buildCreateSnapshotRequest(repositoryName, indexName, snapshotName);
         try {
@@ -815,6 +732,10 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         }
     }
 
+    /**
+     * Checks the snapshot info to determine whether the snapshot completed successfully. If so, logs and returns.
+     * If not, throws an exception with details about the failure.
+     */
     static void checkSnapshotInfoSuccess(String indexName, String snapshotName, SnapshotInfo snapshotInfo) {
         if (snapshotInfo != null && snapshotInfo.failedShards() == 0) {
             logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);

@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
@@ -66,7 +65,6 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
@@ -369,25 +367,27 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("snapshot failed"));
     }
 
-    // --- deleteAndRestartSnapshot tests ---
+    // --- snapshotName tests ---
 
-    public void testDeleteAndRestartSnapshot_deleteThenCreates() {
-        ProjectState projectState = createProjectState();
-        setClusterState(projectState);
+    public void testSnapshotName() {
+        assertThat(DLMConvertToFrozen.snapshotName("my-index"), is("dlm-frozen-my-index"));
+    }
+
+    // --- deleteSnapshotIfExists tests ---
+
+    public void testDeleteSnapshotIfExists_success() {
+        setClusterState(createProjectState());
         mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
 
         DLMConvertToFrozen converter = createConverter();
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName);
+        converter.deleteSnapshotIfExists(REPO_NAME, snapshotName, indexName);
 
         assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
-        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
-    public void testDeleteAndRestartSnapshot_deleteNotAcknowledgedThrows() {
-        ProjectState projectState = createProjectState();
-        setClusterState(projectState);
+    public void testDeleteSnapshotIfExists_notAcknowledgedThrows() {
+        setClusterState(createProjectState());
         mockDeleteSnapshotResponse.set(AcknowledgedResponse.FALSE);
 
         DLMConvertToFrozen converter = createConverter();
@@ -395,194 +395,68 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName)
+            () -> converter.deleteSnapshotIfExists(REPO_NAME, snapshotName, indexName)
         );
         assertThat(e.getMessage(), containsString("Failed to acknowledge delete"));
+        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
     }
 
-    public void testDeleteAndRestartSnapshot_snapshotMissingStillCreates() {
-        ProjectState projectState = createProjectState();
-        setClusterState(projectState);
-        mockDeleteSnapshotFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
+    public void testDeleteSnapshotIfExists_snapshotMissingSilentlySucceeds() {
+        setClusterState(createProjectState());
+        mockDeleteSnapshotFailure.set(new org.elasticsearch.snapshots.SnapshotMissingException(REPO_NAME, "missing"));
 
         DLMConvertToFrozen converter = createConverter();
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.deleteAndRestartSnapshot(indexName, REPO_NAME, snapshotName);
+
+        // Should not throw — missing snapshot is silently ignored
+        converter.deleteSnapshotIfExists(REPO_NAME, snapshotName, indexName);
 
         assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
-        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
-    // --- checkForOrphanedSnapshotAndStart tests ---
-
-    public void testCheckForOrphanedSnapshot_noExistingSnapshot_createsNew() {
-        ProjectState projectState = createProjectState();
-        setClusterState(projectState);
-        mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
-
-        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
-        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
-        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-    }
-
-    public void testCheckForOrphanedSnapshot_validOrphaned_skipsCreate() {
-        ProjectState projectState = createProjectState();
-        setClusterState(projectState);
-        SnapshotInfo validSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
-        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(validSnapshot));
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
-
-        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
-        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
-    }
-
-    public void testCheckForOrphanedSnapshot_invalidOrphaned_deletesAndRecreates() {
-        ProjectState projectState = createProjectState();
-        setClusterState(projectState);
-        SnapshotInfo failedSnapshot = createSnapshotInfo(SnapshotState.FAILED, 1);
-        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(failedSnapshot));
-        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
-
-        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
-        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
-        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
-    }
-
-    public void testCheckForOrphanedSnapshot_snapshotMissing_createsNew() {
-        ProjectState projectState = createProjectState();
-        setClusterState(projectState);
-        mockGetSnapshotsFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName);
-
-        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
-    }
-
-    public void testCheckForOrphanedSnapshot_getFailure_throws() {
-        ProjectState projectState = createProjectState();
-        setClusterState(projectState);
-        mockGetSnapshotsFailure.set(new RuntimeException("get failed"));
+    public void testDeleteSnapshotIfExists_otherFailureThrows() {
+        setClusterState(createProjectState());
+        mockDeleteSnapshotFailure.set(new RuntimeException("connection lost"));
 
         DLMConvertToFrozen converter = createConverter();
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> converter.checkForOrphanedSnapshotAndStart(indexName, REPO_NAME, snapshotName)
+            () -> converter.deleteSnapshotIfExists(REPO_NAME, snapshotName, indexName)
+        );
+        assertThat(e.getMessage(), containsString("DLM failed to delete stale snapshot"));
+        assertThat(e.getCause().getMessage(), containsString("connection lost"));
+        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
+    }
+
+    // --- getSnapshots tests ---
+
+    public void testGetSnapshots_snapshotMissingReturnsEmpty() {
+        setClusterState(createProjectState());
+        mockGetSnapshotsFailure.set(new SnapshotMissingException(REPO_NAME, "missing"));
+
+        DLMConvertToFrozen converter = createConverter();
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        List<SnapshotInfo> result = converter.getSnapshots(REPO_NAME, snapshotName, indexName);
+
+        assertThat(result.isEmpty(), is(true));
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
+    }
+
+    public void testGetSnapshots_otherFailureThrows() {
+        setClusterState(createProjectState());
+        mockGetSnapshotsFailure.set(new RuntimeException("connection lost"));
+
+        DLMConvertToFrozen converter = createConverter();
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> converter.getSnapshots(REPO_NAME, snapshotName, indexName)
         );
         assertThat(e.getMessage(), containsString("DLM failed while checking snapshots for index"));
-        assertThat(e.getCause().getMessage(), containsString("get failed"));
-    }
-
-    // --- handleInProgressSnapshot tests ---
-
-    public void testHandleInProgressSnapshot_withinTimeout_waitsForCompletion() {
-        // Snapshot started recently (within timeout) - converter should poll and find completed snapshot
-        long recentStartTime = clock.millis() - 1000; // 1 second ago
-        ProjectState projectState = createProjectStateWithInProgressSnapshot(recentStartTime);
-        setClusterState(projectState);
-
-        // When polling, return a completed snapshot
-        SnapshotInfo completedSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
-        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(completedSnapshot));
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.handleInProgressSnapshot(indexName, REPO_NAME, snapshotName, recentStartTime);
-
+        assertThat(e.getCause().getMessage(), containsString("connection lost"));
         assertGetSnapshotsRequest(REPO_NAME, snapshotName);
-        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
-    }
-
-    public void testHandleInProgressSnapshot_exceededTimeout_deletesAndRestarts() {
-        // Snapshot started longer ago than SNAPSHOT_TIMEOUT (12h)
-        long oldStartTime = clock.millis() - TimeValue.timeValueHours(13).millis(); // exceeds 12h SNAPSHOT_TIMEOUT
-        ProjectState projectState = createProjectStateWithInProgressSnapshot(oldStartTime);
-        setClusterState(projectState);
-
-        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.handleInProgressSnapshot(indexName, REPO_NAME, snapshotName, oldStartTime);
-
-        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
-        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
-    }
-
-    // --- maybeTakeSnapshot tests ---
-
-    public void testMaybeTakeSnapshot_noInProgress_noExisting_createsNew() throws InterruptedException {
-        ProjectState projectState = createProjectState();
-        setClusterState(projectState);
-        mockGetSnapshotsResponse.set(emptyGetSnapshotsResponse());
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.maybeTakeSnapshot(indexName);
-
-        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
-        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
-        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-    }
-
-    public void testMaybeTakeSnapshot_inProgressWithinTimeout_waits() throws InterruptedException {
-        long recentStartTime = clock.millis() - 1000;
-        ProjectState projectState = createProjectStateWithInProgressSnapshot(recentStartTime);
-        setClusterState(projectState);
-
-        SnapshotInfo completedSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
-        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(completedSnapshot));
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.maybeTakeSnapshot(indexName);
-
-        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
-        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
-    }
-
-    public void testMaybeTakeSnapshot_inProgressExceededTimeout_deletesAndRestarts() throws InterruptedException {
-        long oldStartTime = clock.millis() - TimeValue.timeValueHours(13).millis();
-        ProjectState projectState = createProjectStateWithInProgressSnapshot(oldStartTime);
-        setClusterState(projectState);
-
-        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
-        mockCreateSnapshotResponse.set(createSuccessfulSnapshotResponse());
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.maybeTakeSnapshot(indexName);
-
-        assertDeleteSnapshotRequest(REPO_NAME, snapshotName);
-        assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
-    }
-
-    // --- snapshotName tests ---
-
-    public void testSnapshotName() {
-        assertThat(DLMConvertToFrozen.snapshotName("my-index"), is("dlm-frozen-my-index"));
     }
 }

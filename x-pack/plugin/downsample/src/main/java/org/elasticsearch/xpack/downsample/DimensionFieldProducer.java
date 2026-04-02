@@ -60,12 +60,9 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
             for (int i = 0; i < buffer.size(); i++) {
                 int docId = buffer.get(i);
                 if (docValues.advanceExact(docId)) {
-                    int docValueCount = docValues.docValueCount();
-                    for (int j = 0; j < docValueCount; j++) {
-                        var value = docValues.nextValue();
-                        if (value.equals(this.value) == false) {
-                            assert false : "Dimension value changed without tsid change [" + value + "] != [" + this.value + "]";
-                        }
+                    var value = retrieveDimensionValues(docValues);
+                    if (value.equals(this.value) == false) {
+                        assert false : "Dimension value changed without tsid change [" + value + "] != [" + this.value + "]";
                     }
                 }
             }
@@ -103,7 +100,7 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
         }
     }
 
-    private Object retrieveDimensionValues(FormattedDocValues docValues) throws IOException {
+    private static Object retrieveDimensionValues(FormattedDocValues docValues) throws IOException {
         int docValueCount = docValues.docValueCount();
         assert docValueCount > 0;
         Object value;

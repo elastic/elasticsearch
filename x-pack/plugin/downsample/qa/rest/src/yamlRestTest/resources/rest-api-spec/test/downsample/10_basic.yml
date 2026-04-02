@@ -1763,8 +1763,7 @@ setup:
         target_index: test-downsample-multi-value
         body:  >
           {
-            "fixed_interval": "1h",
-            "sampling_method": "last_value"
+            "fixed_interval": "1h"
           }
   - is_true: acknowledged
 

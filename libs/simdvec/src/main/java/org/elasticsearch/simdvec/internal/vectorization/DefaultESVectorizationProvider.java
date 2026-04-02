@@ -39,9 +39,10 @@ final class DefaultESVectorizationProvider extends ESVectorizationProvider {
         byte indexBits,
         int dimension,
         int dataLength,
-        int bulkSize
+        int bulkSize,
+        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) {
-        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
+        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     @Override

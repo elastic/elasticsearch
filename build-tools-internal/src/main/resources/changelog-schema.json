@@ -288,6 +288,7 @@
         "Command line tool",
         "CRUD",
         "ES|QL",
+        "ILM",
         "Index setting",
         "Ingest",
         "JVM option",

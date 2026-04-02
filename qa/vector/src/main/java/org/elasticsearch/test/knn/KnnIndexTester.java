@@ -636,7 +636,9 @@ public class KnnIndexTester {
             String[] searchHeaders = {
                 "index_name",
                 "index_type",
+                "num_segments",
                 "visit_percentage(%)",
+                "actual_visit(%)",
                 "latency(ms)",
                 "net_cpu_time(ms)",
                 "avg_cpu_count",
@@ -672,7 +674,9 @@ public class KnnIndexTester {
                 queryResultsArray[i] = new String[] {
                     queryResult.indexName,
                     queryResult.indexType,
+                    Integer.toString(queryResult.numSegments),
                     String.format(Locale.ROOT, "%.3f", queryResult.visitPercentage),
+                    String.format(Locale.ROOT, "%.3f", queryResult.actualVisitPercentage),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
                     String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
@@ -753,7 +757,9 @@ public class KnnIndexTester {
         long indexTimeMS;
         long forceMergeTimeMS;
         int numSegments;
+        int totalIndexVectors;
         double visitPercentage;
+        double actualVisitPercentage;
         double avgLatency;
         double qps;
         double avgRecall;

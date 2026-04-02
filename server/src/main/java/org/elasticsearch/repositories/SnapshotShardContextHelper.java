@@ -56,9 +56,7 @@ public class SnapshotShardContextHelper {
         if (indexShard.routingEntry().primary() == false) {
             throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
         }
-        // TODO: usage for supportsRelocationDuringSnapshot will be added in a future PR, see also ES-14099
-        assert supportsRelocationDuringSnapshot == false;
-        if (indexShard.routingEntry().relocating()) {
+        if (supportsRelocationDuringSnapshot == false && indexShard.routingEntry().relocating()) {
             // do not snapshot when in the process of relocation of primaries so we won't get conflicts
             throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot while relocating");
         }

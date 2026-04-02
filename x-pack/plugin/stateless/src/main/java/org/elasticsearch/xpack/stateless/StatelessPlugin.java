@@ -207,6 +207,7 @@ import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitSourceShard
 import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitTargetShardStateAction;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings;
+import org.elasticsearch.xpack.stateless.snapshots.TransportGetShardSnapshotCommitInfoAction;
 import org.elasticsearch.xpack.stateless.utils.IndexingShardRefreshListenerProvider;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollectorProvider;
@@ -498,6 +499,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<List<StatelessExtensionProvider>> statelessServicesConsumerProviders = new SetOnce<>();
     private final SetOnce<SnapshotsCommitService> snapshotsCommitServiceRef = new SetOnce<>();
     private final SetOnce<StatelessMemoryMetricsService> statelessMemoryMetricsService = new SetOnce<>();
+    private final SetOnce<Client> clientRef = new SetOnce<>();
 
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
         BlobStoreCacheDirectoryMetrics::new
@@ -528,6 +530,10 @@ public class StatelessPlugin extends Plugin
 
     public SnapshotsCommitService getSnapshotsCommitService() {
         return Objects.requireNonNull(this.snapshotsCommitServiceRef.get());
+    }
+
+    public Client getClient() {
+        return Objects.requireNonNull(this.clientRef.get());
     }
 
     public StatelessPlugin(Settings settings) {
@@ -627,7 +633,8 @@ public class StatelessPlugin extends Plugin
             new ActionHandler(TransportReshardSplitAction.TYPE, TransportReshardSplitAction.class),
             new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class),
             new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class),
-            new ActionHandler(TransportFetchSearchShardInformationAction.TYPE, TransportFetchSearchShardInformationAction.class)
+            new ActionHandler(TransportFetchSearchShardInformationAction.TYPE, TransportFetchSearchShardInformationAction.class),
+            new ActionHandler(TransportGetShardSnapshotCommitInfoAction.TYPE, TransportGetShardSnapshotCommitInfoAction.class)
         );
     }
 
@@ -694,7 +701,7 @@ public class StatelessPlugin extends Plugin
     public Collection<Object> createComponents(PluginServices services) {
         checkLicense();
         this.projectResolver.set(services.projectResolver());
-        Client client = services.client();
+        Client client = setAndGet(this.clientRef, services.client());
         ClusterService clusterService = services.clusterService();
         this.clusterService.set(clusterService);
         ShardRoutingRoleStrategy shardRoutingRoleStrategy = services.allocationService().getShardRoutingRoleStrategy();
@@ -1210,6 +1217,7 @@ public class StatelessPlugin extends Plugin
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING,
             SearchShardInformationIndexListener.QUERY_SEARCH_SHARD_INFORMATION_SETTING,
             StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING,
+            StatelessSnapshotSettings.STATELESS_SNAPSHOT_WAIT_FOR_ACTIVE_PRIMARY_TIMEOUT_SETTING,
             StatelessShardRelocationOrder.PRIORITIZE_WRITE_SHARD_RELOCATIONS_SETTING,
             StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
             StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,

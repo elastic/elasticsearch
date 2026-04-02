@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.FileReloadListener;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
@@ -61,7 +60,7 @@ public class FileUserPasswdStore {
         settings = config.settings();
         users = parseFileLenient(file, logger, settings);
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
-        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
+        FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileReloadListener(file, this::tryReload));
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);

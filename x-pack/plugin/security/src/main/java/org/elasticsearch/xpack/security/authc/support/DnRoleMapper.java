@@ -21,7 +21,6 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
-import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.mapper.AbstractRoleMapperClearRealmCache;
 
@@ -60,7 +59,7 @@ public class DnRoleMapper extends AbstractRoleMapperClearRealmCache {
         useUnmappedGroupsAsRoles = config.getSetting(DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING);
         file = resolveFile(config);
         dnRoles = parseFileLenient(file, logger, config.type(), config.name());
-        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
+        FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);

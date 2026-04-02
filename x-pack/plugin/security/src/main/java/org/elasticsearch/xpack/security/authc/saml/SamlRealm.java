@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
-import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.saml.SamlAttributes.SamlPrivateAttribute;
@@ -815,7 +814,7 @@ public final class SamlRealm extends Realm implements Releasable {
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);
 
-        FileWatcher watcher = new PrivilegedFileWatcher(path);
+        FileWatcher watcher = new FileWatcher(path);
         watcher.addListener(new FileListener(logger, resolver::refresh));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
         return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString(), true));

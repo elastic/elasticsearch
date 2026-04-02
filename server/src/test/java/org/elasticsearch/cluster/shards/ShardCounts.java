@@ -123,4 +123,20 @@ public class ShardCounts {
     public int getFailingIndexReplicas() {
         return failingIndexReplicas;
     }
+
+    @Override
+    public String toString() {
+        return "ShardCounts{"
+            + "shardsPerNode="
+            + shardsPerNode
+            + ", firstIndexShards="
+            + firstIndexShards
+            + ", firstIndexReplicas="
+            + firstIndexReplicas
+            + ", failingIndexShards="
+            + failingIndexShards
+            + ", failingIndexReplicas="
+            + failingIndexReplicas
+            + '}';
+    }
 }

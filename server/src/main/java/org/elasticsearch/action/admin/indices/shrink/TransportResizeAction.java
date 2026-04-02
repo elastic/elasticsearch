@@ -207,11 +207,11 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         final ResizeNumberOfShardsCalculator resizeNumberOfShardsCalculator
     ) {
         final CreateIndexRequest targetIndex = resizeRequest.getTargetIndexRequest();
-        final Settings.Builder targetIndexSettingsBuilder = Settings.builder()
+        final Settings targetIndexSettings = Settings.builder()
             .put(targetIndex.settings())
-            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
-        targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
-        final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
+            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
+            .remove(IndexMetadata.SETTING_HISTORY_UUID)
+            .build();
         final Integer requestedNumberOfShards;
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             requestedNumberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);

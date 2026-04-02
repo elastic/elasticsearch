@@ -164,14 +164,15 @@ public class IndexRoutingTableTests extends ESTestCase {
     }
 
     private ShardRouting getShard(ShardId shardId, boolean isPrimary, ShardRoutingState state, ShardRouting.Role role) {
+        final boolean hasRelocatingNodeId = TestShardRouting.randomHasRelocatingNodeId(state);
         return new ShardRouting(
             shardId,
             state == ShardRoutingState.UNASSIGNED ? null : randomIdentifier(),
-            state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.STARTED ? null : randomIdentifier(),
+            hasRelocatingNodeId ? randomIdentifier() : null,
             isPrimary,
             state,
             TestShardRouting.buildRecoverySource(isPrimary, state),
-            TestShardRouting.buildUnassignedInfo(state),
+            TestShardRouting.buildUnassignedInfo(state, hasRelocatingNodeId),
             TestShardRouting.buildRelocationFailureInfo(state),
             TestShardRouting.buildAllocationId(state),
             randomLongBetween(-1, 1024),

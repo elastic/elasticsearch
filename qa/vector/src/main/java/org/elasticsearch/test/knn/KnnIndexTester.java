@@ -475,6 +475,7 @@ public class KnnIndexTester {
                     testConfiguration.vectorEncoding().luceneEncoding,
                     testConfiguration.dimensions(),
                     testConfiguration.vectorSpace(),
+                    testConfiguration.normalizeVectors(),
                     testConfiguration.numDocs(),
                     mergePolicy,
                     testConfiguration.writerBufferSizeInMb(),

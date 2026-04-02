@@ -422,6 +422,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
   method: testTopNByKeyEncoderTooMuchMemory
   issue: https://github.com/elastic/elasticsearch/issues/145627
+- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
+  method: testBlockWiseBinarySmallValues
+  issue: https://github.com/elastic/elasticsearch/issues/145635
 
 # Examples:
 #

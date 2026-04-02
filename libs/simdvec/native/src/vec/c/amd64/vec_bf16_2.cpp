@@ -27,28 +27,35 @@
 #include "amd64/amd64_vec_common.h"
 
 static inline f32_t dotDbf16Qbf16_inner_avx512(const bf16_t* d, const bf16_t* q, int32_t elementCount) {
+    constexpr int batches = 2;
+
+    __m512 sums[batches];
+    apply_indexed<batches>([&](auto I) {
+        sums[I] = _mm512_setzero_ps();
+    });
 
     int i = 0;
-    constexpr int stride512 = sizeof(__m512bh) / sizeof(bf16_t);
-    __m512 acc512 = _mm512_setzero_ps();
+    constexpr int elements = sizeof(__m512bh) / sizeof(bf16_t);
+    constexpr int stride512 = sizeof(__m512bh) / sizeof(bf16_t) * batches;
     for (; i < (elementCount & ~(stride512 - 1)); i += stride512) {
-        acc512 = _mm512_dpbf16_ps(acc512,
-          (__m512bh)_mm512_loadu_epi16(d + i),
-          (__m512bh)_mm512_loadu_epi16(q + i));
+        apply_indexed<batches>([&](auto I) {
+            sums[I] = _mm512_dpbf16_ps(sums[I],
+                (__m512bh)_mm512_loadu_epi16(d + i + I * elements),
+                (__m512bh)_mm512_loadu_epi16(q + i + I * elements));
+        });
     }
 
-    f32_t total = _mm512_reduce_add_ps(acc512);
+    f32_t total = _mm512_reduce_add_ps(tree_reduce<batches, __m512, _mm512_add_ps>(sums));
 
     constexpr int stride256 = sizeof(__m256bh) / sizeof(bf16_t);
-    if (elementCount - i >= stride256) {
-        // do a 256-bit dot product cycle
-        __m256 acc256 = _mm256_setzero_ps();
+    __m256 acc256 = _mm256_setzero_ps();
+    for (; i < (elementCount & ~(stride256 - 1)); i += stride256) {
         acc256 = _mm256_dpbf16_ps(acc256,
-          (__m256bh)_mm256_loadu_epi16(d + i),
-          (__m256bh)_mm256_loadu_epi16(q + i));
-        total += mm256_reduce_ps<_mm_add_ps>(acc256);
-        i += stride256;
+            (__m256bh)_mm256_loadu_epi16(d + i),
+            (__m256bh)_mm256_loadu_epi16(q + i));
     }
+
+    total += mm256_reduce_ps<_mm_add_ps>(acc256);
 
     // finish scalar
     for (; i < elementCount; ++i) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -55,13 +57,17 @@ public class FileSplitProvider implements SplitProvider {
 
     private static final Logger LOGGER = LogManager.getLogger(FileSplitProvider.class);
 
-    static final long DEFAULT_TARGET_SPLIT_SIZE = -1;
+    // 64 MB — 2x the maximum compression block target (DEFAULT_MACRO_SPLIT_TARGET) to keep
+    // memory pressure low while still enabling meaningful cross-node parallelism.
+    // DuckDB uses ~32 MB buffers; increase to 128+ MB for high-throughput clusters.
+    static final long DEFAULT_TARGET_SPLIT_SIZE = 64 * 1024 * 1024;
     static final long DEFAULT_MACRO_SPLIT_TARGET = 32 * 1024 * 1024; // 32MB compressed
     static final String FIRST_SPLIT_KEY = "_first_split";
     static final String LAST_SPLIT_KEY = "_last_split";
 
     static final String RANGE_SPLIT_KEY = "_range_split";
     static final String FILE_LENGTH_KEY = "_file_length";
+    static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
 
     private final long targetSplitSizeBytes;
     private final DecompressionCodecRegistry codecRegistry;
@@ -116,6 +122,8 @@ public class FileSplitProvider implements SplitProvider {
         // instance on the coordinator, avoiding redundant allocations.
         Map<SchemaReconciliation.ColumnMapping, SchemaReconciliation.ColumnMapping> mappingCache = new HashMap<>();
 
+        long effectiveSplitSize = resolveTargetSplitSize(config);
+
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
@@ -163,12 +171,22 @@ public class FileSplitProvider implements SplitProvider {
                 continue;
             }
 
-            if (targetSplitSizeBytes > 0 && fileLength > targetSplitSizeBytes && isSplittableFormat(format)) {
+            if (effectiveSplitSize > 0 && fileLength > effectiveSplitSize && isSplittableFormat(format)) {
                 long offset = 0;
+                boolean isFirst = true;
                 while (offset < fileLength) {
-                    long chunkLength = Math.min(targetSplitSizeBytes, fileLength - offset);
-                    splits.add(new FileSplit("file", filePath, offset, chunkLength, format, config, partitionValues, columnMapping));
+                    long chunkLength = Math.min(effectiveSplitSize, fileLength - offset);
+                    boolean isLast = (offset + chunkLength >= fileLength);
+                    Map<String, Object> splitConfig = new HashMap<>(config);
+                    if (isFirst) {
+                        splitConfig.put(FIRST_SPLIT_KEY, "true");
+                    }
+                    if (isLast) {
+                        splitConfig.put(LAST_SPLIT_KEY, "true");
+                    }
+                    splits.add(new FileSplit("file", filePath, offset, chunkLength, format, splitConfig, partitionValues, columnMapping));
                     offset += chunkLength;
+                    isFirst = false;
                 }
             } else {
                 splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
@@ -447,6 +465,33 @@ public class FileSplitProvider implements SplitProvider {
             case ".csv", ".tsv", ".ndjson", ".jsonl", ".json", ".txt" -> true;
             default -> false;
         };
+    }
+
+    /**
+     * Resolves the effective target split size from the config map, falling back to the
+     * constructor-provided value. Delegates to {@link ByteSizeValue#parseBytesSizeValue} for
+     * unit parsing (accepts {@code "64mb"}, {@code "1gb"}, {@code "1024b"}, etc.).
+     * Unitless values (e.g. {@code "1024"}) are rejected — a unit suffix is always required.
+     *
+     * <p>{@code ByteSizeValue} throws {@link org.elasticsearch.ElasticsearchParseException}
+     * on malformed input — an {@link org.elasticsearch.ElasticsearchException} subclass that
+     * {@code SplitDiscoveryPhase} already handles without wrapping.
+     */
+    private long resolveTargetSplitSize(Map<String, Object> config) {
+        if (config == null) {
+            return targetSplitSizeBytes;
+        }
+        Object value = config.get(CONFIG_TARGET_SPLIT_SIZE);
+        if (value == null) {
+            return targetSplitSizeBytes;
+        }
+        String s = value.toString().trim();
+        if (s.isEmpty()) {
+            return targetSplitSizeBytes;
+        }
+        long result = ByteSizeValue.parseBytesSizeValue(s, CONFIG_TARGET_SPLIT_SIZE).getBytes();
+        Check.isTrue(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_TARGET_SPLIT_SIZE, value);
+        return result;
     }
 
     static boolean matchesPartitionFilters(Map<String, Object> partitionValues, List<Expression> filters) {

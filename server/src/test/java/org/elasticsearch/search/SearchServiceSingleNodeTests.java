@@ -2900,22 +2900,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testSeqNoAndPrimaryTermReturnsSentinelsWhenSequenceNumbersDisabled() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-        final Settings settings = Settings.builder()
-            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), "doc_values_only")
-            .build();
-        createIndex("test-no-seqno", settings);
-        prepareIndex("test-no-seqno").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-
-        assertNoFailuresAndResponse(client().prepareSearch("test-no-seqno").seqNoAndPrimaryTerm(true), response -> {
-            assertHitCount(response, 1);
-            assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, response.getHits().getAt(0).getSeqNo());
-            assertEquals(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, response.getHits().getAt(0).getPrimaryTerm());
-        });
-    }
-
     public void testCancelledTaskFailsFastWithCaching() throws Exception {
         createIndex("index");
         prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();

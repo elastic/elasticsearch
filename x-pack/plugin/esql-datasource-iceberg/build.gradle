@@ -10,7 +10,6 @@ apply plugin: 'elasticsearch.publish'
 
 versions << [
   'hadoop'       : '3.4.3',
-  'parquet'      : '1.17.0',
   'arrow'        : '18.3.0',
   'caffeine'     : '2.9.3',
   'checker_qual' : '3.42.0',
@@ -116,8 +115,8 @@ dependencies {
   // 2. ParquetReadOptions.Builder() constructor creates HadoopParquetConfiguration internally,
   //    which requires the Configuration class to be present even when using non-Hadoop code paths
   // 3. parquet-hadoop-bundle includes shaded Parquet classes but not Hadoop Configuration
-  implementation('org.apache.hadoop:hadoop-client-api:3.4.3')
-  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.3')
+  implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
+  implementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}")
   
   // Arrow dependencies for compile time - provided at runtime by x-pack-esql's arrow module
   compileOnly("org.apache.arrow:arrow-vector:${versions.arrow}")

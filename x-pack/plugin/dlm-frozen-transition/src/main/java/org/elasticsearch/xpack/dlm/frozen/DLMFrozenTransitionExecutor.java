@@ -28,16 +28,16 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.logging.LogManager.getLogger;
 
 /**
- * DlmFrozenTransitionExecutor is responsible for managing and executing tasks related to
+ * DLMFrozenTransitionExecutor is responsible for managing and executing tasks related to
  * frozen transitions in the distributed lifecycle management (DLM) feature.
  * <br>
  * This executor limits the number of concurrent transition tasks based on a configurable capacity
  * and prevents transitions being executed concurrently for the same index.
  * It also ensures that tasks are tracked and cleaned up upon completion or failure.
  */
-class DlmFrozenTransitionExecutor implements Closeable {
+class DLMFrozenTransitionExecutor implements Closeable {
 
-    private static final Logger logger = getLogger(DlmFrozenTransitionExecutor.class);
+    private static final Logger logger = getLogger(DLMFrozenTransitionExecutor.class);
     private static final String EXECUTOR_NAME = "dlm-frozen-transition";
 
     private final Map<String, Boolean> submittedTransitions;
@@ -48,7 +48,7 @@ class DlmFrozenTransitionExecutor implements Closeable {
     private final DataStreamLifecycleErrorStore errorStore;
     private volatile int errorRetryInterval;
 
-    DlmFrozenTransitionExecutor(
+    DLMFrozenTransitionExecutor(
         ClusterService clusterService,
         int maxConcurrency,
         int maxQueueSize,
@@ -96,7 +96,7 @@ class DlmFrozenTransitionExecutor implements Closeable {
         return executor.shutdownNow();
     }
 
-    public Future<?> submit(DlmFrozenTransitionRunnable task) {
+    public Future<?> submit(DLMFrozenTransitionRunnable task) {
         final String indexName = task.getIndexName();
         submittedTransitions.put(indexName, false);
         try {
@@ -111,7 +111,7 @@ class DlmFrozenTransitionExecutor implements Closeable {
      * Wraps the task with index tracking and error handling. Ensures the index name is always removed from
      * {@link #submittedTransitions} when the thread completes, whether successfully or with an error.
      */
-    private Runnable wrapRunnable(DlmFrozenTransitionRunnable task) {
+    private Runnable wrapRunnable(DLMFrozenTransitionRunnable task) {
         return new WrappedDlmFrozenTransitionRunnable(task);
     }
 
@@ -121,9 +121,9 @@ class DlmFrozenTransitionExecutor implements Closeable {
     }
 
     private class WrappedDlmFrozenTransitionRunnable implements Runnable {
-        private final DlmFrozenTransitionRunnable task;
+        private final DLMFrozenTransitionRunnable task;
 
-        private WrappedDlmFrozenTransitionRunnable(DlmFrozenTransitionRunnable task) {
+        private WrappedDlmFrozenTransitionRunnable(DLMFrozenTransitionRunnable task) {
             this.task = task;
         }
 

@@ -296,7 +296,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
             ElasticsearchException.class,
             () -> DLMConvertToFrozen.checkSnapshotInfoSuccess(indexName, "snap", null)
         );
-        assertThat(e.getMessage(), containsString("failed shards"));
+        assertThat(e.getMessage(), containsString("did not return snapshot info"));
     }
 
     // --- createSnapshot tests ---

@@ -675,6 +675,52 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference() throws Exception {
+        // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).
+        // They should appear as PotentiallyUnmappedKeywordEsField in the EsRelation without being explicitly referenced.
+        runTests("""
+            FROM employees, employees_no_names
+            | SORT emp_no
+            | LIMIT 1
+            """);
+    }
+
+    public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped() throws Exception {
+        // event_duration is long, partially unmapped (missing in no_mapping_sample_data).
+        // It should appear as InvalidMappedField (unsupported) in the EsRelation.
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | KEEP @timestamp, event_duration
+            """);
+    }
+
+    public void testPartiallyMappedTextFieldMarkedAsPotentiallyUnmapped() throws Exception {
+        // gender is text in employees_gender_text but missing in employees_no_gender.
+        // It should appear as InvalidMappedField (unsupported) in the EsRelation.
+        runTests("""
+            FROM employees_gender_text, employees_no_gender
+            | KEEP gender
+            """);
+    }
+
+    public void testOnlyPartiallyMappedKeywordFieldLoaded() throws Exception {
+        // message (keyword) and event_duration (long) are both partially unmapped.
+        // Only message should become PotentiallyUnmappedKeywordEsField; event_duration should be InvalidMappedField.
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | KEEP message, event_duration
+            """);
+    }
+
+    public void testNonPartiallyMappedKeywordFieldNotLoadedFromSource() throws Exception {
+        // first_name (keyword, partially unmapped) should become PotentiallyUnmappedKeywordEsField.
+        // gender (keyword, fully mapped in both indices) should remain a regular KeywordEsField.
+        runTests("""
+            FROM employees, employees_no_names
+            | KEEP first_name, gender
+            """);
+    }
+
     public void testForkBranchesAfterStats1stBranch() throws Exception {
         runTestsNullifyOnly("""
             FROM employees

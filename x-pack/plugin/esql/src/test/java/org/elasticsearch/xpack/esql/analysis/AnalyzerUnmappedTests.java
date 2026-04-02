@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -866,71 +865,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     /**
-     * Verify that a non-keyword partially-mapped field (e.g. integer) is NOT converted to
-     * {@link PotentiallyUnmappedKeywordEsField}, since the fix only applies to keyword fields.
-     */
-    public void testPartiallyMappedNonKeywordFieldNotLoadedWithoutExplicitReference() {
-        var plan = analyzer().addIndex(
-            new EsIndex(
-                "test*",
-                EsqlTestUtils.loadMapping("mapping-basic.json"),
-                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-                Map.of(),
-                Map.of(),
-                Map.of("salary", Set.of("test2")) // salary is integer, not keyword
-            )
-        ).statement(setUnmappedLoad("""
-            FROM test*
-            | SORT emp_no
-            """));
-
-        var limit = as(plan, Limit.class);
-        var order = as(limit.child(), OrderBy.class);
-        var relation = as(order.child(), EsRelation.class);
-
-        var salaryAttr = relation.output().stream().filter(a -> a.name().equals("salary")).findFirst().orElseThrow();
-        var fieldAttr = as(salaryAttr, FieldAttribute.class);
-        assertThat(fieldAttr.field(), not(instanceOf(PotentiallyUnmappedKeywordEsField.class)));
-        assertThat(fieldAttr.field().getClass(), is(EsField.class));
-        assertThat(fieldAttr.field().getDataType(), is(DataType.INTEGER));
-    }
-
-    /**
-     * Verify that a partially-mapped text field is NOT converted to {@link PotentiallyUnmappedKeywordEsField},
-     * since the fix only applies to keyword fields. Text fields should not be loaded from _source.
-     */
-    public void testPartiallyMappedTextFieldNotLoaded() {
-        var plan = analyzer().addIndex(
-            new EsIndex(
-                "test*",
-                EsqlTestUtils.loadMapping("mapping-basic.json"),
-                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-                Map.of(),
-                Map.of(),
-                Map.of("gender", Set.of("test2")) // gender is text, not keyword
-            )
-        ).statement(setUnmappedLoad("""
-            FROM test*
-            | SORT emp_no
-            """));
-
-        var limit = as(plan, Limit.class);
-        var order = as(limit.child(), OrderBy.class);
-        var relation = as(order.child(), EsRelation.class);
-
-        var genderAttr = relation.output().stream().filter(a -> a.name().equals("gender")).findFirst().orElseThrow();
-        var fieldAttr = as(genderAttr, FieldAttribute.class);
-        assertThat(fieldAttr.field(), not(instanceOf(PotentiallyUnmappedKeywordEsField.class)));
-        assertThat(fieldAttr.field(), instanceOf(TextEsField.class));
-        assertThat(fieldAttr.field().getDataType(), is(DataType.TEXT));
-    }
-
-    /**
      * Verify that partially-mapped fields of ALL non-keyword types are NOT converted to
-     * {@link PotentiallyUnmappedKeywordEsField}. Only keyword fields should be loaded from _source.
+     * {@link PotentiallyUnmappedKeywordEsField}, but are instead marked as potentially unmapped via {@link InvalidMappedField}.
      * This iterates over all {@link DataType} values that can appear as ES mapped field types.
      */
-    public void testPartiallyMappedNonKeywordFieldsNotLoaded() {
+    public void testPartiallyMappedNonKeywordFieldsMarkedAsPotentiallyUnmapped() {
         // Types that cannot appear as regular ES mapped fields in an EsIndex mapping
         Set<DataType> excludedTypes = Set.of(
             DataType.KEYWORD,           // this is the type we DO convert — not a negative test case
@@ -985,46 +924,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 not(instanceOf(PotentiallyUnmappedKeywordEsField.class))
             );
             assertThat(
-                "Partially-mapped " + dataType + " field should retain its original data type",
-                fieldAttr.dataType(),
-                is(dataType.widenSmallNumeric())
+                "Partially-mapped " + dataType + " field should be marked as unsupported due to type conflict",
+                fieldAttr.field(),
+                instanceOf(UnsupportedEsField.class)
             );
         }
-    }
-
-    /**
-     * When both a keyword and non-keyword field are partially mapped, only the keyword field
-     * should be converted to {@link PotentiallyUnmappedKeywordEsField}.
-     */
-    public void testOnlyPartiallyMappedKeywordFieldLoaded() {
-        var plan = analyzer().addIndex(
-            new EsIndex(
-                "test*",
-                EsqlTestUtils.loadMapping("mapping-basic.json"),
-                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-                Map.of(),
-                Map.of(),
-                Map.of("first_name", Set.of("test2"), "salary", Set.of("test2")) // keyword + integer
-            )
-        ).statement(setUnmappedLoad("""
-            FROM test*
-            | SORT emp_no
-            """));
-
-        var limit = as(plan, Limit.class);
-        var order = as(limit.child(), OrderBy.class);
-        var relation = as(order.child(), EsRelation.class);
-
-        // keyword field should be converted
-        var firstName = relation.output().stream().filter(a -> a.name().equals("first_name")).findFirst().orElseThrow();
-        as(as(firstName, FieldAttribute.class).field(), PotentiallyUnmappedKeywordEsField.class);
-
-        // integer field should NOT be loaded
-        var salary = relation.output().stream().filter(a -> a.name().equals("salary")).findFirst().orElseThrow();
-        var salaryField = as(salary, FieldAttribute.class).field();
-        assertThat(salaryField, not(instanceOf(PotentiallyUnmappedKeywordEsField.class)));
-        assertThat(salaryField.getClass(), is(EsField.class));
-        assertThat(salaryField.getDataType(), is(DataType.INTEGER));
     }
 
     /**
@@ -1527,9 +1431,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             allOf(
                 containsString("Found 1 problem"),
                 containsString(
-                    "line 1:116: Cannot use field [@timestamp] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [date_nanos] in [sample_data, sample_data_ts_nanos]"
-                )
+                    "line 1:116: Cannot use field [@timestamp] due to ambiguities being mapped as [3] incompatible types: "),
+                containsString("[keyword] due to loading from _source"),
+                containsString("[date_nanos] in [sample_data_ts_nanos]"),
+                containsString("[datetime] in [sample_data]")
             )
         );
     }

@@ -1208,11 +1208,11 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 ;
 
 emp_no:integer | gender:text           | _index:keyword
-10001          | M                     | employees_gender_text
+10001          | null                  | employees_gender_text
 10001          | null                  | employees_no_gender
-10002          | F                     | employees_gender_text
+10002          | null                  | employees_gender_text
 10002          | null                  | employees_no_gender
-10003          | M                     | employees_gender_text
+10003          | null                  | employees_gender_text
 10003          | null                  | employees_no_gender
 ;
 
@@ -1228,11 +1228,11 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 ;
 
 emp_no:integer | gender:text           | _index:keyword
-10001          | M                     | employees_gender_text
+10001          | null                  | employees_gender_text
 10001          | null                  | employees_no_gender
-10002          | F                     | employees_gender_text
+10002          | null                  | employees_gender_text
 10002          | null                  | employees_no_gender
-10003          | M                     | employees_gender_text
+10003          | null                  | employees_gender_text
 10003          | null                  | employees_no_gender
 ;
 

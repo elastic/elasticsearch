@@ -45,7 +45,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.PrivilegedActionException;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -85,7 +84,7 @@ public class SamlResponseBuilder {
     public SamlResponseBuilder() {
         try {
             SamlUtils.initialize(logger);
-        } catch (PrivilegedActionException e) {
+        } catch (Exception e) {
             throw new RuntimeException("Cannot initialise SAML utilities", e);
         }
 

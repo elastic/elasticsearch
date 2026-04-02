@@ -15,20 +15,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 
-import static java.security.AccessController.doPrivileged;
-
-/**
- * Extension of {@code FileWatcher} that does privileged calls to IO.
- * <p>
- * This class exists so that the calls into the IO methods get here first in the security stackwalk,
- * enabling us to use doPrivileged to ensure we have access. If we don't do this, the code location
- * that is doing the accessing is not the one that is granted the SecuredFileAccessPermission,
- * so the check in ESPolicy fails.
- */
 public class PrivilegedFileWatcher extends FileWatcher {
 
     public PrivilegedFileWatcher(Path path) {
@@ -46,26 +33,16 @@ public class PrivilegedFileWatcher extends FileWatcher {
 
     @Override
     protected boolean fileExists(Path path) {
-        return doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(path));
+        return Files.exists(path);
     }
 
     @Override
     protected BasicFileAttributes readAttributes(Path path) throws IOException {
-        try {
-            return doPrivileged(
-                (PrivilegedExceptionAction<BasicFileAttributes>) () -> Files.readAttributes(path, BasicFileAttributes.class)
-            );
-        } catch (PrivilegedActionException e) {
-            throw new IOException(e);
-        }
+        return Files.readAttributes(path, BasicFileAttributes.class);
     }
 
     @Override
     protected DirectoryStream<Path> listFiles(Path path) throws IOException {
-        try {
-            return doPrivileged((PrivilegedExceptionAction<DirectoryStream<Path>>) () -> Files.newDirectoryStream(path));
-        } catch (PrivilegedActionException e) {
-            throw new IOException(e);
-        }
+        return Files.newDirectoryStream(path);
     }
 }

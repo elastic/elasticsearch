@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -41,7 +40,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static java.security.AccessController.doPrivileged;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.core.Strings.format;
@@ -61,7 +59,7 @@ public class FileUserPasswdStore {
     FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, Runnable listener) {
         file = resolveFile(config.env());
         settings = config.settings();
-        users = doPrivileged((PrivilegedAction<Map<String, char[]>>) () -> parseFileLenient(file, logger, settings));
+        users = parseFileLenient(file, logger, settings);
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
         FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
         watcher.addListener(new FileReloadListener(file, this::tryReload));
@@ -182,7 +180,7 @@ public class FileUserPasswdStore {
 
     private void tryReload() {
         final Map<String, char[]> previousUsers = users;
-        users = doPrivileged((PrivilegedAction<Map<String, char[]>>) () -> parseFileLenient(file, logger, settings));
+        users = parseFileLenient(file, logger, settings);
 
         if (Maps.deepEquals(previousUsers, users) == false) {
             logger.info("users file [{}] changed. updating users...", file.toAbsolutePath());

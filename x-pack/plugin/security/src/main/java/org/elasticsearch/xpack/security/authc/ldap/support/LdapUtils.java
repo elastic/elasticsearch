@@ -28,7 +28,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
@@ -39,9 +38,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,12 +66,7 @@ public final class LdapUtils {
     }
 
     public static <T> T privilegedConnect(CheckedSupplier<T, LDAPException> supplier) throws LDAPException {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<T>) supplier::get);
-        } catch (PrivilegedActionException e) {
-            throw (LDAPException) e.getCause();
-        }
+        return supplier.get();
     }
 
     public static String relativeName(DN dn) {

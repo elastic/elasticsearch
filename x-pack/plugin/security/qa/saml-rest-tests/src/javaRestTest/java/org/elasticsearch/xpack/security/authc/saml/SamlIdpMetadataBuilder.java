@@ -24,7 +24,6 @@ import org.opensaml.xmlsec.signature.impl.KeyInfoBuilder;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.PrivilegedActionException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -49,7 +48,7 @@ public class SamlIdpMetadataBuilder {
     public SamlIdpMetadataBuilder() {
         try {
             SamlUtils.initialize(logger);
-        } catch (PrivilegedActionException e) {
+        } catch (Exception e) {
             throw new RuntimeException("Cannot initialise SAML utilities", e);
         }
         wantSignedAuthnRequests = false;

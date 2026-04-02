@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.security.authc.support.mapper.AbstractRoleMapperC
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,7 +37,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.security.AccessController.doPrivileged;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.core.Strings.format;
@@ -61,9 +59,7 @@ public class DnRoleMapper extends AbstractRoleMapperClearRealmCache {
         this.config = config;
         useUnmappedGroupsAsRoles = config.getSetting(DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING);
         file = resolveFile(config);
-        dnRoles = doPrivileged(
-            (PrivilegedAction<Map<String, List<String>>>) () -> parseFileLenient(file, logger, config.type(), config.name())
-        );
+        dnRoles = parseFileLenient(file, logger, config.type(), config.name());
         FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         try {
@@ -240,9 +236,7 @@ public class DnRoleMapper extends AbstractRoleMapperClearRealmCache {
         public void onFileChanged(Path file) {
             if (file.equals(DnRoleMapper.this.file)) {
                 final Map<String, List<String>> previousDnRoles = dnRoles;
-                dnRoles = doPrivileged(
-                    (PrivilegedAction<Map<String, List<String>>>) () -> parseFileLenient(file, logger, config.type(), config.name())
-                );
+                dnRoles = parseFileLenient(file, logger, config.type(), config.name());
 
                 if (previousDnRoles.equals(dnRoles) == false) {
                     logger.info(

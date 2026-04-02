@@ -446,6 +446,8 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(rendered, not(containsString("`field` {applies_to}")));
         // Param with applies_to should have the annotation inline next to the name
         assertThat(rendered, containsString("`query` {applies_to}`stack: preview 9.4.0`\n:   "));
+        // MapParam with applies_to should have the annotation inline next to the name
+        assertThat(rendered, containsString("`options` {applies_to}`stack: preview 9.5.0`\n:   "));
     }
 
     public void testRenderingFunctionNamedParamsWithAppliesTo() throws Exception {
@@ -503,6 +505,7 @@ public class DocsV3SupportTests extends ESTestCase {
                 name = "options",
                 description = "Optional parameters.",
                 optional = true,
+                applies_to = "stack: preview 9.5.0",
                 params = {
                     @MapParam.MapParamEntry(name = "count", type = "integer", description = "Number of items.", valueHint = { "3" }),
                     @MapParam.MapParamEntry(

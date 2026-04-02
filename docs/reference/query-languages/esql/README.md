@@ -193,20 +193,37 @@ When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alo
 )
 ```
 
-You can also use `appliesTo` for `Param` and `ParamMapEntry`. In this case `appliesTo` is a plain text field that accepts the same format used in inline `applies_to` metadata.
-For example, to mark a specific map entry as preview:
+You can also use `appliesTo` for `Param`, `MapParam`, and `MapParamEntry`. In this case `appliesTo` is a plain text field that accepts the same format used in inline `applies_to` metadata.
+For example, to mark a specific parameter as preview:
 
 ```java
-@Param(
+@Param(name = "query", type = { "keyword" }, description = "The query.", applies_to = "stack: preview 9.4.0")
+```
+
+To mark a whole map parameter as preview:
+
+```java
+@MapParam(
     name = "options",
-    type = { "keyword" },
-    description = "A map of options.",
-    mapParams = {
-        @ParamMapEntry(
-            key = "my_option",
+    description = "Optional parameters.",
+    optional = true,
+    applies_to = "stack: preview 9.5.0",
+    params = { ... }
+)
+```
+
+To mark a specific map entry as preview:
+
+```java
+@MapParam(
+    name = "options",
+    description = "Optional parameters.",
+    params = {
+        @MapParamEntry(
+            name = "my_option",
             type = "keyword",
             description = "Description of my_option.",
-            appliesTo = "stack: preview 9.2"
+            applies_to = "stack: preview 9.2"
         )
     }
 )

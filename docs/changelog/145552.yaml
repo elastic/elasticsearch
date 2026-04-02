@@ -1,0 +1,13 @@
+area: TSDB
+breaking:
+  area: TSDB
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Decrease tsdb `look_ahead_time` to 9 minutes
+issues:
+ - 142602
+pr: 145552
+summary: Decrease tsdb `look_ahead_time` to 9 minutes
+type: "breaking, enhancement"

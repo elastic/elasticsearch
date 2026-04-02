@@ -1482,13 +1482,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // the force merge has multiple segments to merge.
         for (int batch = 0; batch < 3; batch++) {
             var bulkRequest = client().prepareBulk();
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 1000; i++) {
                 bulkRequest.add(
                     client().prepareIndex(dataStreamName)
                         .setOpType(DocWriteRequest.OpType.CREATE)
                         .setSource(document(timestamp, "vm-rollover-" + (i % 5), "cpu-load", i))
                 );
-                timestamp = timestamp.plusMillis(1000);
+                timestamp = timestamp.plusMillis(10);
             }
             assertNoFailures(bulkRequest.get());
             flush(dataStreamName);
@@ -1513,6 +1513,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             newIdFieldUsage.getBloomFilterBytes(),
             greaterThan(initialBloomFilterBytes)
         );
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(Set.of(firstBackingIndex, newBackingIndex));
     }
 
     /**

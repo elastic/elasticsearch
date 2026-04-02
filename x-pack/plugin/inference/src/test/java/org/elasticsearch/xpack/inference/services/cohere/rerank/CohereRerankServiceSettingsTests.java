@@ -29,10 +29,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-/**
- * {@code fromMap} tests that use {@link ConfigurationParseContext#PERSISTENT} are named {@code testFromMap_Persistent_*}
- * (Azure AI Studio service-settings tests use {@code testFromMap_Request_*} where parsing runs in request context).
- */
 public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereRerankServiceSettings> {
 
     private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
@@ -46,25 +42,27 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
     private static final int TEST_RATE_LIMIT = 20;
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
-    private static final CohereServiceSettings.CohereApiVersion TEST_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V2;
-    private static final CohereServiceSettings.CohereApiVersion INITIAL_TEST_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V1;
-    // Mirrors CohereServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS (used by CohereRerankServiceSettings#fromMap).
     private static final RateLimitSettings DEFAULT_COHERE_RERANK_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     public static CohereRerankServiceSettings createRandom() {
-        return createRandom(randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() }));
+        return new CohereRerankServiceSettings(
+            randomAlphaOfLengthOrNull(10),
+            randomAlphaOfLengthOrNull(10),
+            randomFrom(RateLimitSettingsTests.createRandom(), null),
+            randomFrom(CohereServiceSettings.CohereApiVersion.values())
+        );
     }
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var settingsMap = buildServiceSettingsMap(TEST_URL, TEST_MODEL_ID, TEST_COHERE_API_VERSION.toString(), TEST_RATE_LIMIT);
-
         var originalServiceSettings = new CohereRerankServiceSettings(
             INITIAL_TEST_URL,
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
-            INITIAL_TEST_COHERE_API_VERSION
+            CohereServiceSettings.CohereApiVersion.V1
         );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            buildServiceSettingsMap(CohereServiceSettings.CohereApiVersion.V2.toString())
+        );
 
         assertThat(
             updatedServiceSettings,
@@ -73,7 +71,7 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
                     INITIAL_TEST_URL,
                     INITIAL_TEST_MODEL_ID,
                     new RateLimitSettings(TEST_RATE_LIMIT),
-                    INITIAL_TEST_COHERE_API_VERSION
+                    CohereServiceSettings.CohereApiVersion.V1
                 )
             )
         );
@@ -84,7 +82,7 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
             INITIAL_TEST_URL,
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
-            INITIAL_TEST_COHERE_API_VERSION
+            CohereServiceSettings.CohereApiVersion.V1
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
 
@@ -99,9 +97,9 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
             is(
                 new CohereRerankServiceSettings(
                     (String) null,
-                    (String) null,
+                    null,
                     DEFAULT_COHERE_RERANK_RATE_LIMIT_SETTINGS,
-                    INITIAL_TEST_COHERE_API_VERSION
+                    CohereServiceSettings.CohereApiVersion.V1
                 )
             )
         );
@@ -109,22 +107,20 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     public void testFromMap_Persistent_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = CohereRerankServiceSettings.fromMap(
-            buildServiceSettingsMap(TEST_URL, TEST_MODEL_ID, TEST_COHERE_API_VERSION.toString(), TEST_RATE_LIMIT),
+            buildServiceSettingsMap(CohereServiceSettings.CohereApiVersion.V2.toString()),
             ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(
             serviceSettings,
-            is(new CohereRerankServiceSettings(TEST_URL, TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT), TEST_COHERE_API_VERSION))
-        );
-    }
-
-    public static CohereRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
-        return new CohereRerankServiceSettings(
-            randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
-            randomAlphaOfLengthOrNull(10),
-            rateLimitSettings,
-            CohereServiceSettings.CohereApiVersion.V2
+            is(
+                new CohereRerankServiceSettings(
+                    TEST_URL,
+                    TEST_MODEL_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    CohereServiceSettings.CohereApiVersion.V2
+                )
+            )
         );
     }
 
@@ -133,7 +129,7 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
             TEST_URL,
             TEST_MODEL_ID,
             new RateLimitSettings(TEST_RATE_LIMIT),
-            TEST_COHERE_API_VERSION
+            CohereServiceSettings.CohereApiVersion.V2
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -149,28 +145,20 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
               },
               "api_version": "%s"
             }
-            """, TEST_URL, TEST_MODEL_ID, TEST_RATE_LIMIT, TEST_COHERE_API_VERSION))));
+            """, TEST_URL, TEST_MODEL_ID, TEST_RATE_LIMIT, CohereServiceSettings.CohereApiVersion.V2))));
     }
 
-    private static HashMap<String, Object> buildServiceSettingsMap(
-        @Nullable String url,
-        @Nullable String modelId,
-        @Nullable String apiVersion,
-        @Nullable Integer rateLimit
-    ) {
+    private static HashMap<String, Object> buildServiceSettingsMap(@Nullable String apiVersion) {
         var result = new HashMap<String, Object>();
-        if (url != null) {
-            result.put(ServiceFields.URL, url);
-        }
-        if (modelId != null) {
-            result.put(ServiceFields.MODEL_ID, modelId);
-        }
+        result.put(ServiceFields.URL, CohereRerankServiceSettingsTests.TEST_URL);
+        result.put(ServiceFields.MODEL_ID, CohereRerankServiceSettingsTests.TEST_MODEL_ID);
         if (apiVersion != null) {
             result.put(CohereServiceSettings.API_VERSION, apiVersion);
         }
-        if (rateLimit != null) {
-            result.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
-        }
+        result.put(
+            RateLimitSettings.FIELD_NAME,
+            new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, CohereRerankServiceSettingsTests.TEST_RATE_LIMIT))
+        );
         return result;
     }
 

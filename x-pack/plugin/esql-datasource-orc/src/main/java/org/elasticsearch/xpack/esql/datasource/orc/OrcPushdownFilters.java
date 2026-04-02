@@ -97,9 +97,7 @@ final class OrcPushdownFilters {
             return canConvert(not.field());
         }
         if (expr instanceof StartsWith sw) {
-            return sw.singleValueField() instanceof NamedExpression ne
-                && (ne.dataType() == DataType.KEYWORD || ne.dataType() == DataType.TEXT)
-                && sw.prefix().foldable();
+            return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD || dt == DataType.TEXT);
         }
         return false;
     }

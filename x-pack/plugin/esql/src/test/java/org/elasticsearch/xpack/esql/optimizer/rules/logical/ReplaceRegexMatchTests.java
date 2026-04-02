@@ -103,27 +103,25 @@ public class ReplaceRegexMatchTests extends ESTestCase {
     }
 
     public void testLikeMixedPatternAddsStartsWithConjunct() {
-        WildcardPattern pattern = new WildcardPattern("foo*bar*");
-        FieldAttribute fa = getFieldAttribute();
-        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
-        Expression e = replaceRegexMatch(wl);
-        assertEquals(And.class, e.getClass());
-        And and = (And) e;
-        assertEquals(StartsWith.class, and.left().getClass());
-        assertEquals(WildcardLike.class, and.right().getClass());
-        StartsWith sw = (StartsWith) and.left();
-        assertEquals(fa, sw.children().get(0));
-        assertEquals("foo", BytesRefs.toString(sw.children().get(1).fold(FoldContext.small())));
+        for (String s : asList("foo*bar*", "foo?bar*", "prefix?")) {
+            WildcardPattern pattern = new WildcardPattern(s);
+            FieldAttribute fa = getFieldAttribute();
+            WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+            Expression e = replaceRegexMatch(wl);
+            assertEquals(And.class, e.getClass());
+            And and = (And) e;
+            assertEquals(StartsWith.class, and.left().getClass());
+            assertEquals(WildcardLike.class, and.right().getClass());
+        }
     }
 
-    public void testLikeSingleCharWildcardStopsPrefix() {
-        WildcardPattern pattern = new WildcardPattern("foo?bar*");
+    public void testLikeMixedPatternWithSuffix() {
+        WildcardPattern pattern = new WildcardPattern("foo*bar");
         FieldAttribute fa = getFieldAttribute();
         WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
         Expression e = replaceRegexMatch(wl);
         assertEquals(And.class, e.getClass());
         And and = (And) e;
-        assertEquals(StartsWith.class, and.left().getClass());
         StartsWith sw = (StartsWith) and.left();
         assertEquals("foo", BytesRefs.toString(sw.children().get(1).fold(FoldContext.small())));
     }

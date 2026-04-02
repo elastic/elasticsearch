@@ -26,7 +26,10 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
 
     public ReplaceRegexMatch() {
-        super(OptimizerRules.TransformDirection.DOWN);
+        // UP: when this rule rewrites WildcardLike → And(StartsWith, WildcardLike),
+        // the inner WildcardLike child was already visited, preventing re-entry.
+        // DOWN would descend into the new WildcardLike child and loop infinitely.
+        super(OptimizerRules.TransformDirection.UP);
     }
 
     @Override
@@ -70,12 +73,12 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
     private static Expression decomposeWildcardLike(WildcardLike wl) {
         WildcardPattern wp = wl.pattern();
         String prefix = wp.extractPrefix();
-        String suffix = wp.extractSuffix();
         String raw = wp.pattern();
 
         if (prefix != null && raw.equals(StringUtils.escapeWildcardLiteral(prefix) + "*")) {
             return new StartsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), prefix));
         }
+        String suffix = wp.extractSuffix();
         if (suffix != null && raw.equals("*" + StringUtils.escapeWildcardLiteral(suffix))) {
             return new EndsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), suffix));
         }

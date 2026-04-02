@@ -158,7 +158,7 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             return canConvert(not.field());
         }
         if (expr instanceof StartsWith sw) {
-            return sw.singleValueField() instanceof NamedExpression ne && ne.dataType() == DataType.KEYWORD && sw.prefix().foldable();
+            return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD);
         }
         return false;
     }

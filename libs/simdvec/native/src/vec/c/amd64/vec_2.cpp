@@ -235,6 +235,115 @@ EXPORT void vec_sqr7u_bulk_offsets_2(
     call_i8_bulk<int8_t, offsets_mapper, sqr7u_inner, 4>(a, b, dims, pitch, offsets, count, results);
 }
 
+// --- int8 (signed, full range -128..127) AVX-512 implementations ---
+// Unlike i7u which uses maddubs (unsigned x signed), i8 needs sign-extension to 16-bit
+// before multiply, because both operands can be negative. Each iteration loads 32 bytes
+// (into __m256i), sign-extends to __m512i, then uses signed madd_epi16.
+
+static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    __m512i acc = _mm512_setzero_si512();
+
+    int i = 0;
+    const int blk = dims & ~(sizeof(__m256i) - 1);
+    for (; i < blk; i += sizeof(__m256i)) {
+        const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(a + i)));
+        const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + i)));
+        acc = _mm512_add_epi32(_mm512_madd_epi16(a16, b16), acc);
+    }
+
+    int32_t res = _mm512_reduce_add_epi32(acc);
+    // Masked tail: sign-extend remaining elements
+    const int remaining = dims - i;
+    if (remaining > 0) {
+        const __mmask32 mask = (__mmask32)((1ULL << remaining) - 1);
+        const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, a + i));
+        const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
+        res += _mm512_reduce_add_epi32(_mm512_madd_epi16(a16, b16));
+    }
+    return res;
+}
+
+EXPORT f32_t vec_doti8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return (f32_t)doti8_inner(a, b, dims);
+}
+
+EXPORT void vec_doti8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    call_i8_bulk<int8_t, sequential_mapper, doti8_inner, 4>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_doti8_bulk_offsets_2(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<int8_t, offsets_mapper, doti8_inner, 4>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT void vec_doti8_bulk_sparse_2(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<const int8_t*, sparse_mapper, doti8_inner, 4>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+}
+
+static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    __m512i acc = _mm512_setzero_si512();
+
+    int i = 0;
+    const int blk = dims & ~(sizeof(__m256i) - 1);
+    for (; i < blk; i += sizeof(__m256i)) {
+        const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(a + i)));
+        const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((const __m256i*)(b + i)));
+        const __m512i dist = _mm512_sub_epi16(a16, b16);
+        acc = _mm512_add_epi32(_mm512_madd_epi16(dist, dist), acc);
+    }
+
+    int32_t res = _mm512_reduce_add_epi32(acc);
+    // Masked tail
+    const int remaining = dims - i;
+    if (remaining > 0) {
+        const __mmask32 mask = (__mmask32)((1ULL << remaining) - 1);
+        const __m512i a16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, a + i));
+        const __m512i b16 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask, b + i));
+        const __m512i dist = _mm512_sub_epi16(a16, b16);
+        res += _mm512_reduce_add_epi32(_mm512_madd_epi16(dist, dist));
+    }
+    return res;
+}
+
+EXPORT f32_t vec_sqri8_2(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return (f32_t)sqri8_inner(a, b, dims);
+}
+
+EXPORT void vec_sqri8_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    call_i8_bulk<int8_t, sequential_mapper, sqri8_inner, 4>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_sqri8_bulk_offsets_2(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<int8_t, offsets_mapper, sqri8_inner, 4>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT void vec_sqri8_bulk_sparse_2(
+    const void* const* addresses,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    call_i8_bulk<const int8_t*, sparse_mapper, sqri8_inner, 4>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
+}
+
 #ifdef __clang__
 #pragma clang attribute pop
 #elif __GNUC__

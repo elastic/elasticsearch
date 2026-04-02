@@ -425,22 +425,40 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext ctx) throws IOException {
         if (queryVectorSupplier != null) {
-            if (queryVectorSupplier.get() == null) {
+            float[] vector = queryVectorSupplier.get();
+
+            if (vector == null) {
+                return this; // wait for async
+            }
+
+            // FIX: avoid infinite rewrite loop
+            if (queryVector != null) {
                 return this;
             }
+
             return new KnnVectorQueryBuilder(
                 fieldName,
-                queryVectorSupplier.get(),
+                VectorData.fromFloats(vector),
+                null,                      // remove builder
+                queryVectorSupplier,       // keep supplier
                 k,
                 numCands,
                 visitPercentage,
                 rescoreVectorBuilder,
                 vectorSimilarity
-            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
+            ).boost(boost)
+            .queryName(queryName)
+            .addFilterQueries(filterQueries)
+            .setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
-            ctx.registerUniqueAsyncAction(new QueryVectorBuilderAsyncAction(queryVectorBuilder), toSet::set);
+
+            ctx.registerUniqueAsyncAction(
+                new QueryVectorBuilderAsyncAction(queryVectorBuilder),
+                toSet::set
+            );
+
             return new KnnVectorQueryBuilder(
                 fieldName,
                 queryVector,
@@ -451,7 +469,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 visitPercentage,
                 rescoreVectorBuilder,
                 vectorSimilarity
-            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
+            ).boost(boost)
+            .queryName(queryName)
+            .addFilterQueries(filterQueries)
+            .setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());

@@ -126,6 +126,9 @@ public class SnapshotShardContextHelper {
         }).onResponse(null);
     }
 
+    /**
+     * Attempt to inc-ref on the snapshotIndexCommit. Returns a releasable that dec-refs when runs. Throws exception if inc-ref fails.
+     */
     public static Releasable withSnapshotIndexCommitRef(
         ShardId shardId,
         SnapshotId snapshotId,

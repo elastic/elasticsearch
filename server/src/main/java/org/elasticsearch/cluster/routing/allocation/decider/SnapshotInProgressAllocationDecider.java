@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.FixForMultiProject;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.util.Objects;
 
@@ -30,18 +28,16 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
     public static final String NAME = "snapshot_in_progress";
     public static final String RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME = "stateless.snapshot.relocation_during_snapshot.enabled";
 
-    private static final Logger logger = LogManager.getLogger(SnapshotInProgressAllocationDecider.class);
-
     private volatile boolean relocationDuringSnapshotEnabled;
 
     public SnapshotInProgressAllocationDecider(ClusterSettings clusterSettings) {
         final var relocationDuringSnapshotEnabledSetting = clusterSettings.get(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME);
         if (relocationDuringSnapshotEnabledSetting != null) {
             assert relocationDuringSnapshotEnabledSetting.isDynamic();
-            clusterSettings.initializeAndWatch(relocationDuringSnapshotEnabledSetting, value -> {
-                logger.info("relocation during snapshot enabled [{}]", value);
-                relocationDuringSnapshotEnabled = (boolean) value;
-            });
+            clusterSettings.initializeAndWatch(
+                relocationDuringSnapshotEnabledSetting,
+                value -> relocationDuringSnapshotEnabled = (boolean) value
+            );
         } else {
             relocationDuringSnapshotEnabled = false;
         }

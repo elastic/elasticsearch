@@ -11,7 +11,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -50,7 +49,7 @@ public record SourceOperatorContext(
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
     Object pushedFilter,
-    FileSet fileSet,
+    FileList fileList,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
@@ -89,7 +88,7 @@ public record SourceOperatorContext(
         Map<String, Object> config,
         Map<String, Object> sourceMetadata,
         Object pushedFilter,
-        FileSet fileSet,
+        FileList fileList,
         @Nullable ExternalSplit split
     ) {
         this(
@@ -104,7 +103,7 @@ public record SourceOperatorContext(
             config,
             sourceMetadata,
             pushedFilter,
-            fileSet,
+            fileList,
             split,
             null,
             null,
@@ -123,7 +122,7 @@ public record SourceOperatorContext(
         Map<String, Object> config,
         Map<String, Object> sourceMetadata,
         Object pushedFilter,
-        FileSet fileSet
+        FileList fileList
     ) {
         this(
             sourceType,
@@ -137,7 +136,7 @@ public record SourceOperatorContext(
             config,
             sourceMetadata,
             pushedFilter,
-            fileSet,
+            fileList,
             null,
             null,
             null,
@@ -223,7 +222,7 @@ public record SourceOperatorContext(
         private Map<String, Object> config;
         private Map<String, Object> sourceMetadata;
         private Object pushedFilter;
-        private FileSet fileSet;
+        private FileList fileList;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
@@ -284,8 +283,8 @@ public record SourceOperatorContext(
             return this;
         }
 
-        public Builder fileSet(FileSet fileSet) {
-            this.fileSet = fileSet;
+        public Builder fileList(FileList fileList) {
+            this.fileList = fileList;
             return this;
         }
 
@@ -322,7 +321,7 @@ public record SourceOperatorContext(
                 config,
                 sourceMetadata,
                 pushedFilter,
-                fileSet,
+                fileList,
                 split,
                 partitionColumnNames,
                 sliceQueue,

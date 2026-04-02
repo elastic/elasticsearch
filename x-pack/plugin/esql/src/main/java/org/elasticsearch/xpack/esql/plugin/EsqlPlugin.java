@@ -79,6 +79,8 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
@@ -257,6 +259,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
+        ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
+        services.clusterService()
+            .getClusterSettings()
+            .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+
         List<Object> components = new ArrayList<>(
             List.of(
                 new PlanExecutor(
@@ -268,7 +275,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     services.crossProjectModeDecider(),
                     dataSourceModule,
                     functionRegistry,
-                    parser
+                    parser,
+                    cacheService
                 ),
                 new ExchangeService(
                     services.clusterService().getSettings(),
@@ -341,6 +349,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         // External source rate limiting settings
         settings.addAll(ExternalSourceSettings.settings());
+
+        // External source cache settings
+        settings.addAll(ExternalSourceCacheSettings.settings());
 
         return Collections.unmodifiableList(settings);
     }

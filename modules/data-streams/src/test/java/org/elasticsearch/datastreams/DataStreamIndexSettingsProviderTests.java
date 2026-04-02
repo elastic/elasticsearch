@@ -45,8 +45,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
-    private static final TimeValue DEFAULT_LOOK_BACK_TIME = TimeValue.timeValueHours(2); // default
-    private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueMinutes(30); // default
+    private static final TimeValue DEFAULT_LOOK_BACK_TIME = TimeValue.timeValueHours(2);
+    private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueMinutes(
+        UpdateTimeSeriesRangeServiceTests.DEFAULT_LOOK_AHEAD
+    );
 
     DataStreamIndexSettingsProvider provider;
     private boolean indexDimensionsTsidStrategyEnabledSetting;
@@ -381,10 +383,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() throws Exception {
         String dataStreamName = "logs-app1";
-        TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
 
         Instant sixHoursAgo = Instant.now().minus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
-        Instant currentEnd = sixHoursAgo.plusMillis(lookAheadTime.getMillis());
+        Instant currentEnd = sixHoursAgo.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis());
         ProjectMetadata projectMetadata = DataStreamTestHelper.getProjectWithDataStream(
             randomProjectIdOrDefault(),
             dataStreamName,
@@ -410,7 +411,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo(FORMATTER.format(currentEnd)));
         assertThat(
             result.get(IndexSettings.TIME_SERIES_END_TIME.getKey()),
-            equalTo(FORMATTER.format(now.plusMillis(lookAheadTime.getMillis())))
+            equalTo(FORMATTER.format(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())))
         );
         if (expectedDisabledSequenceNumbers) {
             assertThat(IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(result), equalTo(true));

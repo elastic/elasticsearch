@@ -114,10 +114,7 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
         }
 
         private Block filterToSingleValue(Block block) {
-            try (
-                Block.Builder builder = block.elementType()
-                    .newBlockBuilder(block.getPositionCount(), driverContext.blockFactory())
-            ) {
+            try (Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), driverContext.blockFactory())) {
                 for (int p = 0; p < block.getPositionCount(); p++) {
                     if (block.getValueCount(p) == 1) {
                         builder.copyFrom(block, p, p + 1);

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -40,36 +39,111 @@ public class MvSingleValueOrNullTests extends AbstractMultivalueFunctionTestCase
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
         // Single-valued input passes through; multi-valued input returns null.
-        booleans(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.BOOLEAN,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue());
-        bytesRefs(cases, "single_value_or_null", "MvSingleValueOrNull", Function.identity(),
-            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue());
-        doubles(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.DOUBLE,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().getAsDouble()) : nullValue());
-        ints(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.INTEGER,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().getAsInt()) : nullValue());
-        longs(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.LONG,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().getAsLong()) : nullValue());
-        unsignedLongs(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.UNSIGNED_LONG,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue());
-        dateTimes(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.DATETIME,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().getAsLong()) : nullValue());
-        dateNanos(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.DATE_NANOS,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().getAsLong()) : nullValue());
-        geoPoints(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.GEO_POINT,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue());
-        cartesianPoints(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.CARTESIAN_POINT,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue());
-        geoShape(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.GEO_SHAPE,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue());
-        cartesianShape(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.CARTESIAN_SHAPE,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue());
-        geohashGrid(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.GEOHASH,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue());
-        geotileGrid(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.GEOTILE,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue());
-        geohexGrid(cases, "single_value_or_null", "MvSingleValueOrNull", DataType.GEOHEX,
-            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue());
+        booleans(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.BOOLEAN,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
+        bytesRefs(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            Function.identity(),
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
+        doubles(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.DOUBLE,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().getAsDouble()) : nullValue()
+        );
+        ints(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.INTEGER,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().getAsInt()) : nullValue()
+        );
+        longs(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.LONG,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().getAsLong()) : nullValue()
+        );
+        unsignedLongs(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.UNSIGNED_LONG,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
+        dateTimes(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.DATETIME,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().getAsLong()) : nullValue()
+        );
+        dateNanos(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.DATE_NANOS,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().getAsLong()) : nullValue()
+        );
+        geoPoints(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.GEO_POINT,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
+        cartesianPoints(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.CARTESIAN_POINT,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
+        geoShape(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.GEO_SHAPE,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
+        cartesianShape(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.CARTESIAN_SHAPE,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
+        geohashGrid(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.GEOHASH,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
+        geotileGrid(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.GEOTILE,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
+        geohexGrid(
+            cases,
+            "single_value_or_null",
+            "MvSingleValueOrNull",
+            DataType.GEOHEX,
+            (size, values) -> size == 1 ? equalTo(values.findFirst().get()) : nullValue()
+        );
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
     }
 

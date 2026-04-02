@@ -18,7 +18,6 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -741,15 +740,9 @@ public final class SamlRealm extends Realm implements Releasable {
 
         initialiseResolver(resolver, config);
 
-        return new Tuple<>(resolver, () -> {
-            // for some reason the resolver supports its own trust engine and custom socket factories.
-            // we do not use these as we'd rather rely on the JDK versions for TLS security!
-            try {
-                return resolveEntityDescriptor(resolver, entityId, metadataUrl, failOnError);
-            } catch (Exception e) {
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-        });
+        // for some reason the resolver supports its own trust engine and custom socket factories.
+        // we do not use these as we'd rather rely on the JDK versions for TLS security!
+        return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, metadataUrl, failOnError));
     }
 
     private static final class PrivilegedHTTPMetadataResolver extends HTTPMetadataResolver {

@@ -80,6 +80,9 @@ public class ParquetPageIndexFilteringTests extends ESTestCase {
         FilterPredicate filter = FilterApi.eq(FilterApi.intColumn("id"), 500);
         int filteredRows = readWithFilter(parquetData, filter);
 
+        // Page-index filtering returns entire pages, not individual rows — the matching page
+        // contains id=500 plus its neighbors, so filteredRows > 1. RECHECK (per-row filtering)
+        // happens later in the ESQL pipeline, not at the format reader level.
         assertTrue("Expected some rows from the page containing id=500", filteredRows > 0);
         assertTrue(
             "Expected page-index filtering to skip most pages (got " + filteredRows + " of " + allRows + ")",

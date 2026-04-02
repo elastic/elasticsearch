@@ -29,7 +29,7 @@ esac
 
 VERSION=1
 HOST=docker.elastic.co
-REPOSITORY=es-dev/es-native-cross-toolchain
+REPOSITORY=elasticsearch-infra/es-native-cross-toolchain
 IMAGE=$HOST/$REPOSITORY:$VERSION
 if [ "$LOCAL" = true ]; then
   IMAGE=es-native-cross-toolchain:local
@@ -49,6 +49,9 @@ if [ "$LOCAL" = true ]; then
 else
   echo "Pushing $IMAGE ..."
   # Authenticate at https://docker-auth.elastic.co if not already logged in.
+  # If you get a 500, or if https://docker-auth.elastic.co is a blank page,
+  # first do ` docker logout docker.elastic.co`, then visit https://docker-auth.elastic.co again
+  # and follow the instructions to login.
   docker push "$IMAGE"
   echo "Done. Update publish_vec_binaries.sh to reference $REPOSITORY:$VERSION."
 fi

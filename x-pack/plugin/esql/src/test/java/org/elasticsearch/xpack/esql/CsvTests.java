@@ -332,7 +332,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalseLogging(
                 "Can't simulate _source loading for unmapped fields in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName())
             );
             assumeFalseLogging(
                 "can't use rereank in csv tests",
@@ -1062,7 +1062,7 @@ public class CsvTests extends ESTestCase {
                     if (withSplits.splits().isEmpty() == false) {
                         coordinatorSplits.addAll(withSplits.splits());
                     } else {
-                        // Fallback: FileSplitProvider returns empty for FileSet.UNRESOLVED (single-file).
+                        // Fallback: FileSplitProvider returns empty for FileList.UNRESOLVED (single-file).
                         // Create a single split from the path so the operator can read.
                         String path = withSplits.sourcePath();
                         if (path != null && path.startsWith("file://")) {

@@ -297,21 +297,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/145377
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionToFieldLoadGoldenTests
   issue: https://github.com/elastic/elasticsearch/issues/145381
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:spatial.twoCitiesPointDistanceGeo}
-  issue: https://github.com/elastic/elasticsearch/issues/145406
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testDatafeedTimingStats_DatafeedRecreated
   issue: https://github.com/elastic/elasticsearch/issues/138348
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:unsigned_long.evalNullEqualsUnsignedLong}
-  issue: https://github.com/elastic/elasticsearch/issues/145426
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:inlinestats.inlineStatsAfterSortDroppedAndResort}
-  issue: https://github.com/elastic/elasticsearch/issues/145431
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:inlinestats.maxOfLongByKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/145433
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidLongWithCasting
   issue: https://github.com/elastic/elasticsearch/issues/145435
@@ -321,66 +309,30 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
   method: testOverflowInGroupingProducesNullAndWarning
   issue: https://github.com/elastic/elasticsearch/issues/145438
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:convert.convertToGeoPoint}
-  issue: https://github.com/elastic/elasticsearch/issues/145439
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:spatial-grid.gridGeohexByBounds}
-  issue: https://github.com/elastic/elasticsearch/issues/145449
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/144587
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/144587
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:spatial-jts.stBufferFoldable}
-  issue: https://github.com/elastic/elasticsearch/issues/145483
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testScalarOnDates_DateNanos
   issue: https://github.com/elastic/elasticsearch/issues/145485
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testMultiValueFieldWithMultiValueLeniencyEnabled
   issue: https://github.com/elastic/elasticsearch/issues/145486
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:tdigest.ungroupedPercentiles}
-  issue: https://github.com/elastic/elasticsearch/issues/145495
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testCancelOnExpiry
   issue: https://github.com/elastic/elasticsearch/issues/145502
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:inlinestats.multiIndexIpInlinestats_NonPushableCountEval}
-  issue: https://github.com/elastic/elasticsearch/issues/145516
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:date.evalDateParseWithLocaleAndTimezoneOption}
-  issue: https://github.com/elastic/elasticsearch/issues/145518
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/145519
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:where-like.negatedRLikeWithLowerTurnedInsensitive}
-  issue: https://github.com/elastic/elasticsearch/issues/145520
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:dissect.nullInput}
-  issue: https://github.com/elastic/elasticsearch/issues/145521
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcFetchSizeIT
   method: testPivotPaging
   issue: https://github.com/elastic/elasticsearch/issues/145523
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:floats.values}
-  issue: https://github.com/elastic/elasticsearch/issues/145524
 - class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
   method: testContainsIterator
   issue: https://github.com/elastic/elasticsearch/issues/145532
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:ints.convertStringToBaseIndexGroup6}
-  issue: https://github.com/elastic/elasticsearch/issues/145540
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:range.Invalid Boundaries, date nanos implicit casting}
-  issue: https://github.com/elastic/elasticsearch/issues/145542
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:dense_vector_aggs.sumDenseVectorSingleRow}
-  issue: https://github.com/elastic/elasticsearch/issues/145549
 - class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
   method: testUpdateInferenceId_GivenCurrentHasNoModelSettingsAndNewIsIncompatibleTaskType_ShouldSucceed {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/145550
@@ -416,9 +368,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.ExchangeExec}
   issue: https://github.com/elastic/elasticsearch/issues/145585
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:stats_percentile.percentileOfLong}
-  issue: https://github.com/elastic/elasticsearch/issues/145589
 
 # Examples:
 #

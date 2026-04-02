@@ -885,7 +885,16 @@ public class EsqlFunctionRegistry {
             hint = new ArgSignature.Hint(param.hint().entityType().name().toLowerCase(Locale.ROOT), constraints);
         }
 
-        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), variadic, hint, targetDataType, param.applies_to());
+        return new EsqlFunctionRegistry.ArgSignature(
+            param.name(),
+            type,
+            desc,
+            param.optional(),
+            variadic,
+            hint,
+            targetDataType,
+            param.applies_to()
+        );
     }
 
     public static ArgSignature mapParam(MapParam mapParam) {

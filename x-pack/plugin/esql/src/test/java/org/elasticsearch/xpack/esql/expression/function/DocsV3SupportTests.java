@@ -437,7 +437,6 @@ public class DocsV3SupportTests extends ESTestCase {
         return constructors[0];
     }
 
-
     public void testRenderingParamWithAppliesTo() throws Exception {
         TestCallbacks callbacks = renderTestClassWithMapParamDocs();
         String rendered = callbacks.rendered.get("parameters/test_map_func.md");

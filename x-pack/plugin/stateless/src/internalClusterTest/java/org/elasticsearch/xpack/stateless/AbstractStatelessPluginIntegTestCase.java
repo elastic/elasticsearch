@@ -17,9 +17,6 @@
 
 package org.elasticsearch.xpack.stateless;
 
-import co.elastic.elasticsearch.serverless.multiproject.ServerlessMultiProjectPlugin;
-import co.elastic.elasticsearch.serverless.multiproject.action.TransportGetProjectStatusAction;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -40,21 +37,15 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -62,7 +53,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
@@ -88,7 +78,6 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
-import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.Measurement;
@@ -97,12 +86,8 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -118,10 +103,8 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
-import org.elasticsearch.xpack.stateless.multiproject.ProjectLease;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
-import org.elasticsearch.xpack.stateless.settings.secure.SecureSettingsPlugin;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -129,9 +112,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -145,7 +125,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -156,10 +135,8 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
-import static org.elasticsearch.cluster.metadata.RepositoriesMetadata.HIDE_GENERATIONS_PARAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -261,14 +238,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<Class<? extends Plugin>>();
         plugins.addAll(super.nodePlugins());
-        plugins.addAll(getRequiredNodePlugins(addMockFsRepository(), multiProjectIntegrationTest()));
+        plugins.addAll(getRequiredNodePlugins(addMockFsRepository()));
         return List.copyOf(plugins);
     }
 
-    public static Collection<Class<? extends Plugin>> getRequiredNodePlugins(
-        boolean addMockFsRepository,
-        boolean multiProjectIntegrationTest
-    ) {
+    public static Collection<Class<? extends Plugin>> getRequiredNodePlugins(boolean addMockFsRepository) {
         var plugins = new ArrayList<Class<? extends Plugin>>();
         plugins.add(BlobCachePlugin.class);
         plugins.add(TestUtils.StatelessPluginWithTrialLicense.class);
@@ -276,10 +250,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         plugins.add(SystemIndexTestPlugin.class);
         if (addMockFsRepository) {
             plugins.add(ConcurrentMultiPartUploadsMockFsRepository.Plugin.class);
-        }
-        if (multiProjectIntegrationTest) {
-            plugins.add(SecureSettingsPlugin.class);
-            plugins.add(ServerlessMultiProjectPlugin.class);
         }
         return List.copyOf(plugins);
     }
@@ -430,9 +400,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         } else if (hollowIndexShardsZeroTtl) {
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO);
             builder.put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO);
-        }
-        if (multiProjectIntegrationTest()) {
-            builder.put(ServerlessMultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true);
         }
         builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
@@ -1355,252 +1322,4 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             .build();
     }
 
-    private static final AtomicLong reservedStateVersionCounter = new AtomicLong(1);
-
-    // TODO: Extract file manipulation code to an utility class, see also ES-12052
-    protected void putProject(ProjectId projectId) throws Exception {
-        putProject(
-            projectId,
-            Settings.builder()
-                .put("stateless.object_store.type", "fs")
-                .put("stateless.object_store.bucket", "project_" + projectId)
-                .put("stateless.object_store.base_path", "base_path")
-                .put("stateless.object_store.client", "default")
-                .build(),
-            Settings.EMPTY,
-            null
-        );
-    }
-
-    protected void putProject(
-        ProjectId projectId,
-        Settings projectSettings,
-        Settings projectSecrets,
-        @Nullable RepositoryMetadata repositoryMetadata
-    ) throws Exception {
-        assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
-        final var fileSettingsService = internalCluster().getCurrentMasterNodeInstance(FileSettingsService.class);
-        assertTrue(fileSettingsService.watching());
-        Files.createDirectories(fileSettingsService.watchedFileDir());
-        final long newVersion = reservedStateVersionCounter.incrementAndGet();
-
-        final String settingsJson = addProjectIdToSettingsJson(fileSettingsService.watchedFile(), newVersion, projectId.id());
-        final String repositoryJson = getRepositoryJson(repositoryMetadata);
-
-        String secretsSection = projectSecrets.isEmpty() ? "" : Strings.format("""
-            "project_secrets": {
-                "string_secrets": %s
-            },""", projectSecrets);
-
-        final var projectSettingsJson = Strings.format("""
-            {
-                 "metadata": {
-                     "version": "%s",
-                     "compatibility": "8.4.0"
-                 },
-                 "state": {
-                     %s
-                     "project_settings": %s,
-                     "snapshot_repositories": %s
-                 }
-            }""", newVersion, secretsSection, projectSettings, repositoryJson);
-
-        Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".json"), projectSettingsJson);
-        writeAndMoveContentAtomically(settingsJson, fileSettingsService.watchedFile());
-        ensureProcessedFileBasedSettingsVersion(newVersion);
-
-        // Ensure the project exist
-        assertBusy(() -> {
-            final var request = new TransportGetProjectStatusAction.Request(TEST_REQUEST_TIMEOUT, projectId.id());
-            assertThat(
-                safeGet(client().execute(TransportGetProjectStatusAction.INSTANCE, request)).getProjectId(),
-                equalTo(projectId.id())
-            );
-        });
-
-        // TODO: Wait for the lease to be claimed. This is needed until we have ES-11206
-        final var blobContainer = getCurrentMasterObjectStoreService().getClusterRootContainer();
-        final var clusterUuid = internalCluster().clusterService().state().metadata().clusterUUID();
-        final var projectLeaseBlobName = ProjectLease.leaseBlobName(projectId);
-        assertBusy(() -> {
-            assertTrue(blobContainer.blobExists(OperationPurpose.CLUSTER_STATE, projectLeaseBlobName));
-            final ProjectLease projectLease = readProjectLease(projectLeaseBlobName);
-            assertTrue(projectLease.isAssigned());
-            assertEquals(projectLease.clusterUuidAsString(), clusterUuid);
-        });
-    }
-
-    protected void removeProject(ProjectId projectId) throws Exception {
-        markProjectForDeletion(projectId);
-        ensureProjectRemovedAndCleanUp(projectId);
-    }
-
-    @SuppressWarnings("unchecked")
-    protected void markProjectForDeletion(ProjectId projectId) throws Exception {
-        assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
-
-        logger.info("--> marking project [{}] for deletion", projectId);
-        final var settingsJsonPath = getFileSettingsWatchedFile();
-        final var newVersion = nextReservedStateVersion();
-
-        // Mark the project for deletion
-        final var projectSettingsPath = settingsJsonPath.resolveSibling("project-" + projectId + ".json");
-        {
-            final var map = XContentHelper.convertToMap(JSON.xContent(), Files.readString(projectSettingsPath), false);
-            final var state = (Map<String, Object>) map.get("state");
-            state.put("marked_for_deletion", true); // mark for deletion
-            final var metadata = (Map<String, Object>) map.get("metadata");
-            metadata.put("version", Strings.format("%s", newVersion));
-            writeAndMoveContentAtomically(
-                XContentHelper.convertToJson(XContentTestUtils.convertToXContent(map, JSON), false, XContentType.JSON),
-                projectSettingsPath
-            );
-        }
-    }
-
-    protected void ensureProjectRemovedAndCleanUp(ProjectId projectId) throws Exception {
-        final var settingsJsonPath = getFileSettingsWatchedFile();
-        final var projectSettingsPath = settingsJsonPath.resolveSibling("project-" + projectId + ".json");
-        // Wait for lease to be released and project metadata to be removed
-        final var blobContainer = getCurrentMasterObjectStoreService().getClusterRootContainer();
-        final var projectLeaseBlobName = ProjectLease.leaseBlobName(projectId);
-        assertBusy(() -> {
-            assertTrue(blobContainer.blobExists(OperationPurpose.CLUSTER_STATE, projectLeaseBlobName));
-            final ProjectLease projectLease = readProjectLease(projectLeaseBlobName);
-            assertFalse(projectLease.isAssigned()); // Lease is released
-            assertArrayEquals(ProjectLease.NIL_UUID, projectLease.clusterUuid());
-            assertFalse(internalCluster().getInstance(ClusterService.class).state().metadata().hasProject(projectId));
-        });
-
-        // Clean up config files after project deletion
-        // TODO: MultiProjectFileSettingsService does not handle file deletion. Enable the commented lines when ES-12411 is resolved.
-        // Files.deleteIfExists(projectSettingsPath);
-        final long versionWithCleanup = reservedStateVersionCounter.incrementAndGet();
-        final String settingsJson = removeProjectIdFromSettingsJson(settingsJsonPath, versionWithCleanup, projectId.id());
-        writeAndMoveContentAtomically(settingsJson, settingsJsonPath);
-        ensureProcessedFileBasedSettingsVersion(versionWithCleanup);
-
-        // TODO: Manually clean up the project registry. Otherwise the same project cannot be recreated due to the marked_for_deletion flag.
-        // This is temporary because the clean-up should happen automatically when the project config files are removed. See also ES-12411
-        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        clusterService.submitUnbatchedStateUpdateTask("delete-project-from-state-registry", new ClusterStateUpdateTask(Priority.URGENT) {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return ClusterState.builder(currentState)
-                    .putCustom(
-                        ProjectStateRegistry.TYPE,
-                        ProjectStateRegistry.builder(ProjectStateRegistry.get(currentState)).removeProject(projectId).build()
-                    )
-                    .build();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e, "fail to delete project from state registry");
-            }
-        });
-        awaitClusterState(state -> ProjectStateRegistry.get(state).hasProject(projectId) == false);
-    }
-
-    protected Path getFileSettingsWatchedFile() throws IOException {
-        assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
-        final var fileSettingsService = internalCluster().getCurrentMasterNodeInstance(FileSettingsService.class);
-        assertTrue(fileSettingsService.watching());
-        Files.createDirectories(fileSettingsService.watchedFileDir());
-        return fileSettingsService.watchedFile();
-    }
-
-    protected long nextReservedStateVersion() {
-        assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
-        return reservedStateVersionCounter.incrementAndGet();
-    }
-
-    protected void writeAndMoveContentAtomically(String content, Path targetPath) throws IOException {
-        final Path tempFilePath = createTempFile();
-        logger.info("--> atomically writing content [{}] to [{}]", content, targetPath);
-        Files.writeString(tempFilePath, content);
-        Files.move(tempFilePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    private static void ensureProcessedFileBasedSettingsVersion(long newVersion) {
-        safeAwait(
-            ClusterServiceUtils.addTemporaryStateListener(
-                clusterState -> Objects.equals(
-                    clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE).version(),
-                    newVersion
-                )
-            )
-        );
-    }
-
-    private static String getRepositoryJson(RepositoryMetadata repositoryMetadata) throws IOException {
-        if (repositoryMetadata == null) {
-            return "{}";
-        }
-        final var xContentBuilder = XContentFactory.jsonBuilder();
-        xContentBuilder.startObject();
-        RepositoriesMetadata.toXContent(
-            repositoryMetadata,
-            xContentBuilder,
-            new ToXContent.MapParams(Map.of(HIDE_GENERATIONS_PARAM, "true"))
-        );
-        xContentBuilder.endObject();
-        return Strings.toString(xContentBuilder);
-    }
-
-    private String addProjectIdToSettingsJson(Path settingsJsonPath, long newVersion, String projectId) throws IOException {
-        return updateSettingsJson(settingsJsonPath, newVersion, map -> {
-            @SuppressWarnings("unchecked")
-            final var projects = new HashSet<>((Collection<String>) map.getOrDefault("projects", Set.of()));
-            final var added = projects.add(projectId);
-            logger.info("--> {} project [{}]", added ? "add" : "update", projectId);
-            map.put("projects", projects);
-        });
-    }
-
-    private String removeProjectIdFromSettingsJson(Path settingsJsonPath, long newVersion, String projectId) throws IOException {
-        return updateSettingsJson(settingsJsonPath, newVersion, map -> {
-            @SuppressWarnings("unchecked")
-            final var projects = (Collection<String>) map.getOrDefault("projects", new HashSet<>());
-            final var removed = projects.remove(projectId);
-            if (removed == false) {
-                logger.info("--> project [{}] does not exist in settings.json", projectId);
-                return;
-            }
-            logger.info("--> removing project [{}] from settings.json", projectId);
-            map.put("projects", projects);
-        });
-    }
-
-    private String updateSettingsJson(Path settingsJsonPath, long newVersion, Consumer<Map<String, Object>> updater) throws IOException {
-        final Map<String, Object> map;
-        if (Files.exists(settingsJsonPath)) {
-            map = XContentHelper.convertToMap(JSON.xContent(), Files.readString(settingsJsonPath), false);
-        } else {
-            map = XContentHelper.convertToMap(JSON.xContent(), """
-                {
-                     "metadata": {
-                         "version": "0",
-                         "compatibility": "8.4.0"
-                     },
-                     "state": {
-                     },
-                     "projects": []
-                }""", false);
-        }
-
-        updater.accept(map);
-        @SuppressWarnings("unchecked")
-        final var metadata = (Map<String, Object>) map.get("metadata");
-        assertNotNull(metadata);
-        metadata.put("version", Strings.format("%s", newVersion));
-
-        return XContentHelper.convertToJson(XContentTestUtils.convertToXContent(map, JSON), false, XContentType.JSON);
-    }
-
-    protected static ProjectLease readProjectLease(String blobName) throws IOException {
-        try (var in = getCurrentMasterObjectStoreService().getClusterRootContainer().readBlob(OperationPurpose.CLUSTER_STATE, blobName)) {
-            return ProjectLease.fromBytes(new BytesArray(in.readAllBytes()));
-        }
-    }
 }

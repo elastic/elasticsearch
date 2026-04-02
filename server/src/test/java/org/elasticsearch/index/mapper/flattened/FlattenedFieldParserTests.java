@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
@@ -45,7 +46,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             true,
             Map.of(),
-            true
+            true,
+            IndexVersion.current()
         );
     }
 
@@ -312,7 +314,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             false,
             true,
             Map.of(),
-            true
+            true,
+            IndexVersion.current()
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -340,7 +343,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             false,
             true,
             Map.of(),
-            true
+            true,
+            IndexVersion.current()
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -363,7 +367,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             true,
             Map.of(),
-            true
+            true,
+            IndexVersion.current()
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -386,7 +391,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             false,
             true,
             Map.of(),
-            false
+            false,
+            IndexVersion.current()
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -415,7 +421,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             true,
             true,
             Map.of(),
-            true
+            true,
+            IndexVersion.current()
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));

@@ -207,6 +207,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 // match only text fields are not stored by definition
                 TextFieldMapper.SyntheticSourceHelper.syntheticSourceDelegate(false, multiFields),
                 usesBinaryDocValuesForFallbackFields,
+                indexCreatedVersion(),
                 docValuesParameters.getValue().enabled(),
                 usesBinaryDocValues()
             );
@@ -241,6 +242,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final TextFieldType textFieldType;
         private final boolean storedFieldInBinaryFormat;
         private final boolean usesBinaryDocValuesForFallbackFields;
+        private final IndexVersion indexCreatedVersion;
         private final boolean usesBinaryDocValues;
 
         public MatchOnlyTextFieldType(
@@ -253,6 +255,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean storedFieldInBinaryFormat,
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
             boolean usesBinaryDocValuesForFallbackFields,
+            IndexVersion indexCreatedVersion,
             boolean hasDocValues,
             boolean usesBinaryDocValues
         ) {
@@ -261,6 +264,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.textFieldType = new TextFieldType(name, isSyntheticSource, withinMultiField, syntheticSourceDelegate);
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
+            this.indexCreatedVersion = indexCreatedVersion;
             this.usesBinaryDocValues = usesBinaryDocValues;
         }
 
@@ -275,6 +279,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 false,
                 null,
                 false,
+                IndexVersion.current(),
                 false,
                 false
             );
@@ -729,6 +734,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 // if there is no delegate, load from a fallback field we created
                 if (textFieldType.syntheticSourceDelegate().isEmpty()) {
                     if (usesBinaryDocValuesForFallbackFields) {
+                        if (indexCreatedVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
+                            return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(syntheticSourceFallbackFieldName());
+                        }
                         return new BytesRefsFromCustomBinaryBlockLoader(syntheticSourceFallbackFieldName());
                     } else {
                         // for bwc - load from a StoredField
@@ -907,11 +915,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         if (docValuesParameters.enabled()) {
             BytesRef binaryValue = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
             if (fieldType().usesBinaryDocValues()) {
-                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
-                    context.doc(),
-                    fieldType().name(),
-                    binaryValue
-                );
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldType().name(), binaryValue);
             } else if (binaryValue.length > IndexWriter.MAX_TERM_LENGTH) {
                 // if the binary value's length exceeds Lucene's max term length, then we cannot store it in SortedSetDocValuesField
                 // in such cases, store the value in binary doc values instead, which don't have these length limitations
@@ -955,13 +959,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     private void storeValueInFallbackField(String fallbackFieldName, BytesRef bytesRef, DocumentParserContext context) {
-        // store the value in a binary doc values field, create one if it doesn't exist
-        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
-        if (field == null) {
-            field = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, true);
-            context.doc().addWithKey(fallbackFieldName, field);
-        }
-        field.add(bytesRef);
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            context.doc(),
+            fallbackFieldName,
+            bytesRef,
+            indexCreatedVersion,
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+        );
     }
 
     @Override

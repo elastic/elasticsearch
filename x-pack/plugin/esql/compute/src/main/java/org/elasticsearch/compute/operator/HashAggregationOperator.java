@@ -181,7 +181,7 @@ public class HashAggregationOperator implements Operator {
     // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
     protected BlockHash blockHash;
     private boolean finished;
-    private ReleasableIterator<Page> output;
+    protected ReleasableIterator<Page> output;
 
     /**
      * Maximum number of rows per output page.

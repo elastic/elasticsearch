@@ -1,0 +1,18 @@
+ProjectExec[[$$Positions$${r}#0, language_code{f}#1, language_name{f}#2]]
+\_FieldExtractExec[language_code{f}#1]<[],[],[]>
+  \_FilterExec[LENGTH(language_name{f}#2) > 3[INTEGER]]
+    \_FieldExtractExec[language_name{f}#2]<[],[],[]>
+      \_ParameterizedQueryExec[[_doc{f}#3, $$Positions$${r}#0],[MatchConfig[fieldName=languages, channel=0, type=INTEGER]],languages{f}#4 == language_code{f}#1,{
+  "esql_single_value" : {
+    "field" : "language_name",
+    "next" : {
+      "term" : {
+        "language_name" : {
+          "value" : "English",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "language_name == \"English\"@2:66"
+  }
+},false]

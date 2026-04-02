@@ -262,7 +262,9 @@ toc:
                   - file: esql/functions-operators/spatial-functions/st_x.md
                   - file: esql/functions-operators/spatial-functions/st_y.md
                   - file: esql/functions-operators/spatial-functions/st_npoints.md
+                  - file: esql/functions-operators/spatial-functions/st_buffer.md
                   - file: esql/functions-operators/spatial-functions/st_simplify.md
+                  - file: esql/functions-operators/spatial-functions/st_simplifypreservetopology.md
                   - file: esql/functions-operators/spatial-functions/st_geometrytype.md
                   - file: esql/functions-operators/spatial-functions/st_dimension.md
                   - file: esql/functions-operators/spatial-functions/st_isempty.md

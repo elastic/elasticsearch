@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.generator.command.source;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
@@ -61,7 +62,8 @@ public class FromGenerator implements CommandGenerator {
         if (useUnmappedFields) {
             result.append(SET_UNMAPPED_FIELDS_PREFIX);
         }
-        boolean setQueryApproximation = randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY;
+        boolean setQueryApproximation = EsqlCapabilities.Cap.APPROXIMATION_V6.isEnabled()
+            && randomDouble() < QUERY_APPROXIMATION_SETTING_PROBABILITY;
         if (setQueryApproximation) {
             result.append(randomQueryApproximationSettings());
         }

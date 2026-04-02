@@ -121,7 +121,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(DataType.LONG, attributes.get(0).dataType());
 
         assertEquals("name", attributes.get(1).name());
-        assertEquals(DataType.TEXT, attributes.get(1).dataType());
+        assertEquals(DataType.KEYWORD, attributes.get(1).dataType());
 
         assertEquals("age", attributes.get(2).name());
         assertEquals(DataType.INTEGER, attributes.get(2).dataType());
@@ -1127,7 +1127,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
 
         SourceMetadata metadata = reader.metadata(storageObject);
-        assertEquals(DataType.TEXT, metadata.schema().get(0).dataType());
+        assertEquals(DataType.KEYWORD, metadata.schema().get(0).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -1335,7 +1335,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Parquet string-annotated BINARY maps to TEXT; planner KEYWORD is still readable (both ESQL strings).
+     * Parquet string-annotated BINARY maps to KEYWORD; planner KEYWORD is still readable (both ESQL strings).
      */
     public void testPlannerKeywordCompatibleWithTextParquetColumnReadRange() throws Exception {
         MessageType schema = Types.buildMessage()

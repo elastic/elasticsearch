@@ -18,7 +18,6 @@ import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -149,7 +148,7 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings, TopNProvid
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AzureAiStudioRerankRequestTaskSettings requestSettings = AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(newSettings));
+        AzureAiStudioRerankRequestTaskSettings requestSettings = AzureAiStudioRerankRequestTaskSettings.fromMap(newSettings);
         return of(this, requestSettings);
     }
 }

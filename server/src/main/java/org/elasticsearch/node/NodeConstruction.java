@@ -93,6 +93,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -752,7 +753,7 @@ class NodeConstruction {
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         MatcherWatchdog matcherWatchdog = IngestService.createGrokThreadWatchdog(environment, threadPool);
         UserAgentParserRegistry userAgentParserRegistry = getSinglePlugin(UserAgentParserRegistryProvider.class).map(
-            p -> p.createUserAgentParserRegistry(environment)
+            p -> p.createRegistry(environment)
         ).orElse(UserAgentParserRegistry.NOOP);
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -821,7 +822,7 @@ class NodeConstruction {
             threadPool,
             systemIndices,
             projectResolver,
-            getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
+            getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings(), clusterInfoService),
             telemetryProvider
         );
         modules.add(clusterModule);
@@ -1022,6 +1023,8 @@ class NodeConstruction {
 
         final CrossProjectModeDecider crossProjectModeDecider = new CrossProjectModeDecider(settings);
 
+        final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1050,7 +1053,8 @@ class NodeConstruction {
             linkedProjectConfigService,
             projectRoutingResolver,
             remoteTransportClient,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            dlmErrorStore
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1299,6 +1303,7 @@ class NodeConstruction {
             telemetryProvider.getTracer(),
             onlinePrewarmingService
         );
+        searchTransportService.setSearchService(searchService);
 
         final SearchTaskWatchdog searchTaskWatchdog = new SearchTaskWatchdog(
             settingsModule.getClusterSettings(),
@@ -1369,6 +1374,7 @@ class NodeConstruction {
             b.bind(BigArrays.class).toInstance(bigArrays);
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
+            b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
@@ -1410,6 +1416,7 @@ class NodeConstruction {
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
+            b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
         });
 
         if (ReadinessService.enabled(environment)) {
@@ -1701,9 +1708,17 @@ class NodeConstruction {
         return getSinglePlugin(recoveryPlannerServices, RecoveryPlannerService.class).orElseGet(PeerOnlyRecoveryPlannerService::new);
     }
 
-    private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+    private WriteLoadForecaster getWriteLoadForecaster(
+        ThreadPool threadPool,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ClusterInfoService clusterInfoService
+    ) {
         var writeLoadForecasters = pluginsService.filterPlugins(ClusterPlugin.class)
-            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings).stream());
+            .flatMap(
+                clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings, clusterInfoService)
+                    .stream()
+            );
 
         WriteLoadForecaster forecaster = getSinglePlugin(writeLoadForecasters, WriteLoadForecaster.class).orElse(
             WriteLoadForecaster.DEFAULT

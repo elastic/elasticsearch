@@ -14,8 +14,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <math.h>
 #include <limits>
 
 // Force the preprocessor to pick up AVX-512 intrinsics, and the compiler to emit AVX-512 code
@@ -133,7 +131,7 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk_2(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;

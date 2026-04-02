@@ -177,9 +177,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
-            if (supportsInferenceTestServiceOnLocalCluster()) {
-                createInferenceEndpoints(adminClient());
-            }
+            createInferenceEndpointsIfSupported();
             loadDataSetIntoEs(
                 client(),
                 supportsIndexModeLookup(),
@@ -329,6 +327,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
+    /**
+     * Creates inference test endpoints when {@link #supportsInferenceTestServiceOnLocalCluster()} is true.
+     * Subclasses may override to register a subset of endpoints for clusters that do not support all task types.
+     */
+    protected void createInferenceEndpointsIfSupported() throws IOException {
+        if (supportsInferenceTestServiceOnLocalCluster()) {
+            createInferenceEndpoints(adminClient());
+        }
+    }
+
     protected boolean requiresSemanticTextInference() {
         return testCase.requiredCapabilities.contains(SEMANTIC_TEXT_FIELD_CAPS.capabilityName());
     }
@@ -391,7 +399,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest(String query) throws Throwable {
-        if (query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL") && query.contains("{{")) {
+        if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
             Path path = getCsvDataPath();
             if (path != null) {
                 query = substituteTemplates(query, csvFileTemplateResolver(path));

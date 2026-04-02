@@ -17,6 +17,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFo
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.function.ToLongBiFunction;
 
@@ -341,6 +342,33 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f);
     }
 
+    public void testSquareDistanceRange() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        float[] a = generateRandomVector(vectorSize);
+        float[] b = generateRandomVector(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
+        float actual = defOrPanamaProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testSquareDistanceBulkRange() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        float[] query = generateRandomVector(vectorSize);
+        float[] v0 = generateRandomVector(vectorSize);
+        float[] v1 = generateRandomVector(vectorSize);
+        float[] v2 = generateRandomVector(vectorSize);
+        float[] v3 = generateRandomVector(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, expectedDistances);
+        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, panamaDistances);
+        assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * length);
+    }
+
     public void testSoarDistanceBulk() {
         int vectorSize = randomIntBetween(1, 2048);
         float deltaEps = 1e-3f * vectorSize;
@@ -632,6 +660,115 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, ESVectorUtil.codePointCount(bytes));
         assertEquals(expected, defaultedProvider.getVectorUtilSupport().codePointCount(bytes));
         assertEquals(expected, defOrPanamaProvider.getVectorUtilSupport().codePointCount(bytes));
+    }
+
+    // -- contains
+
+    public void testContainsSimple() {
+        assertContains("foobar", "foo", true);
+        assertContains("foobar", "bar", true);
+        assertContains("foobar", "oob", true);
+        assertContains("foobar", "foobar", true);
+        assertContains("foobar", "b", true);
+        assertContains("foobar", "baz", false);
+        assertContains("foo", "foobar", false);
+        assertContains("a", "a", true);
+        assertContains("a", "b", false);
+        assertContains("Ω≈ç√∫", "≈ç√", true);
+    }
+
+    public void testContainsEmpty() {
+        byte[] value = "hello".getBytes(StandardCharsets.UTF_8);
+        byte[] emptyTerm = new byte[0];
+        assertTrue(ESVectorUtil.contains(value, 0, value.length, emptyTerm, 0, 0));
+        assertFalse(ESVectorUtil.contains(emptyTerm, 0, 0, value, 0, value.length));
+    }
+
+    public void testContainsWithOffset() {
+        byte[] backing = "XXXXXhello worldXXXXX".getBytes(StandardCharsets.UTF_8);
+        byte[] term = "world".getBytes(StandardCharsets.UTF_8);
+        assertTrue(ESVectorUtil.contains(backing, 5, 11, term, 0, term.length));
+        assertFalse(ESVectorUtil.contains(backing, 5, 5, term, 0, term.length));
+    }
+
+    public void testContainsRandom() {
+        int iterations = atLeast(500);
+        for (int iter = 0; iter < iterations; iter++) {
+            int valueLen = randomIntBetween(1, 500);
+            byte[] value = new byte[valueLen];
+            random().nextBytes(value);
+            int termLen = randomIntBetween(1, Math.min(valueLen, 50));
+            byte[] term;
+            if (randomBoolean()) {
+                int startPos = randomIntBetween(0, valueLen - termLen);
+                term = Arrays.copyOfRange(value, startPos, startPos + termLen);
+            } else {
+                term = new byte[termLen];
+                random().nextBytes(term);
+            }
+            boolean expected = scalarContains(value, 0, valueLen, term, 0, termLen);
+            assertEquals(expected, ESVectorUtil.contains(value, 0, valueLen, term, 0, termLen));
+            assertEquals(expected, defaultedProvider.getVectorUtilSupport().contains(value, 0, valueLen, term, 0, termLen));
+            assertEquals(expected, defOrPanamaProvider.getVectorUtilSupport().contains(value, 0, valueLen, term, 0, termLen));
+        }
+    }
+
+    public void testContainsRandomWithOffset() {
+        int iterations = atLeast(200);
+        for (int iter = 0; iter < iterations; iter++) {
+            int padding = randomIntBetween(0, 20);
+            int valueLen = randomIntBetween(1, 500);
+            byte[] value = new byte[padding + valueLen + padding];
+            random().nextBytes(value);
+            int termLen = randomIntBetween(1, Math.min(valueLen, 50));
+            int termPadding = randomIntBetween(0, 10);
+            byte[] term = new byte[termPadding + termLen + termPadding];
+            random().nextBytes(term);
+            if (randomBoolean()) {
+                int startPos = randomIntBetween(0, valueLen - termLen);
+                System.arraycopy(value, padding + startPos, term, termPadding, termLen);
+            }
+            boolean expected = scalarContains(value, padding, valueLen, term, termPadding, termLen);
+            assertEquals(expected, ESVectorUtil.contains(value, padding, valueLen, term, termPadding, termLen));
+            assertEquals(expected, defaultedProvider.getVectorUtilSupport().contains(value, padding, valueLen, term, termPadding, termLen));
+            assertEquals(
+                expected,
+                defOrPanamaProvider.getVectorUtilSupport().contains(value, padding, valueLen, term, termPadding, termLen)
+            );
+        }
+    }
+
+    private void assertContains(String value, String term, boolean expected) {
+        byte[] valueBytes = value.getBytes(StandardCharsets.UTF_8);
+        byte[] termBytes = term.getBytes(StandardCharsets.UTF_8);
+        assertEquals(expected, ESVectorUtil.contains(valueBytes, 0, valueBytes.length, termBytes, 0, termBytes.length));
+        assertEquals(
+            expected,
+            defaultedProvider.getVectorUtilSupport().contains(valueBytes, 0, valueBytes.length, termBytes, 0, termBytes.length)
+        );
+        assertEquals(
+            expected,
+            defOrPanamaProvider.getVectorUtilSupport().contains(valueBytes, 0, valueBytes.length, termBytes, 0, termBytes.length)
+        );
+    }
+
+    static boolean scalarContains(byte[] value, int vOff, int vLen, byte[] term, int tOff, int tLen) {
+        if (tLen > vLen) {
+            return false;
+        }
+        for (int i = vOff; i <= vOff + vLen - tLen; i++) {
+            boolean match = true;
+            for (int j = 0; j < tLen; j++) {
+                if (value[i + j] != term[tOff + j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static int scalarIndexOf(byte[] bytes, final int offset, final int length, final byte marker) {

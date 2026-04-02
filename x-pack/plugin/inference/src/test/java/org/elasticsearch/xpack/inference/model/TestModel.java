@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -273,7 +272,7 @@ public class TestModel extends Model {
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-            return TestTaskSettings.fromMap(new HashMap<>(newSettings));
+            return TestTaskSettings.fromMap(newSettings);
         }
     }
 

@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -59,7 +58,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        return fromRequestMap(new HashMap<>(newSettings));
+        return fromRequestMap(newSettings);
     }
 
     private record CommonFields(int maxTokens, Double temperature, Double topP, Integer topK) {}

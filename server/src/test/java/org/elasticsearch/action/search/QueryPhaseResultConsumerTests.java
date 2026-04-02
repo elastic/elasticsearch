@@ -20,29 +20,41 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.mockito.Mockito.mock;
@@ -62,30 +75,41 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     private ThreadPool threadPool;
     private EsThreadPoolExecutor executor;
 
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+        return new NamedWriteableRegistry(entries);
+    }
+
     @Before
     public void setup() {
         searchPhaseController = new SearchPhaseController((t, s) -> new AggregationReduceContext.Builder() {
             @Override
-            public AggregationReduceContext forPartialReduction() {
+            public AggregationReduceContext forPartialReduction(
+                @Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease
+            ) {
                 return new AggregationReduceContext.ForPartial(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
                     t,
                     mock(AggregationBuilder.class),
-                    b -> {}
+                    b -> {},
+                    topHitsToRelease
                 );
             }
 
-            public AggregationReduceContext forFinalReduction() {
+            @Override
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease) {
                 return new AggregationReduceContext.ForFinal(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
                     t,
                     mock(AggregationBuilder.class),
                     b -> {},
-                    PipelineAggregator.PipelineTree.EMPTY
+                    PipelineAggregator.PipelineTree.EMPTY,
+                    topHitsToRelease
                 );
-            };
+            }
         });
         threadPool = new TestThreadPool(SearchPhaseControllerTests.class.getName());
         executor = EsExecutors.newFixed(
@@ -251,6 +275,107 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 // A final +0.5x is added to account for the serialized->deserialized extra size
                 assertThat(e.getBytesWanted(), equalTo(Math.round(totalAggregationsEstimatedSize * 0.5)));
             }
+        }
+    }
+
+    /**
+     * Exercises {@link QueryPhaseResultConsumer} with real {@link InternalTopHits} reductions (production-shaped
+     * {@link AggregationReduceContext}) and verifies pooled per-shard {@link SearchHits} are released after the
+     * coordinator builds a {@link SearchResponse} and drops its reference.
+     */
+    public void testTopHitsShardSearchHitsReleasedAfterSearchResponseDecRef() throws Exception {
+        final String aggName = "th";
+        SearchPhaseController productionLikeController = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction(
+                @Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease
+            ) {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<org.elasticsearch.search.SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+        });
+
+        int numShards = 3;
+        SearchRequest request = new SearchRequest("index");
+        request.source(new SearchSourceBuilder().aggregation(new TopHitsAggregationBuilder(aggName).size(1)).size(0));
+        request.setBatchedReduceSize(2);
+
+        List<SearchHits> shardHitsToTrack = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(numShards);
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = productionLikeController.newSearchPhaseResults(
+                executor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            for (int i = 0; i < numShards; i++) {
+                SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
+                QuerySearchResult querySearchResult = new QuerySearchResult(new ShardSearchContextId("", i), searchShardTarget, null);
+                try {
+                    SearchHit hit = new SearchHit(0, "id-" + i);
+                    hit.sourceRef(Source.fromMap(Map.of("f", "v"), XContentType.JSON).internalSourceRef());
+                    hit.score(1.0f);
+                    SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+                    assertTrue(searchHits.isPooled());
+                    shardHitsToTrack.add(searchHits);
+
+                    TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(
+                        new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0f) }),
+                        1.0f
+                    );
+                    InternalTopHits internalTopHits = new InternalTopHits(aggName, 0, 1, topDocsAndMaxScore, searchHits, null);
+                    querySearchResult.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    querySearchResult.aggregations(InternalAggregations.from(Collections.singletonList(internalTopHits)));
+                    querySearchResult.setShardIndex(i);
+                    querySearchResult.size(0);
+                    consumer.consumeResult(querySearchResult, latch::countDown);
+                } finally {
+                    querySearchResult.decRef();
+                }
+            }
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertNotNull(reduce.aggregations());
+            InternalTopHits reducedTopHits = reduce.aggregations().get(aggName);
+            assertNotNull(reducedTopHits);
+            assertThat(reducedTopHits.getHits().getHits().length, equalTo(1));
+
+            SearchResponseSections sections = reduce.buildResponse(SearchHits.EMPTY_WITH_TOTAL_HITS, Collections.emptyList());
+            SearchResponse response = new SearchResponse(
+                sections,
+                null,
+                numShards,
+                numShards,
+                0,
+                0,
+                null,
+                SearchResponse.Clusters.EMPTY,
+                null
+            );
+            try {
+                assertNotNull(response.getAggregations());
+            } finally {
+                response.decRef();
+            }
+        }
+
+        for (SearchHits shardHits : shardHitsToTrack) {
+            assertFalse(shardHits.hasReferences());
         }
     }
 

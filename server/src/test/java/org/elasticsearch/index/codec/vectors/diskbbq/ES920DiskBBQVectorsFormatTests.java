@@ -42,7 +42,6 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -305,22 +304,24 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
     }
 
     public void testIndexSortOnFlush() throws IOException {
-        format = new ESNextDiskBBQVectorsFormat(
-            ESNextDiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER,
-            ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER
-        );
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
             .setIndexSort(new Sort(new SortField("sort", SortField.Type.STRING)))
-            .setMergePolicy(NoMergePolicy.INSTANCE);
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(10)
+            .setRAMBufferSizeMB(1);
+        ;
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, config)) {
-            float[] vectorA = new float[] { 0f, 3f };
-            float[] vectorB = new float[] { 0f, 2f };
-            float[] vectorC = new float[] { 0f, 1f };
+            float[] vectorA = new float[] { 3f, 3f };
+            float[] vectorB = new float[] { 0f, 0f };
+            float[] vectorC = new float[] { -3f, -3f };
             addSortedVectorDoc(w, "c", vectorC);
             addSortedVectorDoc(w, "a", vectorA);
             addSortedVectorDoc(w, "b", vectorB);
             w.commit();
             try (IndexReader reader = DirectoryReader.open(dir)) {
+                if (reader.leaves().size() != 1) {
+                    w.forceMerge(1);
+                }
                 LeafReader leafReader = getOnlyLeafReader(reader);
 
                 // we might collect the same document twice because of soar assignments

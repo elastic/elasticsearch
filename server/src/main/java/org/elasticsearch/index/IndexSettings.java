@@ -635,6 +635,17 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
+    /**
+     * Defines the name of the field storing the metric temporality.
+     */
+    public static final Setting<String> TIME_SERIES_TEMPORALITY_FIELD = Setting.simpleString(
+        "index.time_series.temporality_field",
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     // TODO: deprecate this setting as this was designed as an opt-out and name of the setting is tied actual name of the codec:
     public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es87tsdb_codec.enabled",
@@ -899,10 +910,9 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final FeatureFlag ALLOW_LARGE_BINARY_BLOCK_SIZE = new FeatureFlag("allow_large_binary_block_size");
     public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE = Setting.boolSetting(
         "index.use_time_series_doc_values_format_large_binary_block_size",
-        false,
+        true,
         Property.IndexScope,
         Property.Final
     );
@@ -987,16 +997,16 @@ public final class IndexSettings {
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
         SeqNoFieldMapper.SeqNoIndexOptions.class,
         settings -> {
+            if (DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && settings.getAsBoolean("index.disable_sequence_numbers", false)) {
+                return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
+            }
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
             if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
                 && (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)
                     || IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).equals(IndexVersions.ZERO))) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
-            } else if (DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && settings.getAsBoolean("index.disable_sequence_numbers", false)) {
-                return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
-            } else {
-                return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
             }
+            return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
         },
         "index.seq_no.index_options",
         value -> {},
@@ -1396,8 +1406,7 @@ public final class IndexSettings {
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
-        useTimeSeriesDocValuesFormatLargeBinaryBlockSize = ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled()
-            && scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
+        useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);

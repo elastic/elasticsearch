@@ -60,8 +60,6 @@ module org.elasticsearch.xpack.stateless {
 
     exports org.elasticsearch.xpack.stateless.cluster.coordination to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.engine to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
-    exports org.elasticsearch.xpack.stateless.multiproject to org.elasticsearch.server, org.elasticsearch.serverless.stateless; // For
-                                                                                                                                // PrimaryTermAndGeneration
     exports org.elasticsearch.xpack.stateless.recovery.shardinfo to org.elasticsearch.server; // For PrimaryTermAndGeneration
     exports org.elasticsearch.xpack.stateless.snapshots to org.elasticsearch.server; // for stateless snapshots
     exports org.elasticsearch.xpack.stateless.templates to org.elasticsearch.server;

@@ -21,7 +21,7 @@ To approximate a STATS query, prepend `SET approximation=true;` to your existing
 SET approximation=true;
 FROM web_traffic | WHERE @timestamp >= NOW()-1w
                  | STATS total_hits = COUNT(),
-                        avg_load_time = AVG(page_load_ms)
+                      avg_load_time = AVG(page_load_ms)
                    BY country_code
                  | SORT total_hits DESC
                  | LIMIT 5
@@ -36,23 +36,23 @@ An approximate query returns the same columns as the exact query, plus two addit
 
 Consider a query that counts page hits and computes the average page load time per country over the last week. The exact results might be:
 
-| country_code | total_hits | avg_load_time |
-|--------------|------------|---------------|
-| US           | 12483710   | 237.4         |
-| DE           | 4271856    | 189.2         |
-| GB           | 3804219    | 211.7         |
-| FR           | 2156033    | 195.8         |
-| JP           | 1847291    | 302.6         |
+| total_hits | avg_load_time | country_code | 
+|------------|---------------|--------------|
+| 12483710   | 237.4         | US           |
+| 4271856    | 189.2         | DE           |
+| 3804219    | 211.7         | GB           |
+| 2156033    | 195.8         | FR           |
+| 1847291    | 302.6         | JP           |
 
 The approximate query returns additional columns for each estimated quantity:
 
-| country_code | total_hits | avg_load_time | \_approximation\_confidence\_interval(total_hits) | \_approximation\_certified(total_hits) | \_approximation\_confidence\_interval(avg_load_time) | \_approximation\_certified(avg_load_time) |
+| total_hits | avg_load_time | country_code | \_approximation\_confidence\_interval(total_hits) | \_approximation\_certified(total_hits) | \_approximation\_confidence\_interval(avg_load_time) | \_approximation\_certified(avg_load_time) |
 |--------------|------------|---------------------------------------------------|---------------------------------------|---------------|------------------------------------------------------|------------------------------------------|
-| US           | 12510000   | 237.1         | [12430000, 12590000]                              | true                                  | [235.8, 238.4]                                       | true                                     |
-| DE           | 4284000    | 189.5         | [4240000, 4328000]                                | true                                  | [187.9, 191.1]                                       | true                                     |
-| GB           | 3790000    | 212.3         | [3752000, 3828000]                                | true                                  | [210.1, 214.5]                                       | true                                     |
-| FR           | 2162000    | 195.1         | [2134000, 2190000]                                | true                                  | [192.8, 197.4]                                       | true                                     |
-| JP           | 1839000    | 303.8         | [1814000, 1864000]                                | true                                  | [300.2, 307.4]                                       | true                                     |
+| 12510000   | 237.1         | US           | [12430000, 12590000]                              | true                                  | [235.8, 238.4]                                       | true                                     |
+| 4284000    | 189.5         | DE           | [4240000, 4328000]                                | true                                  | [187.9, 191.1]                                       | true                                     |
+| 3790000    | 212.3         | GB           | [3752000, 3828000]                                | true                                  | [210.1, 214.5]                                       | true                                     |
+| 2162000    | 195.1         | FR           | [2134000, 2190000]                                | true                                  | [192.8, 197.4]                                       | true                                     |
+| 1839000    | 303.8         | JP           | [1814000, 1864000]                                | true                                  | [300.2, 307.4]                                       | true                                     |
 
 The additional columns are:
 
@@ -70,7 +70,7 @@ Computing confidence intervals adds overhead. If you only need point estimates, 
 SET approximation={"confidence_level":null};
 FROM web_traffic | WHERE @timestamp >= NOW()-1d
                  | STATS total_bytes = SUM(response_bytes),
-                        avg_duration = AVG(page_load_ms)
+                       avg_load_time = AVG(page_load_ms)
                    BY datacenter_region
                  | SORT total_bytes DESC
                  | LIMIT 10
@@ -85,10 +85,10 @@ The default sample size is 1,000,000 rows for grouped STATS (queries with a `BY`
 ```esql
 SET approximation={"rows":5000000};
 FROM web_traffic | WHERE @timestamp >= NOW()-1w
-                 | STATS hit_count = COUNT(*),
-                        avg_load = AVG(page_load_ms)
+                 | STATS total_hits = COUNT(*),
+                      avg_load_time = AVG(page_load_ms)
                    BY url_path
-                 | SORT hit_count DESC
+                 | SORT total_hits DESC
                  | LIMIT 25
 ```
 
@@ -120,7 +120,7 @@ Some of these (such as `MIN` and `MAX`) are intrinsically difficult to estimate 
 
 ## Unsupported query patterns
 
-The following query patterns are not currently supported for approximation:
+The following query patterns are not currently supported for approximation and fall back to exact execution:
 
 - Queries using the `TS` source command
 - Queries using the `FORK` or `JOIN` processing commands
@@ -148,7 +148,7 @@ If accuracy for high-cardinality queries matters, increase the sample size using
 
 ## Using SAMPLE directly
 
-For expert users who want full control, ES|QL provides the `SAMPLE` command. This gives you raw sampled data with no automatic extrapolation or confidence interval computation:
+For expert users who want full control, ES|QL provides the {{esql}} [`SAMPLE`](/reference/query-languages/esql/commands/sample.md) command. This gives you raw sampled data with no automatic extrapolation or confidence interval computation:
 
 ```esql
 FROM web_traffic | SAMPLE 0.01
@@ -157,7 +157,7 @@ FROM web_traffic | SAMPLE 0.01
 
 This computes the distinct count of client IPs on roughly 1% of the data. Since `COUNT_DISTINCT` is not supported by automatic approximation, `SAMPLE` is the alternative — but interpreting the result and accounting for sampling bias is your responsibility.
 
-You can also use {{esql}} [`SAMPLE`](/reference/query-languages/esql/commands/sample.md) to build custom estimation pipelines, for example by extracting frequency profiles:
+You can also use `SAMPLE` to build custom estimation pipelines, for example by extracting frequency profiles:
 
 ```esql
 FROM web_traffic | SAMPLE 0.01

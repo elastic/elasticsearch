@@ -282,13 +282,13 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     ADDRESS      // scores
                 );
 
-                bbqApplyCorrectionsEuclideanBulk$mh = bindFunction("bbq_apply_corrections_euclidean_bulk", caps, bbqScore);
+                bbqApplyCorrectionsEuclideanBulk$mh = bindFunction("bbq_apply_corrections_euclidean_bulk", finalVecCaps, bbqScore);
                 bbqApplyCorrectionsMaxInnerProductBulk$mh = bindFunction(
                     "bbq_apply_corrections_maximum_inner_product_bulk",
-                    caps,
+                    finalVecCaps,
                     bbqScore
                 );
-                bbqApplyCorrectionsDotProductBulk$mh = bindFunction("bbq_apply_corrections_dot_product_bulk", caps, bbqScore);
+                bbqApplyCorrectionsDotProductBulk$mh = bindFunction("bbq_apply_corrections_dot_product_bulk", finalVecCaps, bbqScore);
 
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {

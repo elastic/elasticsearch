@@ -16,11 +16,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.reindex.ReindexValidator.buildAllowedRemotes;
 import static org.elasticsearch.reindex.ReindexValidator.checkAllowedRemote;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,7 +68,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
 
     public void testWhitelistedByPrefix() {
         checkAllowedRemote(
-            buildAllowedRemotes(Collections.singletonList("*.example.com:9200"), emptyList()),
+            buildAllowedRemotes(singletonList("*.example.com:9200"), emptyList()),
             false,
             new RemoteInfo(
                 randomAlphaOfLength(5),
@@ -84,7 +84,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
             )
         );
         checkAllowedRemote(
-            buildAllowedRemotes(Collections.singletonList("*.example.com:9200"), emptyList()),
+            buildAllowedRemotes(singletonList("*.example.com:9200"), emptyList()),
             false,
             newRemoteInfo("6e134134a1.us-east-1.aws.example.com", 9200)
         );
@@ -92,7 +92,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
 
     public void testWhitelistedBySuffix() {
         checkAllowedRemote(
-            buildAllowedRemotes(Collections.singletonList("es.example.com:*"), emptyList()),
+            buildAllowedRemotes(singletonList("es.example.com:*"), emptyList()),
             false,
             newRemoteInfo("es.example.com", 9200)
         );
@@ -100,7 +100,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
 
     public void testWhitelistedByInfix() {
         checkAllowedRemote(
-            buildAllowedRemotes(Collections.singletonList("es*.example.com:9200"), emptyList()),
+            buildAllowedRemotes(singletonList("es*.example.com:9200"), emptyList()),
             false,
             newRemoteInfo("es1.example.com", 9200)
         );

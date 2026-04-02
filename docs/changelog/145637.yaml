@@ -1,5 +1,5 @@
 pr: 145637
-summary: Fix race condition in PeerFinder leaking stale peers after deactivation
-area: Cluster Coordination
+summary: Fix race condition in  PeerFinder leaking stale peers after deactivation
+area: Distributed
 type: bug
 issues: []

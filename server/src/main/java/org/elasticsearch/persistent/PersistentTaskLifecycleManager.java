@@ -142,28 +142,7 @@ public final class PersistentTaskLifecycleManager extends AbstractLifecycleCompo
         if (event.localNodeMaster() == false) {
             return;
         }
-        if (needsReconciliation(event) == false) {
-            return;
-        }
         reconcile(event.state());
-    }
-
-    // Skip reconciliation when nothing relevant changed and the node was already the master.
-    // Reconciliation is needed when: the persistent tasks custom metadata changed (a task was created or removed),
-    // the set of projects changed (a project was added or removed), the persistent settings changed (the enabled
-    // setting was toggled), the node just became master, or the cluster just finished recovering (first event after
-    // startup where reconciliation can run).
-    // Failed requests always retry immediately via the runAfter callback, which calls reconcile directly and
-    // bypasses this check. The requests logic also ensures that after a request completes we re-check the latest
-    // state, so an in-flight request never freezes reconciliation at a stale view.
-    // visible for testing
-    boolean needsReconciliation(ClusterChangedEvent event) {
-        return event.changedCustomClusterMetadataSet().contains(ClusterPersistentTasksCustomMetadata.TYPE)
-            || event.changedCustomProjectMetadataSet().contains(PersistentTasksCustomMetadata.TYPE)
-            || event.state().metadata().projects().keySet().equals(event.previousState().metadata().projects().keySet()) == false
-            || event.state().metadata().persistentSettings() != event.previousState().metadata().persistentSettings()
-            || event.previousState().nodes().isLocalNodeElectedMaster() == false
-            || event.previousState().clusterRecovered() == false;
     }
 
     private void reconcile(ClusterState state) {

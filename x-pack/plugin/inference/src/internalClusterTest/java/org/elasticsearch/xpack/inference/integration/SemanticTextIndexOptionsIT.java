@@ -149,28 +149,6 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         assertThat(getFieldMappings(inferenceFieldName, false), equalTo(expectedFieldMapping));
     }
 
-    public void testSetDefaultBBQIndexOptionsWithBasicLicense() throws Exception {
-        final String inferenceId = randomIdentifier();
-        final String inferenceFieldName = "inference_field";
-        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
-        downgradeLicenseAndRestartCluster();
-
-        assertAcked(safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, null)).execute()));
-
-        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
-            inferenceFieldName,
-            inferenceId,
-            new ExtendedDenseVectorIndexOptions(
-                SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions(),
-                DenseVectorFieldMapper.ElementType.BFLOAT16
-            )
-        );
-
-        // Filter out null/empty values from params we didn't set to make comparison easier
-        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
-        assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
-    }
-
     public void testGetDefaultIndexOptionsWithElementTypeOverride() throws Exception {
         final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
@@ -193,10 +171,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         final Map<String, Object> expectedFieldMappingWithDefaults = generateExpectedFieldMapping(
             inferenceFieldName,
             inferenceId,
-            new ExtendedDenseVectorIndexOptions(
-                SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions(),
-                DenseVectorFieldMapper.ElementType.BFLOAT16
-            )
+            new ExtendedDenseVectorIndexOptions(null, DenseVectorFieldMapper.ElementType.BFLOAT16)
         );
 
         actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
@@ -252,11 +227,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         assertAcked(safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, null)).execute()));
 
         // If we didn't default to bfloat16, element_type should be excluded from index options even when include_defaults is true
-        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
-            inferenceFieldName,
-            inferenceId,
-            SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
-        );
+        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(inferenceFieldName, inferenceId, null);
 
         Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
         assertThat(actualFieldMappings, equalTo(expectedFieldMapping));

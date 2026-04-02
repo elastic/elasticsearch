@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -209,10 +208,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
         }
     }
 
-    @TestIssueLogging(
-        value = "org.elasticsearch.xpack.restart.FullClusterRestartIT:DEBUG",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/131964"
-    )
     @SuppressWarnings("unchecked")
     public void testWatcherWithApiKey() throws Exception {
         final Request getWatchStatusRequest = new Request("GET", "/_watcher/watch/watch_with_api_key");

@@ -122,7 +122,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             maybeMarkIndexReadOnly();
             String forceMergeIndex = maybeCloneIndex();
             maybeForceMergeIndex(forceMergeIndex);
-            maybeTakeSnapshot();
+            maybeTakeSnapshot(forceMergeIndex);
             maybeMountSearchableSnapshot();
         } catch (IndexNotFoundException e) {
             if (e.getIndex().getName().equals(indexName)) {

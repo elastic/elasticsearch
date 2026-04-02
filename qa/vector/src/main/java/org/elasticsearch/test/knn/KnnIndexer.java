@@ -40,6 +40,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.PrintStreamInfoStream;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.StandardIOBehaviorHint;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -74,6 +75,7 @@ class KnnIndexer {
     private final VectorEncoding vectorEncoding;
     private int dim;
     private final VectorSimilarityFunction similarityFunction;
+    private final boolean normalizeVectors;
     private final Codec codec;
     private final int numDocs;
     private final int numIndexThreads;
@@ -89,6 +91,7 @@ class KnnIndexer {
         VectorEncoding vectorEncoding,
         int dim,
         VectorSimilarityFunction similarityFunction,
+        boolean normalizeVectors,
         int numDocs,
         MergePolicy mergePolicy,
         double writerBufferSizeInMb,
@@ -101,6 +104,7 @@ class KnnIndexer {
         this.vectorEncoding = vectorEncoding;
         this.dim = dim;
         this.similarityFunction = similarityFunction;
+        this.normalizeVectors = normalizeVectors;
         this.numDocs = numDocs;
         this.mergePolicy = mergePolicy;
         this.writerBufferSizeInMb = writerBufferSizeInMb;
@@ -131,11 +135,12 @@ class KnnIndexer {
             }
         });
         logger.debug(
-            "KnnIndexer: using codec={}, vectorEncoding={}, dim={}, similarityFunction={}",
+            "KnnIndexer: using codec={}, vectorEncoding={}, dim={}, similarityFunction={}, normalizeVectors={}",
             codec.getName(),
             vectorEncoding,
             dim,
-            similarityFunction
+            similarityFunction,
+            normalizeVectors
         );
 
         if (Files.exists(indexPath)) {
@@ -199,7 +204,16 @@ class KnnIndexer {
                         List<Future<?>> futures = new ArrayList<>();
                         List<IndexerThread> threads = new ArrayList<>();
                         for (int i = 0; i < numIndexThreads; i++) {
-                            var t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            var t = new IndexerThread(
+                                iw,
+                                inReader,
+                                dim,
+                                vectorEncoding,
+                                fieldType,
+                                normalizeVectors,
+                                numDocsIndexed,
+                                numDocs
+                            );
                             threads.add(t);
                             t.setDaemon(true);
                             futures.add(exec.submit(t));
@@ -308,6 +322,7 @@ class KnnIndexer {
         private final int numDocsToIndex;
         private final FieldType fieldType;
         private final VectorEncoding vectorEncoding;
+        private final boolean normalizeVectors;
         private final byte[] byteVectorBuffer;
         private final float[] floatVectorBuffer;
         private final VectorReader in;
@@ -321,6 +336,7 @@ class KnnIndexer {
             int dims,
             VectorEncoding vectorEncoding,
             FieldType fieldType,
+            boolean normalizeVectors,
             AtomicInteger numDocsIndexed,
             int numDocsToIndex
         ) {
@@ -328,6 +344,7 @@ class KnnIndexer {
             this.in = in;
             this.vectorEncoding = vectorEncoding;
             this.fieldType = fieldType;
+            this.normalizeVectors = normalizeVectors;
             this.numDocsIndexed = numDocsIndexed;
             this.numDocsToIndex = numDocsToIndex;
             switch (vectorEncoding) {
@@ -370,6 +387,9 @@ class KnnIndexer {
                     }
                     case FLOAT32 -> {
                         in.next(floatVectorBuffer);
+                        if (normalizeVectors) {
+                            VectorUtil.l2normalize(floatVectorBuffer);
+                        }
                         field = new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType);
                     }
                     default -> throw new UnsupportedOperationException();

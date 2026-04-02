@@ -2041,4 +2041,80 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             );
         }
     }
+
+    public void testTermInSetQueryWithSyntheticIds() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(dataStreamName, 1, 0, rarely());
+
+        final int nbBulks = randomIntBetween(1, 5);
+        final int nbDocs = randomIntBetween(10, 100);
+        final var docsIds = new HashSet<String>();
+        final var docsIndices = new HashSet<String>();
+
+        var timestamp = Instant.now();
+        for (int i = 0; i < nbBulks; i++) {
+            var client = client();
+            var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int j = 0; j < nbDocs; j++) {
+                bulkRequest.add(
+                    client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(String.format(Locale.ROOT, """
+                        {"@timestamp": "%s", "hostname": "%s", "metric": {"field": "metric_%d", "value": %d}}
+                        """, timestamp, "vm-test-" + randomIntBetween(0, 4), randomIntBetween(0, 1), randomInt()), XContentType.JSON)
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+            for (var result : bulkResponse.getItems()) {
+                assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                assertThat(result.getVersion(), equalTo(1L));
+                docsIndices.add(result.getIndex());
+                docsIds.add(result.getId());
+            }
+        }
+
+        for (int i = 0; i < 10; i++) {
+            final var idsQuery = new ArrayList<String>();
+
+            final var randomMatchingDocIds = randomSubsetOf(docsIds);
+            idsQuery.addAll(randomMatchingDocIds);
+
+            if (randomBoolean()) {
+                var randomStringsThatMatchNothing = randomList(
+                    1,
+                    10,
+                    () -> randomValueOtherThanMany(
+                        candidate -> docsIds.contains(candidate),
+                        () -> randomAlphaOfLength(randomIntBetween(1, 35))
+                    )
+                );
+                idsQuery.addAll(randomStringsThatMatchNothing);
+            }
+
+            if (randomBoolean()) {
+                var otherStringsThatMatchNothing = randomList(
+                    1,
+                    10,
+                    () -> TsidExtractingIdFieldMapper.createSyntheticId(new BytesRef(), randomNonNegativeLong(), randomInt())
+                );
+                idsQuery.addAll(otherStringsThatMatchNothing);
+            }
+
+            assertCheckedResponse(
+                client().prepareSearch(docsIndices.toArray(new String[] {}))
+                    .setQuery(QueryBuilders.idsQuery().addIds(idsQuery.toArray(new String[] {})))
+                    .setSize(1000),
+                searchResponse -> {
+                    assertHitCount(searchResponse, (long) randomMatchingDocIds.size());
+                    assertThat(searchResponse.getHits().getHits(), arrayWithSize(randomMatchingDocIds.size()));
+                    for (var searchHit : searchResponse.getHits().getHits()) {
+                        assertThat(searchHit.getId(), randomMatchingDocIds.contains(searchHit.getId()), equalTo(true));
+                    }
+                }
+            );
+        }
+    }
 }

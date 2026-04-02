@@ -423,6 +423,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:dense_vector_aggs.sumDenseVectorSingleRow}
   issue: https://github.com/elastic/elasticsearch/issues/145549
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testUpdateInferenceId_GivenCurrentHasNoModelSettingsAndNewIsIncompatibleTaskType_ShouldSucceed {p0=false}
+  issue: https://github.com/elastic/elasticsearch/issues/145550
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidByteWithCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145564
 
 # Examples:
 #

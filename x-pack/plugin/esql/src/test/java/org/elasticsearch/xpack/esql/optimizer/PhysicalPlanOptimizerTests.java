@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -143,6 +144,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -213,6 +215,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.stripThrough;
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns.ALL_FIELDS_PROJECTED;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
@@ -385,6 +388,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             builder.addIndex(lookupIndex);
             builder.addLookupIndex(lookupIndex);
         }
+        builder.addNoFieldsIndex();
         Analyzer analyzer = builder.buildAnalyzer();
         return new TestDataSource(mapping, index, analyzer, stats);
     }
@@ -1553,7 +1557,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByNotPushedToSource() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | limit 10 by emp_no
@@ -1578,7 +1581,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByMultipleKeys() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | limit 5 by first_name, last_name
@@ -1613,7 +1615,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByAfterStats() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | stats avg_salary = avg(salary) by first_name
@@ -1652,7 +1653,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByAfterEval() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | eval x = salary + 1
@@ -1689,7 +1689,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByWithFilter() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 0
@@ -1722,7 +1721,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByExpressionWithEval() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 0
@@ -1759,7 +1757,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByZero() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = optimizedPlan(physicalPlan("""
             FROM test
             | LIMIT 0 BY emp_no
@@ -3793,6 +3790,52 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(project.projections()), contains(nullField));
         assertThat(Expressions.names(eval.fields()), contains(nullField));
         assertThat(Expressions.names(esQuery.attrs()), contains("_doc"));
+    }
+
+    /**
+     * LimitExec[1000[INTEGER],8]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#4],SINGLE,[$$cnt$count{r}#5, $$cnt$seen{r}#6],8]
+     *   \_MergeExec[[&lt;all-fields-projected&gt;{r$}#7]]
+     *     |_ExchangeExec[[&lt;all-fields-projected&gt;{r$}#7],false]
+     *     | \_ProjectExec[[&lt;all-fields-projected&gt;{r$}#7]]
+     *     |   \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;#7]]
+     *     |     \_EsQueryExec[no_fields_index]
+     *     \_ExchangeExec[[&lt;all-fields-projected&gt;{r$}#8],false]
+     *       \_ProjectExec[[&lt;all-fields-projected&gt;{r$}#8]]
+     *         \_EvalExec[[null[NULL] AS &lt;all-fields-projected&gt;#8]]
+     *           \_EsQueryExec[no_fields_index]
+     */
+    public void testProjectAwayColumnsWithSubqueryCount() {
+        assumeTrue("Prune no-fields in subquery", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS.isEnabled());
+        for (String count : List.of("count()", "count(*)", "count(1)")) {
+            String query = LoggerMessageFormat.format(null, """
+                FROM no_fields_index, (FROM no_fields_index)
+                | STATS {}
+                """, count);
+            var plan = optimizedPlan(physicalPlan(query, testData, false));
+
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec agg = as(limit.child(), AggregateExec.class);
+            MergeExec merge = as(agg.child(), MergeExec.class);
+            assertEquals(1, merge.output().size());
+            Attribute attribute = merge.output().getFirst();
+            assertEquals(ALL_FIELDS_PROJECTED, attribute.name());
+            assertEquals(2, merge.children().size());
+
+            for (PhysicalPlan child : merge.children()) {
+                ExchangeExec exchange = as(child, ExchangeExec.class);
+                assertEquals(1, exchange.output().size());
+                Attribute attr = exchange.output().getFirst();
+                assertEquals(ALL_FIELDS_PROJECTED, attr.name());
+                ProjectExec project = as(exchange.child(), ProjectExec.class);
+                assertEquals(1, project.projections().size());
+                NamedExpression namedExpression = project.projections().get(0);
+                assertEquals(ALL_FIELDS_PROJECTED, namedExpression.name());
+                EvalExec eval = as(project.child(), EvalExec.class);
+                EsQueryExec esQuery = as(eval.child(), EsQueryExec.class);
+                assertEquals("no_fields_index", esQuery.indexPattern());
+            }
+        }
     }
 
     /**

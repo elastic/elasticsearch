@@ -381,6 +381,68 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidByteWithCasting
   issue: https://github.com/elastic/elasticsearch/issues/145564
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidBigDecimalFromByteWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145572
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testResultSetNotInitialized
+  issue: https://github.com/elastic/elasticsearch/issues/145573
+- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
+  method: test {p0=downsample/10_basic/Downsample index with multi-value dimensions}
+  issue: https://github.com/elastic/elasticsearch/issues/145575
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  issue: https://github.com/elastic/elasticsearch/issues/145461
+- class: org.elasticsearch.xpack.downsample.DownsampleRestIT
+  method: test {p0=downsample/10_basic/Downsample index with multi-value dimensions}
+  issue: https://github.com/elastic/elasticsearch/issues/145578
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidLongWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145580
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.physical.MergeExec}
+  issue: https://github.com/elastic/elasticsearch/issues/145581
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.Filter}
+  issue: https://github.com/elastic/elasticsearch/issues/145583
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec}
+  issue: https://github.com/elastic/elasticsearch/issues/145584
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.ExchangeExec}
+  issue: https://github.com/elastic/elasticsearch/issues/145585
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:stats_percentile.percentileOfLong}
+  issue: https://github.com/elastic/elasticsearch/issues/145589
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testUpdateInferenceId_GivenCurrentHasNoModelSettingsAndNewIsIncompatibleTaskType_ShouldSucceed {p0=true}
+  issue: https://github.com/elastic/elasticsearch/issues/145591
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcFetchSizeIT
+  method: testScrollWithDatetimeAndTimezoneParam
+  issue: https://github.com/elastic/elasticsearch/issues/145592
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin}
+  issue: https://github.com/elastic/elasticsearch/issues/145594
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.Dissect}
+  issue: https://github.com/elastic/elasticsearch/issues/145595
+- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
+  method: testLicenseCheck
+  issue: https://github.com/elastic/elasticsearch/issues/145600
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject}
+  issue: https://github.com/elastic/elasticsearch/issues/145601
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand}
+  issue: https://github.com/elastic/elasticsearch/issues/145603
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject}
+  issue: https://github.com/elastic/elasticsearch/issues/145604
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.MergeExec}
+  issue: https://github.com/elastic/elasticsearch/issues/145606
+- class: org.elasticsearch.indices.IndexingMemoryControllerIT
+  method: testDeletesAloneCanTriggerRefresh
+  issue: https://github.com/elastic/elasticsearch/issues/145609
 
 # Examples:
 #

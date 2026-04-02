@@ -1272,9 +1272,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (indexResolutions.isEmpty()) {
                     throw new IllegalStateException("Unmapped fields with empty index resolutions.");
                 }
-                if (indexResolutions.size() > 1) {
-                    throw new VerificationException("Multiple index patterns are not supported with unmapped_fields=\"load\"");
-                }
                 EsIndex esIndex = indexResolutions.getFirst().get();
                 if (esIndex.isPartiallyUnmappedField(fa.name())) {
                     FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, esIndex);

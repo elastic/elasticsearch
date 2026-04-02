@@ -248,6 +248,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_DETECT_UNMAPPED_FIELDS_IN_AGG_FILTERS,
 
         /**
+         * Fix for 500 error when querying multiple indices with {@code unmapped_fields="load"}.
+         * See https://github.com/elastic/elasticsearch/issues/145555
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_MULTI_INDEX_PATTERN,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
          * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          * V3: Fix synthetic _source numeric load bug (#143916)
@@ -2424,12 +2430,6 @@ public class EsqlCapabilities {
          * Supports the {@code USER_AGENT} command.
          */
         USER_AGENT_COMMAND,
-
-        /**
-         * Fix for 500 error when querying multiple indices with {@code unmapped_fields="load"}.
-         * See https://github.com/elastic/elasticsearch/issues/145555
-         */
-        FIX_UNMAPPED_LOAD_MULTI_INDEX_PATTERN
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

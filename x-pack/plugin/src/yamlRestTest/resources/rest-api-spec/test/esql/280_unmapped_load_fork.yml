@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_v5, fix_unmapped_load_multi_index_pattern ]
+          capabilities: [ optional_fields_v5, optional_fields_fix_unmapped_load_multi_index_pattern ]
       reason: 'requires SET unmapped_fields="load" and the bug fix for querying multiple indices'
   #
   # The table below represents the field mappings for the three indices created in this test.
@@ -69,7 +69,6 @@ two-branches-one-index:
       catch: bad_request
       esql.query:
         body:
-          # Query is rejected in Verifier
           query: 'SET unmapped_fields="load"; FROM index1 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
@@ -82,7 +81,6 @@ one-branch-one-index:
       catch: bad_request
       esql.query:
         body:
-          # Query is rejected in Verifier
           query: 'SET unmapped_fields="load"; FROM index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11)'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
@@ -95,7 +93,6 @@ two-branches-one-index-wildcard:
       catch: bad_request
       esql.query:
         body:
-          # Query is rejected in Verifier
           query: 'SET unmapped_fields="load"; FROM index3* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
@@ -108,7 +105,6 @@ one-branch-multi-index:
       catch: bad_request
       esql.query:
         body:
-          # Query is rejected in Verifier
           query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11)'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
@@ -121,11 +117,11 @@ two-branches-multi-index:
       catch: bad_request
       esql.query:
         body:
-          # Query is rejected in Analyzer
           query: 'SET unmapped_fields="load"; FROM index1,index2 | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Multiple index patterns are not supported with unmapped_fields="load"' }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:50: FORK is not supported with unmapped_fields="load"' }
 
 ---
 two-branches-multi-index-wildcard:
@@ -133,8 +129,8 @@ two-branches-multi-index-wildcard:
       catch: bad_request
       esql.query:
         body:
-          # Query is rejected in Analyzer
           query: 'SET unmapped_fields="load"; FROM ind* | FORK (WHERE NOT BYTE_LENGTH(lambda) < 11) (WHERE true)'
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - contains: { error.reason: 'Multiple index patterns are not supported with unmapped_fields="load"' }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:41: FORK is not supported with unmapped_fields="load"' }

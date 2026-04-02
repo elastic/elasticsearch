@@ -722,6 +722,11 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         private final int bloomFilterBitSetSizeInBits;
         private final int numHashFunctions;
         private final CheckedRunnable<IOException> checkIntegrityFn;
+        // Lazily computed and cached. -1.0 is the sentinel for "not yet computed" (saturation is
+        // always in [0.0, 1.0]). Two threads may both compute this concurrently, but the result is
+        // identical (the filter is immutable), so the race is benign — the cost is redundant I/O,
+        // not incorrect results. volatile ensures the write is visible once complete.
+        private volatile double cachedSaturation = -1.0;
 
         private BloomFilterFieldReader(
             RandomAccessInput bloomFilterIn,
@@ -763,6 +768,29 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         @Override
         public long sizeInBytes() {
             return getBloomFilterBitSetSizeInBytes();
+        }
+
+        @Override
+        public double saturation() throws IOException {
+            if (cachedSaturation >= 0.0) {
+                return cachedSaturation;
+            }
+            final int sizeInBytes = getBloomFilterBitSetSizeInBytes();
+            long setBits = 0;
+            final byte[] scratch = new byte[PageCacheRecycler.PAGE_SIZE_IN_BYTES];
+            int remaining = sizeInBytes;
+            int offset = 0;
+            while (remaining > 0) {
+                int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
+                bloomFilterIn.readBytes(offset, scratch, 0, pageLen);
+                for (int i = 0; i < pageLen; i++) {
+                    setBits += Integer.bitCount(scratch[i] & 0xFF);
+                }
+                offset += pageLen;
+                remaining -= pageLen;
+            }
+            cachedSaturation = (double) setBits / bloomFilterBitSetSizeInBits;
+            return cachedSaturation;
         }
 
         @Override

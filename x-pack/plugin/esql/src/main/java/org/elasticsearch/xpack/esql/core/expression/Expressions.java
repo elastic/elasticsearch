@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,6 +39,10 @@ public final class Expressions {
     /**
      * Converts named expressions to {@link ReferenceAttribute}s, preserving {@link NameId}s for attributes whose name
      * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
+     * <p>
+     * Exception: a {@link FieldAttribute} backed by an {@link InvalidMappedField} (ambiguous type across indices) is instead
+     * converted to an {@link org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute} via
+     * {@link FieldAttribute#checkUnresolved()}, so the analyzer can surface a clear user-facing error.
      */
     public static List<Attribute> toReferenceAttributesPreservingIds(
         List<? extends NamedExpression> named,
@@ -54,9 +59,11 @@ public final class Expressions {
         for (NamedExpression exp : named) {
             Attribute existing = existingByName.get(exp.name());
             NameId id = existing != null ? existing.id() : new NameId();
-            ReferenceAttribute refAttr = exp instanceof ReferenceAttribute ra
-                ? (ReferenceAttribute) ra.withId(id)
-                : new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
+            Attribute refAttr = switch (exp) {
+                case FieldAttribute fa when fa.field() instanceof InvalidMappedField -> fa.checkUnresolved();
+                case ReferenceAttribute ra -> ra.withId(id);
+                default -> new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
+            };
             list.add(refAttr);
         }
         return list;

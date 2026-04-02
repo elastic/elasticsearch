@@ -24,16 +24,22 @@ import org.elasticsearch.xpack.esql.CsvTests;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -225,6 +231,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
+                .addTestLookup()
                 .addAnalysisTestsEnrichResolution()
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
@@ -248,6 +255,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
             if (stages.contains(Stage.PHYSICAL_OPTIMIZATION)
                 || stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)
+                || stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)
+                || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)
                 || stages.contains(Stage.NODE_REDUCE)
                 || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                 var physicalPlanOptimizer = new PhysicalPlanOptimizer(
@@ -260,9 +269,32 @@ public abstract class GoldenTestCase extends ESTestCase {
                     result.add(Tuple.tuple(Stage.PHYSICAL_OPTIMIZATION, verifyOrWrite(physicalPlan, Stage.PHYSICAL_OPTIMIZATION)));
                 }
                 Configuration conf = analyzer.context().configuration();
+                PhysicalPlan localPhysicalPlan = null;
+                boolean needsLocalPlan = stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)
+                    || stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)
+                    || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION);
+                if (needsLocalPlan) {
+                    localPhysicalPlan = localOptimize(physicalPlan, conf);
+                }
                 if (stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)) {
-                    TestResult localPhysicalResult = verifyOrWrite(localOptimize(physicalPlan, conf), Stage.LOCAL_PHYSICAL_OPTIMIZATION);
+                    TestResult localPhysicalResult = verifyOrWrite(localPhysicalPlan, Stage.LOCAL_PHYSICAL_OPTIMIZATION);
                     result.add(Tuple.tuple(Stage.LOCAL_PHYSICAL_OPTIMIZATION, localPhysicalResult));
+                }
+                if (stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION) || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)) {
+                    List<LookupJoinExec> joins = findLookupJoins(localPhysicalPlan);
+                    for (int i = 0; i < joins.size(); i++) {
+                        String suffix = joins.size() > 1 ? "_" + i : "";
+                        LogicalPlan lookupLogical = buildLookupLogicalPlan(joins.get(i), conf, searchStats);
+                        if (stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)) {
+                            TestResult r = verifyOrWrite(lookupLogical, outputPath("lookup_logical_optimization" + suffix));
+                            result.add(Tuple.tuple(Stage.LOOKUP_LOGICAL_OPTIMIZATION, r));
+                        }
+                        if (stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)) {
+                            PhysicalPlan lookupPhysical = optimizeLookupPhysicalPlan(lookupLogical, conf, searchStats);
+                            TestResult r = verifyOrWrite(lookupPhysical, outputPath("lookup_physical_optimization" + suffix));
+                            result.add(Tuple.tuple(Stage.LOOKUP_PHYSICAL_OPTIMIZATION, r));
+                        }
+                    }
                 }
                 if (stages.contains(Stage.NODE_REDUCE) || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                     ExchangeExec exec = EsqlTestUtils.singleValue(physicalPlan.collect(ExchangeExec.class));
@@ -397,6 +429,44 @@ public abstract class GoldenTestCase extends ESTestCase {
                 searchStats,
                 new PlanTimeProfile()
             );
+        }
+
+        private static List<LookupJoinExec> findLookupJoins(PhysicalPlan plan) {
+            List<LookupJoinExec> joins = new ArrayList<>();
+            plan.forEachDown(p -> {
+                if (p instanceof LookupJoinExec join) {
+                    joins.add(join);
+                }
+            });
+            return joins;
+        }
+
+        private static LogicalPlan buildLookupLogicalPlan(LookupJoinExec join, Configuration conf, SearchStats stats) {
+            List<MatchConfig> matchFields = new ArrayList<>(join.leftFields().size());
+            for (int i = 0; i < join.leftFields().size(); i++) {
+                FieldAttribute right = (FieldAttribute) join.rightFields().get(i);
+                String fieldName = right.exactAttribute().fieldName().string();
+                if (join.isOnJoinExpression()) {
+                    fieldName = join.leftFields().get(i).name();
+                }
+                matchFields.add(new MatchConfig(fieldName, i, join.leftFields().get(i).dataType()));
+            }
+            LogicalPlan logicalPlan = LookupFromIndexService.buildLocalLogicalPlan(
+                join.source(),
+                matchFields,
+                join.joinOnConditions(),
+                join.right(),
+                join.addedFields().stream().map(f -> (NamedExpression) f).toList()
+            );
+            FoldContext foldCtx = conf.newFoldContext();
+            return new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(conf, foldCtx, stats)).localOptimize(logicalPlan);
+        }
+
+        private static PhysicalPlan optimizeLookupPhysicalPlan(LogicalPlan logicalPlan, Configuration conf, SearchStats stats) {
+            FoldContext foldCtx = conf.newFoldContext();
+            PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(logicalPlan);
+            var context = new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), conf, foldCtx, stats);
+            return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
         }
     }
 
@@ -546,6 +616,16 @@ public abstract class GoldenTestCase extends ESTestCase {
          * produce the local physical plan directly from non-local physical plan.
          */
         LOCAL_PHYSICAL_OPTIMIZATION(new SingleFileOutput("local_physical_optimization")),
+        /**
+         * Lookup-node logical optimization: builds a logical plan from each {@link LookupJoinExec} and runs
+         * {@link LookupLogicalOptimizer}. When a query contains multiple LOOKUP JOINs, each produces a separate output file.
+         */
+        LOOKUP_LOGICAL_OPTIMIZATION(new SingleFileOutput("lookup_logical_optimization")),
+        /**
+         * Lookup-node physical optimization: runs {@link LookupPhysicalPlanOptimizer} on each lookup plan.
+         * When a query contains multiple LOOKUP JOINs, each produces a separate output file.
+         */
+        LOOKUP_PHYSICAL_OPTIMIZATION(new SingleFileOutput("lookup_physical_optimization")),
         /**
          * See {@link ComputeService#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
          * data nodes.

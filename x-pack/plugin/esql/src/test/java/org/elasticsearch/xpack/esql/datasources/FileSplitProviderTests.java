@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -452,7 +453,10 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     public void testRangeAwareSplitsForParquet() {
-        long[][] fakeRanges = { { 100, 500 }, { 700, 600 }, { 1400, 400 } };
+        SplitRange[] fakeRanges = {
+            new SplitRange(100, 500, Map.of("_stats.row_count", 100L)),
+            new SplitRange(700, 600, Map.of("_stats.row_count", 200L)),
+            new SplitRange(1400, 400, Map.of("_stats.row_count", 300L)) };
 
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(fakeRanges[0], fakeRanges[1], fakeRanges[2]));
 
@@ -479,15 +483,17 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(3, splits.size());
         for (int i = 0; i < splits.size(); i++) {
             FileSplit fs = (FileSplit) splits.get(i);
-            assertEquals(fakeRanges[i][0], fs.offset());
-            assertEquals(fakeRanges[i][1], fs.length());
+            assertEquals(fakeRanges[i].offset(), fs.offset());
+            assertEquals(fakeRanges[i].length(), fs.length());
             assertEquals("true", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
             assertEquals("2000", fs.config().get(FileSplitProvider.FILE_LENGTH_KEY));
+            assertNotNull(fs.statistics());
+            assertEquals(fakeRanges[i].statistics().get("_stats.row_count"), fs.statistics().get("_stats.row_count"));
         }
     }
 
     public void testRangeAwareFallbackForSingleRowGroup() {
-        RangeAwareFormatReader mockReader = createMockRangeReader(List.of());
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.<SplitRange>of());
 
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
         formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
@@ -516,10 +522,10 @@ public class FileSplitProviderTests extends ESTestCase {
         assertNull("Single split should not have RANGE_SPLIT_KEY", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
     }
 
-    private static RangeAwareFormatReader createMockRangeReader(List<long[]> ranges) {
+    private static RangeAwareFormatReader createMockRangeReader(List<SplitRange> ranges) {
         return new RangeAwareFormatReader() {
             @Override
-            public List<long[]> discoverSplitRanges(StorageObject object) {
+            public List<SplitRange> discoverSplitRanges(StorageObject object) {
                 return ranges;
             }
 

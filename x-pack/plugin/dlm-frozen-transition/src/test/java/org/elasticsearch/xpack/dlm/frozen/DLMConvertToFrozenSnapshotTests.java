@@ -33,13 +33,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -191,34 +189,6 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         return createProjectState(SnapshotsInProgress.EMPTY);
     }
 
-    /**
-     * Creates a ProjectState with the target index, a configured repository, and
-     * an in-progress snapshot for the index that started at the given time.
-     */
-    private ProjectState createProjectStateWithInProgressSnapshot(long snapshotStartTime) {
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        IndexId indexId = new IndexId(indexName, randomAlphaOfLength(10));
-        ShardId shardId = new ShardId(new Index(indexName, indexId.getId()), 0);
-        SnapshotsInProgress.ShardSnapshotStatus initStatus = new SnapshotsInProgress.ShardSnapshotStatus(randomAlphaOfLength(10), null);
-        SnapshotsInProgress.Entry entry = SnapshotsInProgress.Entry.snapshot(
-            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            false,
-            false,
-            SnapshotsInProgress.State.STARTED,
-            Map.of(indexName, indexId),
-            List.of(),
-            List.of(),
-            snapshotStartTime,
-            randomNonNegativeLong(),
-            Map.of(shardId, initStatus),
-            null,
-            Map.of("dlm-managed", true),
-            IndexVersion.current()
-        );
-        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY.withAddedEntry(entry);
-        return createProjectState(snapshotsInProgress);
-    }
-
     private ProjectState createProjectState(SnapshotsInProgress snapshotsInProgress) {
         RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);
 
@@ -302,14 +272,6 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(request.indices(), is(new String[] { expectedIndex }));
         assertThat(request.includeGlobalState(), is(false));
         assertThat(request.waitForCompletion(), is(true));
-    }
-
-    private GetSnapshotsResponse emptyGetSnapshotsResponse() {
-        return new GetSnapshotsResponse(List.of(), null, 0, 0);
-    }
-
-    private GetSnapshotsResponse getSnapshotsResponseWith(SnapshotInfo info) {
-        return new GetSnapshotsResponse(List.of(info), null, 1, 0);
     }
 
     // --- checkSnapshotInfoSuccess tests ---

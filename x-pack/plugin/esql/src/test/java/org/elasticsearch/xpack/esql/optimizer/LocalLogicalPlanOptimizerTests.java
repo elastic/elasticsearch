@@ -1445,12 +1445,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var filter = as(limit.child(), Filter.class);
         // first_name is protected everywhere because it appears in a full-text function;
         // semantic equality in AttributeSet means all references to the same field are kept.
-        filter.condition().forEachDown(FieldAttribute.class, fa -> {
-            assertThat(Expressions.name(fa), equalTo("first_name"));
-        });
-        filter.condition().forEachDown(SingleFieldFullTextFunction.class, ftf -> {
-            assertThat(ftf.field(), instanceOf(FieldAttribute.class));
-        });
+        filter.condition().forEachDown(FieldAttribute.class, fa -> { assertThat(Expressions.name(fa), equalTo("first_name")); });
+        filter.condition()
+            .forEachDown(SingleFieldFullTextFunction.class, ftf -> { assertThat(ftf.field(), instanceOf(FieldAttribute.class)); });
     }
 
     public void testMultipleFullTextFunctionsOnConstantFields() {

@@ -137,9 +137,10 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
 
             // full-text functions need actual index fields to construct Lucene queries
             var fullTextFieldArgsBuilder = AttributeSet.builder();
-            plan.forEachExpression(FullTextFunction.class, ftf -> {
-                ftf.forEachDown(FieldAttribute.class, fullTextFieldArgsBuilder::add);
-            });
+            plan.forEachExpression(
+                FullTextFunction.class,
+                ftf -> { ftf.forEachDown(FieldAttribute.class, fullTextFieldArgsBuilder::add); }
+            );
             AttributeSet fullTextFieldArgs = fullTextFieldArgsBuilder.build();
 
             LogicalPlan transformed = plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {

@@ -40,6 +40,7 @@ import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveredCommitsReleasable;
@@ -139,6 +140,7 @@ public class SnapshotsCommitService implements ClusterStateListener {
         boolean supportsRelocationDuringSnapshot,
         @Nullable IndexShardSnapshotStatus snapshotStatus // null if the snapshot is running on a remote node
     ) throws IOException {
+        ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
         final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
         assert indexShard.routingEntry().primary() : "get commit info should only be executed on a primary shard";
         final var snapshotIndexCommitAndShardStateId = acquireSnapshotIndexCommit(
@@ -311,5 +313,10 @@ public class SnapshotsCommitService implements ClusterStateListener {
     // package private for testing only
     boolean hasTrackingForShard(ShardId shardId) {
         return snapshotsCommitReleasables.containsKey(shardId);
+    }
+
+    // package private for testing only
+    void assertEmptyTracking() {
+        assert snapshotsCommitReleasables.isEmpty() : "tracking is not empty: " + snapshotsCommitReleasables;
     }
 }

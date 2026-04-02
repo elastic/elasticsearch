@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,6 +42,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class NdJsonPageIteratorTests extends ESTestCase {
@@ -525,6 +527,33 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var str = RestResponseUtils.getTextBodyContent(format.format(req, resp));
 
         assertEquals(expected, str);
+    }
+
+    public void testWithConfigSchemaSampleSizeOverride() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        var configured = reader.withConfig(Map.of("schema_sample_size", "50"));
+        assertNotSame(reader, configured);
+    }
+
+    public void testWithConfigSchemaSampleSizeZeroIsRejected() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
+    }
+
+    public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
+    }
+
+    public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "abc")));
+    }
+
+    public void testWithConfigNullOrEmptyReturnsThis() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        assertSame(reader, reader.withConfig(null));
+        assertSame(reader, reader.withConfig(Map.of()));
     }
 
     private static DataType dataType(Block block) {

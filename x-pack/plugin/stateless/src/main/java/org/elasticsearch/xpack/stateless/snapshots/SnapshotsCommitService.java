@@ -30,7 +30,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -124,7 +123,6 @@ public class SnapshotsCommitService implements ClusterStateListener {
 
     public record SnapshotCommitInfo(
         SnapshotIndexCommit snapshotIndexCommit,
-        Store.MetadataSnapshot metadataSnapshot,
         Map<String, BlobLocation> blobLocations,
         @Nullable String shardStateId
     ) {}
@@ -155,7 +153,6 @@ public class SnapshotsCommitService implements ClusterStateListener {
         // Local snapshot (snapshotStatus != null) may be concurrently aborted so that we inc-ref before using the index commit.
         try (var ignored = withSnapshotIndexCommitRef(shardId, snapshot.getSnapshotId(), snapshotIndexCommit, snapshotStatus)) {
             final var indexCommit = snapshotIndexCommit.indexCommit();
-            final var metadataSnapshot = indexShard.store().getMetadata(indexCommit);
             maybeEnsureNotAborted(snapshotStatus);
             final Map<String, BlobLocation> blobLocations = indexCommit.getFileNames()
                 .stream()
@@ -168,7 +165,7 @@ public class SnapshotsCommitService implements ClusterStateListener {
             if (supportsRelocationDuringSnapshot) {
                 registerReleaseForSnapshot(shardId, snapshot, snapshotIndexCommit);
             }
-            return new SnapshotCommitInfo(snapshotIndexCommit, metadataSnapshot, blobLocations, shardStateId);
+            return new SnapshotCommitInfo(snapshotIndexCommit, blobLocations, shardStateId);
         } catch (Exception e) {
             closeSnapshotIndexCommit(snapshotIndexCommit, shardId, snapshot);
             throw e;

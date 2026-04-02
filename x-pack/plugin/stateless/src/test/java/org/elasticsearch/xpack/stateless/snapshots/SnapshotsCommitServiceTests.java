@@ -44,7 +44,6 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
@@ -94,7 +93,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -544,7 +542,8 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
             );
 
             assertNotNull(result);
-            assertEquals(Store.MetadataSnapshot.EMPTY, result.metadataSnapshot());
+            assertThat(result.blobLocations().keySet(), equalTo(Set.copyOf(commit.getFileNames().stream().toList())));
+            result.blobLocations().values().forEach(loc -> assertNotNull(loc));
             assertFalse(commitRefReleased.get());
 
             if (supportsRelocation) {
@@ -576,7 +575,7 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
             ClusterServiceUtils.setState(testHarness.clusterService, stateWithSnapshot);
 
             final var commitRefReleased = new AtomicBoolean(false);
-            final var shardMocks = mockIndexShardAndCommit(testHarness, commit, commitRefReleased);
+            final var shardAndCommit = mockIndexShardAndCommit(testHarness, commit, commitRefReleased);
 
             // Randomly pick which operation fails after the commit is acquired
             final Exception expectedException;
@@ -585,11 +584,12 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
                 case 0 -> {
                     // getShardStateId fails via indexCommit.getUserData()
                     expectedException = new IOException("simulated getUserData failure");
-                    when(shardMocks.indexCommit().getUserData()).thenThrow(expectedException);
+                    when(shardAndCommit.indexCommit().getUserData()).thenThrow(expectedException);
                 }
                 case 1 -> {
-                    expectedException = new IOException("simulated store failure");
-                    when(shardMocks.store().getMetadata(any(IndexCommit.class))).thenThrow(expectedException);
+                    // getFileNames fails
+                    expectedException = new IOException("simulated getFileNames failure");
+                    when(shardAndCommit.indexCommit().getFileNames()).thenThrow(expectedException);
                 }
                 default -> {
                     // Simulate concurrent shard delete
@@ -754,9 +754,9 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
         }
     }
 
-    private record ShardStoreAndCommit(IndexShard indexShard, Store store, IndexCommit indexCommit) {}
+    private record ShardAndCommit(IndexShard indexShard, IndexCommit indexCommit) {}
 
-    private static ShardStoreAndCommit mockIndexShardAndCommit(
+    private static ShardAndCommit mockIndexShardAndCommit(
         FakeStatelessNode testHarness,
         StatelessCommitRef commit,
         AtomicBoolean commitRefReleased
@@ -782,11 +782,8 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
         when(mockIndexCommit.getFileNames()).thenReturn(commit.getFileNames().stream().toList());
         when(mockIndexCommit.getUserData()).thenReturn(Map.of());
         when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(randomLongBetween(1, 100));
-        final var store = mock(Store.class);
-        when(indexShard.store()).thenReturn(store);
-        when(store.getMetadata(any(IndexCommit.class))).thenReturn(Store.MetadataSnapshot.EMPTY);
 
-        return new ShardStoreAndCommit(indexShard, store, mockIndexCommit);
+        return new ShardAndCommit(indexShard, mockIndexCommit);
     }
 
     private record TestFixture(FakeStatelessNode node, Set<StaleCompoundCommit> deletedCommits) implements Closeable {

@@ -159,7 +159,6 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
         ).thenReturn(
             new SnapshotsCommitService.SnapshotCommitInfo(
                 snapshotIndexCommit,
-                Store.MetadataSnapshot.EMPTY,
                 Map.of(
                     randomIdentifier(),
                     new BlobLocation(
@@ -216,7 +215,7 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
         final var expectedShardStateId = randomIdentifier();
         doAnswer(invocation -> {
             final ActionListener<GetShardSnapshotCommitInfoResponse> listener = invocation.getArgument(2);
-            listener.onResponse(new GetShardSnapshotCommitInfoResponse(Store.MetadataSnapshot.EMPTY, Map.of(), expectedShardStateId));
+            listener.onResponse(new GetShardSnapshotCommitInfoResponse(Map.of(), expectedShardStateId));
             return null;
         }).when(projectClient)
             .execute(eq(TransportGetShardSnapshotCommitInfoAction.TYPE), any(GetShardSnapshotCommitInfoRequest.class), anyActionListener());

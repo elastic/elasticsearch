@@ -246,9 +246,7 @@ public class TransportGetShardSnapshotCommitInfoAction extends HandledTransportA
                 true,
                 null
             );
-            l.onResponse(
-                new GetShardSnapshotCommitInfoResponse(commitInfo.metadataSnapshot(), commitInfo.blobLocations(), commitInfo.shardStateId())
-            );
+            l.onResponse(new GetShardSnapshotCommitInfoResponse(commitInfo.blobLocations(), commitInfo.shardStateId()));
         });
     }
 

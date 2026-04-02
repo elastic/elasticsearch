@@ -8,7 +8,7 @@ mapped_pages:
 ---
 # Approximate `STATS` queries
 
-ES|QL STATS commands summarize large volumes of data into aggregated statistics. For many analytics workloads, exact results are not strictly necessary — approximate results with known error bounds are sufficient, and can be computed dramatically faster. The `approximation` setting enables this: ES|QL rewrites your query to use random sampling and extrapolation, returning estimates together with confidence intervals and a certification flag.
+ES|QL {{esql}} [`STATS`](/reference/query-languages/esql/commands/stats-by.md) commands summarize large volumes of data into aggregated statistics. For many analytics workloads, exact results are not strictly necessary — approximate results with known error bounds are sufficient, and can be computed dramatically faster. The `approximation` setting enables this: ES|QL rewrites your query to use random sampling and extrapolation, returning estimates together with confidence intervals and a certification flag.
 
 Approximation breaks the dependency between performance and dataset size. Accuracy depends principally on the data characteristics and the query itself, not on how many rows are in the source index. This means the performance advantage grows as your data grows.
 
@@ -61,6 +61,8 @@ The additional columns are:
 
 
 ## Configuration options
+
+The default settings work well for most queries, but you can tune the confidence interval computation and sample size to trade off between accuracy and speed.
 
 ### Disabling confidence intervals
 
@@ -128,6 +130,8 @@ The following query patterns are not currently supported for approximation and f
 
 
 ## When approximation is less effective
+
+Approximation works best on large, broad queries. Certain query patterns reduce or eliminate the benefit.
 
 ### Highly selective filters
 

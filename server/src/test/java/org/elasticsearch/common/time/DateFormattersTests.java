@@ -66,6 +66,8 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(formatter.pattern()));
         assertThat(e.getCause(), instanceOf(DateTimeParseException.class));
         assertThat(((DateTimeParseException) e.getCause()).getErrorIndex(), indexMatcher);
+
+        assertThat(formatter.tryParse(input), nullValue());
     }
 
     private void assertParses(String input, String format) {
@@ -77,8 +79,9 @@ public class DateFormattersTests extends ESTestCase {
 
         TemporalAccessor javaTimeAccessor = formatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
-
         assertThat(zonedDateTime, notNullValue());
+
+        assertThat(formatter.tryParse(input), notNullValue());
     }
 
     private void assertDateMathEquals(String text, String expected, String pattern) {

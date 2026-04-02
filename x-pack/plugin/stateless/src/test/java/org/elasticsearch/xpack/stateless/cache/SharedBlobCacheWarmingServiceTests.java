@@ -55,6 +55,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -920,6 +922,38 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                                 warmTasksForBCCs.put(warmTask.blobFile.blobName(), warmTask);
                             }
                             super.scheduleWarmingTask(task);
+                        }
+                    };
+                }
+
+                @Override
+                protected StatelessSharedBlobCacheService createCacheService(
+                    NodeEnvironment nodeEnvironment,
+                    Settings settings,
+                    ThreadPool threadPool,
+                    MeterRegistry meterRegistry
+                ) {
+                    return new StatelessSharedBlobCacheService(
+                        nodeEnvironment,
+                        settings,
+                        threadPool,
+                        BlobCacheMetrics.NOOP,
+                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                    ) {
+                        @Override
+                        public void fetchRange(
+                            final FileCacheKey cacheKey,
+                            final int region,
+                            final ByteRange range,
+                            final long blobLength,
+                            final RangeMissingHandler writer,
+                            final Executor fetchExecutor,
+                            final boolean force,
+                            final ActionListener<Boolean> listener
+                        ) {
+                            // this test doesn't need to do any real cache fetch (which can be expensive in this particular setup),
+                            // it only asserts the warming tasks that are generated
+                            listener.onResponse(Boolean.TRUE);
                         }
                     };
                 }

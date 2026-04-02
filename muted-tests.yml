@@ -422,6 +422,27 @@ tests:
 - class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
   method: testUpdateInferenceId_GivenCurrentHasNoModelSettingsAndNewIsIncompatibleTaskType_ShouldSucceed {p0=true}
   issue: https://github.com/elastic/elasticsearch/issues/145591
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcFetchSizeIT
+  method: testScrollWithDatetimeAndTimezoneParam
+  issue: https://github.com/elastic/elasticsearch/issues/145592
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin}
+  issue: https://github.com/elastic/elasticsearch/issues/145594
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.Dissect}
+  issue: https://github.com/elastic/elasticsearch/issues/145595
+- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
+  method: testLicenseCheck
+  issue: https://github.com/elastic/elasticsearch/issues/145600
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject}
+  issue: https://github.com/elastic/elasticsearch/issues/145601
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand}
+  issue: https://github.com/elastic/elasticsearch/issues/145603
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject}
+  issue: https://github.com/elastic/elasticsearch/issues/145604
 
 # Examples:
 #

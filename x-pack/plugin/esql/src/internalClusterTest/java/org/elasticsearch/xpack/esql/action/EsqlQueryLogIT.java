@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.INFERENCE_RES
 import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PARSING;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PLANNING;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PRE_ANALYSIS;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.VIEW_RESOLUTION;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_TYPE;
@@ -196,6 +197,7 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                         for (String timing : List.of(
                             PLANNING,
                             PARSING,
+                            VIEW_RESOLUTION,
                             PRE_ANALYSIS,
                             INDICES_RESOLUTION,
                             ENRICH_RESOLUTION,

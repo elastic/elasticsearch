@@ -30,10 +30,12 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Arrays;
@@ -89,6 +91,21 @@ public class ReindexValidator {
         SearchSourceBuilder searchSource = source.source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
             deprecationLogger.warn(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
+        }
+    }
+
+    /**
+     * Applies reindex-specific defaults to the request before task initialization. When manual slicing is used without a
+     * {@link SliceBuilder#getField() field}, defaults the slice to {@link IdFieldMapper#NAME} for consistent behavior with PIT
+     * (see paginate-search-results documentation).
+     */
+    public void normalize(ReindexRequest request) {
+        SearchSourceBuilder source = request.getSearchRequest().source();
+        assert source != null : "The search request source field was null";
+        SliceBuilder sliceBuilder = source.slice();
+        // When manual slicing is used without a field, default to _id for consistent behavior with PIT (see paginate-search-results docs)
+        if (sliceBuilder != null && sliceBuilder.getField() == null) {
+            source.slice(new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax()));
         }
     }
 

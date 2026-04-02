@@ -216,7 +216,7 @@ record TestConfiguration(
             new ParameterHelp(
                 "vector_space",
                 "string",
-                "Similarity: euclidean, dot_product, or cosine. If cosine is selected with float vectors, vectors are L2-normalized and dot_product is used internally."
+                "Similarity: euclidean, maximum_inner_product, dot_product, or cosine. If cosine is selected with float vectors, vectors are L2-normalized and dot_product is used internally."
             ),
             new ParameterHelp("quantize_bits", "int", "Quantization bits; valid values depend on index_type."),
             new ParameterHelp("vector_encoding", "string", "Vector encoding: byte, float32, or bfloat16."),

@@ -7,17 +7,19 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -41,12 +43,13 @@ import java.util.Map;
  * </pre>
  *
  * <p>Multiple {@code SUM(field + c_i)} over the same field share a single pair of aggregates.
- * Filtered aggregates ({@code SUM(x + c) WHERE filter}) are skipped.</p>
+ * Filtered aggregates ({@code SUM(x + c) WHERE filter}) are skipped since sums with different
+ * filters cannot share the same base aggregation.</p>
  *
  * <p>This rule must run before {@link ReplaceAggregateNestedExpressionWithEval}, which would
  * extract {@code field + c} into a pre-agg EVAL, hiding the pattern.</p>
  */
-public class RewriteSumFieldPlusConstant extends OptimizerRules.OptimizerRule<Aggregate> {
+public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOptimizerRule<Aggregate, LogicalOptimizerContext> {
 
     public RewriteSumFieldPlusConstant() {
         super(OptimizerRules.TransformDirection.UP);
@@ -55,7 +58,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.OptimizerRule<Ag
     private record SvPair(Attribute sum, Attribute count) {}
 
     @Override
-    protected LogicalPlan rule(Aggregate aggregate) {
+    protected LogicalPlan rule(Aggregate aggregate, LogicalOptimizerContext context) {
         var source = aggregate.source();
 
         // Maps canonical(field) → shared SUM(sv_field) / COUNT(sv_field) attributes.
@@ -68,7 +71,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.OptimizerRule<Ag
             Expression dataExpr = null, constant = null;
             Sum sum = null;
             if (agg instanceof Alias alias && alias.child() instanceof Sum s
-                && s.filter() == null
+                && s.hasFilter() == false
                 && s.field() instanceof Add add) {
                 if (add.right().foldable() && add.left().foldable() == false) {
                     dataExpr = add.left();
@@ -89,14 +92,14 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.OptimizerRule<Ag
                     var svSumAlias = new Alias(
                         source,
                         TemporaryNameGenerator.temporaryName(sv, fs, counter[0]++),
-                        new Sum(source, sv, null, null, fs.summationMode(), fs.longOverflowMode()),
+                        new Sum(source, sv, Literal.TRUE, AggregateFunction.NO_WINDOW, fs.summationMode(), fs.longOverflowMode()),
                         null,
                         true
                     );
                     var svCountAlias = new Alias(
                         source,
                         TemporaryNameGenerator.temporaryName(sv, fs, counter[0]++),
-                        new Count(source, sv, null, null),
+                        new Count(source, sv),
                         null,
                         true
                     );
@@ -105,7 +108,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.OptimizerRule<Ag
                     return new SvPair(svSumAlias.toAttribute(), svCountAlias.toAttribute());
                 });
 
-                var evalExpr = new Add(source, pair.sum(), new Mul(source, constant, pair.count()), ConfigurationAware.CONFIGURATION_MARKER);
+                var evalExpr = new Add(source, pair.sum(), new Mul(source, constant, pair.count()), context.configuration());
                 newEvals.add(((Alias) agg).replaceChild(evalExpr));
             } else {
                 newAggs.add(agg);

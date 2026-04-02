@@ -113,7 +113,6 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
                         repositoryMetaVersion,
                         snapshotStartTime,
                         snapshotCommitInfo.snapshotIndexCommit(),
-                        snapshotCommitInfo.metadataSnapshot(),
                         snapshotCommitInfo.blobLocations(),
                         shardBlobContainerFunc,
                         snapshotCommitInfo.snapshotIndexCommit().closingBefore(listener)
@@ -176,7 +175,6 @@ public class StatelessSnapshotShardContextFactory implements SnapshotShardContex
                             repositoryMetaVersion,
                             snapshotStartTime,
                             null,
-                            response.metadataSnapshot(),
                             response.blobLocations(),
                             shardBlobContainerFunc,
                             listener

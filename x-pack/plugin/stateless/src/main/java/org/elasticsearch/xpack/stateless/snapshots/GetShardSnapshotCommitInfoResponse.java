@@ -21,7 +21,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 
 import java.io.IOException;
@@ -29,36 +28,24 @@ import java.util.Map;
 
 public class GetShardSnapshotCommitInfoResponse extends ActionResponse {
 
-    private final Store.MetadataSnapshot metadataSnapshot;
     private final Map<String, BlobLocation> blobLocations;
     @Nullable
     private final String shardStateId;
 
-    public GetShardSnapshotCommitInfoResponse(
-        Store.MetadataSnapshot metadataSnapshot,
-        Map<String, BlobLocation> blobLocations,
-        @Nullable String shardStateId
-    ) {
-        this.metadataSnapshot = metadataSnapshot;
+    public GetShardSnapshotCommitInfoResponse(Map<String, BlobLocation> blobLocations, @Nullable String shardStateId) {
         this.blobLocations = blobLocations;
         this.shardStateId = shardStateId;
     }
 
     public GetShardSnapshotCommitInfoResponse(StreamInput in) throws IOException {
-        this.metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         this.blobLocations = in.readImmutableMap(BlobLocation::readFromTransport);
         this.shardStateId = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        metadataSnapshot.writeTo(out);
         out.writeMap(blobLocations, StreamOutput::writeWriteable);
         out.writeOptionalString(shardStateId);
-    }
-
-    public Store.MetadataSnapshot metadataSnapshot() {
-        return metadataSnapshot;
     }
 
     public Map<String, BlobLocation> blobLocations() {

@@ -46,7 +46,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -155,7 +154,6 @@ public class TransportGetShardSnapshotCommitInfoActionTests extends ESTestCase {
         invokeHandler(capturedRequests[0]);
 
         final var response = safeGet(future);
-        assertEquals(Store.MetadataSnapshot.EMPTY, response.metadataSnapshot());
         assertTrue(response.blobLocations().isEmpty());
         assertEquals(expectedShardStateId, response.shardStateId());
     }
@@ -227,7 +225,7 @@ public class TransportGetShardSnapshotCommitInfoActionTests extends ESTestCase {
         // second call succeeds (retry on remoteNode2)
         when(snapshotsCommitService.acquireAndMaybeRegisterCommitForSnapshot(eq(shardId), any(Snapshot.class), eq(true), any())).thenThrow(
             new ShardNotFoundException(shardId)
-        ).thenReturn(new SnapshotsCommitService.SnapshotCommitInfo(null, Store.MetadataSnapshot.EMPTY, Map.of(), expectedShardStateId));
+        ).thenReturn(new SnapshotsCommitService.SnapshotCommitInfo(null, Map.of(), expectedShardStateId));
 
         // Execute shardOperation with the captured request as if it arrived at the remote node.
         // shardOperation fails because the shard relocated away.
@@ -477,7 +475,7 @@ public class TransportGetShardSnapshotCommitInfoActionTests extends ESTestCase {
     private String setupShardMocks(ShardId shardId) throws IOException {
         final var shardStateId = randomIdentifier();
         when(snapshotsCommitService.acquireAndMaybeRegisterCommitForSnapshot(eq(shardId), any(Snapshot.class), eq(true), any())).thenReturn(
-            new SnapshotsCommitService.SnapshotCommitInfo(null, Store.MetadataSnapshot.EMPTY, Map.of(), shardStateId)
+            new SnapshotsCommitService.SnapshotCommitInfo(null, Map.of(), shardStateId)
         );
         return shardStateId;
     }
@@ -541,14 +539,6 @@ public class TransportGetShardSnapshotCommitInfoActionTests extends ESTestCase {
             assignments.put(shardId, primaryNode);
         }
         setupClusterState(routingState, assignments, snapshot, shardState, localNode, remoteNode, remoteNode2);
-    }
-
-    private void setupClusterState(Map<ShardId, DiscoveryNode> shardAssignments) {
-        setupClusterState(ShardRoutingState.STARTED, shardAssignments, null, localNode, remoteNode, remoteNode2);
-    }
-
-    private void setupClusterState(Map<ShardId, DiscoveryNode> shardAssignments, DiscoveryNode... nodes) {
-        setupClusterState(ShardRoutingState.STARTED, shardAssignments, null, nodes);
     }
 
     private void setupClusterState(

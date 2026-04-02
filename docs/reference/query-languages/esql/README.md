@@ -1,6 +1,6 @@
 # ES|QL documentation
 
-> [!NOTE] 
+> [!NOTE]
 > This directory contains the source files for the [ES|QL documentation](https://www.elastic.co/docs/reference/query-languages/esql).
 
 This README covers how the ES|QL docs are structured, what's hand-written vs. auto-generated, and how to add or update commands and functions correctly.
@@ -194,6 +194,27 @@ When a feature evolves from preview in `9.0` to GA in `9.2`, add a new entry alo
 ```
 
 We updated [`DocsV3Support.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/expression/function/DocsV3Support.java) to generate the `applies_to` metadata correctly for functions and operators.
+
+### Annotate supported types
+
+When a function adds support for a new data type in a specific version, the **Supported types** table in the docs needs `applies_to` metadata on those type rows. This is done by annotating the type's `TypedDataSupplier` in the function's `*Tests.java` class.
+
+Use `withAppliesTo(...)` to tag which version introduced the type, and `withPreview()` if the function has `preview = true` on its `@FunctionInfo` annotation:
+
+```java
+FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+
+// In the suppliers list:
+MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+    .stream()
+    .map(s -> s.withAppliesTo(histogramAppliesTo).withPreview())  // withPreview() because the function has preview=true
+    .toList()
+```
+
+- Call `withAppliesTo(...)` on `TypedDataSupplier` entries for any type that was added after the function's initial release
+- Call `withPreview()` only if the data types function's `@FunctionInfo` has `preview = true`
+
+This ensures the generated **Supported types** table includes the correct `{applies_to}` and `serverless: preview` annotations per type row.
 
 ### Use inline applies_to metadata
 

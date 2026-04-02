@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocsV3SupportTests extends ESTestCase {
@@ -386,6 +388,28 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(rendered.trim(), equalTo(expected.trim()));
     }
 
+
+    public void testRenderingTypeTableAppliesToIncludesServerless() throws Exception {
+        FunctionInfo info = functionInfo(TestPreviewClass.class);
+        assert info != null;
+        FunctionDefinition definition = EsqlFunctionRegistry.def(TestPreviewClass.class, TestPreviewClass::new, "preview_func");
+        TestCallbacks callbacks = new TestCallbacks();
+        var docs = new DocsV3Support.FunctionDocsSupport(
+            "preview_func",
+            TestPreviewClass.class,
+            definition,
+            TestPreviewClass::signatures,
+            callbacks
+        );
+        docs.renderDocs();
+        String rendered = callbacks.rendered.get("types/preview_func.md");
+        assertNotNull("types table should be rendered", rendered);
+        // TestPreviewClass has preview=true, so type rows with applies_to should include serverless: preview
+        assertThat(rendered, containsString("keyword {applies_to}`stack: preview 9.3.0` {applies_to}`serverless: preview`"));
+        // Type rows without applies_to should not have any {applies_to} annotation
+        assertThat(rendered, containsString("| keyword | long |"));
+    }
+
     private TestCallbacks renderTestClassDocs() throws Exception {
         FunctionInfo info = functionInfo(TestClass.class);
         assert info != null;
@@ -485,6 +509,63 @@ public class DocsV3SupportTests extends ESTestCase {
         @Override
         protected NodeInfo<? extends Expression> info() {
             return NodeInfo.create(this, TestClass::new, children().getFirst());
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    public static class TestPreviewClass extends Function {
+        @FunctionInfo(
+            returnType = "long",
+            description = "A preview test function.",
+            examples = { @Example(file = "stats", tag = "count") },
+            appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+            preview = true
+        )
+        public TestPreviewClass(Source source, @Param(name = "str", type = { "keyword" }, description = "A field.") Expression field) {
+            super(source, List.of(field));
+        }
+
+        public static Set<DocsV3Support.TypeSignature> signatures() {
+            return Set.of(
+                new DocsV3Support.TypeSignature(
+                    List.of(new DocsV3Support.Param(DataType.KEYWORD, List.of())),
+                    DataType.LONG
+                ),
+                new DocsV3Support.TypeSignature(
+                    List.of(
+                        new DocsV3Support.Param(
+                            DataType.KEYWORD,
+                            List.of(appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true)),
+                            true
+                        )
+                    ),
+                    DataType.LONG
+                )
+            );
+        }
+
+        @Override
+        public DataType dataType() {
+            return DataType.LONG;
+        }
+
+        @Override
+        public Expression replaceChildren(List<Expression> newChildren) {
+            return new TestPreviewClass(source(), newChildren.getFirst());
+        }
+
+        @Override
+        protected NodeInfo<? extends Expression> info() {
+            return NodeInfo.create(this, TestPreviewClass::new, children().getFirst());
         }
 
         @Override

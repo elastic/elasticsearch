@@ -28,13 +28,13 @@ import java.nio.file.attribute.BasicFileAttributes;
  * issued from inside {@code org.elasticsearch.security}, so the entitlement check correctly
  * attributes them to this module.
  */
-public class PrivilegedFileWatcher extends FileWatcher {
+public class EntitledFileWatcher extends FileWatcher {
 
-    public PrivilegedFileWatcher(Path path) {
+    public EntitledFileWatcher(Path path) {
         super(path);
     }
 
-    public PrivilegedFileWatcher(Path path, boolean checkFileContents) {
+    public EntitledFileWatcher(Path path, boolean checkFileContents) {
         super(path, checkFileContents);
     }
 

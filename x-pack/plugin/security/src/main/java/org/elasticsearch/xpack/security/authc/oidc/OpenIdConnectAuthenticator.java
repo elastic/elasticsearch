@@ -92,7 +92,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
-import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.EntitledFileWatcher;
 import org.elasticsearch.xpack.security.authc.jwt.JwtUtil;
 
 import java.io.IOException;
@@ -786,7 +786,7 @@ public class OpenIdConnectAuthenticator {
 
     private void setMetadataFileWatcher(String jwkSetPath) throws IOException {
         final Path path = realmConfig.env().configDir().resolve(jwkSetPath);
-        FileWatcher watcher = new PrivilegedFileWatcher(path);
+        FileWatcher watcher = new EntitledFileWatcher(path);
         watcher.addListener(new FileListener(LOGGER, () -> this.idTokenValidator.set(createIdTokenValidator(false))));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
     }

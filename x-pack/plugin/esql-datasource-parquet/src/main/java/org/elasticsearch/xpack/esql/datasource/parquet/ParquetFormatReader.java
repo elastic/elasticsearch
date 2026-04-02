@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -405,7 +406,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             pendingStats.add(range.statistics());
 
             if (groupEnd - groupStart >= targetBytes) {
-                out.add(new SplitRange(groupStart, groupEnd - groupStart, mergeStatsMaps(pendingStats)));
+                Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(pendingStats);
+                out.add(new SplitRange(groupStart, groupEnd - groupStart, merged != null ? merged : Map.of()));
                 groupStart = -1;
                 groupEnd = -1;
                 pendingStats.clear();
@@ -413,69 +415,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         if (groupStart >= 0) {
-            out.add(new SplitRange(groupStart, groupEnd - groupStart, mergeStatsMaps(pendingStats)));
+            Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(pendingStats);
+            out.add(new SplitRange(groupStart, groupEnd - groupStart, merged != null ? merged : Map.of()));
         }
 
         return out;
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static Map<String, Object> mergeStatsMaps(List<Map<String, Object>> statsList) {
-        if (statsList.isEmpty()) {
-            return Map.of();
-        }
-        if (statsList.size() == 1) {
-            return statsList.get(0);
-        }
-        long totalRows = 0;
-        long totalSize = 0;
-        Map<String, long[]> nullCounts = new HashMap<>();
-        Map<String, Comparable[]> mins = new HashMap<>();
-        Map<String, Comparable[]> maxs = new HashMap<>();
-
-        for (Map<String, Object> stats : statsList) {
-            Object rc = stats.get("_stats.row_count");
-            if (rc instanceof Number rcNum) {
-                totalRows += rcNum.longValue();
-            }
-            Object sb = stats.get("_stats.size_bytes");
-            if (sb instanceof Number sbNum) {
-                totalSize += sbNum.longValue();
-            }
-
-            for (Map.Entry<String, Object> entry : stats.entrySet()) {
-                String key = entry.getKey();
-                if (key.startsWith("_stats.columns.") == false) continue;
-                if (key.endsWith(".null_count") && entry.getValue() instanceof Number ncNum) {
-                    nullCounts.merge(key, new long[] { ncNum.longValue() }, (a, b) -> {
-                        a[0] += b[0];
-                        return a;
-                    });
-                } else if (key.endsWith(".min") && entry.getValue() instanceof Comparable c) {
-                    mins.merge(key, new Comparable[] { c }, (a, b) -> {
-                        int cmp = a[0].compareTo(b[0]);
-                        if (cmp > 0) a[0] = b[0];
-                        return a;
-                    });
-                } else if (key.endsWith(".max") && entry.getValue() instanceof Comparable c) {
-                    maxs.merge(key, new Comparable[] { c }, (a, b) -> {
-                        int cmp = a[0].compareTo(b[0]);
-                        if (cmp < 0) a[0] = b[0];
-                        return a;
-                    });
-                }
-            }
-        }
-
-        Map<String, Object> merged = new HashMap<>();
-        merged.put("_stats.row_count", totalRows);
-        if (totalSize > 0) {
-            merged.put("_stats.size_bytes", totalSize);
-        }
-        nullCounts.forEach((k, v) -> merged.put(k, v[0]));
-        mins.forEach((k, v) -> merged.put(k, v[0]));
-        maxs.forEach((k, v) -> merged.put(k, v[0]));
-        return Map.copyOf(merged);
     }
 
     /**

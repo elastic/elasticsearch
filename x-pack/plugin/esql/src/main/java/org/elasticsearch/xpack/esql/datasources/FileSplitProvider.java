@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FrameIndex;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -314,7 +315,7 @@ public class FileSplitProvider implements SplitProvider {
             }
             StorageObject object = provider.newObject(filePath, fileLength);
 
-            List<long[]> ranges = rangeReader.discoverSplitRanges(object);
+            List<SplitRange> ranges = rangeReader.discoverSplitRanges(object);
             if (ranges.isEmpty()) {
                 return false;
             }
@@ -323,10 +324,21 @@ public class FileSplitProvider implements SplitProvider {
             splitConfig.put(RANGE_SPLIT_KEY, "true");
             splitConfig.put(FILE_LENGTH_KEY, Long.toString(fileLength));
 
-            for (long[] range : ranges) {
-                long offset = range[0];
-                long length = range[1];
-                splits.add(new FileSplit("file", filePath, offset, length, format, splitConfig, partitionValues, columnMapping));
+            for (SplitRange range : ranges) {
+                Map<String, Object> rangeStats = range.statistics().isEmpty() ? null : range.statistics();
+                splits.add(
+                    new FileSplit(
+                        "file",
+                        filePath,
+                        range.offset(),
+                        range.length(),
+                        format,
+                        splitConfig,
+                        partitionValues,
+                        columnMapping,
+                        rangeStats
+                    )
+                );
             }
             return true;
         } catch (IOException e) {

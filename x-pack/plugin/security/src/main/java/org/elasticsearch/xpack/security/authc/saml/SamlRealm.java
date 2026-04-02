@@ -684,7 +684,7 @@ public final class SamlRealm extends Realm implements Releasable {
         RealmConfig config,
         SSLService sslService,
         ResourceWatcherService watcherService
-    ) throws ResolverException, ComponentInitializationException, IOException, Exception {
+    ) throws ResolverException, ComponentInitializationException, IOException {
         final String metadataUrl = require(config, IDP_METADATA_PATH);
         if (metadataUrl.startsWith("http://")) {
             throw new IllegalArgumentException("The [http] protocol is not supported as it is insecure. Use [https] instead");
@@ -699,7 +699,7 @@ public final class SamlRealm extends Realm implements Releasable {
         String metadataUrl,
         RealmConfig config,
         SSLService sslService
-    ) throws ResolverException, ComponentInitializationException, Exception {
+    ) throws ResolverException, ComponentInitializationException {
         final String entityId = require(config, IDP_ENTITY_ID);
 
         HttpClientBuilder builder = HttpClientBuilder.create();
@@ -787,7 +787,7 @@ public final class SamlRealm extends Realm implements Releasable {
         String metadataPath,
         RealmConfig config,
         ResourceWatcherService watcherService
-    ) throws ResolverException, ComponentInitializationException, IOException, Exception {
+    ) throws ResolverException, ComponentInitializationException, IOException {
 
         final String entityId = require(config, IDP_ENTITY_ID);
         final Path path = config.env().configDir().resolve(metadataPath);
@@ -890,7 +890,7 @@ public final class SamlRealm extends Realm implements Releasable {
     }
 
     private static void initialiseResolver(AbstractReloadingMetadataResolver resolver, RealmConfig config)
-        throws ComponentInitializationException, Exception {
+        throws ComponentInitializationException {
         resolver.setRequireValidMetadata(true);
         BasicParserPool pool = new BasicParserPool();
         pool.initialize();

@@ -717,7 +717,7 @@ public class OpenIdConnectAuthenticator {
             CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
             httpAsyncClient.start();
             return httpAsyncClient;
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
         }
     }

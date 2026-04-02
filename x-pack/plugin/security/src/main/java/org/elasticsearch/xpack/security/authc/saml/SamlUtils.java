@@ -14,6 +14,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
+import org.opensaml.core.config.InitializationException;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.XMLObjectBuilderFactory;
@@ -75,7 +76,7 @@ public class SamlUtils {
      * The initialization happens within do privileged block as the underlying Apache XML security library has a permission check.
      * The initialization happens with a specific context classloader as OpenSAML loads resources from its jar file.
      */
-    static void initialize(Logger logger) throws Exception {
+    static void initialize(Logger logger) throws InitializationException {
         if (INITIALISED.compareAndSet(false, true)) {
             // We want to force these classes to be loaded _before_ we fiddle with the context classloader
             LoggerFactory.getLogger(InitializationService.class);

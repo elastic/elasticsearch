@@ -724,18 +724,12 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             );
         } catch (Exception e) {
             final Throwable unwrapped = unwrapExecutionException(e);
-            if (unwrapped instanceof InterruptedException
-                || ExceptionsHelper.unwrapCause(unwrapped) instanceof InterruptedException) {
+            if (unwrapped instanceof InterruptedException || ExceptionsHelper.unwrapCause(unwrapped) instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             throw unwrapped instanceof ElasticsearchException
                 ? (ElasticsearchException) unwrapped
-                : new ElasticsearchException(
-                    "DLM failed to start snapshot [{}] for index [{}]",
-                    unwrapped,
-                    snapshotName,
-                    indexName
-                );
+                : new ElasticsearchException("DLM failed to start snapshot [{}] for index [{}]", unwrapped, snapshotName, indexName);
         }
     }
 

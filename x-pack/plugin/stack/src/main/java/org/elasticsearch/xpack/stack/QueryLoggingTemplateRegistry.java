@@ -17,9 +17,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
-import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -85,16 +83,6 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         return composableIndexTemplateConfigs;
-    }
-
-    private static final LifecyclePolicyConfig LIFECYCLE_POLICY_CONFIG = new LifecyclePolicyConfig(
-        QUERY_LOGGING_POLICY_NAME,
-        "/logging/querylog-ilm-policy.json"
-    );
-
-    @Override
-    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
-        return List.of(LIFECYCLE_POLICY_CONFIG);
     }
 
     @Override

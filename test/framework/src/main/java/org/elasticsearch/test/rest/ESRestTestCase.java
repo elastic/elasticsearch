@@ -914,8 +914,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "metrics-apm.transaction_60m_metrics-default_policy",
             "traces-apm.rum_traces-default_policy",
             "traces-apm.sampled_traces-default_policy",
-            "traces-apm.traces-default_policy",
-            ".query-logging-ilm-policy"
+            "traces-apm.traces-default_policy"
         );
     }
 

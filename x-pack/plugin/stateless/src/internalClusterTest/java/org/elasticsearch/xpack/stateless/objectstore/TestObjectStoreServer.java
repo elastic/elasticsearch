@@ -52,11 +52,9 @@ public class TestObjectStoreServer {
 
     public void start() throws IOException {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory(
-            "[" + AbstractMockObjectStoreIntegTestCase.class.getName() + "]"
-        );
+        ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory("[" + TestObjectStoreServer.class.getName() + "]");
         executorService = EsExecutors.newScaling(
-            AbstractMockObjectStoreIntegTestCase.class.getName(),
+            TestObjectStoreServer.class.getName(),
             0,
             100,
             60,

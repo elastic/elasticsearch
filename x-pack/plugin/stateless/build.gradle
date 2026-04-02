@@ -65,8 +65,6 @@ dependencies {
     internalClusterTestImplementation(xpackModule("shutdown"))
     internalClusterTestImplementation("org.elasticsearch.plugin:data-streams")
     internalClusterTestImplementation("org.elasticsearch.plugin:mapper-extras")
-    internalClusterTestImplementation(project(":modules:serverless-multi-project"))
-    internalClusterTestImplementation(project(":modules-self-managed:secure-settings"))
     internalClusterTestImplementation(xpackModule("esql"))
     internalClusterTestImplementation(xpackModule("esql-core"))
     testImplementation(project(":libs:serverless-shared-constants"))

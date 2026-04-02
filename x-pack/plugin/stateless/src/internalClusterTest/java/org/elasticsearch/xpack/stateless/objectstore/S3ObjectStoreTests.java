@@ -122,7 +122,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     protected InterceptableS3HttpHandler s3HttpHandler;
-    private int maxRetries;
+    protected int maxRetries;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -685,10 +685,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     }
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-    static class InterceptableS3HttpHandler extends S3HttpHandler {
+    public static class InterceptableS3HttpHandler extends S3HttpHandler {
         private volatile Interceptor interceptor;
 
-        InterceptableS3HttpHandler(String bucket) {
+        public InterceptableS3HttpHandler(String bucket) {
             super(bucket, S3ConsistencyModel.AWS_DEFAULT);
         }
 
@@ -705,7 +705,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     }
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-    interface Interceptor {
+    public interface Interceptor {
         boolean intercept(HttpExchange exchange) throws IOException;
     }
 

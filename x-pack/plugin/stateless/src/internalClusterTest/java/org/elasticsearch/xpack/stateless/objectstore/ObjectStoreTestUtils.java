@@ -18,6 +18,7 @@
 package org.elasticsearch.xpack.stateless.objectstore;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepository;
@@ -41,5 +42,13 @@ public final class ObjectStoreTestUtils {
         } else {
             throw new AssertionError("ObjectStoreService does not use a mocked BlobStoreRepository");
         }
+    }
+
+    public static BlobStoreRepository getClusterObjectStore(ObjectStoreService service) {
+        return service.getClusterObjectStore();
+    }
+
+    public static BlobStoreRepository getProjectObjectStore(ObjectStoreService service, ProjectId projectId) {
+        return service.getProjectObjectStore(projectId);
     }
 }

@@ -181,7 +181,6 @@ import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
-import org.elasticsearch.xpack.stateless.multiproject.ProjectLifeCycleService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
@@ -861,11 +860,6 @@ public class StatelessPlugin extends Plugin
 
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
-            if (projectResolver.get().supportsMultipleProjects()) {
-                var projectLifeCycleService = new ProjectLifeCycleService(clusterService, objectStoreService, threadPool, client);
-                components.add(projectLifeCycleService);
-                clusterService.addListener(projectLifeCycleService);
-            }
         }
         components.add(
             setAndGet(
@@ -944,7 +938,13 @@ public class StatelessPlugin extends Plugin
 
         if (statelessServicesConsumerProviders.get() != null) {
             for (var provider : statelessServicesConsumerProviders.get()) {
-                provider.onServicesCreated(closedShardService, hollowShardsService, searchShardSizeCollector, memoryMetricsService);
+                provider.onServicesCreated(
+                    closedShardService,
+                    hollowShardsService,
+                    searchShardSizeCollector,
+                    memoryMetricsService,
+                    objectStoreService
+                );
             }
         }
 

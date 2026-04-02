@@ -423,6 +423,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:range.Invalid Boundaries, date nanos implicit casting}
   issue: https://github.com/elastic/elasticsearch/issues/145542
+- class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {csv-spec:dense_vector_aggs.sumDenseVectorSingleRow}
+  issue: https://github.com/elastic/elasticsearch/issues/145549
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testUpdateInferenceId_GivenCurrentHasNoModelSettingsAndNewIsIncompatibleTaskType_ShouldSucceed {p0=false}
+  issue: https://github.com/elastic/elasticsearch/issues/145550
 
 # Examples:
 #

@@ -1222,6 +1222,10 @@ public class EsqlCapabilities {
          * Added telemetry for views
          */
         VIEWS_TELEMETRY,
+        /**
+         * Fixed a bug where views are incorrectly de-duplicated.
+         */
+        VIEWS_DEDUPLICATION_BUGFIX,
 
         /**
          * Support for the {@code leading_zeros} named parameter.

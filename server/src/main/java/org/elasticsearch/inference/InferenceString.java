@@ -89,12 +89,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     private void validateDataURIFormat() {
         if (dataFormat == DataFormat.BASE64) {
             var endOfURIPart = value.indexOf(',');
-            if (endOfURIPart < 0) {
-                throw new IllegalArgumentException(
-                    "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
-                );
-            }
-            if (DATA_URI_PATTERN.matcher(value.substring(0, endOfURIPart + 1)).matches() == false) {
+            if (endOfURIPart < 0 || DATA_URI_PATTERN.matcher(value.substring(0, endOfURIPart + 1)).matches() == false) {
                 throw new IllegalArgumentException(
                     "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
                 );

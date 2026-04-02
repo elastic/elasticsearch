@@ -249,9 +249,8 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         var lateChunking = randomBoolean();
         var dimensions = randomNonNegativeInt();
         String textInput = "text input";
-        String imageInput = TEST_IMAGE_DATA_URI;
         var entity = new JinaAIEmbeddingsRequestEntity(
-            List.of(new InferenceStringGroup(textInput), new InferenceStringGroup(new InferenceString(IMAGE, imageInput))),
+            List.of(new InferenceStringGroup(textInput), new InferenceStringGroup(new InferenceString(IMAGE, TEST_IMAGE_DATA_URI))),
             InputType.INTERNAL_INGEST,
             createModel(
                 null,
@@ -277,7 +276,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
                         {"input":[{"text":"%s"},{"image":"%s"}],"model":"%s",\
                         "embedding_type":"%s","task":"retrieval.passage","late_chunking":false,"dimensions":%d}""",
                     textInput,
-                    imageInput,
+                    TEST_IMAGE_DATA_URI,
                     modelName,
                     embeddingType.toRequestString(),
                     dimensions
@@ -310,9 +309,11 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         throws IOException {
 
         String textInput = "text input";
-        String imageInput = TEST_IMAGE_DATA_URI;
         var entity = new JinaAIEmbeddingsRequestEntity(
-            List.of(new InferenceStringGroup(textInput), new InferenceStringGroup(List.of(new InferenceString(IMAGE, BASE64, imageInput)))),
+            List.of(
+                new InferenceStringGroup(textInput),
+                new InferenceStringGroup(List.of(new InferenceString(IMAGE, BASE64, TEST_IMAGE_DATA_URI)))
+            ),
             InputType.INTERNAL_INGEST,
             createModel(null, "modelName", null, new JinaAIEmbeddingsTaskSettings(null, true), "apiKey", null, TaskType.EMBEDDING, true)
         );
@@ -323,15 +324,14 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
 
         assertThat(xContentResult, is(Strings.format("""
             {"input":[{"text":"%s"},{"image":"%s"}],"model":"modelName","embedding_type":"float",\
-            "task":"retrieval.passage","late_chunking":false}""", textInput, imageInput)));
+            "task":"retrieval.passage","late_chunking":false}""", textInput, TEST_IMAGE_DATA_URI)));
     }
 
     public void testXContent_multimodal_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
         String textInput = "text input";
-        String imageInput = TEST_IMAGE_DATA_URI;
         String modelName = "modelName";
         var entity = new JinaAIEmbeddingsRequestEntity(
-            List.of(new InferenceStringGroup(textInput), new InferenceStringGroup(new InferenceString(IMAGE, imageInput))),
+            List.of(new InferenceStringGroup(textInput), new InferenceStringGroup(new InferenceString(IMAGE, TEST_IMAGE_DATA_URI))),
             null,
             createModel(null, modelName, null, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "apiKey", null, TaskType.EMBEDDING, true)
         );
@@ -341,7 +341,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is(Strings.format("""
-            {"input":[{"text":"%s"},{"image":"%s"}],"model":"%s","embedding_type":"float"}""", textInput, imageInput, modelName)));
+            {"input":[{"text":"%s"},{"image":"%s"}],"model":"%s","embedding_type":"float"}""", textInput, TEST_IMAGE_DATA_URI, modelName)));
     }
 
     public void testXContent_DoesNotWriteTaskField_WhenModelDoesNotSupportSpecifiedInputType() throws IOException {

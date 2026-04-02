@@ -119,6 +119,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
      * Creates a ParquetReadOptions.Builder initialized with an allocator backed by the block factory's circuit breaker.
      */
     private ParquetReadOptions.Builder readOptionsBuilder() {
+        // parquet-mr defaults useColumnIndexFilter=true (since 1.12.0), so when a FilterPredicate
+        // is set via withRecordFilter, page-index filtering (ColumnIndex/OffsetIndex) is automatically
+        // active in addition to row-group level statistics, dictionary, and bloom filter checks.
         // Note: all read operations happen synchronously with the ESQL engine. If some operations
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();

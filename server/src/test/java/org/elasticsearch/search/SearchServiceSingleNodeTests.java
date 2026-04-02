@@ -2976,7 +2976,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(caughtException.get().getMessage(), containsString("pre-cancelled for test"));
     }
 
-
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),

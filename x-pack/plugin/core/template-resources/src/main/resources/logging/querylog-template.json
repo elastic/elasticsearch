@@ -1,0 +1,23 @@
+{
+  "index_patterns": ["${xpack.stack.querylog.template.pattern}"],
+  "priority": 1000,
+  "data_stream": {
+    "hidden": true
+  },
+  "composed_of": [
+    "logs@mappings",
+    "logs@settings",
+    "logs@custom",
+    "ecs@mappings",
+    ".query-logging-mappings",
+    ".query-logging-settings"
+  ],
+  "ignore_missing_component_templates": ["logs@custom"],
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "Elasticsearch query activity log index template",
+    "managed": true
+  },
+  "deprecated": ${xpack.stack.querylog.template.deprecated},
+  "version": ${xpack.stack.querylog.template.version}
+}

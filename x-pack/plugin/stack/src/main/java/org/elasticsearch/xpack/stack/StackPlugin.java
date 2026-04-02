@@ -44,6 +44,14 @@ public class StackPlugin extends Plugin implements ActionPlugin {
             services.xContentRegistry()
         );
         stackTemplateRegistry.initialize();
-        return List.of(legacyStackTemplateRegistry, stackTemplateRegistry);
+        QueryLoggingTemplateRegistry queryLoggingTemplateRegistry = new QueryLoggingTemplateRegistry(
+            settings,
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry()
+        );
+        queryLoggingTemplateRegistry.initialize();
+        return List.of(legacyStackTemplateRegistry, stackTemplateRegistry, queryLoggingTemplateRegistry);
     }
 }

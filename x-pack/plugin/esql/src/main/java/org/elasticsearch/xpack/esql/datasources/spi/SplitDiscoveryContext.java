@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 
 import java.util.List;
@@ -20,14 +19,14 @@ import java.util.Map;
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
-    FileSet fileSet,
+    FileList fileList,
     Map<String, Object> config,
     PartitionMetadata partitionInfo,
     List<Expression> filterHints
 ) {
     public SplitDiscoveryContext {
-        if (fileSet == null) {
-            throw new IllegalArgumentException("fileSet cannot be null");
+        if (fileList == null) {
+            throw new IllegalArgumentException("fileList cannot be null");
         }
         config = config != null ? Map.copyOf(config) : Map.of();
         filterHints = filterHints != null ? List.copyOf(filterHints) : List.of();

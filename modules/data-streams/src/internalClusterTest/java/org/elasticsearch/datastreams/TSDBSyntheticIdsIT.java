@@ -48,6 +48,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
@@ -1658,7 +1659,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      */
     public void testNoopTombstones() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        internalCluster().startDataOnlyNodes(2);
+        internalCluster().startMasterOnlyNode();
+        List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2);
 
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
@@ -1669,6 +1671,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), Integer.MAX_VALUE)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put("index.routing.allocation.include._name", String.join(",", dataNodeNames))
                 .build(),
             useNestedDocs
         );
@@ -1826,6 +1831,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         // Verify GET and search by synthetic _id after snapshot restore
         assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
+
+        // Remove allocation filter to allow shards on any data node
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.include._name"), backingIndex);
 
         internalCluster().startDataOnlyNode();
 
@@ -2030,6 +2038,82 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     .setSize(0)
                     .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
                 docsIndicesById.size()
+            );
+        }
+    }
+
+    public void testTermInSetQueryWithSyntheticIds() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(dataStreamName, 1, 0, rarely());
+
+        final int nbBulks = randomIntBetween(1, 5);
+        final int nbDocs = randomIntBetween(10, 100);
+        final var docsIds = new HashSet<String>();
+        final var docsIndices = new HashSet<String>();
+
+        var timestamp = Instant.now();
+        for (int i = 0; i < nbBulks; i++) {
+            var client = client();
+            var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int j = 0; j < nbDocs; j++) {
+                bulkRequest.add(
+                    client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(String.format(Locale.ROOT, """
+                        {"@timestamp": "%s", "hostname": "%s", "metric": {"field": "metric_%d", "value": %d}}
+                        """, timestamp, "vm-test-" + randomIntBetween(0, 4), randomIntBetween(0, 1), randomInt()), XContentType.JSON)
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+            for (var result : bulkResponse.getItems()) {
+                assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                assertThat(result.getVersion(), equalTo(1L));
+                docsIndices.add(result.getIndex());
+                docsIds.add(result.getId());
+            }
+        }
+
+        for (int i = 0; i < 10; i++) {
+            final var idsQuery = new ArrayList<String>();
+
+            final var randomMatchingDocIds = randomSubsetOf(docsIds);
+            idsQuery.addAll(randomMatchingDocIds);
+
+            if (randomBoolean()) {
+                var randomStringsThatMatchNothing = randomList(
+                    1,
+                    10,
+                    () -> randomValueOtherThanMany(
+                        candidate -> docsIds.contains(candidate),
+                        () -> randomAlphaOfLength(randomIntBetween(1, 35))
+                    )
+                );
+                idsQuery.addAll(randomStringsThatMatchNothing);
+            }
+
+            if (randomBoolean()) {
+                var otherStringsThatMatchNothing = randomList(
+                    1,
+                    10,
+                    () -> TsidExtractingIdFieldMapper.createSyntheticId(new BytesRef(), randomNonNegativeLong(), randomInt())
+                );
+                idsQuery.addAll(otherStringsThatMatchNothing);
+            }
+
+            assertCheckedResponse(
+                client().prepareSearch(docsIndices.toArray(new String[] {}))
+                    .setQuery(QueryBuilders.idsQuery().addIds(idsQuery.toArray(new String[] {})))
+                    .setSize(1000),
+                searchResponse -> {
+                    assertHitCount(searchResponse, (long) randomMatchingDocIds.size());
+                    assertThat(searchResponse.getHits().getHits(), arrayWithSize(randomMatchingDocIds.size()));
+                    for (var searchHit : searchResponse.getHits().getHits()) {
+                        assertThat(searchHit.getId(), randomMatchingDocIds.contains(searchHit.getId()), equalTo(true));
+                    }
+                }
             );
         }
     }

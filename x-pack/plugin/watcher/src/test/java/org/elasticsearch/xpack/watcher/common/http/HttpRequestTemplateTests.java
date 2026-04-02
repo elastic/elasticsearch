@@ -158,7 +158,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         int expectedPort = 6667;
         XContentBuilder builder = jsonBuilder().startObject()
             .field("host", "localhost")
-            .field( "port", String.valueOf(expectedPort))
+            .field("port", String.valueOf(expectedPort))
             .endObject();
         XContentParser parser = createParser(builder);
         parser.nextToken();
@@ -168,10 +168,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
     }
 
     public void testParsePortAsStringRejectsNonIntegers() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject()
-            .field("host", "localhost")
-            .field( "port", "not_a_number")
-            .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("host", "localhost").field("port", "not_a_number").endObject();
         XContentParser parser = createParser(builder);
         parser.nextToken();
 

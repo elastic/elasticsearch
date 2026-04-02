@@ -40,7 +40,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -104,7 +103,6 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             IndexVersion.current(),
             randomNonNegativeLong(),
             snapshotIndexCommit,
-            new Store.MetadataSnapshot(Map.of(), Map.of(), randomNonNegativeLong()),
             Map.of("file", new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), fileOffset, fileLength)),
             (s, g) -> new FilterBlobContainer(blobContainer) {
                 @Override
@@ -177,7 +175,6 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             IndexVersion.current(),
             randomNonNegativeLong(),
             snapshotIndexCommit,
-            new Store.MetadataSnapshot(Map.of(), Map.of(), randomNonNegativeLong()),
             Map.of("file", new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), 0, 100)),
             (s, g) -> mock(BlobContainer.class),
             new PlainActionFuture<>()
@@ -239,7 +236,6 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             IndexVersion.current(),
             randomNonNegativeLong(),
             null,
-            new Store.MetadataSnapshot(Map.of(), Map.of(), randomNonNegativeLong()),
             Map.of(
                 "file",
                 new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), 0, totalLength),
@@ -413,7 +409,6 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             IndexVersion.current(),
             randomNonNegativeLong(),
             null,
-            new Store.MetadataSnapshot(Map.of(), Map.of(), randomNonNegativeLong()),
             Map.of(
                 "file",
                 new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1L, generation)), blobPadding, totalLength)

@@ -113,7 +113,10 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
     public void attemptFlushMetrics() {
         synchronized (mutex) {
             if (resources != null) {
-                // If the timeout expires, this quietly returns, which is ok in this context.
+                resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                // PeriodicMetricReader records collection.duration after
+                // each collection, so a second cycle is required to collect and export it.
                 resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
                 resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
             }

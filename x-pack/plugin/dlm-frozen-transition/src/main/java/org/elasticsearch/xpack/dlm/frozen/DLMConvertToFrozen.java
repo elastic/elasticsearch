@@ -152,6 +152,56 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
+     * Checks if the current thread has been interrupted and, if so, throws an {@link InterruptedException}.
+     * This allows long-running multi-step operations to detect interrupts quickly at the beginning
+     * of each step rather than waiting for a blocking call to fail.
+     */
+    private static void checkIfThreadInterrupted() throws InterruptedException {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException("DLM frozen conversion was interrupted");
+        }
+    }
+
+    /**
+     * Public for testing only.
+     * Checks whether the necessary conditions are met to proceed with the convert-to-frozen steps.
+     * @throws IndexNotFoundException if the index to be converted to frozen no longer exists in the project metadata
+     * @throws DLMUnrecoverableException if the snapshot repository is not configured or no longer registered
+     * @throws org.elasticsearch.ElasticsearchSecurityException if the license does not allow searchable snapshots
+     */
+    void checkIfEligibleForConvertToFrozen() {
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        if (projectMetadata.indices().containsKey(indexName) == false) {
+            throw new IndexNotFoundException(indexName);
+        }
+
+        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
+        if (Strings.hasText(repositoryName) == false) {
+            throw new DLMUnrecoverableException(
+                indexName,
+                "Default repository is required for convert-to-frozen steps but was not configured for index [{}]",
+                indexName
+            );
+        }
+        boolean repoIsRegistered = RepositoriesMetadata.get(getProjectState().metadata())
+            .repositories()
+            .stream()
+            .anyMatch(repositoryMetadata -> repositoryMetadata.name().equals(repositoryName));
+        if (repoIsRegistered == false) {
+            throw new DLMUnrecoverableException(
+                indexName,
+                "Repository [{}] required for convert-to-frozen steps is no longer registered in project [{}]",
+                repositoryName,
+                projectId
+            );
+        }
+
+        if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
+            throw LicenseUtils.newComplianceException("searchable-snapshots");
+        }
+    }
+
+    /**
      * Marks the index as read-only by adding a WRITE block, if the block is not already present.
      * This ensures all in-flight writes are completed and flushed to segments before proceeding
      * with the subsequent convert-to-frozen steps. In the case that the index is already marked as
@@ -349,56 +399,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 Thread.currentThread().interrupt();
             }
             throw new ElasticsearchException("DLM unable to check segment count for index [{}]", e, indexName);
-        }
-    }
-
-    /**
-     * Checks if the current thread has been interrupted and, if so, throws an {@link InterruptedException}.
-     * This allows long-running multi-step operations to detect interrupts quickly at the beginning
-     * of each step rather than waiting for a blocking call to fail.
-     */
-    private static void checkIfThreadInterrupted() throws InterruptedException {
-        if (Thread.currentThread().isInterrupted()) {
-            throw new InterruptedException("DLM frozen conversion was interrupted");
-        }
-    }
-
-    /**
-     * Public for testing only.
-     * Checks whether the necessary conditions are met to proceed with the convert-to-frozen steps.
-     * @throws IndexNotFoundException if the index to be converted to frozen no longer exists in the project metadata
-     * @throws DLMUnrecoverableException if the snapshot repository is not configured or no longer registered
-     * @throws org.elasticsearch.ElasticsearchSecurityException if the license does not allow searchable snapshots
-     */
-    void checkIfEligibleForConvertToFrozen() {
-        ProjectMetadata projectMetadata = getProjectState().metadata();
-        if (projectMetadata.indices().containsKey(indexName) == false) {
-            throw new IndexNotFoundException(indexName);
-        }
-
-        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
-        if (Strings.hasText(repositoryName) == false) {
-            throw new DLMUnrecoverableException(
-                indexName,
-                "Default repository is required for convert-to-frozen steps but was not configured for index [{}]",
-                indexName
-            );
-        }
-        boolean repoIsRegistered = RepositoriesMetadata.get(getProjectState().metadata())
-            .repositories()
-            .stream()
-            .anyMatch(repositoryMetadata -> repositoryMetadata.name().equals(repositoryName));
-        if (repoIsRegistered == false) {
-            throw new DLMUnrecoverableException(
-                indexName,
-                "Repository [{}] required for convert-to-frozen steps is no longer registered in project [{}]",
-                repositoryName,
-                projectId
-            );
-        }
-
-        if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
-            throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
     }
 

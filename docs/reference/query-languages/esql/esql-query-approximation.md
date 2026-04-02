@@ -1,7 +1,7 @@
 ---
 applies_to:
-   stack: ga 9.4+
-   serverless: ga
+   stack: preview 9.4+
+   serverless: preview
 navigation_title: "Approximate STATS queries"
 mapped_pages:
  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-query-approximation.html

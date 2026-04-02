@@ -2571,18 +2571,12 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         long currentTimestamp = 1704067200000L;
 
         final String containsTerm = randomUnicodeOfCodepointLengthBetween(1, 10);
-        int numPossibleValues = randomIntBetween(5, 100);
-        final String[] possibleValues = new String[numPossibleValues];
-        for (int i = 0; i < numPossibleValues; i++) {
-            if (randomBoolean()) {
-                // definitely contains term
-                String prefix = randomUnicodeOfCodepointLengthBetween(0, 20);
-                String suffix = randomUnicodeOfCodepointLengthBetween(0, 20);
-                possibleValues[i] = prefix + containsTerm + suffix;
-            } else {
-                // likely does not contain term
-                possibleValues[i] = randomUnicodeOfCodepointLengthBetween(1, 100);
-            }
+        int numMatchingValues = randomIntBetween(5, 100);
+        final String[] matchingValues = new String[numMatchingValues];
+        for (int i = 0; i < numMatchingValues; i++) {
+            String prefix = randomUnicodeOfCodepointLengthBetween(0, 20);
+            String suffix = randomUnicodeOfCodepointLengthBetween(0, 20);
+            matchingValues[i] = prefix + containsTerm + suffix;
         }
 
         // tryContainsIterator is only implemented for the compressed binary doc values path
@@ -2609,7 +2603,9 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 var d = new Document();
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
 
-                String value = possibleValues[random().nextInt(possibleValues.length)];
+                String value = randomBoolean()
+                    ? matchingValues[random().nextInt(matchingValues.length)]
+                    : randomUnicodeOfCodepointLengthBetween(1, 100);
                 d.add(new BinaryDocValuesField(binaryField, new BytesRef(value)));
 
                 iw.addDocument(d);

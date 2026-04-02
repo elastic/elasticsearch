@@ -141,10 +141,10 @@ public class NdJsonSchemaInferrer {
             // Keep in sync with NdJsonPageIterator.Decoder
             case START_OBJECT -> inferObjectSchema(parser, field);
             case VALUE_STRING -> {
-                try {
-                    DATE_FORMATTER.parse(parser.getText());
+                // Try to parse dates only if we haven't already encountered a non-datetime string
+                if (field.types.contains(DataType.KEYWORD) == false && DATE_FORMATTER.tryParse(parser.getText()) != null) {
                     field.addType(DataType.DATETIME);
-                } catch (DateTimeParseException | IllegalArgumentException e) {
+                } else {
                     field.addType(DataType.KEYWORD);
                 }
             }

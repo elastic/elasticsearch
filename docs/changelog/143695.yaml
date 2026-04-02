@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 139928
+pr: 143695
+summary: "Feat: add implicit `dense_vector` casting to coalesce"
+type: enhancement

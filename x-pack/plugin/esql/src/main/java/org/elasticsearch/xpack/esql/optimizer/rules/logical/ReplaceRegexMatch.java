@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ChangeCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -72,27 +73,15 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
         String suffix = wp.extractSuffix();
         String raw = wp.pattern();
 
-        if (prefix != null && raw.equals(escapeWildcard(prefix) + "*")) {
+        if (prefix != null && raw.equals(StringUtils.escapeWildcardLiteral(prefix) + "*")) {
             return new StartsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), prefix));
         }
-        if (suffix != null && raw.equals("*" + escapeWildcard(suffix))) {
+        if (suffix != null && raw.equals("*" + StringUtils.escapeWildcardLiteral(suffix))) {
             return new EndsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), suffix));
         }
         if (prefix != null) {
             return new And(wl.source(), new StartsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), prefix)), wl);
         }
         return null;
-    }
-
-    private static String escapeWildcard(String literal) {
-        StringBuilder sb = new StringBuilder(literal.length());
-        for (int i = 0; i < literal.length(); i++) {
-            char c = literal.charAt(i);
-            if (c == '*' || c == '?' || c == '\\') {
-                sb.append('\\');
-            }
-            sb.append(c);
-        }
-        return sb.toString();
     }
 }

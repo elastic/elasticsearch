@@ -82,56 +82,6 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
         return wildcard;
     }
 
-    /**
-     * Extracts the fixed literal prefix before the first unescaped wildcard ({@code *} or {@code ?}).
-     * Escaped wildcards ({@code \*}, {@code \?}) are treated as literal characters.
-     * Returns {@code null} if the prefix is empty (pattern starts with a wildcard or is empty).
-     */
-    public String extractPrefix() {
-        StringBuilder prefix = new StringBuilder();
-        for (int i = 0; i < wildcard.length(); i++) {
-            char c = wildcard.charAt(i);
-            if (c == '\\' && i + 1 < wildcard.length()) {
-                prefix.append(wildcard.charAt(i + 1));
-                i++;
-            } else if (c == '*' || c == '?') {
-                break;
-            } else {
-                prefix.append(c);
-            }
-        }
-        return prefix.isEmpty() ? null : prefix.toString();
-    }
-
-    /**
-     * Extracts the fixed literal suffix after the last unescaped wildcard ({@code *} or {@code ?}).
-     * Escaped wildcards ({@code \*}, {@code \?}) are treated as literal characters.
-     * Returns {@code null} if the suffix is empty (pattern ends with a wildcard or is empty).
-     */
-    public String extractSuffix() {
-        int lastWildcard = -1;
-        for (int i = 0; i < wildcard.length(); i++) {
-            char c = wildcard.charAt(i);
-            if (c == '\\' && i + 1 < wildcard.length()) {
-                i++;
-            } else if (c == '*' || c == '?') {
-                lastWildcard = i;
-            }
-        }
-        int start = lastWildcard + 1;
-        StringBuilder suffix = new StringBuilder();
-        for (int i = start; i < wildcard.length(); i++) {
-            char c = wildcard.charAt(i);
-            if (c == '\\' && i + 1 < wildcard.length()) {
-                suffix.append(wildcard.charAt(i + 1));
-                i++;
-            } else {
-                suffix.append(c);
-            }
-        }
-        return suffix.isEmpty() ? null : suffix.toString();
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(wildcard);

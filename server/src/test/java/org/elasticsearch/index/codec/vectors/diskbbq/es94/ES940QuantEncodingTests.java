@@ -23,6 +23,8 @@ public class ES940QuantEncodingTests extends ESTestCase {
 
     public void testSingleBitNibblesPackSize() {
         ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
+        assertEquals(1, encoding.getDocPackedLength(1));
+        assertEquals(4, encoding.getQueryPackedLength(1));
         assertEquals(1, encoding.getDocPackedLength(3));
         assertEquals(4, encoding.getQueryPackedLength(3));
         assertEquals(1, encoding.getDocPackedLength(8));
@@ -43,6 +45,8 @@ public class ES940QuantEncodingTests extends ESTestCase {
 
     public void testDibitAndNibblesPackSize() {
         ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
+        assertEquals(2, encoding.getDocPackedLength(1));
+        assertEquals(4, encoding.getQueryPackedLength(1));
         assertEquals(2, encoding.getDocPackedLength(3));
         assertEquals(4, encoding.getQueryPackedLength(3));
         assertEquals(2, encoding.getDocPackedLength(8));
@@ -54,26 +58,42 @@ public class ES940QuantEncodingTests extends ESTestCase {
     }
 
     public void testHalfByteAndNibbles() {
-        ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
+        ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED;
         int discretized = encoding.discretizedDimensions(randomIntBetween(1, 1024));
         // should discretize to something that can be packed into bytes from four bits and nibbles
         assertEquals(0, discretized % 2);
     }
 
     public void testHalfByteAndNibblesPackSize() {
-        ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
+        ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED;
+        assertEquals(1, encoding.getDocPackedLength(1));
+        assertEquals(2, encoding.getQueryPackedLength(1));
+        assertEquals(2, encoding.getDocPackedLength(3));
+        assertEquals(4, encoding.getQueryPackedLength(3));
+        assertEquals(4, encoding.getDocPackedLength(8));
+        assertEquals(8, encoding.getQueryPackedLength(8));
+        assertEquals(8, encoding.getDocPackedLength(15));
+        assertEquals(8, encoding.getDocPackedLength(16));
+        assertEquals(16, encoding.getQueryPackedLength(15));
+        assertEquals(16, encoding.getQueryPackedLength(16));
+    }
+
+    public void testHalfByteAndNibblesStripedPackSize() {
+        ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED;
+        assertEquals(4, encoding.getDocPackedLength(1));
+        assertEquals(4, encoding.getQueryPackedLength(1));
         assertEquals(4, encoding.getDocPackedLength(3));
         assertEquals(4, encoding.getQueryPackedLength(3));
         assertEquals(4, encoding.getDocPackedLength(8));
         assertEquals(4, encoding.getQueryPackedLength(8));
         assertEquals(8, encoding.getDocPackedLength(16));
-        assertEquals(8, encoding.getDocPackedLength(16));
-        assertEquals(8, encoding.getQueryPackedLength(16));
         assertEquals(8, encoding.getQueryPackedLength(16));
     }
 
     public void testSevenBitPackSize() {
         ES940DiskBBQVectorsFormat.QuantEncoding encoding = ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC;
+        assertEquals(1, encoding.getDocPackedLength(1));
+        assertEquals(1, encoding.getQueryPackedLength(1));
         assertEquals(3, encoding.getDocPackedLength(3));
         assertEquals(3, encoding.getQueryPackedLength(3));
         assertEquals(8, encoding.getDocPackedLength(8));

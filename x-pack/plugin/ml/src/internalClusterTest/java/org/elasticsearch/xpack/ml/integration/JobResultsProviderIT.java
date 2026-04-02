@@ -227,7 +227,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40134")
     public void testMultipleSimultaneousJobCreations() {
 
         int numJobs = randomIntBetween(4, 7);
@@ -257,13 +256,15 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
 
         // Assert that the mappings contain all the additional fields: field1, field2, field3, etc.
-        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sharedResultsIndex);
+        String sharedResultsPattern = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+            + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT
+            + "*";
+        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sharedResultsPattern);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
         Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
-        MappingMetadata typeMappings = indexMappings.get(sharedResultsIndex);
-        assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
+        assertFalse("expected at least one index matching " + sharedResultsPattern, indexMappings.isEmpty());
+        MappingMetadata typeMappings = indexMappings.values().iterator().next();
         Map<String, Object> mappings = typeMappings.getSourceAsMap();
         assertNotNull(mappings);
         @SuppressWarnings("unchecked")

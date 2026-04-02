@@ -11,6 +11,7 @@ import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.ByteArrayOutputStream;
@@ -31,6 +32,8 @@ import java.util.jar.JarFile;
 import java.util.zip.GZIPOutputStream;
 
 public class FixtureUtils {
+    private static final Logger logger = LogManager.getLogger(FixtureUtils.class);
+
     /** Resource path for test fixtures */
     public static final String FIXTURES_RESOURCE_PATH = "/iceberg-fixtures";
 
@@ -52,49 +55,71 @@ public class FixtureUtils {
             if (Files.exists(fixturesPath) == false) {
                 throw new IllegalStateException("Fixtures path does not exist: " + fixturesPath);
             }
-            Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String name = file.getFileName().toString();
-                    if (COMPRESSED_EXTENSIONS.stream().anyMatch(name::endsWith)) {
-                        return FileVisitResult.CONTINUE;
-                    }
-                    String relativePath = fixturesPath.relativize(file).toString();
-                    byte[] content = Files.readAllBytes(file);
-                    consumer.accept(relativePath, content);
+            logger.info("Iterating {} from filesystem [{}] (anchor [{}])", FIXTURES_RESOURCE_PATH, fixturesPath, anchor.getName());
+            forEachFixtureEntryFromFilesystem(fixturesPath, consumer);
+        } else if (resourceUrl.getProtocol().equals("jar")) {
+            logger.info("Iterating {} from JAR [{}] (anchor [{}])", FIXTURES_RESOURCE_PATH, resourceUrl, anchor.getName());
+            forEachFixtureEntryFromJar(resourceUrl, consumer);
+        } else {
+            logger.warn("Unsupported fixtures resource protocol [{}] for [{}]", resourceUrl.getProtocol(), resourceUrl);
+            throw new IllegalStateException("Unsupported resource protocol: " + resourceUrl);
+        }
+    }
+
+    /**
+     * Iterate fixture files under a resolved {@code iceberg-fixtures} directory on the filesystem.
+     */
+    static void forEachFixtureEntryFromFilesystem(Path fixturesPath, CheckedBiConsumer<String, byte[], IOException> consumer)
+        throws IOException {
+        Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                String name = file.getFileName().toString();
+                if (COMPRESSED_EXTENSIONS.stream().anyMatch(name::endsWith)) {
                     return FileVisitResult.CONTINUE;
                 }
-            });
-        } else if (resourceUrl.getProtocol().equals("jar")) {
-            JarURLConnection jarConnection = (JarURLConnection) resourceUrl.openConnection();
-            String entryPrefix = jarConnection.getEntryName();
-            if (entryPrefix.endsWith("/") == false) {
-                entryPrefix = entryPrefix + "/";
+                String relativePath = fixturesPath.relativize(file).toString();
+                logger.debug("Fixture [{}] from filesystem path [{}]", relativePath, file.toAbsolutePath());
+                byte[] content = Files.readAllBytes(file);
+                consumer.accept(relativePath, content);
+                return FileVisitResult.CONTINUE;
             }
-            try (JarFile jarFile = jarConnection.getJarFile()) {
-                Enumeration<JarEntry> entries = jarFile.entries();
-                while (entries.hasMoreElements()) {
-                    JarEntry entry = entries.nextElement();
-                    String entryName = entry.getName();
-                    if (entry.isDirectory() || entryName.startsWith(entryPrefix) == false) {
-                        continue;
-                    }
-                    String relativePath = entryName.substring(entryPrefix.length());
-                    if (relativePath.isEmpty()) {
-                        continue;
-                    }
-                    String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
-                    if (COMPRESSED_EXTENSIONS.stream().anyMatch(fileName::endsWith)) {
-                        continue;
-                    }
-                    try (InputStream is = jarFile.getInputStream(entry)) {
-                        byte[] content = is.readAllBytes();
-                        consumer.accept(relativePath, content);
-                    }
+        });
+    }
+
+    /**
+     * Iterate fixture entries packaged under {@code iceberg-fixtures} inside a JAR.
+     *
+     * @param jarResourceUrl {@code jar:} URL for the resource directory (from {@link Class#getResource(String)})
+     */
+    static void forEachFixtureEntryFromJar(URL jarResourceUrl, CheckedBiConsumer<String, byte[], IOException> consumer) throws IOException {
+        JarURLConnection jarConnection = (JarURLConnection) jarResourceUrl.openConnection();
+        String entryPrefix = jarConnection.getEntryName();
+        if (entryPrefix.endsWith("/") == false) {
+            entryPrefix = entryPrefix + "/";
+        }
+        try (JarFile jarFile = jarConnection.getJarFile()) {
+            Enumeration<JarEntry> entries = jarFile.entries();
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                String entryName = entry.getName();
+                if (entry.isDirectory() || entryName.startsWith(entryPrefix) == false) {
+                    continue;
+                }
+                String relativePath = entryName.substring(entryPrefix.length());
+                if (relativePath.isEmpty()) {
+                    continue;
+                }
+                String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
+                if (COMPRESSED_EXTENSIONS.stream().anyMatch(fileName::endsWith)) {
+                    continue;
+                }
+                logger.debug("Fixture [{}] from JAR entry [{}] in [{}]", relativePath, entryName, jarFile.getName());
+                try (InputStream is = jarFile.getInputStream(entry)) {
+                    byte[] content = is.readAllBytes();
+                    consumer.accept(relativePath, content);
                 }
             }
-        } else {
-            throw new IllegalStateException("Unsupported resource protocol: " + resourceUrl);
         }
     }
 

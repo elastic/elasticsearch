@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -14,8 +15,10 @@ import org.elasticsearch.compute.aggregation.SumDenseVectorAggregatorFunctionSup
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumOverflowingLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -50,10 +53,35 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
+public class Sum extends NumericAggregate implements SurrogateExpression, TransportVersionAware, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
 
+    public static final TransportVersion ESQL_SUM_LONG_OVERFLOW_FIX = TransportVersion.fromName("esql_sum_long_overflow_fix");
+
+    /**
+     * Mode for {@link #longOverflowMode}, throwing a 500 error on long overflows.
+     * <p>
+     *     Old pre-{@link #ESQL_SUM_LONG_OVERFLOW_FIX} behavior.
+     * </p>
+     * <p>
+     *     Used by default, and replaced with {@link #LONG_OVERFLOW_WARN} in {@link #forTransportVersion}.
+     * </p>
+     */
+    public static final Literal LONG_OVERFLOW_THROW = Literal.keyword(Source.EMPTY, "long_overflow_throw");
+    /**
+     * Mode for {@link #longOverflowMode}, returning a null and a warning on long overflows.
+     * <p>
+     *     New behavior added in {@link #ESQL_SUM_LONG_OVERFLOW_FIX}.
+     * </p>
+     */
+    public static final Literal LONG_OVERFLOW_WARN = Literal.keyword(Source.EMPTY, "long_overflow_warn");
+
     private final Expression summationMode;
+    /**
+     * Either {@link #LONG_OVERFLOW_THROW} or {@link #LONG_OVERFLOW_WARN}.
+     * Set internally only, used for BWC.
+     */
+    private final Expression longOverflowMode;
 
     @FunctionInfo(
         returnType = { "long", "double", "dense_vector" },
@@ -80,8 +108,20 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
     }
 
     public Sum(Source source, Expression field, Expression filter, Expression window, Expression summationMode) {
-        super(source, field, filter, window, List.of(summationMode));
+        this(source, field, filter, window, summationMode, LONG_OVERFLOW_THROW);
+    }
+
+    public Sum(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression summationMode,
+        Expression longOverflowMode
+    ) {
+        super(source, field, filter, window, List.of(summationMode, longOverflowMode));
         this.summationMode = summationMode;
+        this.longOverflowMode = longOverflowMode;
     }
 
     private Sum(StreamInput in) throws IOException {
@@ -90,13 +130,21 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             readWindow(in),
-            readSummationMode(in)
+            readParameters(in)
         );
     }
 
-    private static Expression readSummationMode(StreamInput in) throws IOException {
+    private record SumParameters(Expression summationMode, Expression longOverflowMode) {}
+
+    private Sum(Source source, Expression field, Expression filter, Expression window, SumParameters params) {
+        this(source, field, filter, window, params.summationMode(), params.longOverflowMode());
+    }
+
+    private static SumParameters readParameters(StreamInput in) throws IOException {
         List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
-        return parameters.isEmpty() ? SummationMode.COMPENSATED_LITERAL : parameters.getFirst();
+        Expression summationMode = parameters.isEmpty() ? SummationMode.COMPENSATED_LITERAL : parameters.getFirst();
+        Expression overflowing = parameters.size() >= 2 ? parameters.get(1) : LONG_OVERFLOW_THROW;
+        return new SumParameters(summationMode, overflowing);
     }
 
     @Override
@@ -106,17 +154,17 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
 
     @Override
     protected NodeInfo<? extends Sum> info() {
-        return NodeInfo.create(this, Sum::new, field(), filter(), window(), summationMode);
+        return NodeInfo.create(this, Sum::new, field(), filter(), window(), summationMode, longOverflowMode);
     }
 
     @Override
     public Sum replaceChildren(List<Expression> newChildren) {
-        return new Sum(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Sum(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
     }
 
     @Override
     public Sum withFilter(Expression filter) {
-        return new Sum(source(), field(), filter, window(), summationMode);
+        return new Sum(source(), field(), filter, window(), summationMode, longOverflowMode);
     }
 
     @Override
@@ -133,7 +181,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
 
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
-        return new SumLongAggregatorFunctionSupplier();
+        if (longOverflowMode().equals(LONG_OVERFLOW_THROW)) {
+            return new SumOverflowingLongAggregatorFunctionSupplier();
+        }
+        return new SumLongAggregatorFunctionSupplier(source());
     }
 
     @Override
@@ -157,6 +208,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
 
     public Expression summationMode() {
         return summationMode;
+    }
+
+    public Expression longOverflowMode() {
+        return longOverflowMode;
     }
 
     @Override
@@ -202,7 +257,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
                 FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.SUM),
                 filter(),
                 window(),
-                summationMode
+                summationMode,
+                longOverflowMode
             );
         }
         if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
@@ -211,7 +267,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
                 ExtractHistogramComponent.create(source(), field, HistogramBlock.Component.SUM),
                 filter(),
                 window(),
-                summationMode
+                summationMode,
+                longOverflowMode
             );
         }
 
@@ -224,5 +281,13 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
         } else {
             return null;
         }
+    }
+
+    @Override
+    public Expression forTransportVersion(TransportVersion minTransportVersion) {
+        if (minTransportVersion.supports(ESQL_SUM_LONG_OVERFLOW_FIX) && longOverflowMode().equals(LONG_OVERFLOW_THROW)) {
+            return new Sum(source(), field(), filter(), window(), summationMode, LONG_OVERFLOW_WARN);
+        }
+        return null;
     }
 }

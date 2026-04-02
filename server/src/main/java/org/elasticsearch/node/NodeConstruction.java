@@ -93,6 +93,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -1022,6 +1023,8 @@ class NodeConstruction {
 
         final CrossProjectModeDecider crossProjectModeDecider = new CrossProjectModeDecider(settings);
 
+        final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1050,7 +1053,8 @@ class NodeConstruction {
             linkedProjectConfigService,
             projectRoutingResolver,
             remoteTransportClient,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            dlmErrorStore
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1412,6 +1416,7 @@ class NodeConstruction {
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
+            b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
         });
 
         if (ReadinessService.enabled(environment)) {

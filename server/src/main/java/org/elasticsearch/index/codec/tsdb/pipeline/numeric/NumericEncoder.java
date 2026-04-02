@@ -9,35 +9,64 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
 
-import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 
 /**
- * Transforms values in-place as a non-terminal stage of the encode pipeline.
+ * Write-path coordinator for pipeline-based numeric encoding. This is the
+ * entry point used by the doc values consumer to encode numeric fields. It
+ * owns a {@link NumericEncodePipeline} and produces {@link NumericBlockEncoder}
+ * instances for per-block encoding.
  *
- * <p>Unlike {@link PayloadEncoder}, transform stages do not write to a
- * {@link org.apache.lucene.store.DataOutput}. They modify the {@code long[]}
- * array in-place and record any metadata needed for decoding via
- * {@link EncodingContext#metadata()}.
+ * <p>Instances are immutable and thread-safe. Per-field mutable state lives in
+ * {@link NumericBlockEncoder}, which callers obtain via {@link #newBlockEncoder()}.
+ *
+ * <p>Created via {@link #fromConfig} or via {@link NumericCodecFactory#createEncoder}.
  */
-public interface NumericEncoder {
+public final class NumericEncoder {
+
+    private final NumericEncodePipeline pipeline;
+
+    NumericEncoder(final NumericEncodePipeline pipeline) {
+        this.pipeline = pipeline;
+    }
 
     /**
-     * Returns the unique stage identifier.
+     * Builds an encoder from a pipeline configuration.
+     * Use {@link NumericCodecFactory#createEncoder} as the public entry point.
      *
-     * @return the stage ID byte
+     * @param config the pipeline configuration
+     * @return the encoder
      */
-    byte id();
+    static NumericEncoder fromConfig(final PipelineConfig config) {
+        return new NumericEncoder(NumericEncodePipeline.fromConfig(config));
+    }
 
     /**
-     * Transforms values in-place and writes any metadata to the context.
+     * Creates a new block encoder with its own mutable encoding context.
      *
-     * <p>If the stage determines that the transformation would not be effective,
-     * it may return without modifying the values or writing metadata. The pipeline
-     * checks {@link EncodingContext#isStageApplied(int)} to detect this.
-     *
-     * @param values     the values to transform in-place
-     * @param valueCount the number of valid values in the array
-     * @param context    the encoding context for metadata and stage tracking
+     * @return a fresh block encoder
      */
-    void encode(long[] values, int valueCount, EncodingContext context);
+    public NumericBlockEncoder newBlockEncoder() {
+        return new NumericBlockEncoder(pipeline);
+    }
+
+    /**
+     * Returns the pipeline descriptor for persistence via {@link FieldDescriptor}.
+     *
+     * @return the pipeline descriptor
+     */
+    public PipelineDescriptor descriptor() {
+        return pipeline.descriptor();
+    }
+
+    /**
+     * Returns the number of values per block.
+     *
+     * @return the number of values per block
+     */
+    public int blockSize() {
+        return pipeline.blockSize();
+    }
 }

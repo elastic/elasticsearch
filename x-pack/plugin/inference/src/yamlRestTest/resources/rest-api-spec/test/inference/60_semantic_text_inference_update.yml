@@ -890,7 +890,7 @@ setup:
 ---
 "Explicit nulls clear inference results on bulk update operation":
   - requires:
-      cluster_features: "semantic_text.inference_metadata_fields.explicit_null_fixes"
+      cluster_features: ["semantic_text.inference_metadata_fields.explicit_null_fixes", "semantic_text.element_type_in_index_options"]
       reason: Fixes explicit null handling when using the _inference_fields metafield
 
   - skip:
@@ -916,6 +916,9 @@ setup:
               dense_field:
                 type: semantic_text
                 inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float # Force float element type to avoid precision loss from bfloat16
               dense_source_field:
                 type: text
                 copy_to: dense_field

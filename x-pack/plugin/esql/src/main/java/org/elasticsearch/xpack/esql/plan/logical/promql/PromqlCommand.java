@@ -398,7 +398,8 @@ public class PromqlCommand extends UnaryPlan
                         DataType seriesType = seriesField.dataType();
                         if (DataType.isNull(seriesType) == false
                             && seriesType.isNumeric() == false
-                            && DataType.isCounter(seriesType) == false) {
+                            && DataType.isCounter(seriesType) == false
+                            && seriesType != DataType.AGGREGATE_METRIC_DOUBLE) {
                             failures.add(
                                 fail(
                                     s,

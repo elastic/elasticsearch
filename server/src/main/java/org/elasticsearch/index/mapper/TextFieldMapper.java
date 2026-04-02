@@ -1325,9 +1325,6 @@ public final class TextFieldMapper extends FieldMapper {
             // Check if we can load from a fallback field
             if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
                 if (usesBinaryDocValuesForFallbackFields) {
-                    if (indexCreatedVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
-                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(syntheticSourceFallbackFieldName());
-                    }
                     return new BytesRefsFromCustomBinaryBlockLoader(syntheticSourceFallbackFieldName());
                 }
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(syntheticSourceFallbackFieldName());
@@ -1705,7 +1702,11 @@ public final class TextFieldMapper extends FieldMapper {
         if (docValuesParameters.enabled()) {
             BytesRef binaryValue = new BytesRef(value);
             if (fieldType().usesBinaryDocValues()) {
-                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldType().name(), binaryValue);
+                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                    context.doc(),
+                    fieldType().name(),
+                    binaryValue
+                );
             } else if (binaryValue.length > IndexWriter.MAX_TERM_LENGTH) {
                 // if the binary value's length exceeds Lucene's max term length, then we cannot store it in SortedSetDocValuesField
                 // in such cases, store the value in binary doc values instead, which don't have these length limitations
@@ -1749,13 +1750,13 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     private void storeValueInFallbackField(String fallbackFieldName, BytesRef bytesRef, DocumentParserContext context) {
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-            context.doc(),
-            fallbackFieldName,
-            bytesRef,
-            indexCreatedVersion,
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
-        );
+        // store the value in a binary doc values field, create one if it doesn't exist
+        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
+        if (field == null) {
+            field = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, true);
+            context.doc().addWithKey(fallbackFieldName, field);
+        }
+        field.add(bytesRef);
     }
 
     /**

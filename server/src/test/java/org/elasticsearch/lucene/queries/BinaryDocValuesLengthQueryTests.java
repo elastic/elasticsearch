@@ -43,10 +43,7 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 for (var val : values) {
                     Document document = new Document();
-                    var field = new MultiValuedBinaryDocValuesField.SeparateCount(
-                        "field",
-                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                    );
+                    var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                     field.add(val);
                     var countField = NumericDocValuesField.indexedField("field.counts", 1);
                     document.add(field);
@@ -92,10 +89,7 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 for (var valuesForDoc : values) {
                     Document document = new Document();
-                    var field = new MultiValuedBinaryDocValuesField.SeparateCount(
-                        "field",
-                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                    );
+                    var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                     for (var val : valuesForDoc) {
                         field.add(val);
                     }
@@ -137,10 +131,7 @@ public class BinaryDocValuesLengthQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 Document document = new Document();
 
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
-                    "field",
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                );
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
                 var countField = NumericDocValuesField.indexedField("field.counts", 1);
                 document.add(field);

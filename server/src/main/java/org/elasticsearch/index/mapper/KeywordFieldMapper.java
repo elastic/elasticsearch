@@ -1364,15 +1364,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
                 if (storeIgnoredFieldsInBinaryDocValues) {
-                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                        context.doc(),
-                        fieldName,
-                        bytesRef,
-                        indexCreatedVersion,
-                        keepDuplicatesInBinaryDocValues()
-                            ? MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
-                            : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                    );
+                    // store the value in a binary doc values field, create one if it doesn't exist
+                    MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
+                    if (field == null) {
+                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, keepDuplicatesInBinaryDocValues());
+                        context.doc().addWithKey(fieldName, field);
+                    }
+                    field.add(bytesRef);
                 } else {
                     // otherwise for bwc, store the value in a stored fields like we used to
                     context.doc().add(new StoredField(fieldName, bytesRef));
@@ -1415,7 +1413,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (fieldType().usesBinaryDocValues()) {
             assert fieldType.docValuesType() == DocValuesType.NONE;
-            MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(context.doc(), fieldType().name(), binaryValue);
+            MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                context.doc(),
+                fieldType().name(),
+                binaryValue
+            );
         }
 
         // If we're using binary doc values, then the values are stored in a separate MultiValuedBinaryDocValuesField (see above)

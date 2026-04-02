@@ -1079,12 +1079,13 @@ public class WildcardFieldMapper extends FieldMapper {
                 context.addIgnoredField(fullPath());
                 if (storeIgnored) {
                     if (storeIgnoredFieldsInBinaryDocValues) {
-                        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                            parseDoc,
-                            originalName(),
-                            new BytesRef(value),
-                            indexVersionCreated
-                        );
+                        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) parseDoc.getByKey(originalName());
+                        if (field == null) {
+                            // sort to match the behavior of other field mappers
+                            field = new MultiValuedBinaryDocValuesField.IntegratedCount(originalName(), false);
+                            parseDoc.addWithKey(originalName(), field);
+                        }
+                        field.add(new BytesRef(value));
                     } else {
                         parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
                     }

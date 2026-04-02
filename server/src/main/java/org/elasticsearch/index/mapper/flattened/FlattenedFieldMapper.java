@@ -1405,8 +1405,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.usesBinaryDocValues,
             builder.hasRootDocValues(),
             mappedSubFields,
-            builder.storeIgnoredFieldsInBinaryDocValues,
-            builder.indexCreatedVersion
+            builder.storeIgnoredFieldsInBinaryDocValues
         );
     }
 

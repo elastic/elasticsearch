@@ -313,7 +313,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             assertThat(task, nullValue());
         });
 
-        logger.trace("Getting the the final response from the index");
+        logger.trace("Getting the final response from the index");
         StoredAsyncResponse<TestResponse> response = getResponse(responseHolder.get().id, TimeValue.ZERO);
         if (success) {
             assertThat(response.getException(), nullValue());

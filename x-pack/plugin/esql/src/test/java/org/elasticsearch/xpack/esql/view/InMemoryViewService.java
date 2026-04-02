@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,7 +36,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.indexSettings;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.view.ViewResolver.MAX_VIEW_DEPTH_SETTING;
 
@@ -72,7 +72,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     private InMemoryViewService(ClusterService clusterService, ThreadPool threadPool, ViewMetadata metadata) {
-        super(clusterService, TEST_FUNCTION_REGISTRY, TEST_PARSER);
+        super(clusterService, TEST_PARSER);
         this.threadPool = threadPool;
         this.viewMetadata = metadata;
     }
@@ -162,6 +162,10 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     public InMemoryViewResolver getViewResolver() {
-        return new InMemoryViewResolver(clusterService, () -> viewMetadata);
+        return new InMemoryViewResolver(clusterService, () -> viewMetadata, CrossProjectModeDecider.NOOP);
+    }
+
+    public InMemoryViewResolver getViewResolver(CrossProjectModeDecider crossProjectModeDecider) {
+        return new InMemoryViewResolver(clusterService, () -> viewMetadata, crossProjectModeDecider);
     }
 }

@@ -18,11 +18,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * A helper class for {@link FlattenedFieldMapper} parses a JSON object
@@ -43,6 +45,9 @@ class FlattenedFieldParser {
 
     private final boolean usesBinaryDocValues;
     private final boolean hasRootDocValues;
+    private final boolean storeIgnoredFieldsInBinaryDocValues;
+
+    private final Map<String, FieldMapper> mappedSubFields;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -53,7 +58,9 @@ class FlattenedFieldParser {
         int ignoreAbove,
         String nullValue,
         boolean usesBinaryDocValues,
-        boolean hasRootDocValues
+        boolean hasRootDocValues,
+        Map<String, FieldMapper> mappedSubFields,
+        boolean storeIgnoredFieldsInBinaryDocValues
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -64,6 +71,8 @@ class FlattenedFieldParser {
         this.nullValue = nullValue;
         this.usesBinaryDocValues = usesBinaryDocValues;
         this.hasRootDocValues = hasRootDocValues;
+        this.mappedSubFields = mappedSubFields;
+        this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
     }
 
     public void parse(final DocumentParserContext documentParserContext) throws IOException {
@@ -118,7 +127,11 @@ class FlattenedFieldParser {
             String value = parser.text();
             addField(context, path, currentName, value);
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            if (nullValue != null) {
+            String key = path.pathAsText(currentName);
+            FieldMapper mappedSubField = mappedSubFields.get(key);
+            if (mappedSubField != null) {
+                mappedSubField.parse(context.documentParserContext());
+            } else if (nullValue != null) {
                 addField(context, path, currentName, nullValue);
             }
         } else {
@@ -128,7 +141,7 @@ class FlattenedFieldParser {
         }
     }
 
-    private void addField(Context context, ContentPath path, String currentName, String value) {
+    private void addField(Context context, ContentPath path, String currentName, String value) throws IOException {
         String key = path.pathAsText(currentName);
         if (key.contains(SEPARATOR)) {
             throw new IllegalArgumentException(
@@ -136,12 +149,31 @@ class FlattenedFieldParser {
             );
         }
 
+        // Mapped sub-fields are indexed exclusively in the sub-field mapper
+        // and are not part of the flattened field's root/keyed representation.
+        FieldMapper mappedSubField = mappedSubFields.get(key);
+        if (mappedSubField != null) {
+            mappedSubField.parse(context.documentParserContext());
+            return;
+        }
+
         String keyedValue = createKeyedValue(key, value);
         BytesRef bytesKeyedValue = new BytesRef(keyedValue);
 
         if (value.length() > ignoreAbove) {
             if (context.documentParserContext().mappingLookup().isSourceSynthetic()) {
-                context.documentParserContext.doc().add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
+                if (storeIgnoredFieldsInBinaryDocValues) {
+                    MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.documentParserContext.doc()
+                        .getByKey(keyedIgnoredValuesFieldFullPath);
+                    if (field == null) {
+                        // deduplicate and sort to match the behavior of other fields that use binary doc values for ignored fields
+                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(keyedIgnoredValuesFieldFullPath, false);
+                        context.documentParserContext.doc().addWithKey(keyedIgnoredValuesFieldFullPath, field);
+                    }
+                    field.add(BytesRef.deepCopyOf(bytesKeyedValue));
+                } else {
+                    context.documentParserContext.doc().add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
+                }
             }
             return;
         }

@@ -26,7 +26,10 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A {@code Project} is a {@code Plan} with one child. In {@code FROM idx | KEEP x, y}, the {@code KEEP} statement is a Project.
+ * Remove, duplicate or rename columns.
+ * <p>
+ * In {@code FROM idx | KEEP x, y}, the {@code KEEP} command is a Project.
+ * But it can also stand for {@code DROP} and {@code RENAME}, or a mix of all of them (after optimization).
  */
 public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Project", Project::new);

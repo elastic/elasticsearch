@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 134886
+pr: 144384
+summary: Adding ES|QL USER_AGENT command
+type: feature

@@ -10,17 +10,22 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -37,7 +42,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
 
-    public void testTSDBIndexUsesCorrectDocValuesFormat() throws Exception {
+    public void testTSDBWithSinglePrefixByte() throws Exception {
+        assumeTrue("require single prefix byte  to enable partitions", TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
         String indexName = "tsdb-test";
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")
@@ -59,11 +65,62 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
             "gauge",
             "type=long,time_series_metric=gauge"
         );
-
         indexDocuments(indexName);
 
         Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_tsid", "_ts_routing_hash");
-        assertDocValuesFormat(indexName, TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK, expectedFields);
+        assertDocValuesFormat(
+            indexName,
+            ES819TSDBDocValuesFormatFactory.ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
+            expectedFields
+        );
+        var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
+        var shard = indexService.getShard(0);
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            assertTrue(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
+            PartitionedDocValues.PrefixPartitions partition = null;
+            for (LeafReaderContext leave : searcher.getLeafContexts()) {
+                SortedDocValues dv = leave.reader().getSortedDocValues("_tsid");
+                assertThat(dv, instanceOf(PartitionedDocValues.class));
+                partition = ((PartitionedDocValues) dv).prefixPartitions(partition);
+                assertNotNull(partition);
+            }
+        }
+    }
+
+    public void testTSDBWithMultiplePrefixByte() throws Exception {
+        assumeFalse("require multiple byte prefix to enable partitions", TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
+        String indexName = "tsdb-test";
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2024-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-01-01T00:00:00Z");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        }
+        Settings settings = settingsBuilder.build();
+        createIndex(
+            indexName,
+            settings,
+            "@timestamp",
+            "type=date",
+            "hostname",
+            "type=keyword,time_series_dimension=true",
+            "gauge",
+            "type=long,time_series_metric=gauge"
+        );
+        indexDocuments(indexName);
+        Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_tsid", "_ts_routing_hash");
+        assertDocValuesFormat(
+            indexName,
+            ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
+            expectedFields
+        );
+        var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
+        var shard = indexService.getShard(0);
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            assertFalse(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
+        }
     }
 
     public void testStandardIndexWithTSDBDocValuesFormatSetting() throws Exception {
@@ -75,7 +132,7 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         indexDocuments(indexName);
 
         Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_seq_no");
-        assertDocValuesFormat(indexName, TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT, expectedFields);
+        assertDocValuesFormat(indexName, ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT, expectedFields);
     }
 
     public void testTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {
@@ -91,7 +148,11 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         indexDocuments(indexName);
 
         Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_seq_no");
-        assertDocValuesFormat(indexName, TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, expectedFields);
+        assertDocValuesFormat(
+            indexName,
+            ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK,
+            expectedFields
+        );
     }
 
     private void indexDocuments(String indexName) throws Exception {
@@ -120,8 +181,8 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
             if (deduplicateFieldInfosCodec.delegate() instanceof LegacyPerFieldMapperCodec legacyPerFieldMapperCodec) {
                 docValuesFormatProvider = legacyPerFieldMapperCodec::getDocValuesFormatForField;
             } else if (deduplicateFieldInfosCodec.delegate() instanceof ES93TSDBDefaultCompressionLucene103Codec es93TSDB103Codec) {
-                assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(PerFieldDocValuesFormat.class));
-                docValuesFormatProvider = (field) -> ((PerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat())
+                assertThat(es93TSDB103Codec.docValuesFormat(), instanceOf(XPerFieldDocValuesFormat.class));
+                docValuesFormatProvider = (field) -> ((XPerFieldDocValuesFormat) es93TSDB103Codec.docValuesFormat())
                     .getDocValuesFormatForField(field);
             } else {
                 fail("Unexpected codec type: " + codec.getClass().getName());

@@ -3180,11 +3180,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             )
         );
 
-        String[] expectedIndices;
+        // ::data is the default selector so that it is not attached to local index names
+        var expectedIndices = new String[] { "logs-foo", "logs-foobar" };
         if (selector.equals("failures")) {
-            expectedIndices = new String[] { "logs-foobar::failures" };
-        } else {
-            expectedIndices = new String[] { "logs-foo", "logs-foobar" };
+            expectedIndices = Arrays.stream(expectedIndices).map(name -> name + "::" + selector).toArray(String[]::new);
         }
 
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder(expectedIndices));

@@ -107,14 +107,68 @@ dependencies {
   runtimeOnly "io.netty:netty-transport-native-unix-common:${versions.netty}"
   runtimeOnly "io.netty:netty-transport:${versions.netty}"
 
+  /* Azure */
+  /* Nimbus OAuth2/OIDC (required by azure-identity/MSAL at runtime) */
+  api "com.nimbusds:content-type:2.3"
+  api "com.nimbusds:lang-tag:1.7"
+  api("com.nimbusds:nimbus-jose-jwt:10.0.2") {
+    exclude group: 'com.google.crypto.tink', module: 'tink'
+  }
+  api("com.nimbusds:oauth2-oidc-sdk:11.22.2") {
+    exclude group: 'com.google.crypto.tink', module: 'tink'
+  }
+  api "jakarta.activation:jakarta.activation-api:1.2.1"
+  api "jakarta.xml.bind:jakarta.xml.bind-api:2.3.3"
+  api "net.minidev:accessors-smart:2.5.2"
+  api "net.minidev:json-smart:2.5.2"
+
   /* SLF4J (via AWS SDKv2) */
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+
+  api "com.azure:azure-identity:1.18.2"
+  api "com.azure:azure-core:1.57.1"
+  api "com.azure:azure-core-http-netty:1.16.3"
+  api "com.azure:azure-json:1.5.0"
+  api "com.azure:azure-xml:1.2.0"
+  api "com.microsoft.azure:msal4j-persistence-extension:1.3.0"
+  api "com.microsoft.azure:msal4j:1.19.1"
+  api "net.java.dev.jna:jna:${versions.jna}"
+  api "net.java.dev.jna:jna-platform:${versions.jna}"
+
+  // Jackson
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
+
+  // Netty
+  api "io.netty:netty-codec-dns:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-codec-socks:${versions.netty}"
+  api "io.netty:netty-handler-proxy:${versions.netty}"
+  api "io.netty:netty-resolver-dns:${versions.netty}"
+
+  // Reactor
+  api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
+  api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
+  api "io.projectreactor:reactor-core:3.7.5"
+  api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+
+  runtimeOnly "org.cryptomator:siv-mode:1.5.2"
+  api "org.codehaus.woodstox:stax2-api:4.2.2"
+  api "org.ow2.asm:asm:9.9"
+  /* End packages for Azure */
 }
 
 tasks.withType(AbstractDependenciesTask).configureEach {
+  mapping from: /azure-.*/, to: 'azure'
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'
+  mapping from: /msal4j.*/, to: 'msal4j'
+  mapping from: /reactor-netty-.*/, to: 'reactor-netty'
+  mapping from: /reactor-core/, to: 'reactor-core'
   mapping from: /opencensus.*/, to: 'opencensus'
   mapping from: /protobuf.*/, to: 'protobuf'
   mapping from: /proto-google.*/, to: 'proto-google'
@@ -152,8 +206,10 @@ tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /netty-codec-dns/, to: 'netty'
   mapping from: /netty-codec-http2/, to: 'netty'
   mapping from: /netty-codec-http/, to: 'netty'
+  mapping from: /netty-codec-socks/, to: 'netty'
   mapping from: /netty-codec/, to: 'netty'
   mapping from: /netty-common/, to: 'netty'
+  mapping from: /netty-handler-proxy/, to: 'netty'
   mapping from: /netty-handler/, to: 'netty'
   mapping from: /netty-resolver-dns/, to: 'netty'
   mapping from: /netty-resolver/, to: 'netty'
@@ -208,7 +264,11 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess'
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+    'javax.activation.MailcapCommandMap',
+    'javax.activation.MimetypesFileTypeMap',
+    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException'
   )
 
   ignoreMissingClasses(
@@ -394,6 +454,116 @@ tasks.named("thirdPartyAudit").configure {
     'software.amazon.awssdk.crt.http.HttpHeader',
     'software.amazon.awssdk.crt.http.HttpRequest',
     'software.amazon.awssdk.crt.http.HttpRequestBodyStream',
+  )
+
+  // Optional/platform-specific and transitive dependencies not on audit classpath
+  ignoreMissingClasses(
+    // from reactory-netty metric collection
+    'io.micrometer.context.ContextAccessor',
+    'io.micrometer.context.ContextRegistry',
+    'io.micrometer.context.ContextSnapshot',
+    'io.micrometer.context.ContextSnapshot$Scope',
+    'io.micrometer.context.ContextSnapshotFactory',
+    'io.micrometer.context.ContextSnapshotFactory$Builder',
+    'io.micrometer.context.ThreadLocalAccessor',
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.search.Search',
+    'io.micrometer.core.instrument.Gauge',
+    'io.micrometer.core.instrument.Gauge$Builder',
+    'io.micrometer.core.instrument.Meter$Type',
+
+    // it uses NIO
+    'io.netty.channel.kqueue.KQueue',
+    'io.netty.channel.kqueue.KQueueDatagramChannel',
+    'io.netty.channel.kqueue.KQueueServerSocketChannel',
+    'io.netty.channel.kqueue.KQueueSocketChannel',
+
+    'io.netty.incubator.channel.uring.IOUring',
+    'io.netty.incubator.channel.uring.IOUringDatagramChannel',
+    'io.netty.incubator.channel.uring.IOUringServerSocketChannel',
+    'io.netty.incubator.channel.uring.IOUringSocketChannel',
+
+    // from reactor.netty.http.server.HttpServer (reactor-netty)
+    'io.netty.handler.codec.haproxy.HAProxyMessage',
+    'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
+
+    // Optional dependency of tink
+    'com.google.crypto.tink.subtle.Ed25519Sign',
+    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+    'com.google.crypto.tink.subtle.Ed25519Verify',
+    'com.google.crypto.tink.subtle.X25519',
+    'com.google.crypto.tink.subtle.XChaCha20Poly1305',
+
+    // Optional dependency of nimbus-jose-jwt and oauth2-oidc-sdk
+    'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
+    'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
+    'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
+    'org.bouncycastle.cert.X509CertificateHolder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
+    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
+    'org.bouncycastle.openssl.PEMKeyPair',
+
+    // OAuth servlet support is optional and not required
+    'jakarta.servlet.ServletRequest',
+    'jakarta.servlet.http.HttpServletRequest',
+    'jakarta.servlet.http.HttpServletResponse',
+    'javax.servlet.ServletRequest',
+    'javax.servlet.http.HttpServletRequest',
+    'javax.servlet.http.HttpServletResponse',
+
+    // OpenSAML support is optional
+    'org.joda.time.DateTime',
+    'net.shibboleth.utilities.java.support.xml.SerializeSupport',
+    'org.opensaml.core.config.InitializationException',
+    'org.opensaml.core.config.InitializationService',
+    'org.opensaml.core.xml.XMLObject',
+    'org.opensaml.core.xml.XMLObjectBuilder',
+    'org.opensaml.core.xml.XMLObjectBuilderFactory',
+    'org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport',
+    'org.opensaml.core.xml.io.Marshaller',
+    'org.opensaml.core.xml.io.MarshallerFactory',
+    'org.opensaml.core.xml.io.MarshallingException',
+    'org.opensaml.core.xml.io.Unmarshaller',
+    'org.opensaml.core.xml.io.UnmarshallerFactory',
+    'org.opensaml.core.xml.schema.XSString',
+    'org.opensaml.core.xml.schema.impl.XSStringBuilder',
+    'org.opensaml.saml.saml2.core.Assertion',
+    'org.opensaml.saml.saml2.core.Attribute',
+    'org.opensaml.saml.saml2.core.AttributeStatement',
+    'org.opensaml.saml.saml2.core.AttributeValue',
+    'org.opensaml.saml.saml2.core.Audience',
+    'org.opensaml.saml.saml2.core.AudienceRestriction',
+    'org.opensaml.saml.saml2.core.AuthnContext',
+    'org.opensaml.saml.saml2.core.AuthnContextClassRef',
+    'org.opensaml.saml.saml2.core.AuthnStatement',
+    'org.opensaml.saml.saml2.core.Conditions',
+    'org.opensaml.saml.saml2.core.Issuer',
+    'org.opensaml.saml.saml2.core.NameID',
+    'org.opensaml.saml.saml2.core.Subject',
+    'org.opensaml.saml.saml2.core.SubjectConfirmation',
+    'org.opensaml.saml.saml2.core.SubjectConfirmationData',
+    'org.opensaml.saml.security.impl.SAMLSignatureProfileValidator',
+    'org.opensaml.security.credential.BasicCredential',
+    'org.opensaml.security.credential.Credential',
+    'org.opensaml.security.credential.UsageType',
+    'org.opensaml.xmlsec.signature.Signature',
+    'org.opensaml.xmlsec.signature.support.SignatureException',
+    'org.opensaml.xmlsec.signature.support.SignatureValidator',
+    'org.opensaml.xmlsec.signature.support.Signer',
   )
 }
 

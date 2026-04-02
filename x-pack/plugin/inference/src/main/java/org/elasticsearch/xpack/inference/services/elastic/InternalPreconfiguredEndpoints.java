@@ -12,5 +12,8 @@ public class InternalPreconfiguredEndpoints {
     // elser-2
     public static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = ".elser-2-elastic";
 
+    // jina-embeddings-v5-text-small
+    public static final String DEFAULT_JINA_V5_ENDPOINT_ID = ".jina-embeddings-v5-text-small";
+
     private InternalPreconfiguredEndpoints() {}
 }

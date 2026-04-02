@@ -17,7 +17,7 @@ The `semantic_text` field type uses default indexing settings based on the [{{in
 
 `inference_id`
 :   (Optional, string) {{infer-cap}} endpoint that will be used to generate
-embeddings for the field. If `search_inference_id` is specified, the {{infer}}
+embeddings for the field. For default values, refer to [default endpoints](./semantic-text-setup-configuration.md#default-endpoints). If `search_inference_id` is specified, the {{infer}}
 endpoint will only be used at index time. Learn more about [configuring this parameter](#configuring-inference-endpoints).
 
 **Updating the `inference_id` parameter**
@@ -123,7 +123,7 @@ The `semantic_text` field type specifies an {{infer}} endpoint identifier (`infe
 
 The following {{infer}} endpoint configurations are available:
 
-- [Default and preconfigured endpoints](./semantic-text-setup-configuration.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an {{infer}} endpoint manually.
+- [Default](./semantic-text-setup-configuration.md#default-endpoints) and [preconfigured](./semantic-text-setup-configuration.md#preconfigured-endpoints) endpoints: Use `semantic_text` without creating an {{infer}} endpoint manually.
 
 - [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through the Elastic {{infer-cap}} Service.
 

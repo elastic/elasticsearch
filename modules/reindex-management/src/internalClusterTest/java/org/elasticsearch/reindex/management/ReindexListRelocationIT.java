@@ -54,10 +54,11 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
     private static final String SOURCE_INDEX = "reindex_src";
     private static final String DEST_INDEX = "reindex_dst";
 
-    private final int bulkSize = randomIntBetween(1, 5);
-    private final int requestsPerSecond = randomIntBetween(1, 5);
-    private final int numOfSlices = randomIntBetween(1, 10);
-    private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond * bulkSize;
+    private final int bulkSize = randomIntBetween(1, 4);
+    private final int numOfSlices = randomIntBetween(1, 4);
+    // keep RPS reasonable so each slice doesn't sleep and delay relocation for too long (max 1s)
+    private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
+    private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
 
     @BeforeClass
     public static void skipSetupIfReindexResilienceDisabled() {
@@ -209,9 +210,8 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
         // trigger reindex relocation
         internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
 
-        // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
-        // on nodeA is stale and can't be promoted to primary when nodeB leaves
-        assertBusy(() -> assertTrue(indexExists(TaskResultsService.TASK_INDEX)), 30, TimeUnit.SECONDS);
+        // .tasks is created when the original task result is stored during relocation
+        assertTrue(indexExists(TaskResultsService.TASK_INDEX));
         ensureGreen(TaskResultsService.TASK_INDEX);
 
         internalCluster().stopNode(nodeName);

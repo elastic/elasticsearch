@@ -101,7 +101,6 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
-    @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
         assert blocks.length >= offset + 2;
         try (

@@ -440,6 +440,7 @@ spec:
       name: elasticsearch-version-bump
     spec:
       pipeline_file: ".buildkite/pipelines/version-bump-pipeline.yml"
+      skip_intermediate_builds: false
       provider_settings:
         trigger_mode: none
       repository: elastic/elasticsearch

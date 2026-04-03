@@ -10,9 +10,9 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.http.HttpTransport;
-import com.google.auth.http.HttpTransportFactory;
 import com.google.api.client.http.LowLevelHttpRequest;
 import com.google.api.client.http.LowLevelHttpResponse;
+import com.google.auth.http.HttpTransportFactory;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;

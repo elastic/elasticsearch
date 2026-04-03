@@ -81,7 +81,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<QuerySearchResult> listener
+                ActionListener<SearchPhaseResult> listener
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -179,7 +179,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<QuerySearchResult> listener
+                ActionListener<SearchPhaseResult> listener
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -262,7 +262,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<QuerySearchResult> listener
+                ActionListener<SearchPhaseResult> listener
             ) {
                 if (request.contextId().getId() == 1) {
                     QuerySearchResult queryResult = new QuerySearchResult(
@@ -361,7 +361,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
-                ActionListener<QuerySearchResult> listener
+                ActionListener<SearchPhaseResult> listener
             ) {
                 QuerySearchResult queryResult = new QuerySearchResult(
                     request.contextId(),

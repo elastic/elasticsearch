@@ -138,6 +138,19 @@ public final class StoragePath {
         return path;
     }
 
+    /**
+     * Returns the path component adjusted for use as a local filesystem path.
+     * On Windows, file:// URIs produce paths like {@code /C:/dir/file} where the
+     * leading slash is invalid for the OS. This method strips it when a drive letter
+     * is detected so the result can be passed to {@code PathUtils.get()} safely.
+     */
+    public String localPath() {
+        if (path.length() >= 3 && path.charAt(0) == '/' && Character.isLetter(path.charAt(1)) && path.charAt(2) == ':') {
+            return path.substring(1);
+        }
+        return path;
+    }
+
     public String objectName() {
         if (path.isEmpty() || path.equals(PATH_SEPARATOR)) {
             return "";

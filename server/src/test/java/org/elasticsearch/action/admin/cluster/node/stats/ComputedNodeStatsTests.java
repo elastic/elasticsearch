@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.node.ResponseCollectorService.ComputedNodeStats;
 import org.elasticsearch.test.ESTestCase;
 
@@ -19,13 +20,26 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class ComputedNodeStatsTests extends ESTestCase {
 
-    public void testBasicInvariants() {
-        // When queue size estimate is 0, the rank should equal response time.
-        ComputedNodeStats stats = createStats(0, 150, 100);
-        assertThat(stats.rank(0), equalTo(150.0));
+    private static final boolean ARS_ADJUSTMENT = ResponseCollectorService.ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG.isEnabled();
 
-        stats = createStats(0, 20, 19);
-        assertThat(stats.rank(0), equalTo(20.0));
+    public void testBasicInvariants() {
+        if (ARS_ADJUSTMENT) {
+            // With the adjustment, rank = qHatS^3 * muBarSInverse.
+            // When queueSize=0 and outstandingRequests=0: qHatS = 1, so rank = muBarSInverse = serviceTime.
+            ComputedNodeStats stats = createStats(0, 150, 100);
+            assertThat(stats.rank(0), equalTo(100.0));
+
+            stats = createStats(0, 20, 19);
+            assertThat(stats.rank(0), equalTo(19.0));
+        } else {
+            // Without the adjustment, rank = rS - muBarSInverse + qHatS^3 * muBarSInverse.
+            // When queueSize=0 and outstandingRequests=0: qHatS = 1, so rank = rS.
+            ComputedNodeStats stats = createStats(0, 150, 100);
+            assertThat(stats.rank(0), equalTo(150.0));
+
+            stats = createStats(0, 20, 19);
+            assertThat(stats.rank(0), equalTo(20.0));
+        }
     }
 
     public void testParameterScaling() {
@@ -38,14 +52,16 @@ public class ComputedNodeStatsTests extends ESTestCase {
         second = createStats(1, 200, 200);
         assertTrue(first.rank(3) < second.rank(3));
 
-        // A larger response time should always result in a larger rank.
-        first = createStats(2, 150, 100);
-        second = createStats(2, 200, 100);
-        assertTrue(first.rank(1) < second.rank(1));
+        if (ARS_ADJUSTMENT == false) {
+            // A larger response time should always result in a larger rank (only when the response time term is included).
+            first = createStats(2, 150, 100);
+            second = createStats(2, 200, 100);
+            assertTrue(first.rank(1) < second.rank(1));
 
-        first = createStats(2, 150, 150);
-        second = createStats(2, 200, 150);
-        assertTrue(first.rank(1) < second.rank(1));
+            first = createStats(2, 150, 150);
+            second = createStats(2, 200, 150);
+            assertTrue(first.rank(1) < second.rank(1));
+        }
 
         // More queued requests should always result in a larger rank.
         first = createStats(2, 150, 100);

@@ -942,7 +942,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(nullValueBytes) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
-                    String stringValue = ((BytesRef) value).utf8ToString();
+                    // When _source is synthetic, unmapped numeric fields are provided as their native Java types (Long, Double, etc.)
+                    // rather than BytesRef. Since we treat all unmapped fields as keyword, we fall back to toString().
+                    String stringValue = value instanceof BytesRef br ? br.utf8ToString() : value.toString();
                     String adjusted = applyIgnoreAboveAndNormalizer(stringValue);
                     if (adjusted != null) {
                         // TODO what if the value didn't change?

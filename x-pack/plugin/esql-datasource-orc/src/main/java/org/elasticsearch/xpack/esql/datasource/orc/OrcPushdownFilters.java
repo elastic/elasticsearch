@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
+import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -92,6 +95,9 @@ final class OrcPushdownFilters {
         }
         if (expr instanceof Not not) {
             return canConvert(not.field());
+        }
+        if (expr instanceof StartsWith sw) {
+            return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD || dt == DataType.TEXT);
         }
         return false;
     }
@@ -237,6 +243,28 @@ final class OrcPushdownFilters {
             builder.startNot();
             buildPredicate(builder, not.field());
             builder.end();
+            return;
+        }
+
+        if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne && sw.prefix().foldable()) {
+            Object prefixValue = literalValueOf(sw.prefix());
+            if (prefixValue == null) {
+                return;
+            }
+            String name = ne.name();
+            PredicateLeaf.Type type = resolveType(ne.dataType());
+            String prefix = BytesRefs.toString(prefixValue);
+            BytesRef upperBytes = StringPrefixUtils.nextPrefixUpperBound(new BytesRef(prefix));
+
+            if (upperBytes != null) {
+                String upper = upperBytes.utf8ToString();
+                builder.startAnd();
+                builder.startNot().lessThan(name, type, prefix).end();
+                builder.lessThan(name, type, upper);
+                builder.end();
+            } else {
+                builder.startNot().lessThan(name, type, prefix).end();
+            }
             return;
         }
 

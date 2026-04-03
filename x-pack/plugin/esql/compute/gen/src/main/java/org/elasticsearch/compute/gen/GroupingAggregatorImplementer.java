@@ -56,6 +56,7 @@ import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_EVALUATOR_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT;
+import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.INT_ARRAY_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_BIG_ARRAY_BLOCK;
@@ -85,6 +86,8 @@ public class GroupingAggregatorImplementer {
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
+    private final ExecutableElement prepareEvaluateIntermediate;
+    private final ExecutableElement prepareEvaluateFinal;
     private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<AggregatorImplementer.IntermediateStateDesc> intermediateState;
@@ -117,6 +120,18 @@ public class GroupingAggregatorImplementer {
             aggState.declaredType().isPrimitive() ? requireType(aggState.declaredType()) : requireVoidType(),
             requireName("combine"),
             combineArgs(aggState)
+        );
+        this.prepareEvaluateIntermediate = optionalStaticMethod(
+            declarationType,
+            requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
+            requireName("prepareEvaluateIntermediate"),
+            requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
+        );
+        this.prepareEvaluateFinal = optionalStaticMethod(
+            declarationType,
+            requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
+            requireName("prepareEvaluateFinal"),
+            requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
         );
 
         this.aggParams = combine.getParameters().stream().skip(aggState.declaredType().isPrimitive() ? 1 : 2).map(v -> {
@@ -211,8 +226,14 @@ public class GroupingAggregatorImplementer {
         }
         builder.addMethod(maybeEnableGroupIdTracking());
         builder.addMethod(selectedMayContainUnseenGroups());
-        builder.addMethod(evaluateIntermediate());
-        builder.addMethod(evaluateFinal());
+        builder.addMethod(prepareEvaluateIntermediate());
+        if (prepareEvaluateIntermediate == null) {
+            builder.addMethod(evaluateIntermediate());
+        }
+        builder.addMethod(prepareEvaluateFinal());
+        if (prepareEvaluateFinal == null) {
+            builder.addMethod(evaluateFinal());
+        }
         builder.addMethod(toStringMethod());
         builder.addMethod(close());
         return builder.build();
@@ -702,28 +723,52 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
+    private MethodSpec prepareEvaluateIntermediate() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareEvaluateIntermediate");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(INT_VECTOR, "selected");
+        builder.addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
+        builder.returns(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION);
+        if (prepareEvaluateIntermediate != null) {
+            builder.addStatement("return $T.prepareEvaluateIntermediate(state, selected, ctx)", declarationType);
+            return builder.build();
+        }
+        builder.addStatement("return this::evaluateIntermediate");
+        return builder.build();
+    }
+
     private MethodSpec evaluateIntermediate() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evaluateIntermediate");
-        builder.addAnnotation(Override.class)
-            .addModifiers(Modifier.PUBLIC)
+        builder.addModifiers(Modifier.PRIVATE)
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
-            .addParameter(INT_VECTOR, "selected");
-        builder.addStatement("state.toIntermediate(blocks, offset, selected, driverContext)");
+            .addParameter(INT_VECTOR, "selectedInPage");
+        builder.addStatement("state.toIntermediate(blocks, offset, selectedInPage, driverContext)");
+        return builder.build();
+    }
+
+    private MethodSpec prepareEvaluateFinal() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareEvaluateFinal");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(INT_VECTOR, "selected");
+        builder.addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
+        builder.returns(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION);
+        if (prepareEvaluateFinal != null) {
+            builder.addStatement("return $T.prepareEvaluateFinal(state, selected, ctx)", declarationType);
+            return builder.build();
+        }
+        builder.addStatement("return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx)");
         return builder.build();
     }
 
     private MethodSpec evaluateFinal() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("evaluateFinal");
-        builder.addAnnotation(Override.class)
-            .addModifiers(Modifier.PUBLIC)
+        builder.addModifiers(Modifier.PRIVATE)
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
-            .addParameter(INT_VECTOR, "selected")
+            .addParameter(INT_VECTOR, "selectedInPage")
             .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
 
         if (aggState.declaredType().isPrimitive()) {
-            builder.addStatement("blocks[offset] = state.toValuesBlock(selected, ctx.driverContext())");
+            builder.addStatement("blocks[offset] = state.toValuesBlock(selectedInPage, driverContext)");
         } else {
             requireStaticMethod(
                 declarationType,
@@ -735,7 +780,7 @@ public class GroupingAggregatorImplementer {
                     requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT)
                 )
             );
-            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, ctx)", declarationType);
+            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selectedInPage, ctx)", declarationType);
         }
         return builder.build();
     }

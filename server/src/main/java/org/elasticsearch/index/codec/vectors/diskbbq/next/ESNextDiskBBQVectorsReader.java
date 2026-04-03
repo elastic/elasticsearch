@@ -25,8 +25,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
@@ -42,6 +40,7 @@ import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,7 +53,9 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements VectorPreconditioner {
+public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVectorsReader.NextFieldEntry>
+    implements
+        VectorPreconditioner {
 
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
@@ -107,7 +108,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         FloatVectorValues values,
         float visitRatio
     ) throws IOException {
-        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         int bulkSize = fieldEntry.getBulkSize();
         float approximateDocsPerCentroid = approximateCost / numCentroids;
         if (approximateDocsPerCentroid <= 1.25) {
@@ -183,7 +184,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
     }
 
     @Override
-    protected FieldEntry doReadField(
+    protected NextFieldEntry doReadField(
         IndexInput input,
         String rawVectorFormat,
         boolean useDirectIOReads,
@@ -225,13 +226,13 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
 
     @Override
     public Preconditioner getPreconditioner(FieldInfo fieldInfo) throws IOException {
-        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        final NextFieldEntry fieldEntry = fields.get(fieldInfo.number);
         // only seems possible in tests
         if (fieldEntry == null) {
             return null;
         }
-        long preconditionerOffset = ((NextFieldEntry) fieldEntry).preconditionerOffset();
-        long preconditionerLength = ((NextFieldEntry) fieldEntry).preconditionerLength();
+        long preconditionerOffset = fieldEntry.preconditionerOffset();
+        long preconditionerLength = fieldEntry.preconditionerLength();
         if (preconditionerLength > 0) {
             IndexInput ivfPreconditionerSlice = ivfCentroids.slice("preconditioner", preconditionerOffset, preconditionerLength);
             if (ivfPreconditionerSlice != null) {
@@ -599,14 +600,14 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         Bits acceptDocs,
         IndexInput centroidSlice
     ) throws IOException {
-        FieldEntry entry = fields.get(fieldInfo.number);
+        NextFieldEntry entry = fields.get(fieldInfo.number);
         final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());
         final long sizeLookup = directWriterSizeOnDisk(
             getReaderForField(fieldInfo.name).getFloatVectorValues(fieldInfo.name).size(),
             bitsRequired
         );
         centroidSlice.skipBytes(sizeLookup);
-        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = ((NextFieldEntry) entry).quantEncoding();
+        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = entry.quantEncoding();
         int numParents = centroidSlice.readVInt();
         final QueryQuantizer queryQuantizer;
         if (numParents > 0) {
@@ -627,8 +628,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
 
     private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, byte[] quantizedTarget) {}
 
+    private static final int QUERY_CACHE_SIZE = 16;
+
     private static class QueryQuantizer {
-        private final Cache<Integer, QueryQuantizerResult> cache;
+        private final LinkedHashMap<Integer, QueryQuantizerResult> cache;
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
         private final float[] target;
         private final float[] scratch;
@@ -657,13 +660,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             this.quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction(), DEFAULT_LAMBDA, 1);
             this.parentsSlice = parentsSlice;
             this.globalCentroid = globalCentroid;
-            this.cache = CacheBuilder.<Integer, QueryQuantizerResult>builder()
-                .weigher((k, v) -> 1L)
-                .setMaximumWeight(16)
-                .removalListener(n -> {
-                    evictedQuantizedQuery = n.getValue().quantizedTarget();
-                })
-                .build();
+            this.cache = new LinkedHashMap<>(QUERY_CACHE_SIZE, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Integer, QueryQuantizerResult> eldest) {
+                    if (size() > QUERY_CACHE_SIZE) {
+                        evictedQuantizedQuery = eldest.getValue().quantizedTarget();
+                        return true;
+                    }
+                    return false;
+                }
+            };
         }
 
         void reset(int centroidOrdinal) {
@@ -772,7 +778,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                 quantEncoding.bits(),
                 fieldInfo.getVectorDimension(),
                 (int) quantizedVectorByteSize,
-                BULK_SIZE
+                BULK_SIZE,
+                quantEncoding.bits() == 4
+                    ? ESNextOSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
+                    : ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED
             );
         }
 

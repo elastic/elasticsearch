@@ -1640,7 +1640,6 @@ setup:
   - match: { hits.hits.0._source.k8s\.pod\.label: "xyz" }
   - match: { hits.hits.0._source.k8s\.pod\.unmapped: "xyz" }
 
-
 ---
 "Downsample label with ignore_above":
   - requires:
@@ -1940,3 +1939,79 @@ setup:
   - match: { hits.hits.1._source._doc_count: 1 }
   - match: { hits.hits.1._source.k8s\.pod\.name: cat }
   - match: { hits.hits.1._source.k8s\.pod\.empty: "" }
+
+---
+"Downsample index with multi-value dimensions":
+  - requires:
+      test_runner_features: [ "capabilities" ]
+      cluster_features: [ "data_stream.downsample.fix_support_multi_value_dimensions" ]
+      reason: "Support multi-value dimensions in downsampling (bug fix)"
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsample.sampling_mode.last_value" ]
+
+  - do:
+      indices.create:
+        index: test-multi-value
+        body:
+          settings:
+            number_of_shards: 1
+            index:
+              mode: time_series
+              routing_path: [ metricset ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              multi-counter:
+                type: long
+                time_series_metric: counter
+
+  # Insert documents with multiple-value for a dimensions
+  - do:
+      bulk:
+        refresh: true
+        index: test-multi-value
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:05.467Z", "metricset": ["pod", "app"], "multi-counter" : [10, 11, 12]}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:27.467Z", "metricset": ["pod", "app"], "multi-counter" : [21, 22, 23]}'
+  - is_false: errors
+
+  - do:
+      indices.put_settings:
+        index: test-multi-value
+        body:
+          index.blocks.write: true
+
+  - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
+      indices.downsample:
+        index: test-multi-value
+        target_index: test-downsample-multi-value
+        body:  >
+          {
+            "fixed_interval": "1h",
+            "sampling_method": "last_value"
+          }
+  - is_true: acknowledged
+
+  - do:
+      search:
+        index: test-downsample-multi-value
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.metricset: ["app", "pod"] }
+  - match: { hits.hits.0._source.multi-counter: 21 }

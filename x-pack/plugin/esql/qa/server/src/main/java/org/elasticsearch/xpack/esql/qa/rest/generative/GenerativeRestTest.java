@@ -101,6 +101,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
+        // https://github.com/elastic/elasticsearch/issues/145570
+        "function cannot operate on \\[from .*\\], which is not a field from an index mapping",
+        // https://github.com/elastic/elasticsearch/issues/145570
+        "function cannot operate on \\[\\], which is not a field from an index mapping",
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
         "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",
@@ -704,7 +708,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
         Pattern.DOTALL
     );
 

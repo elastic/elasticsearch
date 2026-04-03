@@ -37,7 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.LOW_BITS_PER_DOC;
+import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.DEFAULT_LOW_BITS_PER_DOC;
 import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.MAX_BLOOM_FILTER_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -135,7 +135,7 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
         assertThat(bloomFilterFormat.bloomFilterSizeInBytesForNewSegment(10_000_000), is(equalTo((int) MAX_BLOOM_FILTER_SIZE.getBytes())));
 
         // Boundary: largest doc count at which the flat large-segment formula (LOW_BPD bits/doc) hits the cap
-        int maxDocsBeforeCap = (int) (MAX_BLOOM_FILTER_SIZE.getBytes() * Byte.SIZE / LOW_BITS_PER_DOC);
+        int maxDocsBeforeCap = (int) (MAX_BLOOM_FILTER_SIZE.getBytes() * Byte.SIZE / DEFAULT_LOW_BITS_PER_DOC);
         assertThat(
             bloomFilterFormat.bloomFilterSizeInBytesForNewSegment(maxDocsBeforeCap),
             is(equalTo((int) MAX_BLOOM_FILTER_SIZE.getBytes()))

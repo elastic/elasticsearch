@@ -65,6 +65,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -1433,5 +1435,21 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         b.field("ww_keyword");
         Query q = b.doToQuery(createSearchExecutionContext());
         assertEquals(new TermQuery(new Term("ww_keyword", "query with spaces")), q);
+    }
+
+    public void testQueryStringCircuitBreakerTripsWithManyWildcards() {
+        assertCircuitBreakerTripsOnQueryConstruction("1mb", () -> {
+            StringJoiner joiner = new StringJoiner(" OR ");
+            IntStream.range(0, 100).forEach(i -> joiner.add("*a*b*c*d*e*f*g*h*" + i + "*"));
+            return queryStringQuery(joiner.toString()).defaultField(TEXT_FIELD_NAME);
+        });
+    }
+
+    public void testQueryStringCircuitBreakerTripsWithManyRegexps() {
+        assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
+            StringJoiner joiner = new StringJoiner(" OR ");
+            IntStream.range(0, 50).forEach(i -> joiner.add("/(pattern" + i + "|alternate" + i + "|option" + i + ").*/"));
+            return queryStringQuery(joiner.toString()).defaultField(TEXT_FIELD_NAME);
+        });
     }
 }

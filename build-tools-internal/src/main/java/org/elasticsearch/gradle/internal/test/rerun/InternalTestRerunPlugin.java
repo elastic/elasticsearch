@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  * If no history file exists, all tests run normally. If a test task has no failures in the
  * history, it is skipped entirely.
  */
-public class InternalTestRerunPlugin implements Plugin<Project> {
+public abstract class InternalTestRerunPlugin implements Plugin<Project> {
 
     /**
      * File name for failed test history created by Buildkite pre-command hook.
@@ -82,7 +82,6 @@ public class InternalTestRerunPlugin implements Plugin<Project> {
             List<TestCase> tests = workUnit.tests();
             int totalTestCount = tests.stream().mapToInt(tc -> tc.children().size()).sum();
             test.getLogger().lifecycle("Smart retry: filtering to {} failed test classes ({} test methods)", tests.size(), totalTestCount);
-
             test.filter(testFilter -> {
                 for (TestCase testClassCase : tests) {
                     if (testClassCase.name() == null) {

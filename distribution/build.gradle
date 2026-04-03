@@ -183,8 +183,8 @@ def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfi
     inputFiles = inputFiles + it.fileTree('src/main/config').matching { include 'log4j2.properties' }
   }
 
-  inputs.files(inputFiles)
-  outputs.file outputFile
+  inputs.files(inputFiles).withPathSensitivity(PathSensitivity.RELATIVE)
+  outputs.file(outputFile)
 
   doLast {
     outputFile.setText('', 'UTF-8')

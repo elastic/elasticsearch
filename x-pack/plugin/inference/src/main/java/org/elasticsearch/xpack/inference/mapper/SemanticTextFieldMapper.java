@@ -1024,6 +1024,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return chunkingSettings;
         }
 
+        public SemanticTextIndexOptions getIndexOptions() {
+            return indexOptions;
+        }
+
         public ObjectMapper getInferenceField() {
             return inferenceField;
         }

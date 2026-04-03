@@ -21,18 +21,6 @@ import java.util.stream.Collectors;
  * Generative REST tests that always prepend {@code SET unmapped_fields="load"} to queries.
  * Lives in a separate class hierarchy from {@link GenerativeRestTest} so that CI muting
  * of these tests does not affect the main generative test suite.
- *
- * <p>Load-specific allowed errors track known limitations:
- * <ul>
- *   <li>{@code missing references} — optimizer bugs with partial mappings
- *       (<a href="https://github.com/elastic/elasticsearch/issues/141995">#141995</a>,
- *        <a href="https://github.com/elastic/elasticsearch/issues/141990">#141990</a>)</li>
- *   <li>{@code column already resolved} — LOOKUP JOIN issues
- *       (<a href="https://github.com/elastic/elasticsearch/issues/142026">#142026</a>)</li>
- *   <li>{@code cannot use [SET unmapped_fields] with FORK} — branching commands
- *       (<a href="https://github.com/elastic/elasticsearch/issues/142033">#142033</a>)</li>
- *   <li>{@code type [null]} — null type propagation from loaded-as-null fields</li>
- * </ul>
  */
 public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest {
 

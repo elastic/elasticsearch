@@ -357,6 +357,9 @@ tests:
 - class: org.elasticsearch.indices.IndicesRequestCacheIT
   method: testCanCache
   issue: https://github.com/elastic/elasticsearch/issues/144526
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/20_knn_retriever/kNN retrieve with visit_percentage}
+  issue: https://github.com/elastic/elasticsearch/issues/145574
 
 # Examples:
 #

@@ -84,8 +84,10 @@ public class DenseVectorFieldMapperTestUtils {
         return RandomizedContext.current().getRandom();
     }
 
-    // this method replicates the logic used in DenseVectorFieldMapper.Builder::defaultIndexOptions as this is the best and easiest way
-    // to get expected default index options.
+    /**
+     * This method replicates the logic used in DenseVectorFieldMapper.Builder::defaultIndexOptions as this is the best and easiest way
+     * to get expected default index options.
+     */
     public static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(
         IndexVersion indexVersionCreated,
         boolean enterpriseLicense,

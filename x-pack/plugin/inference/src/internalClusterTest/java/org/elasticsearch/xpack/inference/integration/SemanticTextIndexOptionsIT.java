@@ -189,7 +189,6 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
                     : SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
             );
 
-            // Filter out null/empty values from params we didn't set to make comparison easier
             Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
             assertThat("indexVersion = " + indexVersion, actualFieldMappings, equalTo(expectedFieldMapping));
 

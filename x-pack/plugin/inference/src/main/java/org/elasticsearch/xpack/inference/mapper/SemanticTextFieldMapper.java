@@ -1563,7 +1563,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         MinimalServiceSettings modelSettings
     ) {
         if (setExplicitIndexOptionsForSemanticText(indexVersionCreated) == false) {
-            // default to dense_vector mapper default options
             return null;
         }
         if (modelSettings.dimensions() == null) {

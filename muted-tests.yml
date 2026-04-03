@@ -403,6 +403,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/145689
 - class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcPreparedStatementIT
   issue: https://github.com/elastic/elasticsearch/issues/145448
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidBigDecimalFromBooleanWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145702
 
 # Examples:
 #

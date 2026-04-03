@@ -197,6 +197,9 @@ public class PromqlVerifierTests extends ESTestCase {
         tsdb.error(
             "PROMQL index=test step=5m rate(network.connections[5m])",
             containsString("function [rate] requires a counter metric, but [network.connections] has type [long]")
+        );
+    }
+
     public void testRateOnNonNumericField() {
         // host is a keyword dimension field, not a numeric metric - should get a clear 4xx-style error
         tsdb.error(

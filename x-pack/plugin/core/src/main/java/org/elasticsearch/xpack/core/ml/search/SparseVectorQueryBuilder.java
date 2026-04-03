@@ -39,7 +39,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQueryBuilder> {
-    private static final MatchNoDocsQuery EMPTY_QUERY_VECTORS = new MatchNoDocsQuery("Empty query vectors");
     public static final String NAME = "sparse_vector";
     public static final String ALLOWED_FIELD_TYPE = "sparse_vector";
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -217,7 +216,7 @@ public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQuery
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (queryVectors == null) {
-            return EMPTY_QUERY_VECTORS;
+            throw new IllegalStateException("query vectors should be set during sparse_vector query rewrite");
         }
 
         final MappedFieldType ft = context.getFieldType(fieldName);

@@ -198,24 +198,13 @@ public class SoftDeletesPolicyTests extends ESTestCase {
         final int numberOfLeases = randomIntBetween(0, 5);
         for (int i = 0; i < numberOfLeases; i++) {
             leases.add(
-                new RetentionLease(
-                    Integer.toString(i),
-                    randomLongBetween(0, globalCheckpoint.get()),
-                    randomNonNegativeLong(),
-                    "test"
-                )
+                new RetentionLease(Integer.toString(i), randomLongBetween(0, globalCheckpoint.get()), randomNonNegativeLong(), "test")
             );
         }
         final long primaryTerm = randomNonNegativeLong();
         final long version = randomNonNegativeLong();
         final Supplier<RetentionLeases> leasesSupplier = () -> new RetentionLeases(primaryTerm, version, List.copyOf(leases));
-        final SoftDeletesPolicy policy = new SoftDeletesPolicy(
-            globalCheckpoint::get,
-            0,
-            retentionOperations,
-            leasesSupplier,
-            false
-        );
+        final SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, 0, retentionOperations, leasesSupplier, false);
         long safeCommitCheckpoint = NO_OPS_PERFORMED;
         for (int i = 0, iters = scaledRandomIntBetween(10, 100); i < iters; i++) {
             safeCommitCheckpoint = randomLongBetween(safeCommitCheckpoint, globalCheckpoint.get());

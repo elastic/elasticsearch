@@ -230,11 +230,6 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
      * naturally fall through to the metadata server. This test documents and protects that path.
      */
     public void testApplicationDefaultCredentialsFallbackToComputeEngine() throws IOException {
-        assumeTrue(
-            "Skipping: GOOGLE_APPLICATION_CREDENTIALS env var is set, which bypasses the metadata server fallback path",
-            System.getenv("GOOGLE_APPLICATION_CREDENTIALS") == null
-        );
-
         final AtomicBoolean metadataServerContacted = new AtomicBoolean(false);
 
         // Mock HTTP transport that simulates the GCP metadata server.

@@ -30,6 +30,7 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -313,6 +314,12 @@ public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
         flush(indexName);
         indexDocs(indexName, randomIntBetween(100, 1000));
         refresh(indexName);
+
+        if (hollowEnabled) {
+            final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexingNode1);
+            final var indexShard = findIndexShard(indexName);
+            assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
+        }
 
         var plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
             .filterPlugins(TestTelemetryPlugin.class)

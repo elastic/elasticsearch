@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -1124,6 +1125,11 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         // relocate the indexing shard
         var newIndexNode = startIndexNode(indexingNodeSettings);
         ensureStableCluster(4);
+        if (hollowEnabled) {
+            final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNode);
+            final var indexShard = findIndexShard(indexName);
+            assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
+        }
         updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNode), indexName);
         ensureGreen(indexName);
         internalCluster().stopNode(indexNode);

@@ -46,7 +46,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
 
@@ -84,6 +86,10 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
             long fileGeneration = 1;
             for (String fileName : localDir.listAll()) {
                 final long fileLength = localDir.fileLength(fileName);
+                if (fileLength == 0) {
+                    assertEmptyFileIsWriteLockOrExtraFile(fileName);
+                    continue;
+                }
                 final String fileBlobName = "stateless_commit_" + fileGeneration;
                 try (
                     var indexInput = localDir.openInput(fileName, IOContext.READONCE);
@@ -164,8 +170,12 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
             baos.write(paddingBytes);
             final var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, generation));
             for (String fileName : localDir.listAll()) {
-                long offset = baos.size();
                 long fileLength = localDir.fileLength(fileName);
+                if (fileLength == 0) {
+                    assertEmptyFileIsWriteLockOrExtraFile(fileName);
+                    continue;
+                }
+                long offset = baos.size();
                 try (
                     var indexInput = localDir.openInput(fileName, IOContext.READONCE);
                     var inputStream = new InputStreamIndexInput(indexInput, fileLength)
@@ -206,5 +216,13 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
     private static FsBlobContainer createBlobContainer() throws IOException {
         final var blobStorePath = PathUtils.get(createTempDir().toString());
         return new FsBlobContainer(new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false), BlobPath.EMPTY, blobStorePath);
+    }
+
+    private static void assertEmptyFileIsWriteLockOrExtraFile(final String fileName) {
+        assertThat(
+            "File with zero length should be a write lock or an ExtraFS",
+            fileName,
+            anyOf(equalTo(IndexWriter.WRITE_LOCK_NAME), startsWith("extra"))
+        );
     }
 }

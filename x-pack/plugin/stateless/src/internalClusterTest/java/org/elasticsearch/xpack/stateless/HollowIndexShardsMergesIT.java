@@ -238,7 +238,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
         assertShardEngineIsInstanceOf(indexName, 0, indexNodeB, IndexEngine.class);
     }
 
-    public void testHollowShardsDoNotTriggerMerges() {
+    public void testHollowShardsDoNotTriggerMerges() throws Exception {
         var indexNodeSettings = Settings.builder()
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(1))
@@ -253,8 +253,9 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
 
         indexDocs(indexName, between(50, 100));
 
-        // Ensure that the shard becomes hollow
-        safeSleep(100);
+        final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        final var indexShard = findIndexShard(indexName);
+        assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA));
         ensureGreen(indexName);

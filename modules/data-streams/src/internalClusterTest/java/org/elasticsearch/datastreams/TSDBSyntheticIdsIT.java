@@ -1873,7 +1873,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     public void testNoopTombstones() throws Exception {
         internalCluster().startMasterOnlyNode();
         List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2);
-        internalCluster().startDataOnlyNodes(2);
 
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();

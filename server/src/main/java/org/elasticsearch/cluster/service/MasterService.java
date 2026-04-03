@@ -347,7 +347,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
         logger.debug("executing cluster state update for [{}]", summary);
         final ClusterState previousClusterState = state();
-        logger.info("executing cluster state update on state [{}] for [{}]", previousClusterState.version(), summary); // NOCOMMIT
 
         if (previousClusterState.nodes().isLocalNodeElectedMaster() == false && executor.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", summary);

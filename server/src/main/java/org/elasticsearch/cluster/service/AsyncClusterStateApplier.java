@@ -23,11 +23,9 @@ import org.elasticsearch.logging.Logger;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
-/**
- * A {@link ClusterStateApplier} which delegates asynchronously to another {@link ClusterStateApplier}, and keeps track of
- * {@link ClusterState} instances to be applied in the future, allowing callers to subscribe listeners which are notified when the current
- * {@link ClusterState} has eventually been fully applied.
- */
+/// A [ClusterStateApplier] which delegates asynchronously to another [ClusterStateApplier], and keeps track of
+/// [ClusterState] instances to be applied in the future, allowing callers to subscribe listeners which are notified when the current
+/// [ClusterState] has eventually been fully applied.
 public class AsyncClusterStateApplier implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(AsyncClusterStateApplier.class);
@@ -38,29 +36,20 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
     @Nullable // before calling setInitialState
     private ClusterState appliedState;
 
-    /**
-     * When {@code false}, the applier is idle: {@link #pendingState} is {@code null}, {@link #listeners} is complete, and no application
-     * is enqueued on {@link #executor}. When {@code true}, the applier is active ({@link #applierRunnable} is either enqueued or running).
-     */
+    /// When `false`, the applier is idle: [#pendingState] is `null`, [#listeners] is complete, and no application
+    /// is enqueued on [#executor]. When `true`, the applier is active ([#applierRunnable] is either enqueued or running).
     private boolean isApplying;
 
-    /**
-     * Records the {@link ClusterState} to apply after the current application is finished.
-     */
+    /// Records the [ClusterState] to apply after the current application is finished.
     @Nullable // if no states pending (maybe currently applying a state, but no further states to apply)
     private ClusterState pendingState;
 
-    /**
-     * Accumulates listeners to notify at the end of the application of the last cluster state provided to {@link #applyClusterState} before
-     * the invocation of this method.
-     * <p>
-     * Complete if the applier is idle.
-     * <p>
-     * If the applier is active but {@link #pendingState} is {@code null} then it will be completed when the current application completes.
-     * <p>
-     * If the applier is active and {@link #pendingState} is not {@code null} then it will be completed when the <i>next</i> application
-     * completes.
-     */
+    /// Accumulates listeners to notify at the end of the application of the last cluster state provided to [#applyClusterState] before
+    /// the invocation of this method.
+    ///
+    /// Complete if the applier is idle.
+    /// If the applier is active but [#pendingState] is `null` then it will be completed when the current application completes.
+    /// If the applier is active and [#pendingState] is not `null` then it will be completed when the _next_ application completes.
     private volatile SubscribableListener<Void> listeners = SubscribableListener.nullSuccess();
 
     public AsyncClusterStateApplier(ClusterStateApplier applier, Executor executor) {
@@ -68,18 +57,14 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
         this.applier = applier;
     }
 
-    /**
-     * Subscribe the given listener to the active cluster state applications, such that the listener will be completed after the application
-     * of all cluster states which were passed to {@link #applyClusterState} before this method was called.
-     */
+    /// Subscribe the given listener to the active cluster state applications, such that the listener will be completed
+    /// after the application of all cluster states which were passed to [#applyClusterState] before this method was called.
     public void awaitCurrentStateApplication(ActionListener<Void> listener) {
         listeners.addListener(listener);
     }
 
-    /**
-     * Asynchronously apply a new {@link ClusterState}. Listeners passed to {@link #awaitCurrentStateApplication} after this method is
-     * called will be completed after the given {@link ClusterState} has been applied.
-     */
+    /// Asynchronously apply a new [ClusterState]. Listeners passed to [#awaitCurrentStateApplication] after this method is
+    /// called will be completed after the given [ClusterState] has been applied.
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         final var oldState = Objects.requireNonNull(event.previousState());

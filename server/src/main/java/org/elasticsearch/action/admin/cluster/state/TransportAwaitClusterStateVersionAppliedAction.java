@@ -178,6 +178,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
             )
             // Step 2: wait for async application
             .<Void>andThen(l -> {
+                // If we already timed out, bail out early
                 if (onceListener.isDone()) {
                     l.onResponse(null);
                 } else {

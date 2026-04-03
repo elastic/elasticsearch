@@ -300,6 +300,9 @@ public class SynonymsManagementAPIService {
             .sort(SortBuilders.fieldSort(SYNONYM_RULE_ID_FIELD).order(SortOrder.ASC))
             .sort(SortBuilders.fieldSort("_shard_doc").order(SortOrder.ASC))
             .trackTotalHits(true)
+            .fetchSource(false)
+            .fetchField(SYNONYM_RULE_ID_FIELD)
+            .fetchField(SYNONYMS_FIELD)
             .pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(PIT_KEEP_ALIVE));
 
         if (searchAfter != null) {
@@ -335,7 +338,7 @@ public class SynonymsManagementAPIService {
 
             try {
                 for (SearchHit hit : hits) {
-                    accumulated.add(sourceMapToSynonymRule(hit.getSourceAsMap()));
+                    accumulated.add(hitToSynonymRule(hit));
                     if (accumulated.size() >= maxSynonymRules) {
                         PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
                         closePitAndThen(currentPitId, () -> listener.onResponse(result));
@@ -387,6 +390,9 @@ public class SynonymsManagementAPIService {
             .addSort("id", SortOrder.ASC)
             .setPreference(Preference.LOCAL.type())
             .setTrackTotalHits(true)
+            .setFetchSource(false)
+            .addFetchField(SYNONYM_RULE_ID_FIELD)
+            .addFetchField(SYNONYMS_FIELD)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (searchListener, searchResponse) -> {
                 final long totalSynonymRules = searchResponse.getHits().getTotalHits().value();
                 // If there are no rules, check that the synonym set actually exists to return the proper error
@@ -397,14 +403,16 @@ public class SynonymsManagementAPIService {
                     return;
                 }
                 final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
-                    .map(hit -> sourceMapToSynonymRule(hit.getSourceAsMap()))
+                    .map(SynonymsManagementAPIService::hitToSynonymRule)
                     .toArray(SynonymRule[]::new);
                 searchListener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
             }));
     }
 
-    private static SynonymRule sourceMapToSynonymRule(Map<String, Object> docSourceAsMap) {
-        return new SynonymRule((String) docSourceAsMap.get(SYNONYM_RULE_ID_FIELD), (String) docSourceAsMap.get(SYNONYMS_FIELD));
+    private static SynonymRule hitToSynonymRule(SearchHit hit) {
+        String id = hit.field(SYNONYM_RULE_ID_FIELD).getValue();
+        String synonyms = hit.field(SYNONYMS_FIELD).getValue();
+        return new SynonymRule(id, synonyms);
     }
 
     private static void logUniqueFailureMessagesWithIndices(List<BulkItemResponse.Failure> bulkFailures) {
@@ -562,7 +570,11 @@ public class SynonymsManagementAPIService {
                             l2.onFailure(new ResourceNotFoundException("synonym rule [" + synonymRuleId + "] not found"));
                             return;
                         }
-                        l2.onResponse(sourceMapToSynonymRule(getResponse.getSourceAsMap()));
+                        Map<String, Object> source = getResponse.getSourceAsMap();
+                        l2.onResponse(new SynonymRule(
+                            (String) source.get(SYNONYM_RULE_ID_FIELD),
+                            (String) source.get(SYNONYMS_FIELD)
+                        ));
                     }))
             )
         );

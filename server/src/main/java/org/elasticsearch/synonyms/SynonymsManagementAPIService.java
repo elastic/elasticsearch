@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -277,7 +278,7 @@ public class SynonymsManagementAPIService {
             TransportOpenPointInTimeAction.TYPE,
             pitRequest,
             new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, pitResponse) -> {
-                fetchPageWithPit(synonymSetId, pitResponse.getPointInTimeId(), keepAlive, null, new ArrayList<>(), -1L, l);
+                fetchPageWithPit(synonymSetId, pitResponse.getPointInTimeId(), keepAlive, null, new ArrayList<>(), l);
             })
         );
     }
@@ -289,7 +290,6 @@ public class SynonymsManagementAPIService {
         TimeValue keepAlive,
         Object[] searchAfter,
         List<SynonymRule> accumulated,
-        long totalHits,
         ActionListener<PagedResult<SynonymRule>> listener
     ) {
         SearchSourceBuilder source = new SearchSourceBuilder().query(
@@ -309,24 +309,24 @@ public class SynonymsManagementAPIService {
 
         client.execute(TransportSearchAction.TYPE, new SearchRequest().source(source), ActionListener.wrap(response -> {
             SearchHit[] hits = response.getHits().getHits();
-            long newTotalHits = totalHits < 0 ? response.getHits().getTotalHits().value() : totalHits;
+            long totalHits = response.getHits().getTotalHits().value();
+            assert response.pointInTimeId() != null;
+            BytesReference currentPitId = response.pointInTimeId();
 
             if (hits.length == 0) {
                 if (accumulated.isEmpty()) {
-                    closePitSilently(pitId);
-                    checkSynonymSetExists(
+                    closePitAndThen(currentPitId, () -> checkSynonymSetExists(
                         synonymSetId,
                         listener.delegateFailure((l, ignored) -> { l.onResponse(new PagedResult<>(0, new SynonymRule[0])); })
-                    );
+                    ));
                 } else {
-                    PagedResult<SynonymRule> result = new PagedResult<>(newTotalHits, accumulated.toArray(new SynonymRule[0]));
-                    closePitSilently(pitId);
-                    listener.onResponse(result);
+                    PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
+                    closePitAndThen(currentPitId, () -> listener.onResponse(result));
                 }
                 return;
             }
 
-            if (totalHits < 0 && newTotalHits > maxSynonymRules) {
+            if (searchAfter == null && totalHits > maxSynonymRules) {
                 logger.warn(
                     "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed."
                         + " Inconsistent synonyms results may occur",
@@ -338,32 +338,31 @@ public class SynonymsManagementAPIService {
                 for (SearchHit hit : hits) {
                     accumulated.add(sourceMapToSynonymRule(hit.getSourceAsMap()));
                     if (accumulated.size() >= maxSynonymRules) {
-                        PagedResult<SynonymRule> result = new PagedResult<>(newTotalHits, accumulated.toArray(new SynonymRule[0]));
-                        closePitSilently(pitId);
-                        listener.onResponse(result);
+                        PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
+                        closePitAndThen(currentPitId, () -> listener.onResponse(result));
                         return;
                     }
                 }
             } catch (Exception e) {
-                closePitSilently(pitId);
-                listener.onFailure(e);
+                closePitAndThen(currentPitId, () -> listener.onFailure(e));
                 return;
             }
 
             Object[] lastSortValues = hits[hits.length - 1].getSortValues();
-            fetchPageWithPit(synonymSetId, pitId, keepAlive, lastSortValues, accumulated, newTotalHits, listener);
+            fetchPageWithPit(synonymSetId, currentPitId, keepAlive, lastSortValues, accumulated, listener);
         }, e -> {
-            closePitSilently(pitId);
-            listener.onFailure(e);
+            closePitAndThen(pitId, () -> listener.onFailure(e));
         }));
     }
 
-    private void closePitSilently(BytesReference pitId) {
-        if (pitId == null) {
-            return;
-        }
-        client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId), ActionListener.wrap(r -> {}, e -> {
+    private void closePitAndThen(BytesReference pitId, Runnable andThen) {
+        assert pitId != null;
+        client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId), ActionListener.wrap(r -> {
+            // specify system_read so that the response isn't completed on the generic thread pool
+            client.threadPool().executor(ThreadPool.Names.SYSTEM_READ).execute(andThen);
+        }, e -> {
             logger.warn("Failed to close PIT context", e);
+            client.threadPool().executor(ThreadPool.Names.SYSTEM_READ).execute(andThen);
         }));
     }
 

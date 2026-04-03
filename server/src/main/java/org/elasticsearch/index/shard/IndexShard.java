@@ -1123,6 +1123,47 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
+    /**
+     * Applies a batch of index operations on the primary. Returns null if any operation requires a mapping update,
+     * signaling the caller to fall back to the item-by-item path.
+     */
+    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(List<Engine.Index> operations) throws IOException {
+        ensureWriteAllowed(Engine.Operation.Origin.PRIMARY);
+        final Engine engine = getEngine();
+        return indexBatch(engine, operations);
+    }
+
+    /**
+     * Applies a batch of index operations on a replica.
+     */
+    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(List<Engine.Index> operations) throws IOException {
+        ensureWriteAllowed(Engine.Operation.Origin.REPLICA);
+        final Engine engine = getEngine();
+        return indexBatch(engine, operations);
+    }
+
+    private List<Engine.IndexResult> indexBatch(Engine engine, List<Engine.Index> operations) throws IOException {
+        List<Engine.Index> preIndexOps = new ArrayList<>(operations.size());
+        // TODO: Right now the only production users are stats. Should add batch listener.
+        for (Engine.Index op : operations) {
+            preIndexOps.add(indexingOperationListeners.preIndex(shardId, op));
+        }
+        try {
+            List<Engine.IndexResult> results = engine.indexBatch(preIndexOps);
+            // TODO: Look at if these can be batch optimized
+            for (int i = 0; i < results.size(); i++) {
+                indexingOperationListeners.postIndex(shardId, preIndexOps.get(i), results.get(i));
+            }
+            active.set(true);
+            return results;
+        } catch (Exception e) {
+            for (Engine.Index preIndexOp : preIndexOps) {
+                indexingOperationListeners.postIndex(shardId, preIndexOp, e);
+            }
+            throw e;
+        }
+    }
+
     private Engine.IndexResult index(Engine engine, Engine.Index index) throws IOException {
         try {
             final Engine.IndexResult result;

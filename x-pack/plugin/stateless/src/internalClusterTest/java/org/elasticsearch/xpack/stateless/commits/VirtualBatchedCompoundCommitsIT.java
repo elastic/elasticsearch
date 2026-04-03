@@ -1447,11 +1447,14 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 handler.messageReceived(request, channel, task);
             });
 
+        final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNode);
+        assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(findIndexShard(indexName)), equalTo(true)));
+
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNode2));
 
         safeAwait(primaryContextHandoffReceived);
 
-        var indexShard = findIndexShard(resolveIndex(indexName), 0, indexNode);
+        final var indexShard = findIndexShard(resolveIndex(indexName), 0, indexNode);
         assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
 
         getVBCCChunkBlocked.countDown();

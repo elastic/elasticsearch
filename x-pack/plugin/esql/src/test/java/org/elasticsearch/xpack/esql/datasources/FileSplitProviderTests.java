@@ -811,12 +811,20 @@ public class FileSplitProviderTests extends ESTestCase {
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name")), null, null));
-        schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name"), refAttr("bonus")), null, null));
+        schemaInfo.put(
+            pathB,
+            new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("id"), refAttr("name"), refAttr("bonus")), null, null)
+        );
         schemaInfo.put(pathC, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
         fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
 
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(), Set.of("id", "name")
+            null,
+            fileList,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            Set.of("id", "name")
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
@@ -839,7 +847,12 @@ public class FileSplitProviderTests extends ESTestCase {
         fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
 
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(), Set.of("id", "name")
+            null,
+            fileList,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            Set.of("id", "name")
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
@@ -861,9 +874,7 @@ public class FileSplitProviderTests extends ESTestCase {
         schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
         fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(), Set.of()
-        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(), Set.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals("All files retained when projected set is empty (e.g. COUNT(*))", 2, splits.size());
@@ -878,7 +889,12 @@ public class FileSplitProviderTests extends ESTestCase {
         );
 
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(), Set.of("id", "name")
+            null,
+            fileList,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            Set.of("id", "name")
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
@@ -903,9 +919,7 @@ public class FileSplitProviderTests extends ESTestCase {
         schemaInfo.put(pathB, new SchemaReconciliation.FileSchemaInfo(List.of(refAttr("bonus")), null, null));
         fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
 
-        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null, fileList, Map.of(), partitions, List.of(), Set.of("year")
-        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), partitions, List.of(), Set.of("year"));
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
         assertEquals("All files retained when projection is only partition columns", 2, splits.size());
@@ -925,7 +939,12 @@ public class FileSplitProviderTests extends ESTestCase {
         fileList = GlobExpander.withSchemaInfo(fileList, schemaInfo);
 
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of(), Set.of("id", "name")
+            null,
+            fileList,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            Set.of("id", "name")
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
@@ -958,7 +977,12 @@ public class FileSplitProviderTests extends ESTestCase {
 
         Expression yearFilter = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
-            null, fileList, Map.of(), partitions, List.of(yearFilter), Set.of("id", "name")
+            null,
+            fileList,
+            Map.of(),
+            partitions,
+            List.of(yearFilter),
+            Set.of("id", "name")
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 

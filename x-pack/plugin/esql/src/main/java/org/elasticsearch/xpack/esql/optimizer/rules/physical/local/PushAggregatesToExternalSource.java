@@ -45,9 +45,9 @@ import java.util.OptionalLong;
  * The coordinator's FINAL AggregateExec is never touched — it merges intermediate values from all
  * data nodes regardless of whether each data node pushed down or scanned.
  * <p>
- * Statistics come from {@code ExternalSourceExec.sourceMetadata()} which is populated at planning time.
- * In Phase 2 (union-by-name), per-split statistics in {@code FileSplit.statistics()} will enable
- * pushdown even when per-query metadata only has first-file stats.
+ * Statistics come from {@code ExternalSourceExec.sourceMetadata()} for single-split queries, or
+ * from merged per-split statistics in {@code FileSplit.statistics()} for multi-split queries.
+ * Falls back to normal execution when any split lacks statistics.
  */
 public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     AggregateExec,
@@ -85,8 +85,13 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
 
-        // Try to resolve all aggregate values from sourceMetadata
-        Map<String, Object> sourceMetadata = externalExec.sourceMetadata();
+        Map<String, Object> sourceMetadata = SourceStatisticsSerializer.resolveEffectiveMetadata(
+            externalExec.splits(),
+            externalExec.sourceMetadata()
+        );
+        if (sourceMetadata == null) {
+            return aggregateExec;
+        }
         List<Object> values = resolveAggregateValues(aggregateExec.aggregates(), sourceMetadata);
         if (values == null) {
             return aggregateExec; // Some aggregate couldn't be resolved from metadata

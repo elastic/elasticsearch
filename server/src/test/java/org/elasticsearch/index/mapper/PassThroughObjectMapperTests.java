@@ -264,7 +264,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
                 List.of(create("foo", 1), create("bar", 1), create("baz", 3), create("bar", 4))
             )
         );
-        assertThat(e.getMessage(), containsString("Pass-through object [bar] has a conflicting param [priority=1] with object [foo]"));
+        assertThat(e.getMessage(), containsString("Pass-through source [bar] has a conflicting param [priority=1] with source [foo]"));
     }
 
     public void testTimeSeriesDimensionAndMetricConflict() throws IOException {

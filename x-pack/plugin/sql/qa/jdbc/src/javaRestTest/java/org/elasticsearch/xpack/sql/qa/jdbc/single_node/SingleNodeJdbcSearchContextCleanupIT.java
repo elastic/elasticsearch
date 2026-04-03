@@ -20,4 +20,3 @@ public class SingleNodeJdbcSearchContextCleanupIT extends SearchContextCleanupTe
         return cluster;
     }
 }
-

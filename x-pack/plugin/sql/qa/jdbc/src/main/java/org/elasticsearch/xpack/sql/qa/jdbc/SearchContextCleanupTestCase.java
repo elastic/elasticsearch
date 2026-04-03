@@ -47,4 +47,3 @@ public abstract class SearchContextCleanupTestCase extends JdbcIntegrationTestCa
         assertNoSearchContexts();
     }
 }
-

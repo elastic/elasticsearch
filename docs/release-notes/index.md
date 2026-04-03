@@ -20,6 +20,64 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.3.3 [elasticsearch-9.3.3-release-notes]
+```{applies_to}
+stack: ga 9.3.3
+```
+
+### Features and enhancements [elasticsearch-9.3.3-features-enhancements]
+
+Security:
+* Skip automaton construction for literal resource strings in application privilege checks [#144685](https://github.com/elastic/elasticsearch/pull/144685)
+
+
+### Fixes [elasticsearch-9.3.3-fixes]
+
+CAT APIs:
+* Fix `ArrayIndexOutOfBoundsException` in cat nodes for partial load average arrays [#144859](https://github.com/elastic/elasticsearch/pull/144859)
+
+CCR:
+* CCR follower index needs to copy transport version from CCR leader index [#145035](https://github.com/elastic/elasticsearch/pull/145035)
+
+ES|QL:
+* Cancel async query on expiry [#143016](https://github.com/elastic/elasticsearch/pull/143016) (issue: [#142662](https://github.com/elastic/elasticsearch/issues/142662))
+* Don't over-alloc when unpacking dimension values [#144525](https://github.com/elastic/elasticsearch/pull/144525)
+* ESQL: Fix incorrectly optimized fork with nullify unmapped_fields [#143030](https://github.com/elastic/elasticsearch/pull/143030) (issue: [#142762](https://github.com/elastic/elasticsearch/issues/142762))
+* ESQL: Fix null comparison type checking [#140660](https://github.com/elastic/elasticsearch/pull/140660) (issue: [#140460](https://github.com/elastic/elasticsearch/issues/140460))
+* Fix field caps incorrectly synthesizing object parents under subobjects:false passthrough mappers [#144183](https://github.com/elastic/elasticsearch/pull/144183) (issue: [#144179](https://github.com/elastic/elasticsearch/issues/144179))
+* Reduce `LuceneOperator.Status` memory consumption with large QueryDSL queries [#143175](https://github.com/elastic/elasticsearch/pull/143175) (issue: [#143164](https://github.com/elastic/elasticsearch/issues/143164))
+
+FIPS:
+* Fix createLDAPCertStore failing in FIPS mode [#144453](https://github.com/elastic/elasticsearch/pull/144453) (issues: [#144376](https://github.com/elastic/elasticsearch/issues/144376), [#144377](https://github.com/elastic/elasticsearch/issues/144377))
+
+Geo:
+* Fix `geo_centroid` over `geo_shape` merging multiple shards [#144637](https://github.com/elastic/elasticsearch/pull/144637) (issue: [#144504](https://github.com/elastic/elasticsearch/issues/144504))
+
+Infra/Core:
+* Fix system index mapping update for reindexed indices after migration [#144782](https://github.com/elastic/elasticsearch/pull/144782) (issue: [#144764](https://github.com/elastic/elasticsearch/issues/144764))
+
+Machine Learning:
+* Fix "reset anomaly detection API" crashing when only colliding indices exist [#144545](https://github.com/elastic/elasticsearch/pull/144545) (issue: [#144544](https://github.com/elastic/elasticsearch/issues/144544))
+
+Mapping:
+* Lazily create matcher in `BinaryDvConfirmedQuery` [#144698](https://github.com/elastic/elasticsearch/pull/144698)
+
+Search:
+* Fix `ArrayIndexOutOfBoundsException` in fetch phase with partial results [#144385](https://github.com/elastic/elasticsearch/pull/144385) (issue: [#140495](https://github.com/elastic/elasticsearch/issues/140495))
+* Fix circuit breaker leak in percolator query construction [#144827](https://github.com/elastic/elasticsearch/pull/144827)
+* Fix request cache invalidation to use ES cache helper consistently [#144581](https://github.com/elastic/elasticsearch/pull/144581)
+* Fix wrong return value in `ContextIndexSearcher.totalTermFreq` [#144333](https://github.com/elastic/elasticsearch/pull/144333)
+
+Snapshot/Restore:
+* Fix up exception messages in `AzureBlobStore` [#144654](https://github.com/elastic/elasticsearch/pull/144654)
+
+Vector Search:
+* Fix `dense_vector` default index options when using BFLOAT16 [#145202](https://github.com/elastic/elasticsearch/pull/145202) (issue: [#145204](https://github.com/elastic/elasticsearch/issues/145204))
+* [DiskBBQ] Fix index sorting on flush [#144938](https://github.com/elastic/elasticsearch/pull/144938)
+* [DiskBBQ] Fix index sorting on flush (2nd attempt) [#145076](https://github.com/elastic/elasticsearch/pull/145076)
+
+
+
 ## 9.3.2 [elasticsearch-9.3.2-release-notes]
 ```{applies_to}
 stack: ga 9.3.2
@@ -93,6 +151,8 @@ Transform:
 
 Vector Search:
 * Fix GPU merge `ClassCastException` with wrapped directories [#143531](https://github.com/elastic/elasticsearch/pull/143531)
+
+
 
 ## 9.2.7 [elasticsearch-9.2.7-release-notes]
 

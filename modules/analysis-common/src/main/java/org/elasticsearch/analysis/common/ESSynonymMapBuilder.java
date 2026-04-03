@@ -74,7 +74,8 @@ class ESSynonymMapBuilder {
             throw new IllegalArgumentException("output.length must be > 0 (got " + output.length + ")");
         }
 
-        if ((ruleCount++ & 0x3FF) == 0) {
+        // Check real memory circuit breaker every 8k
+        if ((ruleCount++ & 0x1FFF) == 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
         }
 

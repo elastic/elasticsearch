@@ -386,7 +386,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         var query = arena.allocate(queryVectorBytes);
         var scores = arena.allocate((long) count * Float.BYTES);
 
-        var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count - 1);
+        var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * (count - 1), ValueLayout.ADDRESS.byteAlignment());
         Exception ex = expectThrows(IOOBE, () -> nativeSimilarityBulkSparse(tooSmallAddrs, query, indexVectorBytes, count, scores));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 

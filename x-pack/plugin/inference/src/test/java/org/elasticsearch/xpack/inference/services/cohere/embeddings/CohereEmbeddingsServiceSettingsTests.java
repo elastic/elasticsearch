@@ -172,12 +172,12 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_Persistent_V2_NewModelIdField_CreatesSettingsCorrectly() {
+    public void testFromMap_V2_NewModelIdField_CreatesSettingsCorrectly() {
         assertFromMap_CreatesSettingsCorrectly(
             TEST_MODEL_ID,
             null,
             CohereServiceSettings.CohereApiVersion.V2,
-            ConfigurationParseContext.PERSISTENT,
+            randomFrom(ConfigurationParseContext.values()),
             TEST_MODEL_ID,
             CohereServiceSettings.CohereApiVersion.V2
         );
@@ -205,12 +205,12 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_Persistent_V2_LegacyModelIdField_CreatesSettingsCorrectly() {
+    public void testFromMap_V2_LegacyModelIdField_CreatesSettingsCorrectly() {
         assertFromMap_CreatesSettingsCorrectly(
             null,
             TEST_LEGACY_MODEL_ID,
             CohereServiceSettings.CohereApiVersion.V2,
-            ConfigurationParseContext.PERSISTENT,
+            randomFrom(ConfigurationParseContext.values()),
             TEST_LEGACY_MODEL_ID,
             CohereServiceSettings.CohereApiVersion.V2
         );

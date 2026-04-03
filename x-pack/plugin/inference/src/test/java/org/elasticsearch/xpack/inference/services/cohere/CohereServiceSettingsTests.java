@@ -55,11 +55,11 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     private static CohereServiceSettings createRandom(String url) {
         SimilarityMeasure similarityMeasure = null;
-        Integer dims = null;
+        Integer dimensions = null;
         var isTextEmbeddingModel = randomBoolean();
         if (isTextEmbeddingModel) {
             similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
-            dims = 1536;
+            dimensions = 1536;
         }
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         var model = randomAlphaOfLengthOrNull(15);
@@ -67,7 +67,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
         return new CohereServiceSettings(
             ServiceUtils.createOptionalUri(url),
             similarityMeasure,
-            dims,
+            dimensions,
             maxInputTokens,
             model,
             RateLimitSettingsTests.createRandom(),
@@ -78,7 +78,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
     public void testFromMap_EmptyUrl_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")), ConfigurationParseContext.PERSISTENT)
+            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")), randomFrom(ConfigurationParseContext.values()))
         );
 
         assertThat(
@@ -97,7 +97,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
             ValidationException.class,
             () -> CohereServiceSettings.fromMap(
                 new HashMap<>(Map.of(ServiceFields.URL, INVALID_TEST_URL)),
-                ConfigurationParseContext.PERSISTENT
+                randomFrom(ConfigurationParseContext.values())
             )
         );
 

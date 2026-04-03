@@ -25,9 +25,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
-  issue: https://github.com/elastic/elasticsearch/issues/120950
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -100,9 +97,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/139654
-- class: org.elasticsearch.smoketest.WatcherYamlRestIT
-  method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
-  issue: https://github.com/elastic/elasticsearch/issues/139663
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/140612
@@ -211,12 +205,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822
-- class: org.elasticsearch.indices.memory.breaker.AccountableQueryCircuitBreakerIT
-  method: testRangeQueryMemoryReleased
-  issue: https://github.com/elastic/elasticsearch/issues/144906
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testGiantTextFieldInSubqueryIntermediateResults
-  issue: https://github.com/elastic/elasticsearch/issues/144367
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReorderLimitProjectAndOrderByGoldenTests
   method: testLimitByAndProjectNotSwapped
   issue: https://github.com/elastic/elasticsearch/issues/144978
@@ -256,9 +244,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testLookupMissingTable
   issue: https://github.com/elastic/elasticsearch/issues/144695
-- class: org.elasticsearch.indices.memory.breaker.AccountableQueryCircuitBreakerIT
-  method: testPrefixQueryMemoryReleased
-  issue: https://github.com/elastic/elasticsearch/issues/145200
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/118733
@@ -324,12 +309,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:spatial-grid.gridGeohexByBounds}
   issue: https://github.com/elastic/elasticsearch/issues/145449
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/144587
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/144587
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:spatial-jts.stBufferFoldable}
   issue: https://github.com/elastic/elasticsearch/issues/145483
@@ -390,14 +369,8 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testResultSetNotInitialized
   issue: https://github.com/elastic/elasticsearch/issues/145573
-- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
-  method: test {p0=downsample/10_basic/Downsample index with multi-value dimensions}
-  issue: https://github.com/elastic/elasticsearch/issues/145575
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   issue: https://github.com/elastic/elasticsearch/issues/145461
-- class: org.elasticsearch.xpack.downsample.DownsampleRestIT
-  method: test {p0=downsample/10_basic/Downsample index with multi-value dimensions}
-  issue: https://github.com/elastic/elasticsearch/issues/145578
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidLongWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145580
@@ -416,15 +389,30 @@ tests:
 - class: org.elasticsearch.indices.IndexingMemoryControllerIT
   method: testDeletesAloneCanTriggerRefresh
   issue: https://github.com/elastic/elasticsearch/issues/145609
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse}
-  issue: https://github.com/elastic/elasticsearch/issues/145616
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
   method: testTopNByKeyEncoderTooMuchMemory
   issue: https://github.com/elastic/elasticsearch/issues/145627
 - class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
   method: testBlockWiseBinarySmallValues
   issue: https://github.com/elastic/elasticsearch/issues/145635
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testWriteLargeBlob
+  issue: https://github.com/elastic/elasticsearch/issues/145654
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:spatial_shapes.convertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/145655
+- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
+  method: testTSDBWithMultiplePrefixByte
+  issue: https://github.com/elastic/elasticsearch/issues/145668
+- class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
+  method: testRecreateTemplateWhenDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/123232
+- class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
+  method: testScaleWhileShrinking
+  issue: https://github.com/elastic/elasticsearch/issues/145669
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testScalarOnDates
+  issue: https://github.com/elastic/elasticsearch/issues/145667
 
 # Examples:
 #

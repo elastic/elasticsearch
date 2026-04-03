@@ -2425,6 +2425,8 @@ public class EsqlCapabilities {
          */
         USER_AGENT_COMMAND,
 
+        KEYWORDS_MV_COUNT_AS_SINGLE_VALUE_FIX,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

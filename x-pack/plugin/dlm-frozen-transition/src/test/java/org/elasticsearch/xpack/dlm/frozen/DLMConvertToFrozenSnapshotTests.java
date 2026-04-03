@@ -162,7 +162,12 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     }
 
     private DLMConvertToFrozen createConverter() {
-        return new DLMConvertToFrozen(indexName, projectId, createMockClient(), clusterService, licenseState, clock);
+        return new DLMConvertToFrozen(indexName, projectId, createMockClient(), clusterService, licenseState, clock) {
+            @Override
+            void sleepBeforePoll(String snapshotName, String indexName) {
+                // no-op in tests to avoid 30s Thread.sleep
+            }
+        };
     }
 
     private CreateSnapshotResponse createSuccessfulSnapshotResponse() {

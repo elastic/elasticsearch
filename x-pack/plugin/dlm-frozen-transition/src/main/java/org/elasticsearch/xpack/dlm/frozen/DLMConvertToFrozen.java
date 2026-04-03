@@ -348,22 +348,22 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * the repository. If a valid completed snapshot exists, skips re-taking the snapshot. If an invalid completed snapshot
      * exists (e.g. failed or partial), deletes it and starts a new one. If no completed snapshot exists, starts a new one.
      */
-    void maybeTakeSnapshot(String indexName) throws InterruptedException {
+    void maybeTakeSnapshot(String forceMergeIndex) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
 
         ProjectState projectState = getProjectState();
         ProjectMetadata projectMetadata = projectState.metadata();
         final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
-        String snapshotName = snapshotName(indexName);
+        String snapshotName = snapshotName(forceMergeIndex);
 
         SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(projectState.cluster());
         long snapshotStartTime = findSnapshotStartTime(snapshotsInProgress, projectId, repositoryName, snapshotName);
 
         if (snapshotStartTime >= 0) {
-            handleInProgressSnapshot(indexName, repositoryName, snapshotName, snapshotStartTime);
+            handleInProgressSnapshot(forceMergeIndex, repositoryName, snapshotName, snapshotStartTime);
         } else {
-            checkForOrphanedSnapshotAndStart(indexName, repositoryName, snapshotName);
+            checkForOrphanedSnapshotAndStart(forceMergeIndex, repositoryName, snapshotName);
         }
     }
 
@@ -686,7 +686,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             Thread.sleep(SNAPSHOT_POLL_INTERVAL.millis());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ElasticsearchException("DLM interrupted while waiting for snapshot [{}] for index [{}]", e, snapshotName, indexName);
         }
     }
 

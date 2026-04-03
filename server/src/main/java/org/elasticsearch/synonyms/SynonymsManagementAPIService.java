@@ -568,10 +568,7 @@ public class SynonymsManagementAPIService {
                             return;
                         }
                         Map<String, Object> source = getResponse.getSourceAsMap();
-                        l2.onResponse(new SynonymRule(
-                            (String) source.get(SYNONYM_RULE_ID_FIELD),
-                            (String) source.get(SYNONYMS_FIELD)
-                        ));
+                        l2.onResponse(new SynonymRule((String) source.get(SYNONYM_RULE_ID_FIELD), (String) source.get(SYNONYMS_FIELD)));
                     }))
             )
         );

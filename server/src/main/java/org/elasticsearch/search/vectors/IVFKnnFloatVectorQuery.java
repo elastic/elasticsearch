@@ -34,8 +34,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements PostFilterableKnnQuery {
 
-    private boolean isQueryPreconditioned = false;
-    private float[] query;
+    private volatile boolean isQueryPreconditioned = false;
+    private volatile float[] query;
     private final float[] originalQuery;
     private final Map<Integer, FixedBitSet> skipCentroidsPerLeaf;
     private final ConcurrentHashMap<Integer, FixedBitSet> visitedCentroidsPerLeaf = new ConcurrentHashMap<>();

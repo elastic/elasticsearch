@@ -128,7 +128,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         // Post-filter check: only for standard collector, not for subclass overrides (e.g., diversifying)
         IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
-        if (skipPostFilter == false && filterWeight != null && collectorManager.getClass() == IVFCollectorManager.class) {
+        if (skipPostFilter == false && filterWeight != null && collectorManager.supportsPostFiltering()) {
             float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
             if (selectivity > POST_FILTERING_THRESHOLD) {
                 return postFilterRewrite(filterWeight, selectivity, visitRatio, reader);
@@ -307,6 +307,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         public AbstractMaxScoreKnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context)
             throws IOException {
             return new MaxScoreTopKnnCollector(k, visitedLimit, searchStrategy);
+        }
+
+        public boolean supportsPostFiltering() {
+            return true;
         }
     }
 }

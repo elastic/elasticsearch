@@ -222,12 +222,12 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PostFilterAwareKnnQuery that = (PostFilterAwareKnnQuery) o;
-        return k == that.k && delegate.equals(that.delegate);
+        return k == that.k && delegate.equals(that.delegate) && filterWeight == that.filterWeight;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), delegate, k);
+        return Objects.hash(classHash(), delegate, k, System.identityHashCode(filterWeight));
     }
 
 }

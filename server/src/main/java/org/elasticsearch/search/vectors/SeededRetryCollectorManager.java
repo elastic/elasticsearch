@@ -42,12 +42,11 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
 
     @Override
     public KnnCollector newCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx) throws IOException {
-        DocIdSetIterator seedOrdinals = buildSeedOrdinals(ctx);
-        if (seedOrdinals == null) {
+        SeedResult seeds = buildSeedOrdinals(ctx);
+        if (seeds == null) {
             return delegate.newCollector(visitLimit, searchStrategy, ctx);
         }
-        int numSeeds = countSeedsForLeaf(ctx);
-        KnnSearchStrategy seeded = new KnnSearchStrategy.Seeded(seedOrdinals, numSeeds, searchStrategy);
+        KnnSearchStrategy seeded = new KnnSearchStrategy.Seeded(seeds.ordinals, seeds.count, searchStrategy);
         return delegate.newCollector(visitLimit, seeded, ctx);
     }
 
@@ -65,24 +64,13 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
         return delegate.isOptimistic();
     }
 
-    private int countSeedsForLeaf(LeafReaderContext ctx) {
-        int docBase = ctx.docBase;
-        int maxDoc = ctx.reader().maxDoc();
-        int count = 0;
-        for (ScoreDoc sd : seedResults.scoreDocs) {
-            int localDoc = sd.doc - docBase;
-            if (localDoc >= 0 && localDoc < maxDoc) {
-                count++;
-            }
-        }
-        return count;
-    }
+    private record SeedResult(DocIdSetIterator ordinals, int count) {}
 
     /**
      * Maps global seed doc IDs to vector ordinals for the given leaf.
      * Returns null if no seeds fall in this leaf or if vector values are unavailable.
      */
-    private DocIdSetIterator buildSeedOrdinals(LeafReaderContext ctx) throws IOException {
+    private SeedResult buildSeedOrdinals(LeafReaderContext ctx) throws IOException {
         int docBase = ctx.docBase;
         int maxDoc = ctx.reader().maxDoc();
 
@@ -120,7 +108,7 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
 
         final int finalCount = ordCount;
         final int[] finalOrdinals = Arrays.copyOf(ordinals, ordCount);
-        return new DocIdSetIterator() {
+        DocIdSetIterator disi = new DocIdSetIterator() {
             int idx = -1;
 
             @Override
@@ -149,6 +137,7 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
                 return finalCount;
             }
         };
+        return new SeedResult(disi, finalCount);
     }
 
     private KnnVectorValues.DocIndexIterator getDocIndexIterator(LeafReaderContext ctx) throws IOException {

@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -293,8 +294,12 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
     }
 
     public void testSearchShardCloseDuringCommitRegistration() throws Exception {
-        final String indexNodeA = startMasterAndIndexNode();
-        startSearchNode();
+        Settings settings = Settings.builder()
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
+            .build();
+
+        final String indexNodeA = startMasterAndIndexNode(settings);
+        startSearchNode(settings);
         ensureStableCluster(2);
         final var indexName = randomIdentifier();
         // Create an index with 2 primary shards to get ShardNotFoundException instead of IndexNotFoundException in the test
@@ -310,8 +315,8 @@ public class RecoveryCommitRegistrationIT extends AbstractStatelessPluginIntegTe
         final IndexService indexNodeAIndexService = indexNodeAIndicesService.iterator().next();
         final IndexShard indexShard = indexNodeAIndexService.getShard(0);
 
-        final String indexNodeB = startMasterAndIndexNode();
-        startSearchNode();
+        final String indexNodeB = startMasterAndIndexNode(settings);
+        startSearchNode(settings);
         ensureStableCluster(4);
 
         final CyclicBarrier commitRegistrationBarrier = new CyclicBarrier(2);

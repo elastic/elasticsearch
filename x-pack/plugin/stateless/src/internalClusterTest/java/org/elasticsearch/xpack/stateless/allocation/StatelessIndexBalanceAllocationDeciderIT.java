@@ -74,13 +74,13 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
     public void testIndexBalanceAllocationDecider() {
         setUpThreeHealthyIndexNodesAndThreeHealthSearchNodes();
 
-        // Index balanced allocation decider disabled.
+        // Disable the index balanced allocation decider.
+        updateClusterSettings(Settings.builder().put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false));
         final var clusterSettings = internalCluster().getCurrentMasterNodeInstance(ClusterSettings.class);
         assertFalse(clusterSettings.get(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING));
 
         // Override weight function to favour the first node
         // Disable balancer.balance() using a plugin provided decider with canRebalance() always returning false.
-        // IndexBalanceAllocationDecider is disabled by default.
         lightWeightedNodes.add(testHarness.firstIndexNode.getId());
         lightWeightedNodes.add(testHarness.firstSearchNode.getId());
 

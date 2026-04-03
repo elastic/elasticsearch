@@ -380,9 +380,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/145573
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   issue: https://github.com/elastic/elasticsearch/issues/145461
-- class: org.elasticsearch.xpack.downsample.DownsampleRestIT
-  method: test {p0=downsample/10_basic/Downsample index with multi-value dimensions}
-  issue: https://github.com/elastic/elasticsearch/issues/145578
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidLongWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145580

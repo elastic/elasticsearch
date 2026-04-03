@@ -159,6 +159,47 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testCounterMetricWithUnsupportedFunction() {
+        // network.bytes_in is a counter metric - avg_over_time doesn't support counters
+        tsdb.error(
+            "PROMQL index=test step=5m avg_over_time(network.bytes_in[5m])",
+            containsString("function [avg_over_time] does not support counter metric [network.bytes_in]")
+        );
+    }
+
+    public void testCounterMetricWithAcrossSeriesAggregateIsValid() {
+        // sum(counter) works because the implicit LastOverTime on the InstantSelector
+        // converts the counter type to its numeric base type before the aggregate sees it
+        var plan = tsdb.query("PROMQL index=test step=5m sum(network.bytes_in)");
+        assertTrue("sum() on a counter should be valid (implicit last_over_time converts the type)", plan.resolved());
+    }
+
+    public void testCounterMetricWithValueTransformationIsValid() {
+        // ceil(counter) works for the same reason — implicit LastOverTime on InstantSelector
+        var plan = tsdb.query("PROMQL index=test step=5m ceil(network.bytes_in)");
+        assertTrue("ceil() on a counter should be valid (implicit last_over_time converts the type)", plan.resolved());
+    }
+
+    public void testCounterMetricWithRateIsValid() {
+        // rate() accepts counter metrics - this should succeed
+        var plan = tsdb.query("PROMQL index=test step=5m rate(network.bytes_in[5m])");
+        assertTrue("rate() on a counter should be valid", plan.resolved());
+    }
+
+    public void testCounterMetricWithSumOfRateIsValid() {
+        // sum(rate(...)) is the standard pattern for counter metrics
+        var plan = tsdb.query("PROMQL index=test step=5m sum(rate(network.bytes_in[5m]))");
+        assertTrue("sum(rate()) on a counter should be valid", plan.resolved());
+    }
+
+    public void testGaugeMetricWithCounterOnlyFunction() {
+        // network.connections is a gauge - rate() requires counter metrics
+        tsdb.error(
+            "PROMQL index=test step=5m rate(network.connections[5m])",
+            containsString("function [rate] requires a counter metric, but [network.connections] has type [long]")
+        );
+    }
+
     public void testRateOnNonNumericField() {
         // host is a keyword dimension field, not a numeric metric - should get a clear 4xx-style error
         tsdb.error(

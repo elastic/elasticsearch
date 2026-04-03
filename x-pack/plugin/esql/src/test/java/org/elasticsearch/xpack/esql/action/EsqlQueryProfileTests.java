@@ -28,6 +28,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomTimeSpan(),
             randomTimeSpan(),
             randomTimeSpan(),
+            randomTimeSpan(),
             randomIntBetween(0, 100)
         );
     }
@@ -37,20 +38,22 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         TimeSpan query = instance.total().timeSpan();
         TimeSpan planning = instance.planning().timeSpan();
         TimeSpan parsing = instance.parsing().timeSpan();
+        TimeSpan viewResolution = instance.viewResolution().timeSpan();
         TimeSpan preAnalysis = instance.preAnalysis().timeSpan();
         TimeSpan dependencyResolution = instance.dependencyResolution().timeSpan();
         TimeSpan analysis = instance.analysis().timeSpan();
         int fieldCapsCalls = instance.fieldCapsCalls();
-        switch (randomIntBetween(0, 6)) {
+        switch (randomIntBetween(0, 7)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
-            case 3 -> preAnalysis = randomValueOtherThan(preAnalysis, EsqlQueryProfileTests::randomTimeSpan);
-            case 4 -> dependencyResolution = randomValueOtherThan(dependencyResolution, EsqlQueryProfileTests::randomTimeSpan);
-            case 5 -> analysis = randomValueOtherThan(analysis, EsqlQueryProfileTests::randomTimeSpan);
-            case 6 -> fieldCapsCalls = randomValueOtherThan(fieldCapsCalls, () -> randomIntBetween(0, 100));
+            case 3 -> viewResolution = randomValueOtherThan(viewResolution, EsqlQueryProfileTests::randomTimeSpan);
+            case 4 -> preAnalysis = randomValueOtherThan(preAnalysis, EsqlQueryProfileTests::randomTimeSpan);
+            case 5 -> dependencyResolution = randomValueOtherThan(dependencyResolution, EsqlQueryProfileTests::randomTimeSpan);
+            case 6 -> analysis = randomValueOtherThan(analysis, EsqlQueryProfileTests::randomTimeSpan);
+            case 7 -> fieldCapsCalls = randomValueOtherThan(fieldCapsCalls, () -> randomIntBetween(0, 100));
         }
-        return new EsqlQueryProfile(query, planning, parsing, preAnalysis, dependencyResolution, analysis, fieldCapsCalls);
+        return new EsqlQueryProfile(query, planning, parsing, viewResolution, preAnalysis, dependencyResolution, analysis, fieldCapsCalls);
     }
 
     private static TimeSpan randomTimeSpan() {

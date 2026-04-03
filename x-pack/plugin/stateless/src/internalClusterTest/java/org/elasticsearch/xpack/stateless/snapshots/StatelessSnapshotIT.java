@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -196,7 +197,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         );
     }
 
-    public void testSnapshotHollowShard() {
+    public void testSnapshotHollowShard() throws Exception {
         final Settings settings = Settings.builder()
             .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store")
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
@@ -213,8 +214,8 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
         final int nDocs = indexAndMaybeFlush(indexName);
 
-        // Ensure that the shard becomes hollow
-        safeSleep(100); //
+        final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, node0);
+        assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(findIndexShard(indexName)), equalTo(true)));
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node0));
         ensureGreen(indexName);

@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -17,13 +19,15 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -70,6 +74,24 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.INTEGER, schema.get(2).dataType());
         assertEquals("active", schema.get(3).name());
         assertEquals(DataType.BOOLEAN, schema.get(3).dataType());
+    }
+
+    public void testTypedSchemaTextAndTxtAliasesMapToKeyword() throws IOException {
+        String csv = """
+            a:text,b:txt
+            hello,world
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        List<Attribute> schema = reader.schema(object);
+
+        assertEquals(2, schema.size());
+        assertEquals("a", schema.get(0).name());
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+        assertEquals("b", schema.get(1).name());
+        assertEquals(DataType.KEYWORD, schema.get(1).dataType());
     }
 
     public void testSchemaWithComments() throws IOException {
@@ -322,6 +344,60 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testSchemaWithIpType() throws IOException {
+        String csv = """
+            domain:keyword,public_ip:ip
+            www.elastic.co,8.8.8.8
+            discuss.elastic.co,2001:4860:4860::8888
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        List<Attribute> schema = reader.schema(object);
+
+        assertEquals(2, schema.size());
+        assertEquals("domain", schema.get(0).name());
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+        assertEquals("public_ip", schema.get(1).name());
+        assertEquals(DataType.IP, schema.get(1).dataType());
+    }
+
+    public void testReadIpType() throws IOException {
+        String csv = """
+            domain:keyword,public_ip:ip
+            www.elastic.co,8.8.8.8
+            discuss.elastic.co,2001:4860:4860::8888
+            files.internal,10.0.0.5
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+            assertEquals(2, page.getBlockCount());
+
+            BytesRef expected8 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("8.8.8.8")));
+            BytesRef expectedIpv6 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("2001:4860:4860::8888")));
+            BytesRef expected10 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.5")));
+
+            assertEquals(new BytesRef("www.elastic.co"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(expected8, ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+
+            assertEquals(new BytesRef("discuss.elastic.co"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
+            assertEquals(expectedIpv6, ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+
+            assertEquals(new BytesRef("files.internal"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(2, new BytesRef()));
+            assertEquals(expected10, ((BytesRefBlock) page.getBlock(1)).getBytesRef(2, new BytesRef()));
+
+            assertFalse(iterator.hasNext());
+        }
+    }
+
     public void testUnsupportedType() {
         String csv = "id:unsupported_type\n";
         StorageObject object = createStorageObject(csv);
@@ -349,7 +425,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
-            try (CloseableIterator<Page> iterator = reader.read(object, null, 10, ErrorPolicy.STRICT)) {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -370,7 +451,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy lenient = new ErrorPolicy(10, true);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, lenient)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(10).errorPolicy(lenient).build())
+        ) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
 
@@ -397,7 +480,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         ErrorPolicy limited = new ErrorPolicy(2, false);
 
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
-            try (CloseableIterator<Page> iterator = reader.read(object, null, 10, limited)) {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(limited).build()
+                )
+            ) {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -418,7 +506,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy lenient = new ErrorPolicy(10, true);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, lenient)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(10).errorPolicy(lenient).build())
+        ) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
 
@@ -441,7 +531,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy lenient = new ErrorPolicy(100, true);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, lenient)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(10).errorPolicy(lenient).build())
+        ) {
             assertFalse(iterator.hasNext());
         }
     }
@@ -461,7 +553,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         ErrorPolicy lenient = new ErrorPolicy(100, false);
 
         int totalRows = 0;
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 5, lenient)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(5).errorPolicy(lenient).build())
+        ) {
             while (iterator.hasNext()) {
                 Page page = iterator.next();
                 totalRows += page.getPositionCount();
@@ -485,7 +579,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         ErrorPolicy ratioPolicy = new ErrorPolicy(Long.MAX_VALUE, 0.3, true);
 
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
-            try (CloseableIterator<Page> iterator = reader.read(object, null, 10, ratioPolicy)) {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ratioPolicy).build()
+                )
+            ) {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -509,7 +608,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         ErrorPolicy ratioPolicy = new ErrorPolicy(Long.MAX_VALUE, 0.1, false);
 
         int totalRows = 0;
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 200, ratioPolicy)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(200).errorPolicy(ratioPolicy).build()
+            )
+        ) {
             while (iterator.hasNext()) {
                 totalRows += iterator.next().getPositionCount();
             }
@@ -730,7 +834,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         ErrorPolicy lenient = new ErrorPolicy(100, true);
 
         int totalRows = 0;
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, lenient)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(10).errorPolicy(lenient).build())
+        ) {
             while (iterator.hasNext()) {
                 totalRows += iterator.next().getPositionCount();
             }
@@ -757,7 +863,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         ErrorPolicy lenient = new ErrorPolicy(100, false);
 
         int totalRows = 0;
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 200, lenient)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(200).errorPolicy(lenient).build())
+        ) {
             while (iterator.hasNext()) {
                 totalRows += iterator.next().getPositionCount();
             }
@@ -1093,7 +1201,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(permissive).build()
+            )
+        ) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(3, page.getPositionCount());
@@ -1121,7 +1234,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(permissive).build()
+            )
+        ) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(3, page.getPositionCount());
@@ -1145,7 +1263,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 1, 0.0, false);
 
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> {
-            try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(permissive).build()
+                )
+            ) {
                 while (iterator.hasNext()) {
                     iterator.next();
                 }
@@ -1166,7 +1289,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(permissive).build()
+            )
+        ) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(3, page.getPositionCount());
@@ -1288,6 +1416,37 @@ public class CsvFormatReaderTests extends ESTestCase {
             }
         });
         assertTrue(e.getMessage().contains("Failed to parse CSV value"));
+    }
+
+    public void testWithConfigSchemaSampleSizeOverride() throws IOException {
+        StringBuilder csv = new StringBuilder();
+        csv.append("id,value\n");
+        for (int i = 0; i < 200; i++) {
+            csv.append(i).append(",text_").append(i).append("\n");
+        }
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
+        FormatReader configured = baseReader.withConfig(Map.of("schema_sample_size", "50"));
+        try (CloseableIterator<Page> iterator = configured.read(object, null, 1000)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertTrue(page.getPositionCount() > 0);
+        }
+    }
+
+    public void testWithConfigSchemaSampleSizeZeroIsRejected() {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
+    }
+
+    public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
+    }
+
+    public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "abc")));
     }
 
     // --- Multi-value bracket syntax tests ---
@@ -1796,7 +1955,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
         ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(permissive).build()
+            )
+        ) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
@@ -1823,7 +1987,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
         ErrorPolicy skipRow = new ErrorPolicy(10, true);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, skipRow)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(10).errorPolicy(skipRow).build())
+        ) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(1, page.getPositionCount());
@@ -1900,7 +2066,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         ErrorPolicy dropMalformed = new ErrorPolicy(numBad + 10, false);
 
         int totalRows = 0;
-        try (CloseableIterator<Page> iterator = reader.read(object, null, between(2, 15), dropMalformed)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(between(2, 15)).errorPolicy(dropMalformed).build()
+            )
+        ) {
             while (iterator.hasNext()) {
                 totalRows += iterator.next().getPositionCount();
             }
@@ -1924,7 +2095,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
 
         int totalRows = 0;
-        try (CloseableIterator<Page> iterator = reader.read(object, null, between(2, 15), permissive)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(between(2, 15)).errorPolicy(permissive).build()
+            )
+        ) {
             while (iterator.hasNext()) {
                 Page page = iterator.next();
                 totalRows += page.getPositionCount();
@@ -1983,6 +2159,16 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
     }
 
+    public void testFindNextRecordBoundaryQuotedNewlineAcrossSplitBoundary() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        // Simulate a split boundary landing inside a quoted field with embedded newlines.
+        // The boundary finder must skip past the quoted field to find the real record boundary.
+        byte[] data = "partial,\"quoted\nfield\nwith\nnewlines\",end\nnext_record,b,c\n".getBytes(StandardCharsets.UTF_8);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        int expected = "partial,\"quoted\nfield\nwith\nnewlines\",end\n".length();
+        assertEquals(expected, boundary);
+    }
+
     public void testFindNextRecordBoundaryAtBufferBoundary() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] padding = new byte[8191];
@@ -2024,7 +2210,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy lenient = new ErrorPolicy(100, true);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, lenient)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(10).errorPolicy(lenient).build())
+        ) {
             while (iterator.hasNext()) {
                 iterator.next();
             }
@@ -2047,7 +2235,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy permissive = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10, permissive)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(permissive).build()
+            )
+        ) {
             while (iterator.hasNext()) {
                 iterator.next();
             }
@@ -2069,7 +2262,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         ErrorPolicy lenient = new ErrorPolicy(100, false);
 
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 50, lenient)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(50).errorPolicy(lenient).build())
+        ) {
             while (iterator.hasNext()) {
                 iterator.next();
             }

@@ -70,6 +70,7 @@ import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;
 import static org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin.VERSIONS_EXT;
+import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.RECENT_JDK_RELEASES_CATALOG_URL;
 import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuild;
 import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findPreReleaseBuild;
 
@@ -434,7 +435,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private RuntimeJava resolvePreReleaseRuntimeJavaHome(String runtimeJavaProperty, String bundledJdkMajorVersion) {
         var major = JavaLanguageVersion.of(Integer.parseInt(runtimeJavaProperty.substring(0, runtimeJavaProperty.length() - 4)));
         Integer buildNumber = Integer.getInteger("runtime.java.build");
-        var jdkbuild = buildNumber == null ? findLatestPreReleaseBuild(major) : findPreReleaseBuild(major, buildNumber);
+        var jdkbuild = (buildNumber == null ? findLatestPreReleaseBuild(major) : findPreReleaseBuild(major, buildNumber)).orElseThrow(
+            () -> new IllegalStateException("No pre-release JDK build found for Java " + major + " in " + RECENT_JDK_RELEASES_CATALOG_URL)
+        );
         String preReleaseType = jdkbuild.type();
         String prVersionString = String.format("%d-%s+%d", major.asInt(), preReleaseType, jdkbuild.buildNumber());
         NamedDomainObjectContainer<Jdk> container = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");

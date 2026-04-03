@@ -36,13 +36,13 @@ public class TransportInfoTests extends ESTestCase {
     public void testCorrectlyDisplayPublishedCname() throws Exception {
         InetAddress address = InetAddress.getByName("localhost");
         int port = 9200;
-        assertPublishAddress(createTransportInfo(address, port), "localhost/" + NetworkAddress.format(address) + ':' + port);
+        assertPublishAddress(createTransportInfo(address, port), "localhost/" + NetworkAddress.format(address, port));
     }
 
     public void testCorrectDisplayPublishedIp() throws Exception {
         InetAddress address = InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("localhost")));
         int port = 9200;
-        assertPublishAddress(createTransportInfo(address, port), NetworkAddress.format(address) + ':' + port);
+        assertPublishAddress(createTransportInfo(address, port), NetworkAddress.format(address, port));
     }
 
     public void testCorrectDisplayPublishedIpv6() throws Exception {

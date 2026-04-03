@@ -12,6 +12,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadata.Display;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class ElasticInferenceServiceAuthorizationResponseEntityTests extends ESTestCase {
@@ -59,10 +61,14 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     public static final String ELSER_V2_MODEL_NAME = "elser_model_2";
     public static final String EIS_SPARSE_PATH = "embed/text/sparse";
 
-    // multilingual-text-embed
+    // jina-embeddings-v3
     public static final String JINA_EMBED_V3_ENDPOINT_ID = ".jina-embeddings-v3";
     public static final String JINA_EMBED_V3_MODEL_NAME = "jina-embeddings-v3";
     public static final String EIS_TEXT_EMBED_PATH = "embed/text/dense";
+
+    // jina-embeddings-v5-text-small
+    public static final String JINA_EMBED_V5_ENDPOINT_ID = ".jina-embeddings-v5-text-small";
+    public static final String JINA_EMBED_V5_MODEL_NAME = "jina-embeddings-v5-text-small";
 
     // multimodal embedding
     public static final String JINA_CLIP_V2_ENDPOINT_ID = ".jina-clip-v2";
@@ -83,7 +89,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
 
     public static final String EIS_EMPTY_RESPONSE = """
         {
-          "inference_endpoints": []
+          "inference_endpoints": [],
+          "removed_endpoints": []
         }
         """;
 
@@ -103,7 +110,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
               ],
               "release_date": "2024-05-01",
               "end_of_life_date": "2024-05-02",
-              "display_name": "Rainbow Sprinkles Elastic",
+              "display": {
+                "name": "Rainbow Sprinkles",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint123"
             }
           ]
@@ -136,7 +146,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                   "overlap": 2
                 }
               },
-              "display_name": "Jina Embeddings V3",
+              "display": {
+                "name": "Jina Embeddings V3",
+                "model_creator": "Jina"
+              },
               "fingerprint": "fingerprint456"
             }
           ]
@@ -165,7 +178,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                   "sentence_overlap": 1
                 }
               },
-              "display_name": "Elser 2 Elastic",
+              "display": {
+                "name": "ELSER v2",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint789"
             }
           ]
@@ -188,7 +204,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
               ],
               "release_date": "2024-05-01",
               "end_of_life_date": "2024-05-02",
-              "display_name": "Rainbow Sprinkles Elastic",
+              "display": {
+                "name": "Rainbow Sprinkles",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint123"
             },
             {
@@ -203,7 +222,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 "multilingual"
               ],
               "release_date": "2024-05-01",
-              "display_name": "Gp Llm V2 Chat Completion",
+              "display": {
+                "name": "Gp Llm V2 Chat Completion",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint234"
             },
             {
@@ -218,7 +240,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 "multilingual"
               ],
               "release_date": "2024-05-01",
-              "display_name": "Gp Llm V2 Completion",
+              "display": {
+                "name": "Gp Llm V2 Completion",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint345"
             },
             {
@@ -240,7 +265,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                   "sentence_overlap": 1
                 }
               },
-              "display_name": "Elser 2 Elastic",
+              "display": {
+                "name": "ELSER v2",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint789"
             },
             {
@@ -266,8 +294,39 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                   "overlap": 2
                 }
               },
-              "display_name": "Jina Embeddings V3",
+              "display": {
+                "name": "Jina Embeddings V3",
+                "model_creator": "Jina"
+              },
               "fingerprint": "fingerprint456"
+            },
+            {
+              "id": ".jina-embeddings-v5-text-small",
+              "model_name": "jina-embeddings-v5-text-small",
+              "task_types": {
+                "eis": "embed/text/dense",
+                "elasticsearch": "text_embedding"
+              },
+              "status": "ga",
+              "properties": [
+                "multilingual"
+              ],
+              "release_date": "2024-05-01",
+              "configuration": {
+                "similarity": "cosine",
+                "dimensions": 1024,
+                "element_type": "float",
+                "chunking_settings": {
+                  "strategy": "sentence",
+                  "max_chunk_size": 250,
+                  "sentence_overlap": 1
+                }
+              },
+              "display": {
+                "name": "Jina Embeddings V5 Text Small",
+                "model_creator": "Jina"
+              },
+              "fingerprint": "fingerprintV5"
             },
             {
               "id": ".jina-clip-v2",
@@ -293,7 +352,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                   "overlap": 2
                 }
               },
-              "display_name": "Jina Clip V2",
+              "display": {
+                "name": "Jina Clip V2",
+                "model_creator": "Jina"
+              },
               "fingerprint": "fingerprint_clip_v2"
             },
             {
@@ -306,28 +368,34 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
               "status": "preview",
               "properties": [],
               "release_date": "2024-05-01",
-              "display_name": "Jina Reranker V2",
+              "display": {
+                "name": "Jina Reranker V2",
+                "model_creator": "Jina"
+              },
               "fingerprint": "fingerprint567"
             }
-          ]
+          ],
+          "removed_endpoints": ["removed-endpoint-1", "removed-endpoint-2"]
         }
         """;
 
     private static final String RELEASE_DATE_STRING = "2024-05-01";
     private static final String END_OF_LIFE_DATE_STRING = "2024-05-02";
-    private static final String RAINBOW_SPRINKLES_DISPLAY_NAME = "Rainbow Sprinkles Elastic";
+    private static final Display RAINBOW_SPRINKLES_DISPLAY = new Display("Rainbow Sprinkles", "Elastic");
     private static final String RAINBOW_SPRINKLES_FINGERPRINT = "fingerprint123";
-    private static final String GP_LLM_V2_CHAT_COMPLETION_DISPLAY_NAME = "Gp Llm V2 Chat Completion";
+    private static final Display GP_LLM_V2_CHAT_COMPLETION_DISPLAY = new Display("Gp Llm V2 Chat Completion", "Elastic");
     private static final String GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT = "fingerprint234";
-    private static final String GP_LLM_V2_COMPLETION_DISPLAY_NAME = "Gp Llm V2 Completion";
+    private static final Display GP_LLM_V2_COMPLETION_DISPLAY = new Display("Gp Llm V2 Completion", "Elastic");
     private static final String GP_LLM_V2_COMPLETION_FINGERPRINT = "fingerprint345";
-    private static final String ELSER_V2_DISPLAY_NAME = "Elser 2 Elastic";
+    private static final Display ELSER_V2_DISPLAY = new Display("ELSER v2", "Elastic");
     private static final String ELSER_V2_FINGERPRINT = "fingerprint789";
-    private static final String JINA_EMBED_V3_DISPLAY_NAME = "Jina Embeddings V3";
+    private static final Display JINA_EMBED_V3_DISPLAY = new Display("Jina Embeddings V3", "Jina");
     private static final String JINA_EMBED_V3_FINGERPRINT = "fingerprint456";
-    private static final String JINA_CLIP_V2_DISPLAY_NAME = "Jina Clip V2";
+    private static final Display JINA_EMBED_V5_DISPLAY = new Display("Jina Embeddings V5 Text Small", "Jina");
+    private static final String JINA_EMBED_V5_FINGERPRINT = "fingerprintV5";
+    private static final Display JINA_CLIP_V2_DISPLAY = new Display("Jina Clip V2", "Jina");
     private static final String JINA_CLIP_V2_FINGERPRINT = "fingerprint_clip_v2";
-    private static final String RERANK_V1_DISPLAY_NAME = "Jina Reranker V2";
+    private static final Display RERANK_V1_DISPLAY = new Display("Jina Reranker V2", "Jina");
     private static final String RERANK_V1_FINGERPRINT = "fingerprint567";
     private static final LocalDate RELEASE_DATE_PARSED = LocalDate.parse(RELEASE_DATE_STRING);
     private static final LocalDate END_OF_LIFE_DATE_PARSED = LocalDate.parse(END_OF_LIFE_DATE_STRING);
@@ -341,7 +409,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
 
         return new EisAuthorizationResponse(
             EIS_ELSER_RESPONSE,
-            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints),
+            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints, Set.of()),
             List.of(createElserExpectedEndpoint(url)),
             inferenceIds
         );
@@ -357,7 +425,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("english"), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(ELSER_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(ELSER_V2_DISPLAY_NAME)
+                ELSER_V2_DISPLAY
             )
         );
     }
@@ -377,7 +445,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 null,
                 Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
             ),
-            ELSER_V2_DISPLAY_NAME,
+            ELSER_V2_DISPLAY,
             ELSER_V2_FINGERPRINT
         );
     }
@@ -396,6 +464,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             createGpLlmV2CompletionAuthorizedEndpoint(),
             createElserAuthorizedEndpoint(),
             createJinaTextEmbedAuthorizedEndpoint(),
+            createJinaV5TextEmbedAuthorizedEndpoint(),
             createJinaMultimodalEmbedAuthorizedEndpoint(),
             createRerankV1AuthorizedEndpoint()
         );
@@ -406,13 +475,14 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
 
         return new EisAuthorizationResponse(
             EIS_AUTHORIZATION_RESPONSE_V2,
-            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints),
+            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints, Set.of("removed-endpoint-1", "removed-endpoint-2")),
             List.of(
                 createRainbowSprinklesExpectedEndpoint(url),
                 createGpLlmV2ChatCompletionExpectedEndpoint(url),
                 createGpLlmV2CompletionExpectedEndpoint(url),
                 createElserExpectedEndpoint(url),
                 createJinaExpectedTextEmbeddingEndpoint(url),
+                createJinaV5ExpectedTextEmbeddingEndpoint(url),
                 createJinaExpectedMultimodalEmbeddingEndpoint(url),
                 createRerankV1ExpectedEndpoint(url)
             ),
@@ -430,7 +500,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             RELEASE_DATE_STRING,
             END_OF_LIFE_DATE_STRING,
             null,
-            RAINBOW_SPRINKLES_DISPLAY_NAME,
+            RAINBOW_SPRINKLES_DISPLAY,
             RAINBOW_SPRINKLES_FINGERPRINT
         );
     }
@@ -444,7 +514,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(GP_LLM_V2_CHAT_COMPLETION_DISPLAY_NAME)
+                GP_LLM_V2_CHAT_COMPLETION_DISPLAY
             )
         );
     }
@@ -458,7 +528,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(GP_LLM_V2_COMPLETION_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(GP_LLM_V2_COMPLETION_DISPLAY_NAME)
+                GP_LLM_V2_COMPLETION_DISPLAY
             )
         );
     }
@@ -473,7 +543,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             RELEASE_DATE_STRING,
             null,
             null,
-            GP_LLM_V2_CHAT_COMPLETION_DISPLAY_NAME,
+            GP_LLM_V2_CHAT_COMPLETION_DISPLAY,
             GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT
         );
     }
@@ -488,7 +558,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             RELEASE_DATE_STRING,
             null,
             null,
-            GP_LLM_V2_COMPLETION_DISPLAY_NAME,
+            GP_LLM_V2_COMPLETION_DISPLAY,
             GP_LLM_V2_COMPLETION_FINGERPRINT
         );
     }
@@ -507,7 +577,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                     END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(RAINBOW_SPRINKLES_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(RAINBOW_SPRINKLES_DISPLAY_NAME)
+                RAINBOW_SPRINKLES_DISPLAY
             )
         );
     }
@@ -521,7 +591,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
 
         return new EisAuthorizationResponse(
             EIS_RAINBOW_SPRINKLES_RESPONSE,
-            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints),
+            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints, Set.of()),
             List.of(createRainbowSprinklesExpectedEndpoint(url)),
             inferenceIds
         );
@@ -536,7 +606,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
 
         return new EisAuthorizationResponse(
             EIS_JINA_TEXT_EMBED_RESPONSE,
-            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints),
+            new ElasticInferenceServiceAuthorizationResponseEntity(authorizedEndpoints, Set.of()),
             List.of(createJinaExpectedTextEmbeddingEndpoint(url)),
             inferenceIds
         );
@@ -557,7 +627,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 "float",
                 Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
             ),
-            JINA_EMBED_V3_DISPLAY_NAME,
+            JINA_EMBED_V3_DISPLAY,
             JINA_EMBED_V3_FINGERPRINT
         );
     }
@@ -577,7 +647,42 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                     null
                 ),
                 new EndpointMetadata.Internal(JINA_EMBED_V3_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(JINA_EMBED_V3_DISPLAY_NAME)
+                JINA_EMBED_V3_DISPLAY
+            )
+        );
+    }
+
+    private static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createJinaV5TextEmbedAuthorizedEndpoint() {
+        return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+            JINA_EMBED_V5_ENDPOINT_ID,
+            JINA_EMBED_V5_MODEL_NAME,
+            createTaskTypeObject(EIS_TEXT_EMBED_PATH, "text_embedding"),
+            "ga",
+            List.of("multilingual"),
+            RELEASE_DATE_STRING,
+            null,
+            new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
+                "cosine",
+                1024,
+                "float",
+                Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
+            ),
+            JINA_EMBED_V5_DISPLAY,
+            JINA_EMBED_V5_FINGERPRINT
+        );
+    }
+
+    private static ElasticInferenceServiceModel createJinaV5ExpectedTextEmbeddingEndpoint(String url) {
+        return new ElasticInferenceServiceDenseEmbeddingsModel(
+            JINA_EMBED_V5_ENDPOINT_ID,
+            TaskType.TEXT_EMBEDDING,
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_EMBED_V5_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
+            new ElasticInferenceServiceComponents(url),
+            new SentenceBoundaryChunkingSettings(250, 1),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
+                new EndpointMetadata.Internal(JINA_EMBED_V5_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
+                JINA_EMBED_V5_DISPLAY
             )
         );
     }
@@ -597,7 +702,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 "float",
                 Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
             ),
-            JINA_CLIP_V2_DISPLAY_NAME,
+            JINA_CLIP_V2_DISPLAY,
             JINA_CLIP_V2_FINGERPRINT
         );
     }
@@ -617,7 +722,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                     null
                 ),
                 new EndpointMetadata.Internal(JINA_CLIP_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(JINA_CLIP_V2_DISPLAY_NAME)
+                JINA_CLIP_V2_DISPLAY
             )
         );
     }
@@ -632,7 +737,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             RELEASE_DATE_STRING,
             null,
             null,
-            RERANK_V1_DISPLAY_NAME,
+            RERANK_V1_DISPLAY,
             RERANK_V1_FINGERPRINT
         );
     }
@@ -646,7 +751,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(RERANK_V1_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(RERANK_V1_DISPLAY_NAME)
+                RERANK_V1_DISPLAY
             )
         );
     }
@@ -657,7 +762,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 1,
                 5,
                 () -> createAuthorizedEndpoint(randomFrom(ElasticInferenceService.IMPLEMENTED_TASK_TYPES), () -> randomAlphaOfLength(10))
-            )
+            ),
+            Set.of()
         );
     }
 
@@ -665,7 +771,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
         var id = randomAlphaOfLength(10);
         var name = randomAlphaOfLength(10);
         var status = randomFrom("ga", "beta", "preview");
-        var kibanaConnectorName = "Test Connector Name";
+        var display = new Display("Test Connector Name", "Test Model Creator");
         var fingerprint = "fingerprint" + randomAlphaOfLength(5);
 
         return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -677,7 +783,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             "",
             "",
             null,
-            kibanaConnectorName,
+            display,
             fingerprint
         );
     }
@@ -707,7 +813,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 RELEASE_DATE_STRING,
                 null,
                 null,
-                "Chat Completion Connector",
+                new Display("Chat Completion Connector", "ChatCompletion Creator"),
                 fingerprintSupplier.get()
             );
             case SPARSE_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -719,7 +825,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 RELEASE_DATE_STRING,
                 null,
                 null,
-                "Sparse Embedding Connector",
+                new Display("Sparse Embedding Connector", "Sparse Creator"),
                 fingerprintSupplier.get()
             );
             case TEXT_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -736,7 +842,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                     DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                     null
                 ),
-                "Text Embedding Connector",
+                new Display("Text Embedding Connector", "Text Creator"),
                 fingerprintSupplier.get()
             );
             case EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -753,7 +859,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                     DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                     null
                 ),
-                "Embedding Connector",
+                new Display("Embedding Connector", "Embedding Creator"),
                 fingerprintSupplier.get()
             );
             case RERANK -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -765,7 +871,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 RELEASE_DATE_STRING,
                 null,
                 null,
-                "Rerank Connector",
+                new Display("Rerank Connector", "Rerank Creator"),
                 fingerprintSupplier.get()
             );
             case COMPLETION -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -777,7 +883,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
                 RELEASE_DATE_STRING,
                 END_OF_LIFE_DATE_STRING,
                 null,
-                "Completion Connector",
+                new Display("Completion Connector", "Completion Creator"),
                 fingerprintSupplier.get()
             );
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
@@ -787,31 +893,63 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
     public void testParseAllFields() throws IOException {
         var url = "http://example.com/authorize";
         var responseData = getEisAuthorizationResponseWithMultipleEndpoints(url);
-        try (var parser = createParser(JsonXContent.jsonXContent, responseData.responseJson())) {
-            var entity = ElasticInferenceServiceAuthorizationResponseEntity.PARSER.apply(parser, null);
+        var entity = parse(responseData.responseJson);
 
-            assertThat(entity, is(responseData.responseEntity()));
+        assertThat(entity, is(responseData.responseEntity()));
 
-            var authModel = ElasticInferenceServiceAuthorizationModel.of(responseData.responseEntity(), url);
-            assertThat(authModel.getEndpointIds(), containsInAnyOrder(responseData.inferenceIds().toArray(String[]::new)));
+        var authModel = ElasticInferenceServiceAuthorizationModel.of(responseData.responseEntity(), url);
+        assertThat(authModel.getEndpointIds(), containsInAnyOrder(responseData.inferenceIds().toArray(String[]::new)));
 
-            assertThat(
-                authModel.getTaskTypes(),
-                is(
-                    EnumSet.of(
-                        TaskType.CHAT_COMPLETION,
-                        TaskType.SPARSE_EMBEDDING,
-                        TaskType.TEXT_EMBEDDING,
-                        TaskType.EMBEDDING,
-                        TaskType.RERANK,
-                        TaskType.COMPLETION
-                    )
+        assertThat(
+            authModel.getTaskTypes(),
+            is(
+                EnumSet.of(
+                    TaskType.CHAT_COMPLETION,
+                    TaskType.SPARSE_EMBEDDING,
+                    TaskType.TEXT_EMBEDDING,
+                    TaskType.EMBEDDING,
+                    TaskType.RERANK,
+                    TaskType.COMPLETION
                 )
-            );
-            assertThat(
-                authModel.getEndpoints(responseData.inferenceIds()),
-                containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
-            );
+            )
+        );
+        assertThat(
+            authModel.getEndpoints(responseData.inferenceIds()),
+            containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
+        );
+        assertThat(authModel.getRemovedEndpoints(), containsInAnyOrder("removed-endpoint-1", "removed-endpoint-2"));
+    }
+
+    public void testParseEmptyResponse() throws IOException {
+        ElasticInferenceServiceAuthorizationResponseEntity response = parse(EIS_EMPTY_RESPONSE);
+        assertThat(response.authorizedEndpoints(), is(empty()));
+        assertThat(response.removedEndpoints(), is(empty()));
+    }
+
+    public void testParse_GivenRemovedEndpointsFieldIsMissing() throws IOException {
+        ElasticInferenceServiceAuthorizationResponseEntity response = parse("""
+            {
+                "inference_endpoints": []
+            }
+            """);
+        assertThat(response.authorizedEndpoints(), is(empty()));
+        assertThat(response.removedEndpoints(), is(empty()));
+    }
+
+    public void testParse_GivenRemovedEndpointsContainDuplicates() throws IOException {
+        ElasticInferenceServiceAuthorizationResponseEntity response = parse("""
+            {
+                "inference_endpoints": [],
+                "removed_endpoints": ["endpoint-1", "endpoint-1", "endpoint-2"]
+            }
+            """);
+        assertThat(response.authorizedEndpoints(), is(empty()));
+        assertThat(response.removedEndpoints(), containsInAnyOrder("endpoint-1", "endpoint-2"));
+    }
+
+    private ElasticInferenceServiceAuthorizationResponseEntity parse(String json) throws IOException {
+        try (var parser = createParser(JsonXContent.jsonXContent, json)) {
+            return ElasticInferenceServiceAuthorizationResponseEntity.PARSER.apply(parser, null);
         }
     }
 }

@@ -102,7 +102,7 @@ public class MappingSupplementaryCharacterRollingUpgradeIT extends AbstractRolli
             .startObject()
             .startObject("settings")
             .field("number_of_shards", 1)
-            .field("number_of_replicas", 1)
+            .field("number_of_replicas", 0)
             .endObject()
             .startObject("mappings")
             .startObject("properties")

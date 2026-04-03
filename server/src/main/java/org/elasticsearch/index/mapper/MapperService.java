@@ -614,33 +614,61 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return doMerge(type, reason, mappingSourceAsMap);
     }
 
+    /**
+     * Check to see if a mapping update would cause a change to the existing mappings if it were applied.
+     *
+     * @param update the update to check
+     */
+    public boolean isNoOpUpdate(CompressedXContent update) {
+        DocumentMapper existing = documentMapper();
+        if (existing == null) {
+            return false;
+        }
+        MappingBuilder updateBuilder = mappingParser.parseToBuilder(
+            SINGLE_MAPPING_NAME,
+            MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT,
+            MappingParser.convertToMap(update)
+        );
+        Mapping mapping = mergeBuilders(mappingParser, indexSettings, updateBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, existing);
+        return mapping.toCompressedXContent().equals(existing.mappingSource());
+    }
+
+    public MappingBuilder parseMappings(CompressedXContent mappingSource) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_UPDATE, MappingParser.convertToMap(mappingSource));
+    }
+
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
+        assert reason != MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
         MappingBuilder incomingBuilder;
         try {
             incomingBuilder = mappingParser.parseToBuilder(type, reason, mappingSourceAsMap);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
-        if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
-            // only doing a merge without updating the actual #mapper field, no need to synchronize
-            Mapping mapping = mergeBuilders(incomingBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT);
-            return newDocumentMapper(mapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping.toCompressedXContent());
-        } else {
-            // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
-            // TODO: can we even have concurrent updates here?
-            synchronized (this) {
-                Mapping mapping = mergeBuilders(incomingBuilder, reason);
-                DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
-                this.mapper = newMapper;
-                assert assertSerialization(newMapper, reason);
-                return newMapper;
-            }
+        // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
+        // TODO: can we even have concurrent updates here?
+        synchronized (this) {
+            Mapping mapping = mergeBuilders(incomingBuilder, reason);
+            DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
+            this.mapper = newMapper;
+            assert assertSerialization(newMapper, reason);
+            return newMapper;
         }
     }
 
     private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
-        long newFieldsBudget = getMaxFieldsToAddDuringMerge(this.mapper, indexSettings, reason);
-        if (this.mapper == null) {
+        return mergeBuilders(mappingParser, indexSettings, incomingBuilder, reason, this.mapper);
+    }
+
+    private static Mapping mergeBuilders(
+        MappingParser mappingParser,
+        IndexSettings indexSettings,
+        MappingBuilder incomingBuilder,
+        MergeReason reason,
+        DocumentMapper currentMapper
+    ) {
+        long newFieldsBudget = getMaxFieldsToAddDuringMerge(currentMapper, indexSettings, reason);
+        if (currentMapper == null) {
             try {
                 return buildMapping(applyFieldsBudget(incomingBuilder, newFieldsBudget, reason), reason);
             } catch (MapperParsingException e) {
@@ -649,7 +677,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
             }
         }
-        MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
+        MappingBuilder existingBuilder = mappingParser.parseToBuilder(currentMapper.type(), reason, currentMapper.mappingSource());
         existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);
         return buildMapping(existingBuilder, reason);
     }

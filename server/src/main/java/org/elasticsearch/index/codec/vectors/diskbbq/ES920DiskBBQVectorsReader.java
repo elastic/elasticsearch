@@ -38,7 +38,7 @@ import static org.elasticsearch.simdvec.ESVectorUtil.transposeHalfByte;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
+public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader.FieldEntry> {
 
     // QUERY_BITS value copied from Lucene102BinaryQuantizedVectorsFormat where it became package private
     private static final byte QUERY_BITS = 4;

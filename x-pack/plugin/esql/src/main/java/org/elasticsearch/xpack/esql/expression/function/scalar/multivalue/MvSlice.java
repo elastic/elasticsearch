@@ -18,7 +18,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -75,7 +75,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "unsigned_long",
             "version" },
         description = """
-            Returns a subset of the multivalued field using the start and end index values.
+            Returns a subset of the multivalued field using the start and end index values. Indexes are 0-based.
             This is most useful when reading from a function that emits multivalued columns
             in a known order like <<esql-split>> or <<esql-mv_sort>>.""",
         detailedDescription = """
@@ -107,7 +107,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If `null`, the function returns `null`."
+            description = "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "start",
@@ -232,7 +232,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 toEvaluator.apply(start),
                 toEvaluator.apply(end)
             );
-            case NULL -> ConstantExpressions.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

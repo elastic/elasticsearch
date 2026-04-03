@@ -10,19 +10,31 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.OCCNotSupportedException;
 import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
@@ -33,6 +45,12 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), DataStreamsPlugin.class);
+    }
+
     public void testBulkWithMixedOperationsAcrossSeqNoDisabledAndEnabledIndices() {
         assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
@@ -213,6 +231,57 @@ public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
         }
     }
 
+    public void testBulkIndexToDataStreamBackingIndexBypassesCreateRestriction() throws Exception {
+        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+
+        String dataStreamName = "test-ds-overwrite";
+        createDataStreamWithTemplate(dataStreamName, disableSeqNoTemplateSettings(true));
+
+        var createResponse = client().prepareBulk()
+            .add(prepareIndex(dataStreamName).setSource(Map.of("@timestamp", "2020-01-01")).setCreate(true))
+            .get();
+        assertNoFailures(createResponse);
+        assertThat(createResponse.getItems().length, equalTo(1));
+
+        var createdId = createResponse.getItems()[0].getResponse().getId();
+        var backingIndex = createResponse.getItems()[0].getIndex();
+        assertThat(createdId, is(notNullValue()));
+
+        // CREATE without an id targeting the backing index directly is still rejected
+        var createAppendResponse = client().prepareBulk()
+            .add(prepareIndex(backingIndex).setSource(Map.of("@timestamp", "2020-01-01")).setCreate(true))
+            .get();
+        assertThat(createAppendResponse.hasFailures(), is(true));
+        assertThat(
+            createAppendResponse.getItems()[0].getFailureMessage(),
+            containsString("op_type=create targeting backing indices is disallowed")
+        );
+
+        // INDEX without an id targeting the backing index directly is still rejected
+        var indexAppendResponse = client().prepareBulk()
+            .add(prepareIndex(backingIndex).setSource(Map.of("@timestamp", "2020-01-01")))
+            .get();
+        assertThat(indexAppendResponse.hasFailures(), is(true));
+        assertThat(
+            indexAppendResponse.getItems()[0].getFailureMessage(),
+            containsString("op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed")
+        );
+
+        // INDEX with an id targeting the backing index is allowed for seq_no disabled indices
+        var overwriteResponse = client().prepareBulk()
+            .add(prepareIndex(backingIndex).setId(createdId).setSource(Map.of("@timestamp", "2020-01-01", "value", "overwritten")))
+            .get();
+        assertNoFailures(overwriteResponse);
+        assertThat(overwriteResponse.getItems().length, equalTo(1));
+        assertThat(overwriteResponse.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
+
+        // Ensure that the document was overwritten
+        indicesAdmin().prepareRefresh(backingIndex).get();
+        var getResponse = client().prepareGet(backingIndex, createdId).get();
+        assertTrue(getResponse.isExists());
+        assertThat(getResponse.getSource().get("value"), equalTo("overwritten"));
+    }
+
     public void testSingleUpdateOnSeqNoDisabledIndexIsRejected() {
         assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         createIndex(
@@ -236,5 +305,47 @@ public class OperationsOnSeqNoDisabledIndicesIT extends ESIntegTestCase {
         var getResponse = client().prepareGet("test", "1").get();
         assertTrue(getResponse.isExists());
         assertThat(getResponse.getSource().get("value"), equalTo("original"));
+    }
+
+    private void createDataStreamWithTemplate(String dsName, Settings settings) throws Exception {
+        putDataStreamTemplate(dsName, settings);
+        CreateDataStreamAction.Request createRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dsName
+        );
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createRequest));
+    }
+
+    private void putDataStreamTemplate(String dsName, Settings settings) throws Exception {
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
+            dsName + "-template"
+        );
+        String mapping = """
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    }
+                }
+            }
+            """;
+        Settings templateSettings = indexSettings(1, 0).put(settings).build();
+        request.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dsName + "*"))
+                .template(new Template(templateSettings, CompressedXContent.fromJSON(mapping), null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request));
+    }
+
+    private static Settings disableSeqNoTemplateSettings(boolean disableSequenceNumbers) {
+        Settings.Builder builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSequenceNumbers);
+        if (disableSequenceNumbers) {
+            builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY);
+        }
+        return builder.build();
     }
 }

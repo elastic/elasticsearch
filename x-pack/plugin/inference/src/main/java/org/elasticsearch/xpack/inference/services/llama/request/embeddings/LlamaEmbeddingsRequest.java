@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.llama.request.embeddings;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -50,13 +51,8 @@ public class LlamaEmbeddingsRequest implements Request {
         this.truncationResult = input;
     }
 
-    /**
-     * Returns the URI for this request.
-     *
-     * @return the URI of the Llama embeddings model
-     */
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(this.uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -70,7 +66,7 @@ public class LlamaEmbeddingsRequest implements Request {
             httpPost.setHeader(createAuthBearerHeader(secretSettings.apiKey()));
         }
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override

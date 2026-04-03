@@ -35,7 +35,10 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {}
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        // enabled is deprecated and throws on 8.0+ indices; tested separately in testUsingEnabledSettingThrows
+        checker.registerIgnoredParameter("enabled");
+    }
 
     private static void assertFieldNames(Set<String> expected, ParsedDocument doc) {
         assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_field_names")), containsInAnyOrder(expected.toArray()));

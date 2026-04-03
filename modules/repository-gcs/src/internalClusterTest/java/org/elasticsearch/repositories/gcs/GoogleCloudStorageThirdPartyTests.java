@@ -16,6 +16,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import java.util.Collection;
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MEGABYTES_COPIED_PER_CHUNK_SETTING;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,6 +61,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
             builder.put("gcs.client.default.endpoint", fixture.getAddress());
             builder.put("gcs.client.default.token_uri", fixture.getAddress() + "/o/oauth2/token");
         }
+        builder.put(MEGABYTES_COPIED_PER_CHUNK_SETTING.getConcreteSettingForNamespace("default").getKey(), 1);
 
         return builder.build();
     }
@@ -136,5 +139,30 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
             }
             return null;
         });
+    }
+
+    public void testCopy() {
+        final var sourceBlobName = randomIdentifier();
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000_000));
+        final var destinationBlobName = randomIdentifier();
+        final var repository = getRepository();
+        final var targetBytes = executeOnBlobStore(repository, sourceBlobContainer -> {
+            sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+            try {
+                assertBusy(() -> assertTrue(sourceBlobContainer.blobExists(randomPurpose(), sourceBlobName)));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
+            destinationBlobContainer.copyBlob(
+                randomPurpose(),
+                sourceBlobContainer,
+                sourceBlobName,
+                destinationBlobName,
+                blobBytes.length()
+            );
+            return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
+        });
+        assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);
     }
 }

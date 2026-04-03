@@ -9,23 +9,12 @@
 
 package org.elasticsearch.test.apmintegration;
 
-import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
-import io.opentelemetry.proto.common.v1.KeyValue;
-import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
-import io.opentelemetry.proto.metrics.v1.Metric;
-import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
-import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
-import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
-
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.rules.ExternalResource;
 
 import java.io.BufferedReader;
@@ -44,11 +33,11 @@ import java.util.function.Consumer;
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
-    final ArrayBlockingQueue<String> received = new ArrayBlockingQueue<>(1000);
+    final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
 
     private static HttpServer server;
     private final Thread messageConsumerThread = consumerThread();
-    private volatile Consumer<String> consumer;
+    private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
 
     @Override
@@ -66,13 +55,15 @@ public class RecordingApmServer extends ExternalResource {
             while (running && Thread.currentThread().isInterrupted() == false) {
                 if (consumer != null) {
                     try {
-                        String msg = received.poll(1L, TimeUnit.SECONDS);
-                        if (msg != null && msg.isEmpty() == false) {
+                        ReceivedTelemetry msg = received.poll(1L, TimeUnit.SECONDS);
+                        if (msg != null) {
                             consumer.accept(msg);
                         }
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         return;
+                    } catch (Exception e) {
+                        logger.warn("failed to process message", e);
                     }
                 }
             }
@@ -101,9 +92,12 @@ public class RecordingApmServer extends ExternalResource {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
                         if ("/v1/metrics".equals(path)) {
-                            parseOtlpMetrics(requestBody);
+                            received.addAll(OtlpMetricsParser.parse(requestBody));
                         } else {
-                            received.addAll(readJsonMessages(requestBody));
+                            List<String> lines = readJsonMessages(requestBody);
+                            for (String line : lines) {
+                                ApmIntakeMessageParser.parseLine(line).ifPresent(received::add);
+                            }
                         }
                     }
                 } catch (Throwable t) {
@@ -121,70 +115,6 @@ public class RecordingApmServer extends ExternalResource {
         }
     }
 
-    /**
-     * Parses OTLP protobuf metrics and normalizes them into the same JSON shape that the APM agent produces.
-     */
-    private void parseOtlpMetrics(InputStream input) throws IOException {
-        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.parseFrom(input);
-        for (ResourceMetrics resourceMetrics : request.getResourceMetricsList()) {
-            for (ScopeMetrics scopeMetrics : resourceMetrics.getScopeMetricsList()) {
-                String scopeName = scopeMetrics.getScope().getName();
-                for (Metric metric : scopeMetrics.getMetricsList()) {
-                    switch (metric.getDataCase()) {
-                        case SUM, GAUGE -> {
-                            var dataPoints = metric.getDataCase() == Metric.DataCase.SUM
-                                ? metric.getSum().getDataPointsList()
-                                : metric.getGauge().getDataPointsList();
-                            for (NumberDataPoint dp : dataPoints) {
-                                var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
-                                writeTags(builder, scopeName, dp.getAttributesList());
-                                builder.startObject("samples").startObject(metric.getName());
-                                switch (dp.getValueCase()) {
-                                    case AS_DOUBLE -> builder.field("value", dp.getAsDouble());
-                                    case AS_INT -> builder.field("value", dp.getAsInt());
-                                }
-                                builder.endObject().endObject();
-                                received.offer(Strings.toString(builder.endObject().endObject()));
-                            }
-                        }
-                        case HISTOGRAM -> {
-                            for (HistogramDataPoint dp : metric.getHistogram().getDataPointsList()) {
-                                var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
-                                writeTags(builder, scopeName, dp.getAttributesList());
-                                builder.startObject("samples").startObject(metric.getName());
-                                builder.field("counts", dp.getBucketCountsList());
-                                builder.endObject().endObject();
-                                received.offer(Strings.toString(builder.endObject().endObject()));
-                            }
-                        }
-                        default -> {
-                            var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
-                            writeTags(builder, scopeName, List.of());
-                            builder.startObject("samples").startObject(metric.getName()).endObject().endObject();
-                            received.offer(Strings.toString(builder.endObject().endObject()));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private static void writeTags(XContentBuilder builder, String scopeName, List<KeyValue> attributes) throws IOException {
-        builder.startObject("tags");
-        builder.field("otel_instrumentation_scope_name", scopeName);
-        for (KeyValue kv : attributes) {
-            switch (kv.getValue().getValueCase()) {
-                case STRING_VALUE -> builder.field(kv.getKey(), kv.getValue().getStringValue());
-                case INT_VALUE -> builder.field(kv.getKey(), kv.getValue().getIntValue());
-                case DOUBLE_VALUE -> builder.field(kv.getKey(), kv.getValue().getDoubleValue());
-                case BOOL_VALUE -> builder.field(kv.getKey(), kv.getValue().getBoolValue());
-                default -> {
-                }
-            }
-        }
-        builder.endObject();
-    }
-
     private List<String> readJsonMessages(InputStream input) {
         // parse NDJSON
         return new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)).lines().toList();
@@ -194,7 +124,20 @@ public class RecordingApmServer extends ExternalResource {
         return server.getAddress().getPort();
     }
 
-    public void addMessageConsumer(Consumer<String> messageConsumer) {
+    /**
+     * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+     */
+    public String getHttpAddress() {
+        String host = server.getAddress().getHostString();
+        if (host.contains(":")) {
+            // IPv6 address needs brackets
+            host = "[" + host + "]";
+        }
+        return host + ":" + getPort();
+    }
+
+    public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {
         this.consumer = messageConsumer;
     }
+
 }

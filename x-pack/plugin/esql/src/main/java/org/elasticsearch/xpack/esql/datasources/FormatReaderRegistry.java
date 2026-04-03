@@ -88,6 +88,18 @@ public class FormatReaderRegistry {
         return supplier.get();
     }
 
+    /**
+     * Look up a format reader by name, returning null if not registered.
+     * Use for speculative lookups where a missing format is normal (e.g., optimizer probing).
+     */
+    public FormatReader findByName(String formatName) {
+        if (Strings.isNullOrEmpty(formatName)) {
+            return null;
+        }
+        Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
+        return supplier != null ? supplier.get() : null;
+    }
+
     public void registerExtension(String extension, String formatName) {
         String normalizedExt = extension.toLowerCase(Locale.ROOT);
         if (normalizedExt.startsWith(".") == false) {

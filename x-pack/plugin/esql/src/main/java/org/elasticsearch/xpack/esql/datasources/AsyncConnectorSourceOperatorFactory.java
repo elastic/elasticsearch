@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
@@ -65,7 +66,8 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     @Override
     public SourceOperator get(DriverContext driverContext) {
         QueryRequest request = baseRequest.withBlockFactory(driverContext.blockFactory());
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferSize);
+        long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
         driverContext.addAsyncAction();
 
         int rowLimit = baseRequest.rowLimit();
@@ -117,6 +119,6 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
 
     @Override
     public String describe() {
-        return "AsyncConnectorSource[" + connector + "]";
+        return "AsyncConnectorSource[" + connector + ", maxBufferBytes=" + ((long) maxBufferSize * Operator.TARGET_PAGE_SIZE) + "]";
     }
 }

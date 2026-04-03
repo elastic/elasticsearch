@@ -382,3 +382,29 @@ FROM multivalue_geometries
 c:l
 12
 ;
+
+spatialGeometryCollectionGeometryTypeDimensionIsEmpty
+required_capability: fn_st_geometrytype
+required_capability: fn_st_dimension
+required_capability: fn_st_isempty
+
+FROM multivalue_geometries
+| EVAL type = ST_GEOMETRYTYPE(shape), dim = ST_DIMENSION(shape), empty = ST_ISEMPTY(shape)
+| KEEP id, type, dim, empty
+| SORT id
+;
+
+id:l | type:keyword            | dim:integer | empty:boolean
+0    | ST_GeometryCollection   | 2           | false
+1    | ST_MultiPolygon         | 2           | false
+2    | ST_Polygon              | 2           | false
+3    | ST_GeometryCollection   | 2           | false
+4    | ST_GeometryCollection   | 2           | false
+5    | ST_Polygon              | 2           | false
+6    | ST_GeometryCollection   | 2           | false
+7    | ST_GeometryCollection   | 2           | false
+8    | ST_Polygon              | 2           | false
+9    | ST_GeometryCollection   | 2           | false
+10   | ST_GeometryCollection   | 2           | false
+11   | ST_GeometryCollection   | 2           | false
+;

@@ -36,7 +36,6 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -63,20 +62,17 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
 
         if (allowsIndexTimeScript()) {
-            checker.registerConflictCheck("script", b -> b.field("script", "foo"));
-            checker.registerUpdateCheck(b -> {
-                minimalMapping(b);
-                b.field("script", "test");
-                b.field("on_script_error", "fail");
-            }, b -> {
-                minimalMapping(b);
-                b.field("script", "test");
-                b.field("on_script_error", "continue");
-            }, m -> assertThat((m).builderParams.onScriptError(), is(OnScriptError.CONTINUE)));
+            registerScriptChecks(checker);
+        } else {
+            checker.registerIgnoredParameter("script");
+            checker.registerIgnoredParameter("on_script_error");
         }
+
+        registerDimensionChecks(checker);
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
     @Override
@@ -334,12 +330,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             }
 
             @Override
-            ScriptFactory emptyFieldScript() {
+            protected ScriptFactory emptyFieldScript() {
                 return null;
             }
 
             @Override
-            ScriptFactory nonEmptyFieldScript() {
+            protected ScriptFactory nonEmptyFieldScript() {
                 return null;
             }
         };
@@ -510,6 +506,47 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         return List.of(
             new SortShortcutSupport(this::minimalMapping, this::writeField, true),
             new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
+        );
+    }
+
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        NumberFieldMapper mapper = (NumberFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
+    }
+
+    public void testMultiValueSorted() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "sorted").endObject();
+        }));
+        assertThat(
+            getDocValuesParameters(mapperService),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+                )
+            )
+        );
+    }
+
+    public void testMultiValueDefaultIsSorted() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertThat(getDocValuesParameters(mapperService).multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED));
+    }
+
+    public void testMultiValueSortedSetNotAllowed() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "sorted_set").endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
         );
     }
 }

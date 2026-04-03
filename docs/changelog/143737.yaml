@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 142761
+pr: 143737
+summary: Propagate ambiguous field type errors correctly
+type: bug

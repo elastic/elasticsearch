@@ -23,21 +23,19 @@ public class SelectorProviderInstrumentation implements InstrumentationConfig {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 
         builder.on(SelectorProvider.provider().getClass(), rule -> {
-            rule.calling(SelectorProvider::inheritedChannel).enforce(Policies::changeNetworkHandling).elseThrow(e -> new IOException(e));
-            rule.calling(SelectorProvider::openDatagramChannel).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
+            rule.calling(SelectorProvider::inheritedChannel).enforce(Policies::changeNetworkHandling).elseThrow(IOException::new);
+            rule.calling(SelectorProvider::openDatagramChannel).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
             rule.calling(SelectorProvider::openDatagramChannel, ProtocolFamily.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
-            rule.calling(SelectorProvider::openServerSocketChannel)
-                .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
+            rule.calling(SelectorProvider::openServerSocketChannel).enforce(Policies::inboundNetworkAccess).elseThrow(IOException::new);
             rule.calling(SelectorProvider::openServerSocketChannel, ProtocolFamily.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
-            rule.calling(SelectorProvider::openSocketChannel).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
+            rule.calling(SelectorProvider::openSocketChannel).enforce(Policies::outboundNetworkAccess).elseThrow(IOException::new);
             rule.calling(SelectorProvider::openSocketChannel, ProtocolFamily.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrow(e -> new IOException(e));
+                .elseThrow(IOException::new);
         });
     }
 }

@@ -37,7 +37,10 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
 
     @Override
     public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
-        return InsertFieldExtraction.rule(plan, context.configuration().pragmas().fieldExtractPreference());
+        var preference = context.configuration() != null
+            ? context.configuration().pragmas().fieldExtractPreference()
+            : MappedFieldType.FieldExtractPreference.NONE;
+        return InsertFieldExtraction.rule(plan, preference);
     }
 
     static PhysicalPlan rule(PhysicalPlan plan, MappedFieldType.FieldExtractPreference fieldExtractPreference) {

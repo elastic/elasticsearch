@@ -18,6 +18,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -455,7 +456,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                     "index": "%s"
                   }
                 }
-                """, remoteAddress.getHostString(), remoteAddress.getPort(), SOURCE_INDEX, bulkSize, DEST_INDEX));
+                """, InetAddresses.toUriString(remoteAddress.getAddress()), remoteAddress.getPort(), SOURCE_INDEX, bulkSize, DEST_INDEX));
 
             final Response response = restClient.performRequest(request);
             final String task = (String) ESRestTestCase.entityAsMap(response).get("task");
@@ -604,6 +605,15 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         }
         assertThat(
             completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
+            equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
+        );
+        final List<Measurement> durations = plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM);
+        assertThat(durations.size(), equalTo(1));
+        final Measurement duration = durations.getFirst();
+        assertThat(duration.getLong(), greaterThanOrEqualTo(0L));
+        assertThat(duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
+        assertThat(
+            duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
         );
     }

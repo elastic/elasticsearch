@@ -67,10 +67,11 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
-import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticIdBytesRef;
+import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -138,7 +139,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
                     assertThat(terms.size(), equalTo(-1L));
                     assertThat(terms.getSumTotalTermFreq(), equalTo(0L));
-                    assertThat(terms.getSumDocFreq(), equalTo(0L));
+                    assertThat(terms.getSumDocFreq(), equalTo((long) docsPerSegments[i]));
                     assertThat(terms.getDocCount(), equalTo(docsPerSegments[i]));
 
                     var lazyTermsEnum = terms.iterator();
@@ -163,7 +164,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                         if (previous != null) {
                             assertThat(current.compareTo(previous), greaterThan(0));
                         }
-                        previous = termsEnum.term();
+                        // Deep copy since term() may return a reused BytesRef (scratch buffer)
+                        previous = BytesRef.deepCopyOf(termsEnum.term());
 
                         if (randomBoolean()) {
                             var postings = termsEnum.postings(reuse);
@@ -390,6 +392,93 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         });
     }
 
+    public void testSeekCeilWithShortOrEmptyTerms() throws IOException {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        runTestWithRandomDocs((writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+
+                final Terms terms = leafReader.terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+
+                final TermsEnum syntheticIdTermsEnum = LazyFilterTermsEnum.unwrap(terms.iterator());
+                assertThat(syntheticIdTermsEnum, instanceOf(SyntheticIdTermsEnum.class));
+
+                final BytesRef firstTerm = finalDocs.firstKey();
+
+                // Test seekCeil with empty BytesRef - should position on first term
+                {
+                    var emptyTerm = new BytesRef();
+                    assertThat(emptyTerm.compareTo(firstTerm), lessThan(0));
+                    assertThat(syntheticIdTermsEnum.seekCeil(emptyTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
+                }
+
+                // Test seekCeil with BytesRef shorter than minimum synthetic ID length
+                // A valid synthetic ID is at least Long.BYTES + Integer.BYTES + 1 bytes
+                {
+                    var shortTerm = new BytesRef(new byte[] { 0x00 });
+                    assertThat(shortTerm.compareTo(firstTerm), lessThan(0));
+                    assertThat(syntheticIdTermsEnum.seekCeil(shortTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
+                }
+
+                {
+                    // Term with exactly Long.BYTES + Integer.BYTES (12 bytes) - still too short
+                    var borderlineTerm = new BytesRef(new byte[Long.BYTES + Integer.BYTES]);
+                    assertThat(syntheticIdTermsEnum.seekCeil(borderlineTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
+                }
+
+                // Test seekExact with short terms - should return false
+                {
+                    assertThat(syntheticIdTermsEnum.seekExact(new BytesRef()), equalTo(false));
+                    assertThat(syntheticIdTermsEnum.seekExact(new BytesRef(new byte[] { 0x01, 0x02 })), equalTo(false));
+                }
+
+                // Test seekCeil with truncated versions of existing terms
+                {
+                    var randomDocsIds = randomNonEmptySubsetOf(finalDocs.keySet());
+                    for (var existingTerm : randomDocsIds) {
+                        // Truncate to various lengths shorter than minimum synthetic ID length
+                        var truncatedTerm = new BytesRef(
+                            existingTerm.bytes,
+                            existingTerm.offset,
+                            randomIntBetween(1, Long.BYTES + Integer.BYTES)
+                        );
+
+                        var status = syntheticIdTermsEnum.seekCeil(truncatedTerm);
+                        assertThat(status, equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+
+                        // The positioned term should be >= truncated term
+                        var positionedTerm = syntheticIdTermsEnum.term();
+                        assertThat(positionedTerm.compareTo(truncatedTerm), greaterThanOrEqualTo(0));
+                    }
+                }
+
+                // After seekCeil on a short term, verify we can iterate through all terms
+                {
+                    var emptyTerm = new BytesRef();
+                    assertThat(syntheticIdTermsEnum.seekCeil(emptyTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+
+                    // Count unique terms by iterating - finalDocs.size() is the number of unique synthetic IDs
+                    int uniqueTermCount = 1; // already positioned on first
+                    BytesRef previousTerm = BytesRef.deepCopyOf(syntheticIdTermsEnum.term());
+                    BytesRef currentTerm;
+                    while ((currentTerm = syntheticIdTermsEnum.next()) != null) {
+                        // Only count when the term changes (skip duplicate docs with same synthetic ID)
+                        if (currentTerm.equals(previousTerm) == false) {
+                            uniqueTermCount++;
+                            previousTerm = BytesRef.deepCopyOf(currentTerm);
+                        }
+                    }
+                    assertThat(uniqueTermCount, equalTo(finalDocs.size()));
+                }
+            }
+        });
+    }
+
     /**
      * Indexes random documents with synthetic id in a time-series Lucene index.
      *
@@ -424,7 +513,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 var doc = randomlyOrderedDocs.get(i);
                 writer.addDocument(parser.parse(doc));
 
-                var uid = createSyntheticIdBytesRef(buildTsId(doc), doc.timestamp(), doc.routing());
+                var uid = uidEncodedSyntheticId(doc);
                 assertThat(finalDocs.put(uid, doc), nullValue());
 
                 if (i > 0 && rarely()) {
@@ -667,7 +756,15 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     private static BytesRef buildTsId(Doc doc) {
         return new TsidBuilder().addStringDimension("hostname", doc.hostName())
             .addStringDimension("metric.field", doc.metricField())
-            .buildTsid();
+            .buildTsid(IndexVersion.current());
+    }
+
+    /**
+     * Returns the Uid-encoded synthetic ID for a document, matching what term() returns.
+     */
+    private static BytesRef uidEncodedSyntheticId(Doc doc) {
+        String base64Id = createSyntheticId(buildTsId(doc), doc.timestamp(), doc.routing());
+        return Uid.encodeId(base64Id);
     }
 
     /**

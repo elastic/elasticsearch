@@ -42,6 +42,7 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_IN
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notANumber;
@@ -275,6 +276,7 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
         double maxError = 0;
         double allowedError = getMaximumRelativeError(values, bucketCount);
 
+        double lastQuantile = Double.NEGATIVE_INFINITY;
         // Compare histogram quantiles with exact quantiles
         for (double q : QUANTILES_TO_TEST) {
             double percentileRank = q * (values.length - 1);
@@ -282,14 +284,17 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
             int upperRank = (int) Math.ceil(percentileRank);
             double upperFactor = percentileRank - lowerRank;
 
+            double histoValue = ExponentialHistogramQuantile.getQuantile(histogram, q);
+            // values should be monotonically increasing
+            assertThat(histoValue, greaterThanOrEqualTo(lastQuantile));
+            lastQuantile = histoValue;
+
             if (values[lowerRank] < 0 && values[upperRank] > 0) {
                 // the percentile lies directly between a sign change and we interpolate linearly in-between
                 // in this case the relative error bound does not hold
                 continue;
             }
             double exactValue = values[lowerRank] * (1 - upperFactor) + values[upperRank] * upperFactor;
-
-            double histoValue = ExponentialHistogramQuantile.getQuantile(histogram, q);
 
             // Skip comparison if exact value is close to zero to avoid false-positives due to numerical imprecision
             if (Math.abs(exactValue) < 1e-100) {

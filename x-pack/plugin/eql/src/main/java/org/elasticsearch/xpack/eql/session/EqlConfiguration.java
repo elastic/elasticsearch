@@ -24,6 +24,7 @@ import java.util.Map;
 public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
 
     private final String[] indices;
+    private final String[] originalIndices;
     private final TimeValue requestTimeout;
     private final String clientId;
     private final IndicesOptions indicesOptions;
@@ -44,6 +45,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     @Nullable
     private Map<String, Object> runtimeMappings;
 
+    // for test only
     public EqlConfiguration(
         String[] indices,
         ZoneId zi,
@@ -64,6 +66,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         EqlSearchTask task
     ) {
         this(
+            indices,
             indices,
             zi,
             username,
@@ -88,6 +91,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public EqlConfiguration(
         String[] indices,
+        String[] originalIndices,
         ZoneId zi,
         String username,
         String clusterName,
@@ -110,6 +114,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         super(zi, username, clusterName);
 
         this.indices = indices;
+        this.originalIndices = originalIndices;
         this.filter = filter;
         this.runtimeMappings = runtimeMappings;
         this.fetchFields = fetchFields;
@@ -144,7 +149,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     }
 
     public String indexAsWildcard() {
-        return Strings.arrayToCommaDelimitedString(indices);
+        return Strings.arrayToCommaDelimitedString(originalIndices);
     }
 
     public TimeValue requestTimeout() {

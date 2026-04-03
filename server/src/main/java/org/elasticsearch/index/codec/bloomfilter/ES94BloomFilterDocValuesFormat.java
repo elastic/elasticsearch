@@ -93,19 +93,51 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
     // We use prime numbers with the Kirsch-Mitzenmacher technique to obtain multiple hashes from two hash functions
     private static final int[] PRIMES = new int[] { 2, 5, 11, 17, 23, 29, 41, 47, 53, 59, 71 };
-    private static final int DEFAULT_NUM_HASH_FUNCTIONS = 7;
-    // With the default oversize factor of 24 and 7 hash functions, the theoretical false positive rate is approximately 6.63E-5,
-    // calculated as (1 - e^(-k/o))^k where k = number of hash functions and o = oversize factor.
+    public static final int DEFAULT_NUM_HASH_FUNCTIONS = 4;
+    public static final int MAX_NUM_HASH_FUNCTIONS = PRIMES.length;
+    // Bloom filter sizing uses a three-regime strategy based on document count:
     //
-    // Note: The bloom filter size is capped at MAX_BLOOM_FILTER_SIZE, so this false positive rate only holds for segments
-    // with up to ~2.8 million documents. Larger segments will have higher false positive rates.
-    static final int DEFAULT_BLOOM_FILTER_OVERSIZE_FACTOR = 24;
-    static final ByteSizeValue MAX_BLOOM_FILTER_SIZE = ByteSizeValue.ofMb(8);
+    // Small (≤ DEFAULT_SMALL_SEGMENT_MAX_DOCS): DEFAULT_HIGH_BITS_PER_DOC bits/doc — nominal saturation ~3.1%, typically
+    // lower after power-of-two rounding, keeping FP rates low even after OR-merging many filters.
+    // Taper (DEFAULT_SMALL_SEGMENT_MAX_DOCS – DEFAULT_LARGE_SEGMENT_MIN_DOCS): bits/doc interpolates linearly from
+    // DEFAULT_HIGH_BITS_PER_DOC down to DEFAULT_LOW_BITS_PER_DOC, avoiding a sharp quality cliff at the boundary.
+    // Large (≥ DEFAULT_LARGE_SEGMENT_MIN_DOCS): DEFAULT_LOW_BITS_PER_DOC bits/doc flat — at this scale the hard cap at
+    // MAX_BLOOM_FILTER_SIZE dominates; higher bits/doc would waste storage without proportional
+    // FP-rate benefit.
+    //
+    // The bloom filter size is always capped at MAX_BLOOM_FILTER_SIZE and rounded up to the next
+    // power of two in bytes, so actual saturation is always ≤ the nominal target.
+    public static final int MIN_SEGMENT_DOCS = 1;
+    public static final int DEFAULT_SMALL_SEGMENT_MAX_DOCS = 160_000;
+    public static final int DEFAULT_LARGE_SEGMENT_MIN_DOCS = 320_000;
+    // Bits per document for small segments. With k = DEFAULT_NUM_HASH_FUNCTIONS hash functions,
+    // the nominal saturation is s = 1 - e^(-k/bpd) ≈ 3.1%. The theoretically exact value for
+    // 2% saturation (-k/ln(1-s) with s=0.02) is ~198 bits/doc; 128 is a practical compromise
+    // that uses less storage. Power-of-two rounding always inflates the allocated filter (actual
+    // bpd ≥ 128), bringing effective saturation to roughly 1.9–3.1% depending on where the
+    // doc count falls relative to power-of-two boundaries.
+    public static final double DEFAULT_HIGH_BITS_PER_DOC = 128.0;
+    // Bits per document for large segments. Also used to determine the doc-count cap at which the
+    // flat formula first hits MAX_BLOOM_FILTER_SIZE: cap = MAX_BLOOM_FILTER_SIZE_bytes * 8 / DEFAULT_LOW_BITS_PER_DOC.
+    public static final double DEFAULT_LOW_BITS_PER_DOC = 24.0;
+    public static final ByteSizeValue MAX_BLOOM_FILTER_SIZE = ByteSizeValue.ofMb(8);
+    // Allowed range for the bits-per-doc settings. The lower bound of 8.0 keeps the false-positive
+    // rate under ~2.5% even at k=4; below that the filter degrades quickly into noise.
+    public static final double MIN_BITS_PER_DOC = 8.0;
+    public static final double MAX_BITS_PER_DOC = 256.0;
+    // Minimum permitted max_size. Smaller values leave too few bits to track even a single small
+    // segment without extreme saturation.
+    public static final ByteSizeValue MIN_BLOOM_FILTER_SIZE = ByteSizeValue.ofKb(64);
 
     private final BigArrays bigArrays;
     private final String bloomFilterFieldName;
     private final boolean optimizedMergeEnabled;
     private final int numHashFunctions;
+    private final int smallSegmentMaxDocs;
+    private final int largeSegmentMinDocs;
+    private final double highBitsPerDoc;
+    private final double lowBitsPerDoc;
+    private final ByteSizeValue maxBloomFilterSize;
 
     // Public constructor SPI use for reads only
     public ES94BloomFilterDocValuesFormat() {
@@ -114,18 +146,52 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         bloomFilterFieldName = null;
         numHashFunctions = 0;
         optimizedMergeEnabled = true;
+        smallSegmentMaxDocs = DEFAULT_SMALL_SEGMENT_MAX_DOCS;
+        largeSegmentMinDocs = DEFAULT_LARGE_SEGMENT_MIN_DOCS;
+        highBitsPerDoc = DEFAULT_HIGH_BITS_PER_DOC;
+        lowBitsPerDoc = DEFAULT_LOW_BITS_PER_DOC;
+        maxBloomFilterSize = MAX_BLOOM_FILTER_SIZE;
     }
 
     public ES94BloomFilterDocValuesFormat(BigArrays bigArrays, String bloomFilterFieldName) {
         this(bigArrays, bloomFilterFieldName, true);
     }
 
-    public ES94BloomFilterDocValuesFormat(BigArrays bigArrays, String bloomFilterFieldName, boolean optimizedMergeEnabled) {
+    ES94BloomFilterDocValuesFormat(BigArrays bigArrays, String bloomFilterFieldName, boolean optimizedMergeEnabled) {
+        this(
+            bigArrays,
+            bloomFilterFieldName,
+            optimizedMergeEnabled,
+            DEFAULT_NUM_HASH_FUNCTIONS,
+            DEFAULT_SMALL_SEGMENT_MAX_DOCS,
+            DEFAULT_LARGE_SEGMENT_MIN_DOCS,
+            DEFAULT_HIGH_BITS_PER_DOC,
+            DEFAULT_LOW_BITS_PER_DOC,
+            MAX_BLOOM_FILTER_SIZE
+        );
+    }
+
+    public ES94BloomFilterDocValuesFormat(
+        BigArrays bigArrays,
+        String bloomFilterFieldName,
+        boolean optimizedMergeEnabled,
+        int numHashFunctions,
+        int smallSegmentMaxDocs,
+        int largeSegmentMinDocs,
+        double highBitsPerDoc,
+        double lowBitsPerDoc,
+        ByteSizeValue maxBloomFilterSize
+    ) {
         super(FORMAT_NAME);
         this.bigArrays = bigArrays;
         this.bloomFilterFieldName = bloomFilterFieldName;
         this.optimizedMergeEnabled = optimizedMergeEnabled;
-        this.numHashFunctions = DEFAULT_NUM_HASH_FUNCTIONS;
+        this.numHashFunctions = numHashFunctions;
+        this.smallSegmentMaxDocs = smallSegmentMaxDocs;
+        this.largeSegmentMinDocs = largeSegmentMinDocs;
+        this.highBitsPerDoc = highBitsPerDoc;
+        this.lowBitsPerDoc = lowBitsPerDoc;
+        this.maxBloomFilterSize = maxBloomFilterSize;
     }
 
     @Override
@@ -722,6 +788,11 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         private final int bloomFilterBitSetSizeInBits;
         private final int numHashFunctions;
         private final CheckedRunnable<IOException> checkIntegrityFn;
+        // Lazily computed and cached. -1.0 is the sentinel for "not yet computed" (saturation is
+        // always in [0.0, 1.0]). Two threads may both compute this concurrently, but the result is
+        // identical (the filter is immutable), so the race is benign — the cost is redundant I/O,
+        // not incorrect results. volatile ensures the write is visible once complete.
+        private volatile double cachedSaturation = -1.0;
 
         private BloomFilterFieldReader(
             RandomAccessInput bloomFilterIn,
@@ -763,6 +834,29 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         @Override
         public long sizeInBytes() {
             return getBloomFilterBitSetSizeInBytes();
+        }
+
+        @Override
+        public double saturation() throws IOException {
+            if (cachedSaturation >= 0.0) {
+                return cachedSaturation;
+            }
+            final int sizeInBytes = getBloomFilterBitSetSizeInBytes();
+            long setBits = 0;
+            final byte[] scratch = new byte[PageCacheRecycler.PAGE_SIZE_IN_BYTES];
+            int remaining = sizeInBytes;
+            int offset = 0;
+            while (remaining > 0) {
+                int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, remaining);
+                bloomFilterIn.readBytes(offset, scratch, 0, pageLen);
+                for (int i = 0; i < pageLen; i++) {
+                    setBits += Integer.bitCount(scratch[i] & 0xFF);
+                }
+                offset += pageLen;
+                remaining -= pageLen;
+            }
+            cachedSaturation = (double) setBits / bloomFilterBitSetSizeInBits;
+            return cachedSaturation;
         }
 
         @Override
@@ -835,28 +929,52 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     }
 
     /**
-     * Calculates the bloom filter size in bytes for a given number of documents.
-     * <p>
-     * The size is determined by (numDocs * oversizeFactor) / 8, rounded to the nearest power of two,
-     * and capped at {@link #MAX_BLOOM_FILTER_SIZE} to limit memory usage.
-     * <p>
-     * With the default oversize factor of 24 and 7 hash functions, the theoretical false positive rate
-     * is approximately 6.63E-5, calculated as (1 - e^(-k/o))^k where k = hash functions and o = oversize factor.
-     * This rate only holds when the size cap is not reached (segments up to ~2.8M docs); larger segments
-     * will have higher false positive rates.
-     * <p>
-     * It guarantees that the size is a power of two
+     * Computes the bloom filter size in bytes for a newly created segment.
      *
-     * @param numDocs number of documents in the segment
+     * <p>The sizing strategy balances false-positive accuracy against storage cost
+     * depending on the segment's document count:
+     *
+     * <ul>
+     *   <li><b>Small segments (≤ {@value #DEFAULT_SMALL_SEGMENT_MAX_DOCS} docs by default)</b> —
+     *       Sized at {@value #DEFAULT_HIGH_BITS_PER_DOC} bits per document by default. Nominal saturation is
+     *       ~3.1% (s = 1 − e^(−k/bpd) with k=4); power-of-two rounding typically
+     *       inflates the actual filter, bringing effective saturation to ~1.9–3.1%
+     *       depending on the document count.
+     *
+     *   <li><b>Mid-range segments ({@value #DEFAULT_SMALL_SEGMENT_MAX_DOCS} –
+     *       {@value #DEFAULT_LARGE_SEGMENT_MIN_DOCS} docs by default)</b> — Bits per document tapers linearly
+     *       from {@value #DEFAULT_HIGH_BITS_PER_DOC} down to {@value #DEFAULT_LOW_BITS_PER_DOC}. This avoids a
+     *       sharp cliff in filter quality between adjacent segment sizes while
+     *       gradually trading accuracy for a smaller storage footprint.
+     *
+     *   <li><b>Large segments (≥ {@value #DEFAULT_LARGE_SEGMENT_MIN_DOCS} docs by default)</b> — Sized at a
+     *       flat {@value #DEFAULT_LOW_BITS_PER_DOC} bits per document. At this scale the hard cap
+     *       at {@link #MAX_BLOOM_FILTER_SIZE} dominates; the filter cannot grow
+     *       proportionally with doc count regardless of the bits-per-doc ratio.
+     * </ul>
+     *
+     * <p>The result is always passed through {@link #boundAndRoundBloomFilterSizeInBytes}
+     * to enforce minimum/maximum size limits and power-of-two rounding.
+     *
+     * @param numDocs the number of documents in the new segment, must be positive
      * @return bloom filter size in bytes, as a power of two
      */
-    // Visible for testing
     public int bloomFilterSizeInBytesForNewSegment(int numDocs) {
         assert numDocs > 0 : "Unexpected number of docs " + numDocs;
         assert MAX_BLOOM_FILTER_SIZE.getBytes() <= Integer.MAX_VALUE : MAX_BLOOM_FILTER_SIZE;
 
-        long idealSizeInBytes = Math.divideExact(Math.multiplyExact((long) numDocs, DEFAULT_BLOOM_FILTER_OVERSIZE_FACTOR), Byte.SIZE);
-        return boundAndRoundBloomFilterSizeInBytes(idealSizeInBytes);
+        double bitsPerDoc;
+        if (numDocs <= smallSegmentMaxDocs) {
+            bitsPerDoc = highBitsPerDoc;
+        } else if (numDocs >= largeSegmentMinDocs) {
+            bitsPerDoc = lowBitsPerDoc;
+        } else {
+            double taperFraction = (double) (numDocs - smallSegmentMaxDocs) / (largeSegmentMinDocs - smallSegmentMaxDocs);
+            bitsPerDoc = highBitsPerDoc + taperFraction * (lowBitsPerDoc - highBitsPerDoc);
+        }
+
+        long sizeInBytes = Math.max(1, (long) (numDocs * bitsPerDoc) / Byte.SIZE);
+        return boundAndRoundBloomFilterSizeInBytes(sizeInBytes);
     }
 
     int bloomFilterSizeInBytesForMergedSegment(List<Integer> segmentSizes) {
@@ -867,7 +985,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     }
 
     private int boundAndRoundBloomFilterSizeInBytes(long idealSizeInBytes) {
-        long boundedSize = Math.min(MAX_BLOOM_FILTER_SIZE.getBytes(), idealSizeInBytes);
+        long boundedSize = Math.min(maxBloomFilterSize.getBytes(), idealSizeInBytes);
         return closestPowerOfTwoBloomFilterSizeInBytes(Math.toIntExact(boundedSize));
     }
 }

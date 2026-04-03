@@ -152,6 +152,46 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return id;
     }
 
+    /**
+     * Returns the byte length of a synthetic _id for the given tsid.
+     */
+    public static int syntheticIdLength(BytesRef tsid) {
+        return tsid.length + Long.BYTES + Integer.BYTES;
+    }
+
+    /**
+     * Writes a synthetic _id directly into the destination byte array at the given offset.
+     * The synthetic _id has the format: [_tsid + (Long.MAX_VALUE - timestamp) + routing hash].
+     */
+    public static void writeSyntheticId(BytesRef tsid, long timestamp, int routingHash, byte[] dest, int destOffset) {
+        System.arraycopy(tsid.bytes, tsid.offset, dest, destOffset, tsid.length);
+        ByteUtils.writeLongBE(Long.MAX_VALUE - timestamp, dest, destOffset + tsid.length);
+        ByteUtils.writeIntBE(routingHash, dest, destOffset + tsid.length + Long.BYTES);
+    }
+
+    /**
+     * Writes a synthetic _id directly into the destination byte array, using the Uid-encoded routing hash bytes.
+     * This avoids decoding/encoding the routing hash through base64 and int conversion.
+     * The routingHashBytes are expected to be Uid-encoded (LE bytes, possibly with 0xfd escape prefix).
+     */
+    public static void writeSyntheticId(BytesRef tsid, long timestamp, BytesRef routingHashBytes, byte[] dest, int destOffset) {
+        System.arraycopy(tsid.bytes, tsid.offset, dest, destOffset, tsid.length);
+        ByteUtils.writeLongBE(Long.MAX_VALUE - timestamp, dest, destOffset + tsid.length);
+
+        int hashOffset = routingHashBytes.offset;
+        if (Byte.toUnsignedInt(routingHashBytes.bytes[hashOffset]) >= Uid.BASE64_ESCAPE) {
+            hashOffset++; // Skip escape prefix
+        }
+        // Write routing hash as BE by reversing the LE bytes from Uid encoding.
+        // This is equivalent to decoding the routing hash via Uid.decodeId and TimeSeriesRoutingHashFieldMapper.decode,
+        // then writing it with ByteUtils.writeIntBE, but avoids the intermediate String allocations.
+        int pos = destOffset + tsid.length + Long.BYTES;
+        dest[pos] = routingHashBytes.bytes[hashOffset + 3];
+        dest[pos + 1] = routingHashBytes.bytes[hashOffset + 2];
+        dest[pos + 2] = routingHashBytes.bytes[hashOffset + 1];
+        dest[pos + 3] = routingHashBytes.bytes[hashOffset];
+    }
+
     public static BytesRef createSyntheticIdBytesRef(BytesRef tsid, long timestamp, int routingHash) {
         // A synthetic _id has the format: [_tsid (non-fixed length) + (Long.MAX_VALUE - timestamp) (8 bytes) + routing hash (4 bytes)].
         // We dont' use hashing here because we need to be able to extract the concatenated values from the _id in various places, like
@@ -163,10 +203,8 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         // seeks to a term "BCD" as it knows there won't be more documents matching "_id:ABC" past the term "BCD". So it is important to
         // generate an _id as a byte array whose lexicographical order reflects the order of the documents in the segment. For this reason,
         // the timestamp is stored in the synthetic _id as (Long.MAX_VALUE - timestamp).
-        byte[] bytes = new byte[tsid.length + Long.BYTES + Integer.BYTES];
-        System.arraycopy(tsid.bytes, tsid.offset, bytes, 0, tsid.length);
-        ByteUtils.writeLongBE(Long.MAX_VALUE - timestamp, bytes, tsid.length); // Big Endian as we want to most significant byte first
-        ByteUtils.writeIntBE(routingHash, bytes, tsid.length + Long.BYTES);
+        byte[] bytes = new byte[syntheticIdLength(tsid)];
+        writeSyntheticId(tsid, timestamp, routingHash, bytes, 0);
         return new BytesRef(bytes);
     }
 

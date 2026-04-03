@@ -87,6 +87,15 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
         assertTrue(contains(value, term));
     }
 
+    public void testWithTermOffset() {
+        BytesRef value = new BytesRef("research");
+        BytesRef term = new BytesRef();
+        term.bytes = "1234567890search".getBytes(StandardCharsets.UTF_8);
+        term.offset = 10; // skip "1234567890"
+        term.length = "search".getBytes(StandardCharsets.UTF_8).length;
+        assertTrue(contains(value, term));
+    }
+
     public void testMultiByteUtf8() {
         BytesRef value = new BytesRef("Ω≈ç√∫");
         BytesRef term = new BytesRef("≈ç√");

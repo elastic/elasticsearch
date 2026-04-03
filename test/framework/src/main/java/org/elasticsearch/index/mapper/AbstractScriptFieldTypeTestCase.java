@@ -604,7 +604,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         );
         parser.nextToken();
         var nameValue = new IgnoredSourceFieldMapper.NameValue("test", 0, XContentDataHelper.encodeToken(parser), doc);
-        var ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(IndexVersion.current());
+        var ignoredSourceFormat = IgnoredSourceFieldMapper.ignoredSourceFormat(createIndexSettings(IndexVersion.current(), Settings.EMPTY));
         ignoredSourceFormat.writeIgnoredFields(List.of(nameValue));
         return doc;
     }

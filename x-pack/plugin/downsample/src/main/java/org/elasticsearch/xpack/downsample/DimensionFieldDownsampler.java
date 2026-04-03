@@ -49,12 +49,9 @@ public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
         for (int i = 0; i < buffer.size(); i++) {
             int docId = buffer.get(i);
             if (docValues.advanceExact(docId)) {
-                int docValueCount = docValues.docValueCount();
-                for (int j = 0; j < docValueCount; j++) {
-                    var value = docValues.nextValue();
-                    assert value.equals(this.lastValue) != false
-                        : "Dimension value changed without tsid change [" + value + "] != [" + this.lastValue + "]";
-                }
+                var value = retrieveDimensionValues(docValues);
+                assert value.equals(this.lastValue) != false
+                    : "Dimension value changed without tsid change [" + value + "] != [" + this.lastValue + "]";
             }
         }
 
@@ -73,14 +70,27 @@ public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
             if (docValues.advanceExact(docId) == false) {
                 continue;
             }
-            int docValueCount = docValues.docValueCount();
-            for (int j = 0; j < docValueCount; j++) {
-                collectOnce(docValues.nextValue());
-            }
+            collectOnce(retrieveDimensionValues(docValues));
             // Only need to record one dimension value from one document, within in the same tsid-and-time-interval bucket values are the
             // same.
             return;
         }
+    }
+
+    private Object retrieveDimensionValues(FormattedDocValues docValues) throws IOException {
+        int docValueCount = docValues.docValueCount();
+        assert docValueCount > 0;
+        Object value;
+        if (docValueCount == 1) {
+            value = docValues.nextValue();
+        } else {
+            var values = new Object[docValueCount];
+            for (int j = 0; j < docValueCount; j++) {
+                values[j] = docValues.nextValue();
+            }
+            value = values;
+        }
+        return value;
     }
 
     /**
@@ -89,7 +99,8 @@ public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
     static List<DimensionFieldDownsampler> create(
         final SearchExecutionContext context,
         final String[] dimensions,
-        final Map<String, String> multiFieldSources
+        final Map<String, String> multiFieldSources,
+        DownsamplerCountPerValueType fieldCounts
     ) {
         List<DimensionFieldDownsampler> downsamplers = new ArrayList<>();
         for (String dimension : dimensions) {
@@ -98,6 +109,7 @@ public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
             assert fieldType != null : "Unknown type for dimension field: [" + sourceFieldName + "]";
 
             if (context.fieldExistsInIndex(fieldType.name())) {
+                fieldCounts.increaseDimensionFields();
                 final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 if (fieldType instanceof FlattenedFieldMapper.KeyedFlattenedFieldType flattenedFieldType) {
                     // Name of the field type and name of the dimension are different in this case.

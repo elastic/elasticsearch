@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link SpatialCentroidShapeSourceValuesAggregator}.
@@ -46,10 +47,13 @@ public final class SpatialCentroidShapeSourceValuesGroupingAggregatorFunction im
 
   private final DriverContext driverContext;
 
+  private final CoordinateEncoder encoder;
+
   SpatialCentroidShapeSourceValuesGroupingAggregatorFunction(List<Integer> channels,
-      DriverContext driverContext) {
+      DriverContext driverContext, CoordinateEncoder encoder) {
+    this.encoder = encoder;
     this.channels = channels;
-    this.state = SpatialCentroidShapeSourceValuesAggregator.initGrouping(driverContext.bigArrays());
+    this.state = SpatialCentroidShapeSourceValuesAggregator.initGrouping(driverContext.bigArrays(), encoder);
     this.driverContext = driverContext;
   }
 
@@ -373,14 +377,24 @@ public final class SpatialCentroidShapeSourceValuesGroupingAggregatorFunction im
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = SpatialCentroidShapeSourceValuesAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SpatialCentroidShapeSourceValuesAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

@@ -16,10 +16,14 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -233,6 +237,22 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     /**
+     * If the underlying field is an {@link InvalidMappedField} (ambiguous type across indices),
+     * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message
+     * so the analyzer can surface a clear user-facing error.
+     */
+    public Attribute checkUnresolved() {
+        if (field instanceof InvalidMappedField imf) {
+            // Field has conflicting types across indices — build a user-facing error message.
+            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + imf.errorMessage();
+            List<String> types = imf.getTypesToIndices().keySet().stream().toList();
+            // Preserve the original NameId so downstream attribute-resolution stays consistent.
+            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(imf.getName(), types), unresolvedMessage, id());
+        }
+        return this;
+    }
+
+    /**
      * The name of the attribute. Can deviate from the field name e.g. in case of union types. For the physical field name, use
      * {@link FieldAttribute#fieldName()}.
      */
@@ -313,5 +333,17 @@ public class FieldAttribute extends TypedAttribute {
 
     public EsField field() {
         return field;
+    }
+
+    @Override
+    public String nodeString(NodeStringFormat format) {
+        return switch (format) {
+            case FULL -> {
+                var nodeStringName = field.getNodeStringName();
+                nodeStringName = nodeStringName.isEmpty() ? nodeStringName : Strings.format("(%s)", nodeStringName);
+                yield Strings.format("%s{%s%s%s}#%s", qualifiedName(), label(), nodeStringName, synthetic() ? "$" : "", id());
+            }
+            case LIMITED -> super.nodeString(format);
+        };
     }
 }

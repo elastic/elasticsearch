@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
@@ -36,7 +37,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(uri);
 
         ToXContentObject requestEntity;
@@ -50,7 +51,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
 
         decorateWithAuth(httpPost);
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     /**

@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -82,7 +83,9 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
         final var dataStreamName = randomIdentifier();
         final int nbPrimaries = randomIntBetween(1, 5);
         final int nbReplicas = between(0, 1);
-        putDataStreamTemplate(leaderClient(), dataStreamName, nbPrimaries, nbReplicas, useSyntheticId);
+        final boolean disableSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean();
+        final long expectedPrimaryTerm = disableSeqNo ? SequenceNumbers.UNASSIGNED_PRIMARY_TERM : 1L;
+        putDataStreamTemplate(leaderClient(), dataStreamName, nbPrimaries, nbReplicas, useSyntheticId, disableSeqNo);
 
         // Randomize between Auto Follow and Put Follow
         final var useAutoFollow = randomBoolean();
@@ -123,7 +126,7 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
             for (var result : bulkResponse.getItems()) {
                 assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
                 assertThat(result.getVersion(), equalTo(1L));
-                assertThat(result.getResponse().getPrimaryTerm(), equalTo(1L));
+                assertThat(result.getResponse().getPrimaryTerm(), equalTo(expectedPrimaryTerm));
                 var previous = docsIndicesById.put(result.getId(), result.getIndex());
                 assertThat(previous, nullValue());
             }
@@ -157,7 +160,7 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
             assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
             assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
             assertThat(deleteResponse.getVersion(), equalTo(2L));
-            assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
+            assertThat(deleteResponse.getPrimaryTerm(), equalTo(expectedPrimaryTerm));
         }
 
         // Randomly executes a flush, refresh or nothing before checking the follower index
@@ -229,7 +232,7 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
         for (var result : bulkResponse.getItems()) {
             assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
             assertThat(result.getVersion(), equalTo(1L));
-            assertThat(result.getResponse().getPrimaryTerm(), equalTo(1L));
+            assertThat(result.getResponse().getPrimaryTerm(), equalTo(expectedPrimaryTerm));
             var previous = docsIndicesById.put(result.getId(), result.getIndex());
             assertThat(previous, nullValue());
             var added = nonDeletedDocs.add(result.getId());
@@ -247,7 +250,7 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
             assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
             assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
             assertThat(deleteResponse.getVersion(), equalTo(2L));
-            assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
+            assertThat(deleteResponse.getPrimaryTerm(), equalTo(expectedPrimaryTerm));
             var removed = nonDeletedDocs.remove(deletedDocId);
             assertThat(removed, equalTo(true));
             var added = deletedDocs.add(deletedDocId);
@@ -274,13 +277,22 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
         leaderClient().execute(ForceMergeAction.INSTANCE, new ForceMergeRequest()).actionGet();
     }
 
-    private static void putDataStreamTemplate(Client client, String dataStreamName, int primaries, int replicas, boolean useSyntheticId)
-        throws IOException {
+    private static void putDataStreamTemplate(
+        Client client,
+        String dataStreamName,
+        int primaries,
+        int replicas,
+        boolean useSyntheticId,
+        boolean disableSeqNo
+    ) throws IOException {
         var settingsBuilder = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
             settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
+        }
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
+            settingsBuilder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disableSeqNo);
         }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(getTestClass().getName().toLowerCase(Locale.ROOT))
             .indexTemplate(

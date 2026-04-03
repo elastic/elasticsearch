@@ -248,3 +248,47 @@ user_without_monitor_privileges:
 user_with_monitor_privileges:
   cluster:
     - monitor_esql
+
+view_dls_user:
+  cluster: []
+  indices:
+    - names: [ 'view-user1' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+    - names: [ 'view-user2' ]
+      privileges: [ 'read' ]
+
+view_index_dls_user:
+  cluster: []
+  indices:
+    - names: [ 'view-user1' ]
+      privileges: [ 'read' ]
+    - names: [ 'index' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+
+view_dls_nested_view_user:
+  cluster: []
+  indices:
+    - names: [ 'nested-dls-view-no-dls' ]
+      privileges: [ 'read' ]
+    - names: [ 'nested-dls-view-dls' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+
+view_fls_user:
+  cluster: []
+  indices:
+    - names: [ 'view-user1' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "value" ]
+
+view_dls_fls_user:
+  cluster: []
+  indices:
+    - names: [ 'view-user1' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+      field_security:
+        grant: [ "value" ]

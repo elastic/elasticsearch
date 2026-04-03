@@ -27,7 +27,7 @@ public class EndpointSchemaMigration {
      * retrieving the latest preconfigured endpoints and updating existing ones to include any new fields included in the authorization
      * response.
      */
-    public static final Long ENDPOINT_SCHEMA_VERSION = 0L;
+    public static final Long ENDPOINT_SCHEMA_VERSION = 1L;
 
     private EndpointSchemaMigration() {}
 }

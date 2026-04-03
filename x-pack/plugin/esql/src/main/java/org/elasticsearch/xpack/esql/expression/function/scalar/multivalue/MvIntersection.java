@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -100,7 +100,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If null, the function returns null."
+            description = "Expression that can be null, a single value, or multiple values. If null, the function returns null."
         ) Expression field1,
         @Param(
             name = "field2",
@@ -123,7 +123,7 @@ public class MvIntersection extends MvSetOperationFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If null, the function returns null."
+            description = "Expression that can be null, a single value, or multiple values. If null, the function returns null."
         ) Expression field2
     ) {
         super(source, field1, field2);
@@ -205,7 +205,7 @@ public class MvIntersection extends MvSetOperationFunction {
             case INT -> new MvIntersectionIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case LONG -> new MvIntersectionLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case DOUBLE -> new MvIntersectionDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case NULL -> ConstantExpressions.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }

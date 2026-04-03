@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
+import com.azure.storage.blob.models.BlobStorageException;
 
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
@@ -132,17 +135,46 @@ public final class AzureStorageObject implements StorageObject {
             cachedExists = true;
             cachedLength = properties.getBlobSize();
             cachedLastModified = properties.getLastModified() != null ? properties.getLastModified().toInstant() : null;
-        } catch (com.azure.storage.blob.models.BlobStorageException e) {
-            if (e.getStatusCode() == 404) {
-                cachedExists = false;
-                cachedLength = 0L;
-                cachedLastModified = null;
+        } catch (Exception e) {
+            if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
+                setNotFound();
+            } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
+                fetchMetadataViaRangeGet();
             } else {
                 throw new IOException("Failed to get metadata for " + path, e);
             }
-        } catch (Exception e) {
-            throw new IOException("Failed to get metadata for " + path, e);
         }
+    }
+
+    private void fetchMetadataViaRangeGet() throws IOException {
+        try {
+            var output = new ByteArrayOutputStream();
+            var response = blobClient.downloadStreamWithResponse(output, new BlobRange(0, 1L), null, null, false, null, null);
+            var headers = response.getDeserializedHeaders();
+            cachedExists = true;
+            Long total = ContentRangeParser.parseTotalLength(headers.getContentRange());
+            if (total == null) {
+                throw new IOException(
+                    "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
+                );
+            }
+            cachedLength = total;
+            cachedLastModified = headers.getLastModified() != null ? headers.getLastModified().toInstant() : null;
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
+                setNotFound();
+            } else {
+                throw new IOException("Failed to get metadata for " + path + " (properties denied, range GET also failed)", e);
+            }
+        }
+    }
+
+    private void setNotFound() {
+        cachedExists = false;
+        cachedLength = 0L;
+        cachedLastModified = null;
     }
 
     @Override

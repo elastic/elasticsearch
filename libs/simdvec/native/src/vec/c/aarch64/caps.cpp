@@ -20,29 +20,29 @@
     #include <asm/hwcap.h>
 #endif
 
-#ifdef __APPLE__
-#include <TargetConditionals.h>
-#endif
-
 EXPORT int vec_caps() {
 #ifdef __APPLE__
-    #ifdef TARGET_OS_OSX
-        // All M series Apple silicon support Neon instructions; no SVE support as for now (M4)
-        return 1;
-    #else
-        #error "Unsupported Apple platform"
-    #endif
+    // All M series Apple silicon support Neon instructions; no SVE support as for now (M4)
+    return 1;
 #elif __linux__
     int hwcap = getauxval(AT_HWCAP);
+    // See https://docs.kernel.org/arch/arm64/elf_hwcaps.html
     int neon = (hwcap & HWCAP_ASIMD) != 0;
-    // https://docs.kernel.org/arch/arm64/sve.html
+    int dotprod = (hwcap & HWCAP_ASIMDDP) != 0;
+    // The library is compiled with -march=armv8.2-a+dotprod and uses NEON intrinsics; the CPU and
+    // OS must support them or we will run into an illegal instruction exception when it tries to
+    // execute these instructions.
+    if (!neon || !dotprod) {
+        return 0;
+    }
+    // See https://docs.kernel.org/arch/arm64/sve.html
     int sve = (hwcap & HWCAP_SVE) != 0;
     int hwcap2 = getauxval(AT_HWCAP2);
     int sve2 = (hwcap2 & HWCAP2_SVE2) != 0;
-    if (neon && sve) {
+    if (sve) {
         return 2;
     }
-    return neon;
+    return 1;
 #else
     #error "Unsupported aarch64 platform"
 #endif

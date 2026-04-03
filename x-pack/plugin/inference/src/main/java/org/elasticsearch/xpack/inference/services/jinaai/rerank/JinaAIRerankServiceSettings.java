@@ -29,9 +29,7 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
     public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
 

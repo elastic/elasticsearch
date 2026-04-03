@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -107,7 +108,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.endObject();
         });
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping, IndexMode.STANDARD);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
         assertNotNull(mappingLookup.objectMappers().get("foo"));
@@ -366,6 +367,21 @@ public class MappingParserTests extends MapperServiceTestCase {
             XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(fieldName).field("type", "keyword").endObject());
             assertNotNull(mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder))));
         }
+    }
+
+    /**
+     * Verifies that supplementary Unicode characters (above U+FFFF) in field names survive the full
+     * mapping round-trip: XContentBuilder serialization -> CompressedXContent compression -> decompression
+     * and parsing by MappingParser. This is a regression guard for
+     * <a href="https://github.com/FasterXML/jackson-core/issues/1541">jackson-core#1541</a>.
+     */
+    public void testSupplementaryCharacterInFieldName() throws Exception {
+        MappingParser mappingParser = createMappingParser(Settings.EMPTY);
+        String fieldName = "emoji_\uD83C\uDFB5_field";
+        XContentBuilder builder = mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject());
+        CompressedXContent compressed = new CompressedXContent(BytesReference.bytes(builder));
+        Mapping mapping = mappingParser.parse("_doc", compressed);
+        assertNotNull(mapping.getRoot().getMapper(fieldName));
     }
 
     public void testDynamicFieldEdgeCaseNamesRuntimeSection() throws Exception {

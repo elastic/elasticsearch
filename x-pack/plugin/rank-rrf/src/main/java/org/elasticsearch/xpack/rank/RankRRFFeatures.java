@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder;
 import java.util.Set;
 
 import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.INNER_RETRIEVERS_FILTER_SUPPORT;
+import static org.elasticsearch.search.retriever.RankDocsRetrieverBuilder.NESTED_RETRIEVER_MIN_SCORE_TOTAL_HITS_FIX;
 import static org.elasticsearch.xpack.rank.linear.L2ScoreNormalizer.LINEAR_RETRIEVER_L2_NORM;
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder.LINEAR_RETRIEVER_MINSCORE_FIX;
 import static org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer.LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX;
@@ -26,6 +27,9 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.RRF_RETRIEVER
 public class RankRRFFeatures implements FeatureSpecification {
 
     public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
+    public static final NodeFeature STANDARD_RETRIEVER_FIX_FOR_EMPTY_QUERY_IN_COMPOUND_RETRIEVERS = new NodeFeature(
+        "standard_retriever.fix_for_empty_query_in_compound_retrievers"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -40,7 +44,9 @@ public class RankRRFFeatures implements FeatureSpecification {
             LINEAR_RETRIEVER_L2_NORM,
             LINEAR_RETRIEVER_MINSCORE_FIX,
             LinearRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT,
-            RRFRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT
+            RRFRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT,
+            NESTED_RETRIEVER_MIN_SCORE_TOTAL_HITS_FIX,
+            STANDARD_RETRIEVER_FIX_FOR_EMPTY_QUERY_IN_COMPOUND_RETRIEVERS
         );
     }
 }

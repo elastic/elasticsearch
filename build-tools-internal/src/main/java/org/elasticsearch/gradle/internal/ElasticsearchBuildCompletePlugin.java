@@ -38,8 +38,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -103,6 +107,27 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
     }
 
     private List<File> resolveProjectLogs(File projectDir) {
+        // HACK: Some tests leave behind symlinks, and gradle throws an exception if it encounters symlinks.
+        // Here we remove them before collecting logs to upload. We could instead build our own path matcher
+        // but that seemed more complex than just deleting the irrelevant files.
+        try {
+            Files.walkFileTree(projectDir.toPath(), new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    try {
+                        if (Files.isSymbolicLink(file)) {
+                            Files.delete(file);
+                        }
+                    } catch (java.nio.file.NoSuchFileException e) {
+                        System.out.println("Symlink : " + file + " already deleted.");
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
         var projectDirFiles = getFileOperations().fileTree(projectDir);
         projectDirFiles.include("**/*.hprof");
         projectDirFiles.include("**/build/reports/configuration-cache/**");

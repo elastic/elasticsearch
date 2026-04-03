@@ -255,7 +255,8 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
                 filterUpdated = filterAsMap.equals(decompress(previousFilter)) == false;
             }
         } else {
-            filterUpdated = false;
+            // If the data stream alias contains an orphaned filter, we want to reset it. Otherwise, there the filter is preserved
+            filterUpdated = hasOrphanedFilter(dataStream);
         }
 
         Set<String> dataStreams = new HashSet<>(this.dataStreams);
@@ -264,11 +265,18 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             Map<String, CompressedXContent> newDataStreamToFilterMap = new HashMap<>(dataStreamToFilterMap);
             if (filterAsMap != null) {
                 newDataStreamToFilterMap.put(dataStream, compress(filterAsMap));
+            } else if (filterUpdated) {
+                // This is removing orphaned alias filters
+                newDataStreamToFilterMap.remove(dataStream);
             }
             return new DataStreamAlias(name, List.copyOf(dataStreams), newDataStreamToFilterMap, writeDataStream);
         } else {
             return this;
         }
+    }
+
+    private boolean hasOrphanedFilter(String dataStream) {
+        return dataStreamToFilterMap.containsKey(dataStream) && dataStreams.contains(dataStream) == false;
     }
 
     /**
@@ -279,7 +287,8 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
     public DataStreamAlias removeDataStream(String dataStream) {
         Set<String> dataStreams = new HashSet<>(this.dataStreams);
         boolean removed = dataStreams.remove(dataStream);
-        if (removed == false) {
+        // This is removing orphaned alias filters
+        if (removed == false && dataStreamToFilterMap.containsKey(dataStream) == false) {
             return this;
         }
 
@@ -290,7 +299,12 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             if (dataStream.equals(writeDataStream)) {
                 writeDataStream = null;
             }
-            return new DataStreamAlias(name, List.copyOf(dataStreams), dataStreamToFilterMap, writeDataStream);
+            Map<String, CompressedXContent> updatedDataStreamMap = dataStreamToFilterMap;
+            if (dataStreamToFilterMap.containsKey(dataStream)) {
+                updatedDataStreamMap = new HashMap<>(dataStreamToFilterMap);
+                updatedDataStreamMap.remove(dataStream);
+            }
+            return new DataStreamAlias(name, List.copyOf(dataStreams), updatedDataStreamMap, writeDataStream);
         }
     }
 

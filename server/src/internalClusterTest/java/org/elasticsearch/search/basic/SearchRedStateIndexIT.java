@@ -96,7 +96,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
     }
 
     private void setClusterDefaultAllowPartialResults(boolean allowPartialResults) {
-        String key = SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey();
+        String key = SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING.getKey();
 
         Settings persistentSettings = Settings.builder().put(key, allowPartialResults).build();
 
@@ -130,6 +130,6 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
     @After
     public void cleanup() throws Exception {
-        updateClusterSettings(Settings.builder().putNull(SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey()));
+        updateClusterSettings(Settings.builder().putNull(SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING.getKey()));
     }
 }

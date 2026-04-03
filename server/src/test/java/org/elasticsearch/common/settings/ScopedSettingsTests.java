@@ -40,6 +40,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.hamcrest.CoreMatchers.both;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -333,6 +334,21 @@ public class ScopedSettingsTests extends ESTestCase {
             () -> service.validate(Settings.builder().put(baseSetting.getKey(), "22").build(), true)
         );
         assertThat(e3.getMessage(), equalTo("too long"));
+    }
+
+    public void testValidateArchivedSetting() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.validate(Settings.builder().put("archived.index.store.type", "boom").build(), false)
+        );
+        assertThat(
+            e.getMessage(),
+            both(containsString("unknown setting [archived.index.store.type] was archived after upgrading, and must be removed.")).and(
+                containsString("deploy-manage/upgrade/deployment-or-cluster/archived-settings")
+            )
+        );
+
     }
 
     public void testTupleAffixUpdateConsumer() {

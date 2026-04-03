@@ -820,6 +820,9 @@
                                 },
                                 "value_log_size": {
                                   "type": "long"
+                                },
+                                "storage_limit": {
+                                  "type": "long"
                                 }
                               }
                             }
@@ -2301,6 +2304,10 @@
                                 "value_log_size": {
                                   "type": "alias",
                                   "path": "beat.stats.apm_server.sampling.tail.storage.value_log_size"
+                                },
+                                "storage_limit": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.storage.storage_limit"
                                 }
                               }
                             }

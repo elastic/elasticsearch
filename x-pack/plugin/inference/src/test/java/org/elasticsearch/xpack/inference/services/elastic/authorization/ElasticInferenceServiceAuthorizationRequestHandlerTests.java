@@ -44,7 +44,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -158,6 +160,44 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
     private void queueWebServerResponsesForRetries(String responseJson) {
         for (int i = 0; i < MAX_RETIES; i++) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        }
+    }
+
+    public void testGetAuthorization_ReturnsFailure_WhenExceptionOccurs() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var eisGatewayUrl = getUrl(webServer);
+
+        var exceptionToThrow = new IllegalStateException("exception");
+        var logger = mock(Logger.class);
+        doThrow(exceptionToThrow).when(logger).debug(anyString());
+
+        var authHandler = new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool, logger);
+
+        try (var sender = senderFactory.createSender()) {
+            String responseJson = """
+                {
+                    "models": [
+                        {
+                          "model_name": "model-a",
+                          "task_types": ["embed/text/sparse", "chat"]
+                        },
+                        {
+                          "model_name": "model-b",
+                          "task_types": ["embed/text/dense"]
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            PlainActionFuture<ElasticInferenceServiceAuthorizationModel> listener = new PlainActionFuture<>();
+            authHandler.getAuthorization(listener, sender);
+
+            var exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(exception, is(exceptionToThrow));
+
+            assertThat(webServer.requests().size(), is(0));
         }
     }
 

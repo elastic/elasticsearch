@@ -390,10 +390,29 @@ public class SecurityIndexManager implements ClusterStateListener {
         );
         this.state = newState;
 
-        if (newState.equals(previousState) == false) {
+        if (shouldNotifyListeners(newState, previousState)) {
             for (BiConsumer<State, State> listener : stateChangeListeners) {
                 listener.accept(previousState, newState);
             }
+        }
+    }
+
+    private static boolean shouldNotifyListeners(State newState, State previousState) {
+        if (newState.equals(previousState)) {
+            // If we add a new migration (in code), but don't change anything internal to the index state then the `IndexState`` will never
+            // change (unless the index health changes) but we do want to treat changes to "is-up-to-date-with-migrations" as a state change
+            // However we can't do that (easily) with a flag in `IndexState` because that flag wouldn't change - as soon as the new version
+            // of the code was deployed it would think that the state was "not-up-to-date" and wouldn't detect a change.
+            // Instead we just handle it as a special case here.
+            // But, this class manages multiple different indices, not all of which have migrations defined. So we only trigger this is
+            // the index has had at least 1 migration before (if the index is entirely new then it will be picked up by other state changes)
+            return newState.indexExists()
+                && newState.securityMigrationRunning == false
+                && newState.migrationsVersion != null
+                && newState.migrationsVersion > 0
+                && newState.migrationsVersion < SecurityMigrations.highestMigrationVersion();
+        } else {
+            return true;
         }
     }
 

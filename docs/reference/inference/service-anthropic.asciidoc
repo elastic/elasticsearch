@@ -4,7 +4,7 @@
 .New API reference
 [sidebar]
 --
-For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+For the most up-to-date API details, refer to {api-es}/operation/operation-inference-put-anthropic[Create an Anthropic inference endpoint].
 --
 
 Creates an {infer} endpoint to perform an {infer} task with the `anthropic` service.

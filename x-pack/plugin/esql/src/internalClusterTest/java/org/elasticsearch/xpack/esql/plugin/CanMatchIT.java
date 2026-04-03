@@ -12,17 +12,20 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -41,7 +44,17 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(DataTierFieldMapperPlugin.class);
+        return plugins;
+    }
+
+    public static class DataTierFieldMapperPlugin extends Plugin implements MapperPlugin {
+        @Override
+        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+            return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
+        }
     }
 
     /**
@@ -69,19 +82,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("@timestamp", "2023-03-25", "uid", "u1"))
             .get();
         try {
-            Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                as(transportService, MockTransportService.class).addRequestHandlingBehavior(
-                    ComputeService.DATA_ACTION_NAME,
-                    (handler, request, channel, task) -> {
-                        DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
-                        for (ShardId shardId : dataNodeRequest.shardIds()) {
-                            queriedIndices.add(shardId.getIndexName());
-                        }
-                        handler.messageReceived(request, channel, task);
-                    }
-                );
-            }
+            Set<String> queriedIndices = captureQueriedIndices();
             try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gte("2023-01-01"))) {
                 assertThat(getValuesList(resp), hasSize(4));
                 assertThat(queriedIndices, equalTo(Set.of("events_2023")));
@@ -118,9 +119,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 queriedIndices.clear();
             }
         } finally {
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                as(transportService, MockTransportService.class).clearAllRules();
-            }
+            cleanAllTransportRules();
         }
     }
 
@@ -286,6 +285,22 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             bulk.get();
             indexToNumDocs.put(index, docs);
         }
+        Set<String> queriedIndices = captureQueriedIndices();
+        try {
+            for (int i = 0; i < numIndices; i++) {
+                queriedIndices.clear();
+                String index = "events-" + i;
+                try (EsqlQueryResponse resp = run("from events* METADATA _index | WHERE _index ==  \"" + index + "\" | KEEP timestamp")) {
+                    assertThat(getValuesList(resp), hasSize(indexToNumDocs.get(index)));
+                }
+                assertThat(queriedIndices, equalTo(Set.of(index)));
+            }
+        } finally {
+            cleanAllTransportRules();
+        }
+    }
+
+    private static Set<String> captureQueriedIndices() {
         Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             as(transportService, MockTransportService.class).addRequestHandlingBehavior(
@@ -299,19 +314,12 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 }
             );
         }
-        try {
-            for (int i = 0; i < numIndices; i++) {
-                queriedIndices.clear();
-                String index = "events-" + i;
-                try (EsqlQueryResponse resp = run("from events* METADATA _index | WHERE _index ==  \"" + index + "\" | KEEP timestamp")) {
-                    assertThat(getValuesList(resp), hasSize(indexToNumDocs.get(index)));
-                }
-                assertThat(queriedIndices, equalTo(Set.of(index)));
-            }
-        } finally {
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                as(transportService, MockTransportService.class).clearAllRules();
-            }
+        return queriedIndices;
+    }
+
+    private static void cleanAllTransportRules() {
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            as(transportService, MockTransportService.class).clearAllRules();
         }
     }
 }

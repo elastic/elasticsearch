@@ -83,6 +83,11 @@ public class EsqlCapabilities {
         FN_IP_PREFIX,
 
         /**
+         * Fix a bug leading to the scratch leaking data to other rows.
+         */
+        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
+
+        /**
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
          */
         FN_SUBSTRING_EMPTY_NULL,
@@ -210,6 +215,9 @@ public class EsqlCapabilities {
 
         /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
         ST_EXTENT_AGG_DOCVALUES,
+
+        /** Fix to bug with spatial aggregations not properly supporting the WHERE clause. Fixes #142329. */
+        SPATIAL_AGGS_FILTERING,
 
         /**
          * Fix determination of CRS types in spatial functions when folding.
@@ -1067,10 +1075,32 @@ public class EsqlCapabilities {
         STATS_WITH_FILTERED_SURROGATE_FIXED,
 
         /**
+         * Fix for ClassCastException in STATS
+         * https://github.com/elastic/elasticsearch/issues/133992
+         * https://github.com/elastic/elasticsearch/issues/136598
+         */
+        FIX_STATS_CLASSCAST_EXCEPTION,
+
+        /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject} did not fully account for shadowing.
          * https://github.com/elastic/elasticsearch/issues/137019.
          */
         FIX_REPLACE_ALIASING_EVAL_WITH_PROJECT_SHADOWING,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
+
+        /**
+         * Fix for multi-value constant propagation after GROUP BY.
+         * When a multi-value constant (e.g., [1, 2]) is used as GROUP BY key, the aggregation explodes
+         * it into single values. Propagating the original multi-value literal after the Aggregate would
+         * incorrectly treat the field as still being multi-valued.
+         * https://github.com/elastic/elasticsearch/issues/135926
+         */
+        FIX_STATS_MV_CONSTANT_FOLD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

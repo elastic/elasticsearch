@@ -260,7 +260,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
                     new ElasticInferenceServiceCompletionServiceSettings("rainbow-sprinkles", null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
-                    ElasticInferenceServiceComponents.EMPTY_INSTANCE
+                    new ElasticInferenceServiceComponents("url")
                 ),
                 MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME)
             ),
@@ -270,10 +270,10 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
                     defaultEndpointId("elser-v2"),
                     TaskType.SPARSE_EMBEDDING,
                     "test",
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-v2", null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-v2", null, null, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
-                    ElasticInferenceServiceComponents.EMPTY_INSTANCE,
+                    new ElasticInferenceServiceComponents("url"),
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS
                 ),
                 MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME)

@@ -69,9 +69,9 @@ dependencies {
   api ( "org.cryptacular:cryptacular:1.2.5") {
     exclude group: 'org.bouncycastle'
   }
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}" // workaround for https://github.com/elastic/elasticsearch/issues/93714
-  // api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"  see above
+
+  // provided by x-pack-core
+  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
 
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -430,7 +430,7 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.DataHandler',
     'javax.activation.DataSource',
     'javax.activation.FileDataSource',
-    'javax.activation.FileTypeMap'
+    'javax.activation.FileTypeMap',
   )
 }
 

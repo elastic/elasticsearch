@@ -1,7 +1,12 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.Version
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.Version
 import java.nio.file.Paths
 import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
@@ -28,6 +33,8 @@ esplugin {
 tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
+  mapping from: /slf4j-.*/, to: 'slf4j'
+  mapping from: /log4j-.*/, to: 'log4j'
 }
 
 configurations {
@@ -39,13 +46,20 @@ dependencies {
   compileOnly project(":server")
   api project(':libs:grok')
   api project(":libs:ssl-config")
+
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
+
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+
   api "commons-codec:commons-codec:${versions.commonscodec}"
+
   testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: ':modules:data-streams')
   testImplementation project(':modules:mapper-extras')
@@ -56,9 +70,6 @@ dependencies {
   implementation project(":x-pack:plugin:core:template-resources")
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  // this might suffer from https://github.com/elastic/elasticsearch/issues/93714
-  testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:lang-mustache')

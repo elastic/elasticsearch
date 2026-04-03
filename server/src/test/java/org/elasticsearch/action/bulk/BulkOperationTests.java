@@ -56,6 +56,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.junit.After;
 import org.junit.Before;
 
@@ -570,24 +571,30 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = getNodeClient(
             thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> new MapperException("root cause")))
         );
+        // Testing that we handle exceptions including IOExceptions and other exceptions:
+        List<Exception> transformFailures = List.of(
+            new IOException("Could not serialize json"),
+            new XContentParseException("[1:337] Duplicate field 'foo'")
+        );
+        for (Exception transformFailure : transformFailures) {
+            // Mock a failure store document converter that always fails
+            FailureStoreDocumentConverter mockConverter = mock(FailureStoreDocumentConverter.class);
+            when(mockConverter.transformFailedRequest(any(), any(), any(), any())).thenThrow(transformFailure);
 
-        // Mock a failure store document converter that always fails
-        FailureStoreDocumentConverter mockConverter = mock(FailureStoreDocumentConverter.class);
-        when(mockConverter.transformFailedRequest(any(), any(), any(), any())).thenThrow(new IOException("Could not serialize json"));
+            BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, mockConverter, l).run());
 
-        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, mockConverter, l).run());
-
-        assertThat(bulkItemResponses.hasFailures(), is(true));
-        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
-            .filter(BulkItemResponse::isFailed)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
-        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
-        assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(IOException.class)));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("Could not serialize json")));
-        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+            assertThat(bulkItemResponses.hasFailures(), is(true));
+            BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
+                .filter(BulkItemResponse::isFailed)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Could not find redirected item"));
+            assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+            assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
+            assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
+            assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(transformFailure.getClass())));
+            assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo(transformFailure.getMessage())));
+            assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+        }
     }
 
     /**

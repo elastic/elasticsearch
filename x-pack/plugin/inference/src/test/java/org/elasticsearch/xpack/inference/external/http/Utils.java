@@ -25,7 +25,7 @@ import static org.elasticsearch.core.Strings.format;
 public final class Utils {
 
     public static String getUrl(MockWebServer webServer) {
-        return format("http://%s:%s", webServer.getHostName(), webServer.getPort());
+        return format("http://%s", webServer.getHttpAddress());
     }
 
     public static Map<String, Object> entityAsMap(String body) throws IOException {

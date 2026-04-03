@@ -455,6 +455,18 @@ public class MustacheTests extends ESTestCase {
         );
     }
 
+    public void testsUnsupportedPartials() {
+        ScriptException e;
+
+        final String script1 = "{{>foobar}}";
+        e = expectThrows(ScriptException.class, () -> compile(script1));
+        assertThat(e.getMessage(), equalTo("Cannot expand 'foobar' because partial templates are not supported"));
+
+        final String script2 = "{{>*foobar}}";
+        e = expectThrows(ScriptException.class, () -> compile(script2));
+        assertThat(e.getMessage(), equalTo("Cannot expand '*foobar' because partial templates are not supported"));
+    }
+
     private void assertScript(String script, Map<String, Object> vars, Matcher<String> matcher) {
         String result = compile(script).newInstance(vars).execute();
         assertThat(result, matcher);

@@ -47,3 +47,4 @@ ALLOCATION_EXPLAIN_MAX_RETRY                                    cluster-allocati
 SECURE_SETTINGS                                                 secure-settings.html
 CLUSTER_SHARD_LIMIT                                             misc-cluster-settings.html#cluster-shard-limit
 DELETE_INDEX_BLOCK                                              api/doc/elasticsearch/operation/operation-indices-remove-block
+ARCHIVED_SETTINGS                                               deploy-manage/upgrade/deployment-or-cluster/archived-settings

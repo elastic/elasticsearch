@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -75,6 +76,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.action.search.SearchContextMissingNodesException.SEARCH_CONTEXT_MISSING_NODES_EXCEPTION_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
@@ -1939,7 +1941,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             TransportVersions.V_8_16_0
         ),
         // requires from id since remote_exception is a dead transport version on main
-        REMOTE_EXCEPTION(RemoteException.class, RemoteException::new, 184, TransportVersion.fromId(8841016));
+        REMOTE_EXCEPTION(RemoteException.class, RemoteException::new, 184, TransportVersion.fromId(8841016)),
+        SEARCH_CONTEXT_MISSING_NODES_EXCEPTION(
+            SearchContextMissingNodesException.class,
+            SearchContextMissingNodesException::new,
+            185,
+            SEARCH_CONTEXT_MISSING_NODES_EXCEPTION_VERSION
+        );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

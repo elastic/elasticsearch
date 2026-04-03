@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
-import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 
@@ -42,9 +42,17 @@ class URLConnectionNetworkActions {
         }
     }
 
-    private static void withPlainNetworkConnection(CheckedConsumer<HttpURLConnection, Exception> connectionConsumer) throws Exception {
-        // Create a HttpURLConnection with minimal overrides to test calling directly into URLConnection methods as much as possible
-        var conn = new HttpURLConnection(HTTP_URL) {
+    private static boolean isCausedByNotEntitledException(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static HttpURLConnection createPlainNetworkConnection() {
+        return new HttpURLConnection(HTTP_URL) {
             @Override
             public void connect() {}
 
@@ -58,68 +66,84 @@ class URLConnectionNetworkActions {
 
             @Override
             public InputStream getInputStream() throws IOException {
-                // Mock an attempt to call connect
                 throw new ConnectException();
             }
         };
+    }
 
+    private static <R> R callPlainNetworkConnection(CheckedFunction<HttpURLConnection, R, Exception> connectionFunction) throws Exception {
         try {
-            connectionConsumer.accept(conn);
-        } catch (java.net.ConnectException e) {
-            // It's OK, it means we passed entitlement checks, and we tried to connect
+            return connectionFunction.apply(createPlainNetworkConnection());
+        } catch (IOException e) {
+            if (isCausedByNotEntitledException(e)) {
+                throw e;
+            }
+            return null;
         }
     }
 
-    private static void withJdkHttpConnection(CheckedConsumer<HttpURLConnection, Exception> connectionConsumer) throws Exception {
+    private static <R> R callJdkHttpConnection(CheckedFunction<HttpURLConnection, R, Exception> connectionFunction) throws Exception {
         var conn = EntitledActions.createHttpURLConnection();
         // Be sure we got the connection implementation we want
         assert HttpURLConnection.class.isAssignableFrom(conn.getClass());
         try {
-            connectionConsumer.accept((HttpURLConnection) conn);
-        } catch (java.net.ConnectException e) {
-            // It's OK, it means we passed entitlement checks, and we tried to connect
+            return connectionFunction.apply((HttpURLConnection) conn);
+        } catch (IOException e) {
+            if (isCausedByNotEntitledException(e)) {
+                throw e;
+            }
+            return null;
         }
     }
 
-    private static void withJdkHttpsConnection(CheckedConsumer<HttpsURLConnection, Exception> connectionConsumer) throws Exception {
+    private static <R> R callJdkHttpsConnection(CheckedFunction<HttpsURLConnection, R, Exception> connectionFunction) throws Exception {
         var conn = EntitledActions.createHttpsURLConnection();
         // Be sure we got the connection implementation we want
         assert HttpsURLConnection.class.isAssignableFrom(conn.getClass());
         try {
-            connectionConsumer.accept((HttpsURLConnection) conn);
-        } catch (java.net.ConnectException e) {
-            // It's OK, it means we passed entitlement checks, and we tried to connect
+            return connectionFunction.apply((HttpsURLConnection) conn);
+        } catch (IOException e) {
+            if (isCausedByNotEntitledException(e)) {
+                throw e;
+            }
+            return null;
         }
     }
 
-    private static void withJdkFtpConnection(CheckedConsumer<URLConnection, Exception> connectionConsumer) throws Exception {
+    private static <R> R callJdkFtpConnection(CheckedFunction<URLConnection, R, Exception> connectionFunction) throws Exception {
         var conn = EntitledActions.createFtpURLConnection();
         // Be sure we got the connection implementation we want
         assert conn.getClass().getSimpleName().equals("FtpURLConnection");
         try {
-            connectionConsumer.accept(conn);
-        } catch (java.net.ConnectException e) {
-            // It's OK, it means we passed entitlement checks, and we tried to connect
+            return connectionFunction.apply(conn);
+        } catch (IOException e) {
+            if (isCausedByNotEntitledException(e)) {
+                throw e;
+            }
+            return null;
         }
     }
 
-    private static void withJdkMailToConnection(CheckedConsumer<URLConnection, Exception> connectionConsumer) throws Exception {
+    private static <R> R callJdkMailToConnection(CheckedFunction<URLConnection, R, Exception> connectionFunction) throws Exception {
         var conn = EntitledActions.createMailToURLConnection();
         // Be sure we got the connection implementation we want
         assert conn.getClass().getSimpleName().equals("MailToURLConnection");
         try {
-            connectionConsumer.accept(conn);
+            return connectionFunction.apply(conn);
         } catch (IOException e) {
-            // It's OK, it means we passed entitlement checks, and we tried to perform some IO
+            if (isCausedByNotEntitledException(e)) {
+                throw e;
+            }
+            return null;
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void urlOpenConnection() throws Exception {
         URI.create("http://127.0.0.1:12345/").toURL().openConnection();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     @SuppressForbidden(reason = "just testing, not a real connection")
     static void urlOpenConnectionWithProxy() throws URISyntaxException, IOException {
         var url = new URI("http://localhost").toURL();
@@ -127,7 +151,7 @@ class URLConnectionNetworkActions {
         assert urlConnection != null;
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void urlOpenStream() throws Exception {
         try {
             URI.create("http://127.0.0.1:12345/").toURL().openStream().close();
@@ -136,7 +160,7 @@ class URLConnectionNetworkActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void urlGetContent() throws Exception {
         try {
             URI.create("http://127.0.0.1:12345/").toURL().getContent();
@@ -145,7 +169,7 @@ class URLConnectionNetworkActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void urlGetContentWithClasses() throws Exception {
         try {
             URI.create("http://127.0.0.1:12345/").toURL().getContent(new Class<?>[] { String.class });
@@ -154,300 +178,312 @@ class URLConnectionNetworkActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseUrlConnectionGetContentLength() throws Exception {
-        withPlainNetworkConnection(URLConnection::getContentLength);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = int.class)
+    static int baseUrlConnectionGetContentLength() throws Exception {
+        return callPlainNetworkConnection(URLConnection::getContentLength);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpConnectionGetContentLength() throws Exception {
-        withJdkHttpConnection(URLConnection::getContentLength);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = int.class)
+    static int sunHttpConnectionGetContentLength() throws Exception {
+        return callJdkHttpConnection(URLConnection::getContentLength);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseUrlConnectionGetContentType() throws Exception {
-        withPlainNetworkConnection(URLConnection::getContentType);
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String baseUrlConnectionGetContentType() throws Exception {
+        return callPlainNetworkConnection(URLConnection::getContentType);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpConnectionGetContentType() throws Exception {
-        withJdkHttpConnection(URLConnection::getContentType);
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String sunHttpConnectionGetContentType() throws Exception {
+        return callJdkHttpConnection(URLConnection::getContentType);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseUrlConnectionGetContentEncoding() throws Exception {
-        withPlainNetworkConnection(URLConnection::getContentEncoding);
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String baseUrlConnectionGetContentEncoding() throws Exception {
+        return callPlainNetworkConnection(URLConnection::getContentEncoding);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpConnectionGetContentEncoding() throws Exception {
-        withJdkHttpConnection(URLConnection::getContentEncoding);
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String sunHttpConnectionGetContentEncoding() throws Exception {
+        return callJdkHttpConnection(URLConnection::getContentEncoding);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseUrlConnectionGetExpiration() throws Exception {
-        withPlainNetworkConnection(URLConnection::getExpiration);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long baseUrlConnectionGetExpiration() throws Exception {
+        return callPlainNetworkConnection(URLConnection::getExpiration);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpConnectionGetExpiration() throws Exception {
-        withJdkHttpConnection(URLConnection::getExpiration);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long sunHttpConnectionGetExpiration() throws Exception {
+        return callJdkHttpConnection(URLConnection::getExpiration);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseUrlConnectionGetDate() throws Exception {
-        withPlainNetworkConnection(URLConnection::getDate);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long baseUrlConnectionGetDate() throws Exception {
+        return callPlainNetworkConnection(URLConnection::getDate);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpConnectionGetDate() throws Exception {
-        withJdkHttpConnection(URLConnection::getDate);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long sunHttpConnectionGetDate() throws Exception {
+        return callJdkHttpConnection(URLConnection::getDate);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseUrlConnectionGetLastModified() throws Exception {
-        withPlainNetworkConnection(URLConnection::getLastModified);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long baseUrlConnectionGetLastModified() throws Exception {
+        return callPlainNetworkConnection(URLConnection::getLastModified);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpConnectionGetLastModified() throws Exception {
-        withJdkHttpConnection(URLConnection::getLastModified);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long sunHttpConnectionGetLastModified() throws Exception {
+        return callJdkHttpConnection(URLConnection::getLastModified);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseUrlConnectionGetHeaderFieldInt() throws Exception {
-        withPlainNetworkConnection(conn -> conn.getHeaderFieldInt("field", 0));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = int.class)
+    static int baseUrlConnectionGetHeaderFieldInt() throws Exception {
+        return callPlainNetworkConnection(conn -> conn.getHeaderFieldInt("field", 0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpConnectionGetHeaderFieldInt() throws Exception {
-        withJdkHttpConnection(conn -> conn.getHeaderFieldInt("field", 0));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = int.class)
+    static int sunHttpConnectionGetHeaderFieldInt() throws Exception {
+        return callJdkHttpConnection(conn -> conn.getHeaderFieldInt("field", 0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseUrlConnectionGetHeaderFieldLong() throws Exception {
-        withPlainNetworkConnection(conn -> conn.getHeaderFieldLong("field", 0));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long baseUrlConnectionGetHeaderFieldLong() throws Exception {
+        return callPlainNetworkConnection(conn -> conn.getHeaderFieldLong("field", 0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpConnectionGetHeaderFieldLong() throws Exception {
-        withJdkHttpConnection(conn -> conn.getHeaderFieldLong("field", 0));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long sunHttpConnectionGetHeaderFieldLong() throws Exception {
+        return callJdkHttpConnection(conn -> conn.getHeaderFieldLong("field", 0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void baseUrlConnectionGetContent() throws Exception {
-        withPlainNetworkConnection(URLConnection::getContent);
+        callPlainNetworkConnection(URLConnection::getContent);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunHttpConnectionGetContent() throws Exception {
-        withJdkHttpConnection(URLConnection::getContent);
+        callJdkHttpConnection(URLConnection::getContent);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void baseUrlConnectionGetContentWithClasses() throws Exception {
-        withPlainNetworkConnection(conn -> conn.getContent(new Class<?>[] { String.class }));
+        callPlainNetworkConnection(conn -> conn.getContent(new Class<?>[] { String.class }));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunHttpConnectionGetContentWithClasses() throws Exception {
-        withJdkHttpConnection(conn -> conn.getContent(new Class<?>[] { String.class }));
+        callJdkHttpConnection(conn -> conn.getContent(new Class<?>[] { String.class }));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunFtpURLConnectionConnect() throws Exception {
-        withJdkFtpConnection(URLConnection::connect);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFtpURLConnectionGetInputStream() throws Exception {
-        withJdkFtpConnection(URLConnection::getInputStream);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFtpURLConnectionGetOutputStream() throws Exception {
-        withJdkFtpConnection(URLConnection::getOutputStream);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseHttpURLConnectionGetResponseCode() throws Exception {
-        withPlainNetworkConnection(HttpURLConnection::getResponseCode);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseHttpURLConnectionGetResponseMessage() throws Exception {
-        withPlainNetworkConnection(HttpURLConnection::getResponseMessage);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void baseHttpURLConnectionGetHeaderFieldDate() throws Exception {
-        withPlainNetworkConnection(conn -> conn.getHeaderFieldDate("date", 0));
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpURLConnectionConnect() throws Exception {
-        withJdkHttpConnection(HttpURLConnection::connect);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpURLConnectionGetOutputStream() throws Exception {
-        withJdkHttpConnection(httpURLConnection -> {
-            httpURLConnection.setDoOutput(true);
-            httpURLConnection.getOutputStream();
+        callJdkFtpConnection(conn -> {
+            conn.connect();
+            return null;
         });
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
+    static void sunFtpURLConnectionGetInputStream() throws Exception {
+        callJdkFtpConnection(URLConnection::getInputStream);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
+    static void sunFtpURLConnectionGetOutputStream() throws Exception {
+        callJdkFtpConnection(URLConnection::getOutputStream);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
+    static void baseHttpURLConnectionGetResponseCode() throws Exception {
+        callPlainNetworkConnection(HttpURLConnection::getResponseCode);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
+    static void baseHttpURLConnectionGetResponseMessage() throws Exception {
+        callPlainNetworkConnection(HttpURLConnection::getResponseMessage);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long baseHttpURLConnectionGetHeaderFieldDate() throws Exception {
+        return callPlainNetworkConnection(conn -> conn.getHeaderFieldDate("date", 0));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
+    static void sunHttpURLConnectionConnect() throws Exception {
+        callJdkHttpConnection(conn -> {
+            conn.connect();
+            return null;
+        });
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
+    static void sunHttpURLConnectionGetOutputStream() throws Exception {
+        callJdkHttpConnection(conn -> {
+            conn.setDoOutput(true);
+            return conn.getOutputStream();
+        });
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunHttpURLConnectionGetInputStream() throws Exception {
-        withJdkHttpConnection(HttpURLConnection::getInputStream);
+        callJdkHttpConnection(HttpURLConnection::getInputStream);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpURLConnectionGetErrorStream() throws Exception {
-        withJdkHttpConnection(HttpURLConnection::getErrorStream);
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static InputStream sunHttpURLConnectionGetErrorStream() throws Exception {
+        return callJdkHttpConnection(HttpURLConnection::getErrorStream);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpURLConnectionGetHeaderFieldWithName() throws Exception {
-        withJdkHttpConnection(conn -> conn.getHeaderField("date"));
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String sunHttpURLConnectionGetHeaderFieldWithName() throws Exception {
+        return callJdkHttpConnection(conn -> conn.getHeaderField("date"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpURLConnectionGetHeaderFields() throws Exception {
-        withJdkHttpConnection(HttpURLConnection::getHeaderFields);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "{}", expectedDefaultType = java.util.Map.class)
+    static java.util.Map<String, java.util.List<String>> sunHttpURLConnectionGetHeaderFields() throws Exception {
+        return callJdkHttpConnection(HttpURLConnection::getHeaderFields);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpURLConnectionGetHeaderFieldWithIndex() throws Exception {
-        withJdkHttpConnection(conn -> conn.getHeaderField(0));
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String sunHttpURLConnectionGetHeaderFieldWithIndex() throws Exception {
+        return callJdkHttpConnection(conn -> conn.getHeaderField(0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpURLConnectionGetHeaderFieldKey() throws Exception {
-        withJdkHttpConnection(conn -> conn.getHeaderFieldKey(0));
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String sunHttpURLConnectionGetHeaderFieldKey() throws Exception {
+        return callJdkHttpConnection(conn -> conn.getHeaderFieldKey(0));
     }
 
     // https
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunHttpsURLConnectionImplConnect() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::connect);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetOutputStream() throws Exception {
-        withJdkHttpsConnection(httpsURLConnection -> {
-            httpsURLConnection.setDoOutput(true);
-            httpsURLConnection.getOutputStream();
+        callJdkHttpsConnection(conn -> {
+            conn.connect();
+            return null;
         });
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
+    static void sunHttpsURLConnectionImplGetOutputStream() throws Exception {
+        callJdkHttpsConnection(conn -> {
+            conn.setDoOutput(true);
+            return conn.getOutputStream();
+        });
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunHttpsURLConnectionImplGetInputStream() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getInputStream);
+        callJdkHttpsConnection(HttpsURLConnection::getInputStream);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetErrorStream() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getErrorStream);
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static InputStream sunHttpsURLConnectionImplGetErrorStream() throws Exception {
+        return callJdkHttpsConnection(HttpsURLConnection::getErrorStream);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetHeaderFieldWithName() throws Exception {
-        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderField("date"));
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String sunHttpsURLConnectionImplGetHeaderFieldWithName() throws Exception {
+        return callJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderField("date"));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetHeaderFields() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getHeaderFields);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "{}", expectedDefaultType = java.util.Map.class)
+    static java.util.Map<String, java.util.List<String>> sunHttpsURLConnectionImplGetHeaderFields() throws Exception {
+        return callJdkHttpsConnection(HttpsURLConnection::getHeaderFields);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetHeaderFieldWithIndex() throws Exception {
-        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderField(0));
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String sunHttpsURLConnectionImplGetHeaderFieldWithIndex() throws Exception {
+        return callJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderField(0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetHeaderFieldKey() throws Exception {
-        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldKey(0));
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String sunHttpsURLConnectionImplGetHeaderFieldKey() throws Exception {
+        return callJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldKey(0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunHttpsURLConnectionImplGetResponseCode() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getResponseCode);
+        callJdkHttpsConnection(HttpsURLConnection::getResponseCode);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunHttpsURLConnectionImplGetResponseMessage() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getResponseMessage);
+        callJdkHttpsConnection(HttpsURLConnection::getResponseMessage);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetContentLength() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getContentLength);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = int.class)
+    static int sunHttpsURLConnectionImplGetContentLength() throws Exception {
+        return callJdkHttpsConnection(HttpsURLConnection::getContentLength);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImpl$getContentLengthLong() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getContentLengthLong);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = long.class)
+    static long sunHttpsURLConnectionImpl$getContentLengthLong() throws Exception {
+        return callJdkHttpsConnection(HttpsURLConnection::getContentLengthLong);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetContentType() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getContentType);
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String sunHttpsURLConnectionImplGetContentType() throws Exception {
+        return callJdkHttpsConnection(HttpsURLConnection::getContentType);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetContentEncoding() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getContentEncoding);
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String sunHttpsURLConnectionImplGetContentEncoding() throws Exception {
+        return callJdkHttpsConnection(HttpsURLConnection::getContentEncoding);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetExpiration() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getExpiration);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long sunHttpsURLConnectionImplGetExpiration() throws Exception {
+        return callJdkHttpsConnection(HttpsURLConnection::getExpiration);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetDate() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getDate);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long sunHttpsURLConnectionImplGetDate() throws Exception {
+        return callJdkHttpsConnection(HttpsURLConnection::getDate);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetLastModified() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getLastModified);
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long sunHttpsURLConnectionImplGetLastModified() throws Exception {
+        return callJdkHttpsConnection(HttpsURLConnection::getLastModified);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetHeaderFieldInt() throws Exception {
-        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldInt("content-length", -1));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = int.class)
+    static int sunHttpsURLConnectionImplGetHeaderFieldInt() throws Exception {
+        return callJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldInt("content-length", -1));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetHeaderFieldLong() throws Exception {
-        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldLong("content-length", -1));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "-1", expectedDefaultType = long.class)
+    static long sunHttpsURLConnectionImplGetHeaderFieldLong() throws Exception {
+        return callJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldLong("content-length", -1));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunHttpsURLConnectionImplGetHeaderFieldDate() throws Exception {
-        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldDate("date", 0));
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)
+    static long sunHttpsURLConnectionImplGetHeaderFieldDate() throws Exception {
+        return callJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldDate("date", 0));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunHttpsURLConnectionImplGetContent() throws Exception {
-        withJdkHttpsConnection(HttpsURLConnection::getContent);
+        callJdkHttpsConnection(HttpsURLConnection::getContent);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunHttpsURLConnectionImplGetContentWithClasses() throws Exception {
-        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getContent(new Class<?>[] { String.class }));
+        callJdkHttpsConnection(conn -> conn.getContent(new Class<?>[] { String.class }));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunMailToURLConnectionConnect() throws Exception {
-        withJdkMailToConnection(URLConnection::connect);
+        callJdkMailToConnection(conn -> {
+            conn.connect();
+            return null;
+        });
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunMailToURLConnectionGetOutputStream() throws Exception {
-        withJdkMailToConnection(URLConnection::getOutputStream);
+        callJdkMailToConnection(URLConnection::getOutputStream);
     }
 }

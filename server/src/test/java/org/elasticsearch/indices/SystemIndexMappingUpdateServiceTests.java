@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -271,6 +272,39 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", 4))))));
 
         verify(client, times(1)).execute(same(TransportPutMappingAction.TYPE), any(PutMappingRequest.class), any());
+    }
+
+    /**
+     * Reproduces a bug where SystemIndexMappingUpdateService incorrectly reports UP_TO_DATE for an index whose mappings are
+     * outdated after a major-version migration (reindex).
+     */
+    public void testManagerDetectsOutdatedMappingsInReindexedIndex() {
+        final String reindexedIndexName = SYSTEM_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX;
+
+        // Simulate the post-migration state: the concrete index has the reindexed suffix and an
+        // outdated managed_index_mappings_version, while the original primary index name and the
+        // alias are both aliases pointing to the new concrete index.
+        IndexMetadata.Builder reindexedIndexMeta = IndexMetadata.builder(reindexedIndexName)
+            .settings(Settings.builder().put(getSettings()).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6))
+            .putMapping(Strings.toString(getMappings("1.0.0", 4)))
+            .putAlias(AliasMetadata.builder(SYSTEM_INDEX_NAME).build())
+            .putAlias(AliasMetadata.builder(DESCRIPTOR.getAliasName()).build());
+
+        final Metadata metadata = Metadata.builder().generateClusterUuidIfNeeded().put(reindexedIndexMeta).build();
+        final DiscoveryNode node = DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()).build();
+        final ClusterState clusterState = ClusterState.builder(CLUSTER_NAME)
+            .nodes(nodes)
+            .metadata(metadata)
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index(reindexedIndexName))
+            )
+            .build();
+
+        assertThat(
+            SystemIndexMappingUpdateService.getUpgradeStatus(clusterState, DESCRIPTOR),
+            equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
+        );
     }
 
     /**

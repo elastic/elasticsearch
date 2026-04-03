@@ -308,5 +308,9 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         return retrieverName;
     }
 
+    protected boolean hasMinScore() {
+        return this.minScore != null;
+    }
+
     // ---- END FOR TESTING ----
 }

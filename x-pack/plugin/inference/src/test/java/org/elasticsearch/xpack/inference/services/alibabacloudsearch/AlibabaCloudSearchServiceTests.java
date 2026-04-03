@@ -69,6 +69,7 @@ import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.c
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -445,6 +446,27 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
 
     public void testChunkedInfer_SparseEmbeddingChunkingSettingsNotSet() throws IOException {
         testChunkedInfer(TaskType.SPARSE_EMBEDDING, null);
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = createModelForTaskType(randomFrom(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING), null);
+
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputTypeTests.randomWithIngestAndSearch(),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+        }
+        assertThat(listener.actionGet(TIMEOUT), empty());
     }
 
     private void testChunkedInfer(TaskType taskType, ChunkingSettings chunkingSettings) throws IOException {

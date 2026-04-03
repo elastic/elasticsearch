@@ -412,31 +412,52 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         @Override
         public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
             if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
-                // for _source, parse, filter out the fields we care about, and serialize back downstream
-                BytesReference bytes = new BytesArray(value);
-                Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(bytes, true);
-                Map<String, Object> transformedSource = filter(result.v2(), filter, 0);
-                XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
-                visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
+                filterSourceField(fieldInfo, value);
             } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
-                // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
-                IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
-                Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
-                if (transformedField.isEmpty() == false) {
-                    // The unfiltered map contains at least one element, the field name with its value. If the field contains
-                    // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,
-                    // it's a single leaf value, e.g. a string or a number.
-                    var topValue = mappedNameValue.map().values().iterator().next();
-                    if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
-                        // The field contains an object or an array, reconstruct it from the transformed map in case
-                        // any subfield has been filtered out.
-                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
-                    } else {
-                        // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
-                        visitor.binaryField(fieldInfo, value);
-                    }
-                }
+                filterIgnoredSourceField(fieldInfo, value);
             } else {
+                visitor.binaryField(fieldInfo, value);
+            }
+        }
+
+        /**
+         * Filters the _source field by parsing the stored value, removing fields that should not be
+         * visible according to FLS rules, and serializing the filtered result back downstream.
+         */
+        private void filterSourceField(FieldInfo fieldInfo, byte[] value) throws IOException {
+            BytesReference bytes = new BytesArray(value);
+            Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(bytes, true);
+            Map<String, Object> transformedSource = filter(result.v2(), filter, 0);
+            XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
+            visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
+        }
+
+        /**
+         * Filters the _ignored_source field by parsing the stored value, removing fields that should not be
+         * visible according to FLS rules, and serializing the filtered result back downstream. Entries with
+         * no data (VOID entries from copy_to targets) are skipped entirely.
+         */
+        private void filterIgnoredSourceField(FieldInfo fieldInfo, byte[] value) throws IOException {
+            IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
+            // NOTE: decodeAsMap returns null for VOID entries, which are placeholders for copy_to targets.
+            // These entries have no actual data (the value lives in the copy_to source field), so we skip them.
+            if (mappedNameValue == null) {
+                return;
+            }
+            Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
+            if (transformedField.isEmpty()) {
+                return;
+            }
+            // The unfiltered map contains at least one element, the field name with its value. If the field contains
+            // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,
+            // it's a single leaf value, e.g. a string or a number.
+            var topValue = mappedNameValue.map().values().iterator().next();
+            if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
+                // The field contains an object or an array, reconstruct it from the transformed map in case
+                // any subfield has been filtered out.
+                visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
+            } else {
+                // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
                 visitor.binaryField(fieldInfo, value);
             }
         }

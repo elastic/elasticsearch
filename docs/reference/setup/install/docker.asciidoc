@@ -377,9 +377,9 @@ serious development or go into production with {es}, review the
 
 The following requirements and recommendations apply when running {es} in Docker in production.
 
-===== Set `vm.max_map_count` to at least `262144`
+===== Set `vm.max_map_count`
 
-The `vm.max_map_count` kernel setting must be set to at least `262144` for production use.
+The `vm.max_map_count` kernel setting must be set to `1048576`.
 
 How you set `vm.max_map_count` depends on your platform.
 
@@ -390,14 +390,14 @@ To view the current value for the `vm.max_map_count` setting, run:
 [source,sh]
 --------------------------------------------
 grep vm.max_map_count /etc/sysctl.conf
-vm.max_map_count=262144
+vm.max_map_count=1048576
 --------------------------------------------
 
 To apply the setting on a live system, run:
 
 [source,sh]
 --------------------------------------------
-sysctl -w vm.max_map_count=262144
+sysctl -w vm.max_map_count=1048576
 --------------------------------------------
 
 To permanently change the value for the `vm.max_map_count` setting, update the
@@ -419,7 +419,7 @@ screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 +
 [source,sh]
 --------------------------------------------
-sysctl -w vm.max_map_count=262144
+sysctl -w vm.max_map_count=1048576
 --------------------------------------------
 
 . To exit the `screen` session, type `Ctrl a d`.
@@ -431,7 +431,7 @@ The `vm.max_map_count` setting must be set via docker-machine:
 [source,sh]
 --------------------------------------------
 docker-machine ssh
-sudo sysctl -w vm.max_map_count=262144
+sudo sysctl -w vm.max_map_count=1048576
 --------------------------------------------
 
 ====== Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
@@ -452,7 +452,7 @@ or PowerShell window every time you restart Docker:
 [source,sh]
 --------------------------------------------
 wsl -d docker-desktop -u root
-sysctl -w vm.max_map_count=262144
+sysctl -w vm.max_map_count=1048576
 --------------------------------------------
 
 If you are on these versions of WSL and you do not want to have to run those commands every
@@ -462,7 +462,7 @@ by modifying your %USERPROFILE%\.wslconfig as follows:
 [source,text]
 --------------------------------------------
 [wsl2]
-kernelCommandLine = "sysctl.vm.max_map_count=262144"
+kernelCommandLine = "sysctl.vm.max_map_count=1048576"
 --------------------------------------------
 
 This will cause all WSL2 VMs to have that setting assigned when they start.
@@ -480,7 +480,7 @@ vi /etc/sysctl.conf
 and appending a line which reads:
 [source,text]
 --------------------------------------------
-vm.max_map_count = 262144
+vm.max_map_count = 1048576
 --------------------------------------------
 
 ===== Configuration files must be readable by the `elasticsearch` user

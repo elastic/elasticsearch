@@ -44,7 +44,7 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
 
   public static CountDistinctBytesRefAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, int precision) {
-    return new CountDistinctBytesRefAggregatorFunction(driverContext, channels, CountDistinctBytesRefAggregator.initSingle(driverContext.bigArrays(), precision), precision);
+    return new CountDistinctBytesRefAggregatorFunction(driverContext, channels, CountDistinctBytesRefAggregator.initSingle(driverContext, precision), precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

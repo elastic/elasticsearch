@@ -13,6 +13,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -143,13 +144,13 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
 
     @Override
     public QueryBuilder topDocsQuery() {
+        var query = this.queryBuilder == null ? new MatchAllQueryBuilder() : this.queryBuilder;
         if (preFilterQueryBuilders.isEmpty()) {
-            QueryBuilder qb = queryBuilder;
-            qb.queryName(this.retrieverName);
-            return qb;
+            query.queryName(this.retrieverName);
+            return query;
         }
-        var ret = new BoolQueryBuilder().filter(queryBuilder).queryName(this.retrieverName);
-        preFilterQueryBuilders.stream().forEach(ret::filter);
+        var ret = new BoolQueryBuilder().filter(query).queryName(this.retrieverName);
+        preFilterQueryBuilders.forEach(ret::filter);
         return ret;
     }
 

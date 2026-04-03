@@ -164,6 +164,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
@@ -1575,8 +1576,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         ObjLongConsumer<ActionListener<Void>> waitForMappingUpdate = (l, mappingVersion) -> l.onResponse(null);
         PlainActionFuture<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> future = new PlainActionFuture<>();
         IndexShard indexShard = mock(IndexShard.class);
-        when(indexShard.getBulkOperationListener()).thenReturn(new BulkOperationListener() {
-        });
+        when(indexShard.getBulkOperationListener()).thenReturn(new BulkOperationListener() {});
         TransportShardBulkAction.performOnPrimary(
             request,
             indexShard,
@@ -3454,7 +3454,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
 
             @Override
-            public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
+            public void getUserPrivileges(
+                AuthorizationInfo authorizationInfo,
+                RoleReference.ApiKeyRoleType unwrapLimitedRole,
+                ActionListener<GetUserPrivilegesResponse> listener
+            ) {
                 throw new UnsupportedOperationException("not implemented");
             }
         };

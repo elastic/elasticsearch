@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.fixtures
 
 import spock.lang.Specification
 import spock.lang.TempDir
+import com.github.tomakehurst.wiremock.WireMockServer
 
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.IOUtils
@@ -20,7 +21,7 @@ import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
-import org.gradle.tooling.BuildException
+import org.junit.After
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 
@@ -31,6 +32,7 @@ import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*
 import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 abstract class AbstractGradleFuncTest extends Specification {
@@ -106,6 +108,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         subProjectBuild
     }
 
+
     GradleRunner gradleRunner(Object... arguments) {
         return gradleRunner(testProjectDir.root, arguments)
     }
@@ -171,13 +174,13 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     File internalBuild(
-            List<String> extraPlugins = [],
-            String maintenance = "7.16.10",
-            String major4 = "8.1.3",
-            String major3 = "8.2.1",
-            String major2 = "8.3.0",
-            String major1 = "8.4.0",
-            String current = "9.0.0"
+        List<String> extraPlugins = [],
+        String maintenance = "7.16.10",
+        String major4 = "8.1.3",
+        String major3 = "8.2.1",
+        String major2 = "8.3.0",
+        String major1 = "8.4.0",
+        String current = "9.0.0"
     ) {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'
@@ -244,14 +247,14 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
               }
             }
             '''
-
     }
 
     boolean featureFailed() {
         specificationContext.currentSpec.listeners
             .findAll { it instanceof TestResultExtension.ErrorListener }
             .any {
-                (it as TestResultExtension.ErrorListener).errorInfo != null }
+                (it as TestResultExtension.ErrorListener).errorInfo != null
+            }
     }
 
     ZipAssertion zip(String relativePath) {
@@ -303,7 +306,7 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
         }
 
         String read() {
-            try(ZipFile zipFile1 = new ZipFile(zipFile)) {
+            try (ZipFile zipFile1 = new ZipFile(zipFile)) {
                 def inputStream = zipFile1.getInputStream(entry)
                 return IOUtils.toString(inputStream, StandardCharsets.UTF_8.name())
             } catch (IOException e) {
@@ -329,5 +332,72 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
         File getBuildFile() {
             return new File(projectDir, 'build.gradle')
         };
+
+        File file(String path) {
+            def file = new File(projectDir, path)
+            file.parentFile.mkdirs()
+            file
+        }
+
+        File createTest(String clazzName, String content = testMethodContent(false, false, 1)) {
+            def file = new File(projectDir, "src/test/java/org/acme/${clazzName}.java")
+            file.parentFile.mkdirs()
+            file << """
+            package org.acme;
+
+            import org.junit.Test;
+            import org.junit.Before;
+            import org.junit.After;
+            import org.junit.Assert;
+            import java.nio.*;
+            import java.nio.file.*;
+            import java.io.IOException;
+
+            public class $clazzName {
+
+                @Before
+                public void beforeTest() {
+                }
+
+                @After
+                public void afterTest() {
+                }
+
+                @Test
+                public void someTest1() {
+                    ${content}
+                }
+
+                @Test
+                public void someTest2() {
+                    ${content}
+                }
+            }
+        """
+        }
+
+        String testMethodContent(boolean withSystemExit, boolean fail, int timesFailing = 1) {
+            return """
+            System.out.println(getClass().getSimpleName() + " executing");
+
+            ${withSystemExit ? """
+                    if(count <= ${timesFailing}) {
+                        System.exit(1);
+                    }
+                    """ : ''
+            }
+
+            ${fail ? """
+                    if(count <= ${timesFailing}) {
+                        try {
+                            Thread.sleep(2000);
+                        } catch(Exception e) {}
+                        Assert.fail();
+                    }
+                    """ : ''
+            }
+        """
+        }
+
     }
 }

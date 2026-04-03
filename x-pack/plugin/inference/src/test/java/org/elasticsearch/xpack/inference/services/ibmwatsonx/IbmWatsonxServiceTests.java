@@ -85,6 +85,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -730,6 +731,27 @@ public class IbmWatsonxServiceTests extends ESTestCase {
         testChunkedInfer_Batches(createRandomChunkingSettings());
     }
 
+    public void testChunkedInfer_noInputs() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var model = IbmWatsonxEmbeddingsModelTests.createModel(modelId, projectId, URI.create(url), apiVersion, apiKey, getUrl(webServer));
+        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
     private void testChunkedInfer_Batches(ChunkingSettings chunkingSettings) throws IOException {
         var input = List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb"));
 
@@ -919,7 +941,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 {
                        "service": "watsonxai",
                        "name": "IBM Watsonx",
-                       "task_types": ["text_embedding"],
+                       "task_types": ["text_embedding", "rerank"],
                        "configurations": {
                            "project_id": {
                                "description": "",
@@ -928,7 +950,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "rerank"]
                            },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
@@ -937,7 +959,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "rerank"]
                            },
                            "api_version": {
                                "description": "The IBM Watsonx API version ID to use.",
@@ -946,7 +968,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "rerank"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -964,7 +986,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "rerank"]
                            }
                        }
                    }

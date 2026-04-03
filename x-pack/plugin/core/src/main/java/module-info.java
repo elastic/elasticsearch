@@ -23,6 +23,7 @@ module org.elasticsearch.xcore {
     requires unboundid.ldapsdk;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.xcore.templates;
+    requires org.slf4j;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -51,7 +52,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ccr;
     exports org.elasticsearch.xpack.core.common.notifications;
     exports org.elasticsearch.xpack.core.common.search.aggregations;
-    exports org.elasticsearch.xpack.core.common.socket;
+
     exports org.elasticsearch.xpack.core.common.stats;
     exports org.elasticsearch.xpack.core.common.table;
     exports org.elasticsearch.xpack.core.common.time;

@@ -217,6 +217,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         params.metrics(),
                         params.labels(),
                         params.dimensions(),
+                        params.multiFieldSources() == null ? Map.of() : params.multiFieldSources(),
                         initialState
                     );
                     downsampleShardIndexer.execute();

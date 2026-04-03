@@ -75,6 +75,9 @@ public class MapperFeatures implements FeatureSpecification {
     );
     static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
     public static final NodeFeature MULTI_FIELD_UNICODE_OPTIMISATION_FIX = new NodeFeature("mapper.multi_field.unicode_optimisation_fix");
+    static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
+        "mapper.dense_vector.dynamic_template_nested_object_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -103,7 +106,8 @@ public class MapperFeatures implements FeatureSpecification {
             USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
             SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
             MULTI_FIELD_UNICODE_OPTIMISATION_FIX,
-            MATCH_ONLY_TEXT_BLOCK_LOADER_FIX
+            MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX
         );
     }
 }

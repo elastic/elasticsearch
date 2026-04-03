@@ -104,7 +104,9 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
     }
 
     public String getBaseUrl() {
-        return "https://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+        InetSocketAddress address = server.getAddress();
+        // Use "localhost" for the hostname to match SSL certificate SANs (works for both IPv4 and IPv6)
+        return "https://localhost:" + address.getPort();
     }
 
     private void registerGetAccessTokenHandler() {
@@ -147,6 +149,15 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
                     exchange,
                     RestStatus.BAD_REQUEST,
                     Strings.format("Missing required https://graph.microsoft.com/.default scope: [%s]", formFields.get("scope"))
+                );
+                return;
+            }
+            final var claims = formFields.get("claims");
+            if (claims != null && claims.toLowerCase(java.util.Locale.ROOT).contains("cp1")) {
+                graphError(
+                    exchange,
+                    RestStatus.BAD_REQUEST,
+                    "Token request must not advertise cp1 CAE capability for client_credentials flow"
                 );
                 return;
             }

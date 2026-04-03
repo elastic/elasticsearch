@@ -110,7 +110,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             """;
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);
@@ -126,7 +126,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final String content = "{\"query\":{}}";
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);
@@ -142,7 +142,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final String content = "{malformed_json}";
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);
@@ -188,7 +188,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     }
 
     private void performRequest(RestRequest request) {
-        RestChannel channel = new FakeRestChannel(request, true, 1);
+        RestChannel channel = new FakeRestChannel(request, true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         controller.dispatchRequest(request, channel, threadContext);
     }

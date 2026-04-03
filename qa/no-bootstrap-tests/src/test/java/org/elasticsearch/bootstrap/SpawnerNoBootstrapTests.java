@@ -65,6 +65,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     static {
         // normally done by ESTestCase, but need here because spawner depends on logging
         LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
         MockLog.init();
     }
 

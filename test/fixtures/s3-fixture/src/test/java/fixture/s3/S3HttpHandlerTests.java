@@ -126,7 +126,7 @@ public class S3HttpHandlerTests extends ESTestCase {
 
     public void testGetWithBytesRange() {
         final var handler = new S3HttpHandler("bucket", "path");
-        final var blobName = "blob_name_" + randomIdentifier();
+        final var blobName = randomIdentifier("blob_name_");
         final var blobPath = "/bucket/path/" + blobName;
         final var blobBytes = randomBytesReference(256);
         assertEquals(RestStatus.OK, handleRequest(handler, "PUT", blobPath, blobBytes).status());

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountApproximateAggregatorFunction;
+import org.elasticsearch.compute.aggregation.DenseVectorCountApproximateAggregatorFunction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -18,9 +19,13 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Used exclusively in the query approximation plan.
@@ -30,7 +35,7 @@ import java.util.List;
  * probability on data nodes — the corrected value stays in floating point and
  * is only rounded to the target integer type on the coordinator.
  */
-public class CountApproximate extends Count {
+public class CountApproximate extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CountApproximate",
@@ -42,7 +47,7 @@ public class CountApproximate extends Count {
     }
 
     public CountApproximate(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window);
+        super(source, field, filter, window, List.of());
     }
 
     private CountApproximate(StreamInput in) throws IOException {
@@ -61,7 +66,7 @@ public class CountApproximate extends Count {
     }
 
     @Override
-    protected NodeInfo<Count> info() {
+    protected NodeInfo<CountApproximate> info() {
         return NodeInfo.create(this, CountApproximate::new, field(), filter(), window());
     }
 
@@ -82,16 +87,25 @@ public class CountApproximate extends Count {
 
     @Override
     public AggregatorFunctionSupplier supplier() {
+        if (field().dataType() == DataType.DENSE_VECTOR) {
+            return DenseVectorCountApproximateAggregatorFunction.supplier();
+        }
         return CountApproximateAggregatorFunction.supplier();
     }
 
     @Override
     public Nullability nullable() {
-        return Nullability.TRUE;
+        return Nullability.FALSE;
     }
 
     @Override
-    public Expression surrogate() {
-        return null;
+    protected TypeResolution resolveType() {
+        return isType(
+            field(),
+            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM && dt != DataType.DATE_RANGE,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types, histogram, or date_range"
+        );
     }
 }

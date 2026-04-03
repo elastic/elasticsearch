@@ -40,9 +40,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
 
         CohereEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes);
     }

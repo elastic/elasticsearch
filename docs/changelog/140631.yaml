@@ -1,0 +1,5 @@
+pr: 140631
+summary: Make `ServiceAccountToken` APIs Available in Serverless
+area: Security
+type: feature
+issues: []

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.BlockTestUtils;
@@ -34,9 +36,12 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateAggregations;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteTransportVersionAwareExpressions;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.junit.AssumptionViolatedException;
@@ -522,7 +527,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
         logger.info("Test Values: " + valuesString);
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
-        expression = resolveSurrogates(expression);
+        expression = resolveSubstitutions(expression);
         assertThat("expression required surrogates", expression, not(instanceOf(OnlySurrogateExpression.class)));
 
         // Fold nulls
@@ -571,8 +576,14 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         var blocksArraySize = randomIntBetween(1, 10);
         var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
         var blocks = new Block[blocksArraySize];
-        try (var groups = driverContext().blockFactory().newIntRangeVector(0, groupCount)) {
-            aggregator.evaluate(blocks, resultBlockIndex, groups, new GroupingAggregatorEvaluationContext(driverContext()));
+        try (
+            IntVector groups = driverContext().blockFactory().newIntRangeVector(0, groupCount);
+            GroupingAggregatorFunction.PreparedForEvaluation prepared = aggregator.prepareForEvaluate(
+                groups,
+                new GroupingAggregatorEvaluationContext(driverContext())
+            );
+        ) {
+            prepared.evaluate(blocks, resultBlockIndex, groups);
 
             var block = blocks[resultBlockIndex];
 
@@ -595,14 +606,17 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     /**
-     * Resolves surrogates of aggregations until a non-surrogate expression is found.
+     * Resolves substitutions of aggregations. This simulates the {@link LogicalPlanOptimizer} rules and order:
+     * <ul>
+     *     <li>Aggregation surrogates ({@link SubstituteSurrogateAggregations}). Executed twice, like in the optimizer.</li>
+     *     <li>Expression surrogates ({@link SubstituteSurrogateExpressions})</li>
+     *     <li>TransportVersionAware expressions {@link SubstituteTransportVersionAwareExpressions}</li>
+     * </ul>
      * <p>
-     *     No-op if expecting errors, as surrogates depend on correct types
+     *     No-op if expecting errors.
      * </p>
      */
-    private Expression resolveSurrogates(Expression expression) {
-        // Run agg surrogates twice
-        // This simulates the double aggs surrogation in LogicalPlanOptimizer
+    private Expression resolveSubstitutions(Expression expression) {
         for (int i = 0; i < 2; i++) {
             expression = expression.transformUp(AggregateFunction.class, agg -> {
                 if (agg instanceof SurrogateExpression se) {
@@ -615,7 +629,9 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             });
         }
 
-        expression = SubstituteSurrogateExpressions.rule(expression);
+        expression = expression.transformUp(SubstituteSurrogateExpressions::rule);
+
+        expression = expression.transformUp(agg -> SubstituteTransportVersionAwareExpressions.rule(agg, TransportVersion.current()));
 
         return expression;
     }

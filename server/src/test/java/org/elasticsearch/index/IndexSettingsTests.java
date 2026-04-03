@@ -33,6 +33,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -963,7 +964,9 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersion.current()
         );
         IndexMode mode = IndexMode.TIME_SERIES;
-        String codec = CodecService.DEFAULT_CODEC;
+        String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
+            ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
+            : CodecService.DEFAULT_CODEC;
 
         Settings settings = Settings.builder()
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
@@ -985,7 +988,9 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersion.current()
         );
         IndexMode mode = IndexMode.TIME_SERIES;
-        String codec = CodecService.DEFAULT_CODEC;
+        String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
+            ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
+            : CodecService.DEFAULT_CODEC;
 
         Settings settings = Settings.builder()
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
@@ -1053,12 +1058,14 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersion.current()
         );
         IndexMode mode = IndexMode.TIME_SERIES;
-        String badCodec = randomFrom(
-            CodecService.BEST_COMPRESSION_CODEC,
-            CodecService.LEGACY_BEST_COMPRESSION_CODEC,
-            CodecService.LEGACY_DEFAULT_CODEC,
-            CodecService.LUCENE_DEFAULT_CODEC
+
+        ArrayList<String> badCodecs = new ArrayList<>(
+            Arrays.asList(CodecService.LEGACY_BEST_COMPRESSION_CODEC, CodecService.LEGACY_DEFAULT_CODEC, CodecService.LUCENE_DEFAULT_CODEC)
         );
+        if (version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION) == false) {
+            badCodecs.add(CodecService.BEST_COMPRESSION_CODEC);
+        }
+        String badCodec = randomFrom(badCodecs);
 
         Settings settings = Settings.builder()
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
@@ -1074,10 +1081,11 @@ public class IndexSettingsTests extends ESTestCase {
             Matchers.containsString(
                 String.format(
                     Locale.ROOT,
-                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                    "The setting [%s] is only permitted when [%s] is set to [%s] or [%s]. Current mode: [%s].",
                     IndexSettings.SYNTHETIC_ID.getKey(),
                     INDEX_CODEC_SETTING.getKey(),
                     CodecService.DEFAULT_CODEC,
+                    CodecService.BEST_COMPRESSION_CODEC,
                     badCodec
                 )
             )
@@ -1130,14 +1138,25 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(indexSettings.sequenceNumbersDisabled(), is(equalTo(disabled)));
     }
 
+    public void testDisableSequenceNumbersImpliesDocValuesOnly() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+
+        assertThat(
+            IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.get(indexMetadata.getSettings()),
+            equalTo(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+        );
+    }
+
     public void testDisableSequenceNumbersRequiresDocValuesOnly() {
         assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
-        if (randomBoolean()) {
-            builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
-        }
+        builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
         var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
         var e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
         assertThat(

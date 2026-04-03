@@ -52,9 +52,10 @@ public class TransportSearchHelperTests extends ESTestCase {
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
         final String scrollId;
         try (var recycler = new MockBytesRefRecycler()) {
-            scrollId = TransportSearchHelper.buildScrollId(queryResults, recycler);
+            scrollId = TransportSearchHelper.buildScrollId(queryResults, recycler, true);
         }
         ParsedScrollId parseScrollId = TransportSearchHelper.parseScrollId(scrollId);
+        assertEquals(ParsedScrollId.QUERY_THEN_FETCH_TYPE, parseScrollId.getType());
         assertEquals(3, parseScrollId.getContext().length);
         assertEquals("node_1", parseScrollId.getContext()[0].getNode());
         assertEquals("cluster_x", parseScrollId.getContext()[0].getClusterAlias());
@@ -70,5 +71,27 @@ public class TransportSearchHelperTests extends ESTestCase {
         assertNull(parseScrollId.getContext()[2].getClusterAlias());
         assertEquals(42, parseScrollId.getContext()[2].getSearchContextId().getId());
         assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo("c"));
+    }
+
+    /**
+     * One shard executed the query phase while other shards were skipped (e.g. can_match); scroll type must still be
+     * query-then-fetch when the logical search is multi-shard.
+     */
+    public void testParseScrollIdSingleQueryShardButMultiLogicalShard() {
+        AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(1);
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        SearchAsyncActionTests.TestSearchPhaseResult single = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("only", 1),
+            node1
+        );
+        single.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 0), null));
+        queryResults.setOnce(0, single);
+        final String scrollId;
+        try (var recycler = new MockBytesRefRecycler()) {
+            scrollId = TransportSearchHelper.buildScrollId(queryResults, recycler, true);
+        }
+        ParsedScrollId parsed = TransportSearchHelper.parseScrollId(scrollId);
+        assertEquals(ParsedScrollId.QUERY_THEN_FETCH_TYPE, parsed.getType());
+        assertEquals(1, parsed.getContext().length);
     }
 }

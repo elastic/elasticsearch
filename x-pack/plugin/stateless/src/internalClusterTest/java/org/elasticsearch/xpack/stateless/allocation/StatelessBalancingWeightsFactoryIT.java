@@ -19,6 +19,7 @@ package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction;
@@ -45,12 +46,16 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(
-            randomBoolean()
-                ? StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey()
-                : StatelessBalancingWeightsFactory.SERVERLESS_SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey(),
-            true
-        );
+        return super.nodeSettings()
+            // Tests below can set the other weights all to 0, resulting in 0 node weight, which is not currently supported. Therefore,
+            // index balance will be set to a value >0 to ensure there is always some node weight balance.
+            .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.55f)
+            .put(
+                randomBoolean()
+                    ? StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey()
+                    : StatelessBalancingWeightsFactory.SERVERLESS_SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey(),
+                true
+            );
     }
 
     public void testShardCountIsConfigurablePerTier() throws Exception {

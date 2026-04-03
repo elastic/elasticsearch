@@ -301,7 +301,10 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
         final var storage = service.client("default", "repo", new GoogleCloudStorageOperationsStats("bucket"));
         assertThat(storage.getOptions().getCredentials(), notNullValue());
-        assertTrue("GCP metadata server should have been contacted to obtain Application Default Credentials", metadataServerContacted.get());
+        assertTrue(
+            "GCP metadata server should have been contacted to obtain Application Default Credentials",
+            metadataServerContacted.get()
+        );
     }
 
     public void testGetDefaultProjectIdViaProxy() throws Exception {

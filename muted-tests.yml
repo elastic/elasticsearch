@@ -345,9 +345,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:floats.values}
   issue: https://github.com/elastic/elasticsearch/issues/145524
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testContainsIterator
-  issue: https://github.com/elastic/elasticsearch/issues/145532
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:ints.convertStringToBaseIndexGroup6}
   issue: https://github.com/elastic/elasticsearch/issues/145540
@@ -392,18 +389,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
   method: testTopNByKeyEncoderTooMuchMemory
   issue: https://github.com/elastic/elasticsearch/issues/145627
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testBlockWiseBinarySmallValues
-  issue: https://github.com/elastic/elasticsearch/issues/145635
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/145654
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/145655
-- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
-  method: testTSDBWithMultiplePrefixByte
-  issue: https://github.com/elastic/elasticsearch/issues/145668
 - class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
   method: testRecreateTemplateWhenDeleted
   issue: https://github.com/elastic/elasticsearch/issues/123232

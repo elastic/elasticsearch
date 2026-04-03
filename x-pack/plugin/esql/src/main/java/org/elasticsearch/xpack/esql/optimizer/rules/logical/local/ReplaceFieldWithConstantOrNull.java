@@ -140,10 +140,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             // one used inside a FullTextFunction is protected here, even if it also appears outside the function (e.g. in a plain equality
             // check). This slight loss of constant-folding opportunity is intentional to keep the logic simple.
             var fullTextFieldArgsBuilder = AttributeSet.builder();
-            plan.forEachExpression(
-                FullTextFunction.class,
-                ftf -> ftf.forEachDown(FieldAttribute.class, fullTextFieldArgsBuilder::add)
-            );
+            plan.forEachExpression(FullTextFunction.class, ftf -> ftf.forEachDown(FieldAttribute.class, fullTextFieldArgsBuilder::add));
             AttributeSet fullTextFieldArgs = fullTextFieldArgsBuilder.build();
 
             LogicalPlan transformed = plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {

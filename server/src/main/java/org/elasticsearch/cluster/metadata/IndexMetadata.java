@@ -47,7 +47,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -2641,7 +2640,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
                 && isTsdb
                 && version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)
-                && (codecSetting == null || codecSetting.equalsIgnoreCase(CodecService.DEFAULT_CODEC))) {
+                && (codecSetting == null || IndexSettings.isValidCodecForSyntheticId(codecSetting, version))) {
                 boolean defaultValue = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
                 return settings.getAsBoolean(IndexSettings.SYNTHETIC_ID.getKey(), defaultValue);
             }

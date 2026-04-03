@@ -46,7 +46,6 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -67,6 +66,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -314,10 +314,9 @@ public class SynonymsManagementAPIService {
 
             if (hits.length == 0) {
                 if (accumulated.isEmpty()) {
-                    closePitAndThen(currentPitId, () -> checkSynonymSetExists(
-                        synonymSetId,
-                        listener.delegateFailure((l, ignored) -> { l.onResponse(new PagedResult<>(0, new SynonymRule[0])); })
-                    ));
+                    closePitAndThen(currentPitId, () -> checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
+                        l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
+                    })));
                 } else {
                     PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
                     closePitAndThen(currentPitId, () -> listener.onResponse(result));
@@ -349,9 +348,7 @@ public class SynonymsManagementAPIService {
 
             Object[] lastSortValues = hits[hits.length - 1].getSortValues();
             fetchPageWithPit(synonymSetId, currentPitId, lastSortValues, accumulated, listener);
-        }, e -> {
-            closePitAndThen(pitId, () -> listener.onFailure(e));
-        }));
+        }, e -> { closePitAndThen(pitId, () -> listener.onFailure(e)); }));
     }
 
     private void closePitAndThen(BytesReference pitId, Runnable andThen) {

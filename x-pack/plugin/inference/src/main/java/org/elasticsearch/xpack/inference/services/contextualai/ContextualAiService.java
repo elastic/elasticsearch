@@ -56,8 +56,6 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
     public static final String NAME = "contextualai";
     private static final String SERVICE_NAME = "Contextual AI";
 
-    private static final TransportVersion CONTEXTUAL_AI_SERVICE = TransportVersion.fromName("contextual_ai_service");
-
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.RERANK);
     private static final Map<TaskType, ModelCreator<? extends ContextualAiModel>> MODEL_CREATORS = Map.of(
         TaskType.RERANK,
@@ -148,7 +146,7 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
     }
 
     @Override
-    public void doInfer(
+    protected void doInfer(
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
@@ -217,7 +215,7 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return CONTEXTUAL_AI_SERVICE;
+        return ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
     }
 
     public static class Configuration {

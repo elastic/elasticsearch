@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -153,6 +154,12 @@ public class ContextualAiRerankTaskSettings implements TaskSettings, TopNProvide
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        assert false : "should never be called when supportsVersion is used";
+        return ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return ContextualAiUtils.supportsContextualAi(version);
     }
 }

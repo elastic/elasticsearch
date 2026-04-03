@@ -27,6 +27,7 @@ public class ContextualAiRerankRequestEntity implements ToXContentObject {
     private static final String DOCUMENTS_FIELD = "documents";
     private static final String TOP_N_FIELD = "top_n";
     private static final String INSTRUCTION_FIELD = "instruction";
+    private static final String RETURN_DOCUMENTS_FIELD = "return_documents";
 
     private final String query;
     private final List<String> documents;
@@ -56,15 +57,17 @@ public class ContextualAiRerankRequestEntity implements ToXContentObject {
         builder.field(QUERY_FIELD, query);
         builder.field(MODEL_FIELD, model.modelId());
 
-        // Add top_n field if specified
         if (topN != null) {
             builder.field(TOP_N_FIELD, topN);
-        } else if (model.getTaskSettings() != null && model.getTaskSettings().getTopN() != null) {
-            builder.field(TOP_N_FIELD, model.getTaskSettings().getTopN());
         }
 
         if (instruction != null) {
             builder.field(INSTRUCTION_FIELD, instruction);
+        }
+
+        Boolean returnDocuments = model.getTaskSettings() != null ? model.getTaskSettings().getReturnDocuments() : null;
+        if (returnDocuments != null) {
+            builder.field(RETURN_DOCUMENTS_FIELD, returnDocuments);
         }
 
         builder.field(DOCUMENTS_FIELD, documents);

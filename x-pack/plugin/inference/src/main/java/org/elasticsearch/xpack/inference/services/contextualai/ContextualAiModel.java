@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.contextualai;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
@@ -38,7 +39,10 @@ public abstract class ContextualAiModel extends RateLimitGroupingModel {
         super(configurations, secrets);
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
-        apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        apiKey = Objects.requireNonNull(ServiceUtils.apiKey(apiKeySecrets));
+        if (apiKey.length() == 0) {
+            throw new IllegalArgumentException(Strings.format("api_key is required for [%s] inference", ContextualAiService.NAME));
+        }
     }
 
     protected ContextualAiModel(ContextualAiModel model, TaskSettings taskSettings) {

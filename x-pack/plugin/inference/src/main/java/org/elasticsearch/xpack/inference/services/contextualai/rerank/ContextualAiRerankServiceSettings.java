@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService;
+import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -30,6 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class ContextualAiRerankServiceSettings extends FilteredXContentObject
     implements
@@ -37,9 +39,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
         ServiceSettings {
 
     public static final String NAME = "contextualai_rerank_service_settings";
-    private static final String API_KEY = "api_key";
 
-    // TODO: Make this configurable instead of hardcoded. Should support custom endpoints or different ContextualAI regions.
     private static final String DEFAULT_URL = "https://api.contextual.ai/v1/rerank";
 
     // Default rate limit settings - can be adjusted based on ContextualAI's actual limits
@@ -53,7 +53,12 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = extractOptionalString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(
+            map,
+            ServiceFields.MODEL_ID,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
@@ -69,9 +74,9 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
         return new ContextualAiRerankServiceSettings(uri, modelId, rateLimitSettings);
     }
 
-    public ContextualAiRerankServiceSettings(URI uri, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+    public ContextualAiRerankServiceSettings(URI uri, String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this.uri = Objects.requireNonNull(uri);
-        this.modelId = modelId; // Can be null for REQUEST context
+        this.modelId = Objects.requireNonNull(modelId);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
@@ -145,6 +150,12 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        assert false : "should never be called when supportsVersion is used";
+        return ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return ContextualAiUtils.supportsContextualAi(version);
     }
 }

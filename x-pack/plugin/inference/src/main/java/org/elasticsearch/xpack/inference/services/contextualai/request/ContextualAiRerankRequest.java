@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.inference.services.contextualai.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -60,7 +59,7 @@ public class ContextualAiRerankRequest implements Request {
         String requestJson;
         try {
             requestJson = Strings.toString(requestEntity);
-            logger.debug("ContextualAI JSON Request: {}", requestJson);
+            logger.debug("ContextualAI JSON request for inference id [{}]: {}", model.getInferenceEntityId(), requestJson);
         } catch (Exception e) {
             throw new RuntimeException("Failed to serialize ContextualAI request entity", e);
         }
@@ -69,26 +68,19 @@ public class ContextualAiRerankRequest implements Request {
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
 
-        decorateWithAuth(httpPost);
+        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
-    void decorateWithAuth(HttpPost httpPost) {
-        SecureString apiKey = model.apiKey();
-        if (apiKey != null) {
-            httpPost.setHeader(createAuthBearerHeader(apiKey));
-        }
-    }
-
     @Override
     public String getInferenceEntityId() {
-        return model != null ? model.getInferenceEntityId() : "unknown";
+        return model.getInferenceEntityId();
     }
 
     @Override
     public URI getURI() {
-        return model != null ? model.uri() : null;
+        return model.uri();
     }
 
     public Integer getTopN() {

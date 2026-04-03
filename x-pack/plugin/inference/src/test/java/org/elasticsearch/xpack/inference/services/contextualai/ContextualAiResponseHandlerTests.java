@@ -44,9 +44,9 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
-    public void testCheckForFailureStatusCode_ThrowsFor503() {
+    public void testCheckForFailureStatusCode_ThrowsFor503_WithShouldRetryTrue() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(503, "id"));
-        assertFalse(exception.shouldRetry());
+        assertTrue(exception.shouldRetry());
         MatcherAssert.assertThat(
             exception.getCause().getMessage(),
             containsString("Received a server error status code for request from inference entity id [id] status [503]")

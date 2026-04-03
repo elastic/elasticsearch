@@ -13,37 +13,42 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
+import java.nio.charset.StandardCharsets;
+
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ContextualAiErrorResponseEntityTests extends ESTestCase {
+public class ContextualAiErrorResponseTests extends ESTestCase {
 
-    public void testFromResponse() {
+    public void testErrorResponseFromResponseUsesBodyWhenPresent() {
         var statusLine = mock(StatusLine.class);
-        when(statusLine.toString()).thenReturn("HTTP/1.1 400 Bad Request");
+        when(statusLine.getStatusCode()).thenReturn(400);
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getStatusLine()).thenReturn(statusLine);
 
-        var httpResult = new HttpResult(httpResponse, new byte[0]);
+        var body = "{\"error\":\"invalid request\"}".getBytes(StandardCharsets.UTF_8);
+        var httpResult = new HttpResult(httpResponse, body);
 
-        ErrorResponse errorResponse = ContextualAiErrorResponseEntity.fromResponse(httpResult);
+        ErrorResponse errorResponse = ErrorResponse.fromResponse(httpResult);
 
-        assertThat(errorResponse.getErrorMessage(), is("HTTP/1.1 400 Bad Request"));
+        assertThat(errorResponse.getErrorMessage(), is("{\"error\":\"invalid request\"}"));
+        assertTrue(errorResponse.errorStructureFound());
     }
 
-    public void testFromResponse_ServerError() {
+    public void testErrorResponseFromResponse_EmptyBody() {
         var statusLine = mock(StatusLine.class);
-        when(statusLine.toString()).thenReturn("HTTP/1.1 500 Internal Server Error");
+        when(statusLine.getStatusCode()).thenReturn(500);
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getStatusLine()).thenReturn(statusLine);
 
         var httpResult = new HttpResult(httpResponse, new byte[0]);
 
-        ErrorResponse errorResponse = ContextualAiErrorResponseEntity.fromResponse(httpResult);
+        ErrorResponse errorResponse = ErrorResponse.fromResponse(httpResult);
 
-        assertThat(errorResponse.getErrorMessage(), is("HTTP/1.1 500 Internal Server Error"));
+        assertThat(errorResponse.getErrorMessage(), is(""));
+        assertTrue(errorResponse.errorStructureFound());
     }
 }

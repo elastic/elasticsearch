@@ -25,9 +25,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
-  issue: https://github.com/elastic/elasticsearch/issues/120950
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -208,9 +205,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144672
-- class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
-  method: testDirectoryMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/144702
 - class: org.elasticsearch.xpack.transform.transforms.ClientTransformIndexerTests
   method: testDisablePitWhenCrossProjectSearchIsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144822
@@ -401,21 +395,42 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidLongWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145580
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.physical.MergeExec}
-  issue: https://github.com/elastic/elasticsearch/issues/145581
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testReplaceChildren {class org.elasticsearch.xpack.esql.plan.logical.Filter}
-  issue: https://github.com/elastic/elasticsearch/issues/145583
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec}
-  issue: https://github.com/elastic/elasticsearch/issues/145584
-- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
-  method: testTransform {class org.elasticsearch.xpack.esql.plan.physical.ExchangeExec}
-  issue: https://github.com/elastic/elasticsearch/issues/145585
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:stats_percentile.percentileOfLong}
   issue: https://github.com/elastic/elasticsearch/issues/145589
+- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
+  method: testUpdateInferenceId_GivenCurrentHasNoModelSettingsAndNewIsIncompatibleTaskType_ShouldSucceed {p0=true}
+  issue: https://github.com/elastic/elasticsearch/issues/145591
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcFetchSizeIT
+  method: testScrollWithDatetimeAndTimezoneParam
+  issue: https://github.com/elastic/elasticsearch/issues/145592
+- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
+  method: testLicenseCheck
+  issue: https://github.com/elastic/elasticsearch/issues/145600
+- class: org.elasticsearch.indices.IndexingMemoryControllerIT
+  method: testDeletesAloneCanTriggerRefresh
+  issue: https://github.com/elastic/elasticsearch/issues/145609
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
+  method: testTopNByKeyEncoderTooMuchMemory
+  issue: https://github.com/elastic/elasticsearch/issues/145627
+- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
+  method: testBlockWiseBinarySmallValues
+  issue: https://github.com/elastic/elasticsearch/issues/145635
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testWriteLargeBlob
+  issue: https://github.com/elastic/elasticsearch/issues/145654
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:spatial_shapes.convertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/145655
+- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
+  method: testTSDBWithMultiplePrefixByte
+  issue: https://github.com/elastic/elasticsearch/issues/145668
+- class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
+  method: testRecreateTemplateWhenDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/123232
+- class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
+  method: testScaleWhileShrinking
+  issue: https://github.com/elastic/elasticsearch/issues/145669
 
 # Examples:
 #

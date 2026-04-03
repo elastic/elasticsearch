@@ -352,7 +352,19 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
 
-        // todo
+        ProjectState projectState = getProjectState();
+        ProjectMetadata projectMetadata = projectState.metadata();
+        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
+        String snapshotName = snapshotName(indexName);
+
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(projectState.cluster());
+        long snapshotStartTime = findSnapshotStartTime(snapshotsInProgress, projectId, repositoryName, snapshotName);
+
+        if (snapshotStartTime >= 0) {
+            handleInProgressSnapshot(indexName, repositoryName, snapshotName, snapshotStartTime);
+        } else {
+            checkForOrphanedSnapshotAndStart(indexName, repositoryName, snapshotName);
+        }
     }
 
     public void maybeMountSearchableSnapshot() throws InterruptedException {
@@ -596,6 +608,122 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 throw new ElasticsearchException("DLM's request to mark index [" + targetIndex + "] as read-only was not acknowledged");
             }
         }
+    }
+
+    /**
+     * A snapshot for this index is currently running in the cluster. If it has been running longer
+     * than {@link #SNAPSHOT_TIMEOUT}, delete it and start again; otherwise wait for it to complete.
+     */
+    void handleInProgressSnapshot(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
+        if ((clock.millis() - snapshotStartTime) > SNAPSHOT_TIMEOUT.millis()) {
+            logger.warn(
+                "DLM snapshot [{}] for index [{}] has been running for over [{}], cancelling and restarting",
+                snapshotName,
+                indexName,
+                SNAPSHOT_TIMEOUT
+            );
+            deleteAndRestartSnapshot(indexName, repositoryName, snapshotName);
+        } else {
+            logger.info(
+                "DLM snapshot [{}] for index [{}] is currently in progress and has been running for [{}], waiting for completion",
+                snapshotName,
+                indexName,
+                TimeValue.timeValueMillis(clock.millis() - snapshotStartTime)
+            );
+            waitForSnapshotCompletion(indexName, repositoryName, snapshotName, snapshotStartTime);
+        }
+    }
+
+    /**
+     * Polls the snapshot status until it completes or the total elapsed time since snapshot start exceeds
+     * {@link #SNAPSHOT_TIMEOUT}. If the snapshot completes successfully, logs and returns. If the snapshot
+     * does not complete successfully for any reason (timeout, disappearance, failure), throws an exception.
+     */
+    void waitForSnapshotCompletion(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
+        while (true) {
+            long elapsed = clock.millis() - snapshotStartTime;
+            if (elapsed > SNAPSHOT_TIMEOUT.millis()) {
+                throw new ElasticsearchException(
+                    "DLM snapshot [{}] for index [{}] has exceeded timeout of [{}]",
+                    snapshotName,
+                    indexName,
+                    SNAPSHOT_TIMEOUT
+                );
+            }
+
+            sleepBeforePoll(snapshotName, indexName);
+
+            SnapshotInfo snapshot = getSnapshot(repositoryName, snapshotName, indexName);
+            if (snapshot == null) {
+                throw new ElasticsearchException(
+                    "DLM snapshot [{}] for index [{}] disappeared while waiting for completion",
+                    snapshotName,
+                    indexName
+                );
+            }
+
+            if (snapshot.state() == SnapshotState.IN_PROGRESS) {
+                logger.debug(
+                    "DLM snapshot [{}] for index [{}] is still in progress (elapsed [{}])",
+                    snapshotName,
+                    indexName,
+                    TimeValue.timeValueMillis(elapsed)
+                );
+                continue;
+            }
+
+            checkSnapshotInfoSuccess(indexName, snapshotName, snapshot);
+            return;
+        }
+    }
+
+    /**
+     * Sleeps for the configured poll interval before polling for snapshot status.
+     * Extracted into its own method so that tests can override to avoid blocking.
+     */
+    void sleepBeforePoll(String snapshotName, String indexName) {
+        try {
+            Thread.sleep(SNAPSHOT_POLL_INTERVAL.millis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchException("DLM interrupted while waiting for snapshot [{}] for index [{}]", e, snapshotName, indexName);
+        }
+    }
+
+    /**
+     * No snapshot is currently running for this index. Check whether a completed snapshot already
+     * exists in the repository. If a valid successful snapshot exists, returns.
+     * If the snapshot exists but is invalid (e.g. partial or failed), delete and recreate it.
+     * Otherwise, start a fresh snapshot.
+     */
+    void checkForOrphanedSnapshotAndStart(String indexName, String repositoryName, String snapshotName) {
+        SnapshotInfo existingSnapshot = getSnapshot(repositoryName, snapshotName, indexName);
+        if (existingSnapshot == null) {
+            createSnapshot(indexName, repositoryName, snapshotName);
+            return;
+        }
+
+        if (existingSnapshot.state() == SnapshotState.SUCCESS && existingSnapshot.failedShards() == 0) {
+            logger.info("DLM found valid orphaned snapshot [{}] for index [{}]", snapshotName, indexName);
+        } else {
+            logger.info(
+                "DLM found invalid orphaned snapshot [{}] for index [{}] (state [{}], failed shards [{}]), " + "deleting and recreating",
+                snapshotName,
+                indexName,
+                existingSnapshot.state(),
+                existingSnapshot.failedShards()
+            );
+            deleteAndRestartSnapshot(indexName, repositoryName, snapshotName);
+        }
+    }
+
+    /**
+     * Best-effort delete of the existing snapshot, then create a new one.
+     * If the snapshot is already missing, proceeds directly to creation.
+     */
+    void deleteAndRestartSnapshot(String indexName, String repositoryName, String snapshotName) {
+        deleteSnapshotIfExists(repositoryName, snapshotName, indexName);
+        createSnapshot(indexName, repositoryName, snapshotName);
     }
 
     /**

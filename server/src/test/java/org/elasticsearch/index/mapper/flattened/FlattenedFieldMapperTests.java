@@ -130,6 +130,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.startObject("host").field("type", "keyword").endObject();
             b.endObject();
         }, m -> assertNotNull(((FlattenedFieldMapper) m).fieldType().getChildFieldType("host")));
+        checker.registerUpdateCheck("passthrough", b -> {
+            b.startObject("passthrough").field("priority", 5).endObject();
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        }, m -> assertTrue(((FlattenedFieldMapper) m).isPassthrough()));
     }
 
     @Override
@@ -2033,6 +2037,99 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             e.getMessage(),
             containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
         );
+    }
+
+    public void testPassthroughWithNegativePriorityThrows() throws IOException {
+        Exception e = expectThrows(Exception.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("passthrough").field("priority", -1).endObject();
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        })));
+        assertThat(e.getMessage(), containsString("passthrough"));
+    }
+
+    public void testPassthroughWithoutPropertiesThrows() throws IOException {
+        for (int priority : new int[] { 0, 5, 100 }) {
+            final int p = priority;
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "flattened");
+                b.startObject("passthrough").field("priority", p).endObject();
+            })));
+            assertThat(e.getMessage(), containsString("passthrough"));
+            assertThat(e.getMessage(), containsString("properties"));
+        }
+    }
+
+    public void testPassthroughMissingPriorityThrows() throws IOException {
+        Exception e = expectThrows(Exception.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("passthrough").endObject();
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        })));
+        assertThat(e.getMessage(), containsString("priority"));
+    }
+
+    public void testPassthroughWithSubFields() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("passthrough").field("priority", 10).endObject();
+            b.startObject("properties");
+            b.startObject("status").field("type", "keyword").endObject();
+            b.startObject("count").field("type", "long").endObject();
+            b.endObject();
+        }));
+        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertTrue(mapper.isPassthrough());
+        assertEquals(10, mapper.priority());
+        assertEquals(2, mapper.passThroughSubFields().size());
+        // root-level aliases are registered
+        assertNotNull(mapperService.fieldType("status"));
+        assertNotNull(mapperService.fieldType("count"));
+    }
+
+    public void testNoPassthroughWhenParamAbsent() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flattened")));
+        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertFalse(mapper.isPassthrough());
+        assertNull(mapperService.fieldType("status"));
+    }
+
+    public void testPassthroughRootFieldWins() throws IOException {
+        // root "status" is long; passthrough sub-field "status" is keyword — types differ so we can
+        // confirm the root concrete field wins rather than the passthrough alias
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("status").field("type", "long").endObject();
+            b.startObject("labels");
+            b.field("type", "flattened");
+            b.startObject("passthrough").field("priority", 10).endObject();
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+        MappedFieldType ft = mapperService.fieldType("status");
+        assertNotNull(ft);
+        assertEquals("long", ft.typeName());
+    }
+
+    public void testPassthroughNotSerializedWhenAbsent() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flattened")));
+        String serialized = mapperService.documentMapper().mappingSource().toString();
+        assertFalse(serialized.contains("passthrough"));
+    }
+
+    public void testPassthroughRoundTrip() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("passthrough").field("priority", 7).endObject();
+            b.startObject("properties").startObject("status").field("type", "keyword").endObject().endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+        String serialized = mapper.mappingSource().toString();
+        assertThat(serialized, containsString("\"passthrough\":{\"priority\":7}"));
+        // re-parse to confirm round-trip
+        MapperService reparsed = createMapperService(mapper.mappingSource().string());
+        FlattenedFieldMapper reparsedMapper = (FlattenedFieldMapper) reparsed.mappingLookup().getMapper("field");
+        assertTrue(reparsedMapper.isPassthrough());
+        assertEquals(7, reparsedMapper.priority());
     }
 
     @Override

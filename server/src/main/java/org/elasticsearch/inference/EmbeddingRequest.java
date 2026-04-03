@@ -40,12 +40,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * <pre>
  * "input": [
  *   {
- *     "content": {"type": "image", "format": "base64", "value": "image data"},
+ *     "content": {"type": "image", "format": "base64", "value": "data:image/png;base64,..."},
  *   },
  *   {
  *     "content": [
  *       {"type": "text", "value": "text input"},
- *       {"type": "image", "value": "image data"}
+ *       {"type": "image", "value": "data:image/png;base64,..."}
  *     ]
  *   }
  * ]</pre>

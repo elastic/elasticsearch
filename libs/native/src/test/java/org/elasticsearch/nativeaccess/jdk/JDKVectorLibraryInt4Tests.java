@@ -269,11 +269,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {
-            addressesSeg.setAtIndex(
-                ValueLayout.ADDRESS,
-                i,
-                packedSegment.asSlice((long) ordinals[i] * packedLen, packedLen)
-            );
+            addressesSeg.setAtIndex(ValueLayout.ADDRESS, i, packedSegment.asSlice((long) ordinals[i] * packedLen, packedLen));
         }
 
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);

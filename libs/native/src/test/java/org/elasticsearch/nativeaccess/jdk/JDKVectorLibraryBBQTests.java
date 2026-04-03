@@ -317,13 +317,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         }
 
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(
-            function,
-            testData.unpackedQueryVector,
-            testData.unpackedIndexVectors,
-            ordinals,
-            expectedScores
-        );
+        ScalarOperations.bulkWithOffsets(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {

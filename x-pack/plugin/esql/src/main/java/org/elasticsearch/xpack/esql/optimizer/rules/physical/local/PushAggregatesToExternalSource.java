@@ -14,11 +14,9 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -87,7 +85,10 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
 
-        Map<String, Object> sourceMetadata = resolveEffectiveMetadata(externalExec);
+        Map<String, Object> sourceMetadata = SourceStatisticsSerializer.resolveEffectiveMetadata(
+            externalExec.splits(),
+            externalExec.sourceMetadata()
+        );
         if (sourceMetadata == null) {
             return aggregateExec;
         }
@@ -220,22 +221,6 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         } else {
             return blockFactory.newConstantNullBlock(1);
         }
-    }
-
-    private static Map<String, Object> resolveEffectiveMetadata(ExternalSourceExec externalExec) {
-        List<? extends ExternalSplit> splits = externalExec.splits();
-        if (splits.size() <= 1) {
-            return externalExec.sourceMetadata();
-        }
-        List<Map<String, Object>> splitStats = new ArrayList<>(splits.size());
-        for (ExternalSplit split : splits) {
-            if (split instanceof FileSplit fileSplit) {
-                splitStats.add(fileSplit.statistics());
-            } else {
-                return null;
-            }
-        }
-        return SourceStatisticsSerializer.mergeStatistics(splitStats);
     }
 
     private List<Expression> extractAggregateFunctions(List<? extends NamedExpression> aggregates) {

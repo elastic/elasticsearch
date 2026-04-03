@@ -623,7 +623,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             // Assignment has failed on the master node despite passing our "fast fail" validation
             if (assignment.equals(AWAITING_UPGRADE)) {
                 return Optional.of(makeCurrentlyBeingUpgradedException(logger, jobId));
-            } else if (assignment.getExplanation().contains("[" + EnableAssignmentDecider.ALLOCATION_NONE_EXPLANATION + "]")) {
+            } else if (assignment.equals(PersistentTasksCustomMetadata.ASSIGNMENT_DISABLED)) {
                 return Optional.of(makeAssignmentsNotAllowedException(logger, jobId));
             } else {
                 return Optional.of(makeNoSuitableNodesException(logger, jobId, assignment.getExplanation()));

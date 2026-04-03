@@ -52,6 +52,7 @@ public interface PersistentTasks {
     String API_CONTEXT = Metadata.XContentContext.API.toString();
     Assignment LOST_NODE_ASSIGNMENT = new Assignment(null, "awaiting reassignment after node loss");
     Assignment INITIAL_ASSIGNMENT = new Assignment(null, "waiting for initial assignment");
+    Assignment ASSIGNMENT_DISABLED = new Assignment(null, "no persistent task assignments are allowed due to cluster settings");
 
     /**
      * @return The last allocation id for the tasks.

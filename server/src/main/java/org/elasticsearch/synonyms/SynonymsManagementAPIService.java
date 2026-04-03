@@ -108,6 +108,7 @@ public class SynonymsManagementAPIService {
     private static final int MAX_SYNONYMS_SETS = 10_000;
     private static final int MAX_SYNONYM_RULES = 10_000;
     private static final int PIT_KEEP_ALIVE_SECONDS = 60;
+    private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(PIT_KEEP_ALIVE_SECONDS);
     static final int PIT_BATCH_SIZE = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
@@ -272,13 +273,12 @@ public class SynonymsManagementAPIService {
      * @param listener     receives the complete set of rules
      */
     public void getSynonymSetRules(String synonymSetId, ActionListener<PagedResult<SynonymRule>> listener) {
-        TimeValue keepAlive = TimeValue.timeValueSeconds(PIT_KEEP_ALIVE_SECONDS);
-        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(SYNONYMS_ALIAS_NAME).keepAlive(keepAlive);
+        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(SYNONYMS_ALIAS_NAME).keepAlive(PIT_KEEP_ALIVE);
         client.execute(
             TransportOpenPointInTimeAction.TYPE,
             pitRequest,
             new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, pitResponse) -> {
-                fetchPageWithPit(synonymSetId, pitResponse.getPointInTimeId(), keepAlive, null, new ArrayList<>(), l);
+                fetchPageWithPit(synonymSetId, pitResponse.getPointInTimeId(), null, new ArrayList<>(), l);
             })
         );
     }
@@ -287,7 +287,6 @@ public class SynonymsManagementAPIService {
     private void fetchPageWithPit(
         String synonymSetId,
         BytesReference pitId,
-        TimeValue keepAlive,
         Object[] searchAfter,
         List<SynonymRule> accumulated,
         ActionListener<PagedResult<SynonymRule>> listener
@@ -301,7 +300,7 @@ public class SynonymsManagementAPIService {
             .sort(SortBuilders.fieldSort(SYNONYM_RULE_ID_FIELD).order(SortOrder.ASC))
             .sort(SortBuilders.fieldSort("_shard_doc").order(SortOrder.ASC))
             .trackTotalHits(true)
-            .pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(keepAlive));
+            .pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(PIT_KEEP_ALIVE));
 
         if (searchAfter != null) {
             source.searchAfter(searchAfter);
@@ -349,7 +348,7 @@ public class SynonymsManagementAPIService {
             }
 
             Object[] lastSortValues = hits[hits.length - 1].getSortValues();
-            fetchPageWithPit(synonymSetId, currentPitId, keepAlive, lastSortValues, accumulated, listener);
+            fetchPageWithPit(synonymSetId, currentPitId, lastSortValues, accumulated, listener);
         }, e -> {
             closePitAndThen(pitId, () -> listener.onFailure(e));
         }));

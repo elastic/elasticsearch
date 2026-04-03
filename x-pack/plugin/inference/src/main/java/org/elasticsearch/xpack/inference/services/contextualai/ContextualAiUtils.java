@@ -14,13 +14,11 @@ import org.elasticsearch.TransportVersion;
  */
 public final class ContextualAiUtils {
 
-    public static final TransportVersion ML_INFERENCE_CONTEXTUAL_AI_ADDED = TransportVersion.fromName("contextual_ai_service");
-
     /**
      * Whether the given transport version supports Contextual AI inference objects on the wire.
      */
     public static boolean supportsContextualAi(TransportVersion version) {
-        return version.supports(ML_INFERENCE_CONTEXTUAL_AI_ADDED);
+        return version.supports(TransportVersion.minimumCompatible());
     }
 
     private ContextualAiUtils() {}

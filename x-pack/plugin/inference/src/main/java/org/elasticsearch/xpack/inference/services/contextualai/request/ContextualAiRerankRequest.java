@@ -13,8 +13,6 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -28,8 +26,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 public class ContextualAiRerankRequest implements Request {
-
-    private static final Logger logger = LogManager.getLogger(ContextualAiRerankRequest.class);
 
     private final String query;
     private final List<String> documents;
@@ -53,22 +49,24 @@ public class ContextualAiRerankRequest implements Request {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.uri());
+        HttpPost httpPost = new HttpPost(getURI());
 
-        var requestEntity = new ContextualAiRerankRequestEntity(query, documents, getTopN(), instruction, model);
-        String requestJson;
-        try {
-            requestJson = Strings.toString(requestEntity);
-            logger.debug("ContextualAI JSON request for inference id [{}]: {}", model.getInferenceEntityId(), requestJson);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize ContextualAI request entity", e);
-        }
-
-        ByteArrayEntity byteEntity = new ByteArrayEntity(requestJson.getBytes(StandardCharsets.UTF_8));
+        ByteArrayEntity byteEntity = new ByteArrayEntity(
+            Strings.toString(
+                new ContextualAiRerankRequestEntity(
+                    model.getServiceSettings().modelId(),
+                    query,
+                    documents,
+                    getTopN(),
+                    instruction,
+                    model.getTaskSettings().getReturnDocuments()
+                )
+            ).getBytes(StandardCharsets.UTF_8)
+        );
         httpPost.setEntity(byteEntity);
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
 
-        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
+        httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
@@ -80,7 +78,7 @@ public class ContextualAiRerankRequest implements Request {
 
     @Override
     public URI getURI() {
-        return model.uri();
+        return model.getServiceSettings().uri();
     }
 
     public Integer getTopN() {

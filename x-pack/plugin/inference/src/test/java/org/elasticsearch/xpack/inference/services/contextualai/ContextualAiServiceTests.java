@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.services.contextualai.rerank.Contextual
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -72,7 +73,9 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
     public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException, URISyntaxException {
         var model = new ContextualAiRerankModel(
             INFERENCE_ENTITY_ID_VALUE,
-            new ContextualAiRerankServiceSettings(new URI(URL_VALUE), MODEL_ID_VALUE, null),
+            new ContextualAiRerankServiceSettings(
+                new ContextualAiServiceSettings.CommonSettings(new URI(URL_VALUE), MODEL_ID_VALUE, new RateLimitSettings(1000))
+            ),
             new ContextualAiRerankTaskSettings(null, null, null),
             new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
         );

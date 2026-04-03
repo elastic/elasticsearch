@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.action.ContextualAiActionCreator;
-import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -47,6 +45,9 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 
 /**
  * Contextual AI inference service for reranking tasks.
@@ -95,11 +96,19 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
             Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            var model = createModel(
+            var model = retrieveModelCreatorFromMapOrThrow(
+                MODEL_CREATORS,
                 inferenceEntityId,
                 taskType,
+                NAME,
+                ConfigurationParseContext.REQUEST
+            ).createFromMaps(
+                inferenceEntityId,
+                taskType,
+                NAME,
                 serviceSettingsMap,
                 taskSettingsMap,
+                null,
                 serviceSettingsMap,
                 ConfigurationParseContext.REQUEST
             );
@@ -114,26 +123,6 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
         }
     }
 
-    private static ContextualAiModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
-    ) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            null,
-            secretSettings,
-            context
-        );
-    }
-
     @Override
     public ContextualAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
@@ -141,7 +130,7 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
@@ -153,12 +142,12 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (model instanceof ContextualAiRerankModel == false) {
+        if (model instanceof ContextualAiModel == false) {
             listener.onFailure(ServiceUtils.createInvalidModelException(model));
             return;
         }
 
-        ContextualAiRerankModel contextualAiModel = (ContextualAiRerankModel) model;
+        ContextualAiModel contextualAiModel = (ContextualAiModel) model;
         var actionCreator = new ContextualAiActionCreator(getSender(), getServiceComponents());
 
         var action = contextualAiModel.accept(actionCreator, taskSettings);
@@ -215,7 +204,7 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     public static class Configuration {
@@ -228,12 +217,25 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                 configurationMap.put(
-                    "model_id",
+                    MODEL_ID,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The model ID to use for Contextual AI requests."
                     )
                         .setLabel("Model ID")
                         .setRequired(true)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    URL,
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
+                        "The URL endpoint to use for Contextual AI requests."
+                    )
+                        .setLabel("URL")
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)

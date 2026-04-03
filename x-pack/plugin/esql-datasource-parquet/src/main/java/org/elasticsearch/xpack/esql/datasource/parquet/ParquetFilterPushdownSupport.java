@@ -19,7 +19,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
+import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -155,6 +157,9 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         if (expr instanceof Not not) {
             return canConvert(not.field());
         }
+        if (expr instanceof StartsWith sw) {
+            return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD);
+        }
         return false;
     }
 
@@ -211,6 +216,20 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         }
         if (expr instanceof Not not) {
             return FilterApi.not(translateExpression(not.field()));
+        }
+        if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne && sw.prefix().foldable()) {
+            Object prefixValue = literalValueOf(sw.prefix());
+            if (prefixValue == null) {
+                return null;
+            }
+            BytesRef prefix = (BytesRef) prefixValue;
+            var col = FilterApi.binaryColumn(ne.name());
+            FilterPredicate lower = FilterApi.gtEq(col, toBinary(prefix));
+            BytesRef upper = StringPrefixUtils.nextPrefixUpperBound(prefix);
+            if (upper != null) {
+                return FilterApi.and(lower, FilterApi.lt(col, toBinary(upper)));
+            }
+            return lower;
         }
         return null;
     }

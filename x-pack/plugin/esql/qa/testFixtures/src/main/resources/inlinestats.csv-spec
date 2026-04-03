@@ -2420,6 +2420,8 @@ emp_no:integer |  c1:long
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
 required_capability: inline_stats
+required_capability: keywords_mv_count_as_single_value_fix
+
 from employees
 | inline stats c1 = count(job_positions) where emp_no <= 10003
 | keep emp_no, c1

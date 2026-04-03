@@ -159,6 +159,22 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
+    public void testRateOnNonNumericField() {
+        // host is a keyword dimension field, not a numeric metric - should get a clear 4xx-style error
+        tsdb.error(
+            "PROMQL index=test step=5m rate(host[5m])",
+            containsString("field [host] of type [keyword] cannot be used as a metric; it is a dimension field")
+        );
+    }
+
+    public void testAggregationOnNonNumericField() {
+        // metricset is a keyword dimension field, not a numeric metric
+        tsdb.error(
+            "PROMQL index=test step=5m sum(metricset)",
+            containsString("field [metricset] of type [keyword] cannot be used as a metric; it is a dimension field")
+        );
+    }
+
     public void testNoMetricNameMatcherNotSupported() {
         tsdb.error(
             "PROMQL index=test step=5m {foo=\"bar\"}",

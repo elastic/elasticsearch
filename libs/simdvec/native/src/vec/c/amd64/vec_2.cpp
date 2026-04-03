@@ -14,14 +14,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Force the preprocessor to pick up AVX-512 intrinsics, and the compiler to emit AVX-512 code
-#ifdef __clang__
-#pragma clang attribute push(__attribute__((target("arch=icelake-client"))), apply_to=function)
-#elif __GNUC__
-#pragma GCC push_options
-#pragma GCC target ("arch=icelake-client")
-#endif
-
 #include "vec.h"
 #include "vec_common.h"
 #include "amd64/amd64_vec_common.h"
@@ -234,9 +226,3 @@ EXPORT void vec_sqr7u_bulk_offsets_2(
     f32_t* results) {
     call_i8_bulk<int8_t, offsets_mapper, sqr7u_inner, 4>(a, b, dims, pitch, offsets, count, results);
 }
-
-#ifdef __clang__
-#pragma clang attribute pop
-#elif __GNUC__
-#pragma GCC pop_options
-#endif

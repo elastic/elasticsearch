@@ -21,7 +21,6 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.List;
 
-import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.elasticsearch.nativeaccess.Int4TestUtils.dotProductI4SinglePacked;
 import static org.elasticsearch.nativeaccess.Int4TestUtils.packNibbles;
 import static org.hamcrest.Matchers.containsString;
@@ -77,8 +76,8 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         for (int i = 0; i < numVecs; i++) {
             randomBytesBetween(unpackedValues[i], MIN_INT4_VALUE, MAX_INT4_VALUE);
             packedValues[i] = packNibbles(unpackedValues[i]);
-            MemorySegment.copy(MemorySegment.ofArray(unpackedValues[i]), 0L, unpackedSegment, (long) i * dims, dims);
-            MemorySegment.copy(MemorySegment.ofArray(packedValues[i]), 0L, packedSegment, (long) i * packedLen, packedLen);
+            MemorySegment.copy(unpackedValues[i], 0, unpackedSegment, ValueLayout.JAVA_BYTE, (long) i * dims, dims);
+            MemorySegment.copy(packedValues[i], 0, packedSegment, ValueLayout.JAVA_BYTE, (long) i * packedLen, packedLen);
         }
 
         final int loopTimes = 1000;
@@ -119,14 +118,15 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         for (int i = 0; i < numVecs; i++) {
             randomBytesBetween(unpackedValues[i], MIN_INT4_VALUE, MAX_INT4_VALUE);
             packedValues[i] = packNibbles(unpackedValues[i]);
-            MemorySegment.copy(MemorySegment.ofArray(packedValues[i]), 0L, packedSegment, (long) i * packedLen, packedLen);
+            MemorySegment.copy(packedValues[i], 0, packedSegment, ValueLayout.JAVA_BYTE, (long) i * packedLen, packedLen);
         }
 
         int queryOrd = randomInt(numVecs - 1);
         float[] expectedScores = new float[numVecs];
         scalarSimilarityBulk(unpackedValues[queryOrd], packedValues, expectedScores);
 
-        var nativeQuerySeg = MemorySegment.ofArray(unpackedValues[queryOrd]);
+        var nativeQuerySeg = arena.allocate(dims);
+        MemorySegment.copy(unpackedValues[queryOrd], 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         similarityBulk(packedSegment, nativeQuerySeg, packedLen, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
@@ -162,7 +162,8 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         float[] expectedScores = new float[numVecs];
         scalarSimilarityBulkWithOffsets(unpackedValues[queryOrd], packedValues, offsets, expectedScores);
 
-        var nativeQuerySeg = MemorySegment.ofArray(unpackedValues[queryOrd]);
+        var nativeQuerySeg = arena.allocate(dims);
+        MemorySegment.copy(unpackedValues[queryOrd], 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
         similarityBulkWithOffsets(packedSegment, nativeQuerySeg, packedLen, packedLen, offsetsSegment, numVecs, bulkScoresSeg);
@@ -195,7 +196,8 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         float[] expectedScores = new float[numVecs];
         scalarSimilarityBulkWithOffsets(unpackedValues[queryOrd], packedValues, offsets, expectedScores);
 
-        var nativeQuerySeg = MemorySegment.ofArray(unpackedValues[queryOrd]);
+        var nativeQuerySeg = arena.allocate(dims);
+        MemorySegment.copy(unpackedValues[queryOrd], 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
         similarityBulkWithOffsets(packedSegment, nativeQuerySeg, packedLen, pitch, offsetsSegment, numVecs, bulkScoresSeg);
@@ -218,7 +220,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
             offsets[i] = randomInt(numVecs - 1);
             randomBytesBetween(unpackedValues[i], MIN_INT4_VALUE, MAX_INT4_VALUE);
             packedValues[i] = packNibbles(unpackedValues[i]);
-            MemorySegment.copy(MemorySegment.ofArray(packedValues[i]), 0L, packedSegment, (long) i * packedLen, packedLen);
+            MemorySegment.copy(packedValues[i], 0, packedSegment, ValueLayout.JAVA_BYTE, (long) i * packedLen, packedLen);
         }
 
         int queryOrd = randomInt(numVecs - 1);
@@ -272,6 +274,36 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
+    // Verifies that individual offset values are bounds-checked against the data segment.
+    public void testBulkOffsetsOutOfRange() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int packedLen = size / 2;
+        // INT4 length is packedLen (bytes) not element count; checkBulkOffsets computes
+        // rowBytes = packedLen * 4 / 8 which truncates to 0 when packedLen < 2.
+        assumeTrue("INT4 bounds check requires packedLen >= 2", packedLen >= 2);
+        final int numVecs = 3;
+        var packedSegment = arena.allocate((long) packedLen * numVecs);
+        var query = arena.allocate(size);
+        var scores = arena.allocate((long) numVecs * Float.BYTES);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
+        Exception ex = expectThrows(
+            IOOBE,
+            () -> similarityBulkWithOffsets(packedSegment, query, packedLen, packedLen, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+        ex = expectThrows(
+            IOOBE,
+            () -> similarityBulkWithOffsets(packedSegment, query, packedLen, packedLen, offsetsSegment, numVecs, scores)
+        );
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+    }
+
     int similarity(MemorySegment unpacked, MemorySegment packed, int packedLen) {
         try {
             return (int) getVectorDistance().getHandle(
@@ -322,13 +354,6 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
     static void scalarSimilarityBulkWithOffsets(byte[] unpackedQuery, byte[][] packedData, int[] offsets, float[] scores) {
         for (int i = 0; i < packedData.length; i++) {
             scores[i] = dotProductI4SinglePacked(unpackedQuery, packedData[offsets[i]]);
-        }
-    }
-
-    static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {
-        assert expectedScores.length == (expectedScoresSeg.byteSize() / Float.BYTES);
-        for (int i = 0; i < expectedScores.length; i++) {
-            assertEquals(expectedScores[i], expectedScoresSeg.get(JAVA_FLOAT_UNALIGNED, (long) i * Float.BYTES), 0f);
         }
     }
 }

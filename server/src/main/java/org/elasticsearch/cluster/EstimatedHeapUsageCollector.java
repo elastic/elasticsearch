@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
 
@@ -33,8 +32,8 @@ public interface EstimatedHeapUsageCollector {
         }
 
         @Override
-        public void collectShardHeapUsage(ActionListener<Map<ShardId, ShardAndIndexHeapUsage>> listener) {
-            listener.onResponse(Map.of());
+        public void collectShardHeapUsage(ActionListener<ShardHeapUsageEstimates> listener) {
+            listener.onResponse(ShardHeapUsageEstimates.empty());
         }
     };
 
@@ -50,5 +49,5 @@ public interface EstimatedHeapUsageCollector {
      *
      * @param listener The listener which will receive the results
      */
-    void collectShardHeapUsage(ActionListener<Map<ShardId, ShardAndIndexHeapUsage>> listener);
+    void collectShardHeapUsage(ActionListener<ShardHeapUsageEstimates> listener);
 }

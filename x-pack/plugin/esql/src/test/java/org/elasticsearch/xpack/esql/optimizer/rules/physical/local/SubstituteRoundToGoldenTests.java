@@ -67,7 +67,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
         for (var queryAndName : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
                 from all_types
-                | stats sum(long), count(*) by x = {}
+                | stats max(long), count(*) by x = {}
                 """, queryAndName.query());
             runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), STATS, queryAndName.name());
         }

@@ -170,7 +170,7 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
             Settings.builder().put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), ByteSizeValue.ofBytes(limitBytes)).build()
         );
         var request = newStreamedRequest(stream);
-        channel = new FakeRestChannel(request, true, 1);
+        channel = new FakeRestChannel(request, true);
         var failureRef = new AtomicReference<Exception>();
         aggregator = new IndexingPressureAwareContentAggregator(
             request,
@@ -304,7 +304,7 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
 
     private void initAggregator(long maxSize, IndexingPressureAwareContentAggregator.BodyPostProcessor postProcessor) {
         var request = newStreamedRequest(stream);
-        channel = new FakeRestChannel(request, true, 1);
+        channel = new FakeRestChannel(request, true);
         aggregator = new IndexingPressureAwareContentAggregator(
             request,
             indexingPressure,

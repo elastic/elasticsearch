@@ -275,14 +275,15 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return ValuesLongAggregator.prepareEvaluateIntermediate(state, selected, ctx);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = ValuesLongAggregator.evaluateFinal(state, selected, ctx);
+    return ValuesLongAggregator.prepareEvaluateFinal(state, selected, ctx);
   }
 
   @Override

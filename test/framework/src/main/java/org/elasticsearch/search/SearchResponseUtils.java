@@ -114,7 +114,9 @@ public enum SearchResponseUtils {
             skippedShards,
             tookInMillis,
             shardFailures,
-            clusters
+            clusters,
+            null,
+            null
         );
     }
 
@@ -225,7 +227,8 @@ public enum SearchResponseUtils {
                 tookInMillis,
                 shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
                 clusters,
-                pointInTimeId
+                pointInTimeId,
+                null
             );
         }
     }
@@ -419,7 +422,8 @@ public enum SearchResponseUtils {
             tookInMillis,
             failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
             clusters,
-            searchContextId
+            searchContextId,
+            null
         );
     }
 

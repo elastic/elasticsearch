@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -198,29 +196,8 @@ public class SetParserTests extends AbstractStatementParserTests {
         return query.settings().get(position).value().fold(FoldContext.small());
     }
 
-    public void testSetUnmappedFields_snapshot() {
-        assumeTrue("OPTIONAL_FIELDS_V2 option required", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
-
-        var modes = List.of("FAIL", "NULLIFY", "LOAD");
-        verifySetUnmappedFields(modes);
-        assertThat(modes.size(), is(UnmappedResolution.values().length));
-    }
-
-    public void testSetUnmappedFields_nonSnapshot() {
-        assumeFalse("Requires no snapshot", Build.current().isSnapshot());
-
-        verifySetUnmappedFields(List.of("FAIL", "NULLIFY"));
-
-        String name = randomizeCase(UnmappedResolution.LOAD.name());
-        expectThrows(
-            ParsingException.class,
-            containsString(
-                "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution ["
-                    + name
-                    + "], must be one of [FAIL, NULLIFY]"
-            ),
-            () -> statement("SET unmapped_fields=\"" + name + "\"; row a = 1")
-        );
+    public void testSetUnmappedFields() {
+        verifySetUnmappedFields(List.of("DEFAULT", "NULLIFY", "LOAD"));
     }
 
     private void verifySetUnmappedFields(List<String> modes) {
@@ -236,15 +213,12 @@ public class SetParserTests extends AbstractStatementParserTests {
             v -> Arrays.stream(UnmappedResolution.values()).anyMatch(x -> x.name().equalsIgnoreCase(v)),
             () -> randomAlphaOfLengthBetween(0, 10)
         );
-        var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled()
-            ? UnmappedResolution.values()
-            : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
         expectValidationError(
             "SET unmapped_fields=\"" + mode + "\"; row a = 1",
             "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution ["
                 + mode
                 + "], must be one of "
-                + Arrays.toString(values)
+                + Arrays.toString(UnmappedResolution.values())
         );
     }
 }

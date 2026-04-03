@@ -150,8 +150,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -416,7 +418,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 null/* not a scroll */
                             );
                             PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
-                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), listener);
+                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), null, listener);
                             listener.get();
                             if (useScroll) {
                                 // have to free context since this test does not remove the index from IndicesService.
@@ -627,7 +629,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     throw new AssertionError("No failure should have been raised", e);
                 }
             };
-            service.executeFetchPhase(fetchRequest, searchTask, fetchListener);
+            service.executeFetchPhase(fetchRequest, searchTask, null, fetchListener);
             fetchListener.get();
         } catch (Exception ex) {
             if (queryResult != null) {
@@ -781,7 +783,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 for (SearchHit hit : hits.getHits()) {
                     assertEquals(hit.getRank(), 3 + index);
                     assertTrue(hit.getScore() >= 0);
-                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
+                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.getId());
                     index++;
                 }
             }
@@ -2914,6 +2916,66 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, response.getHits().getAt(0).getSeqNo());
             assertEquals(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, response.getHits().getAt(0).getPrimaryTerm());
         });
+    }
+
+    public void testCancelledTaskFailsFastWithCaching() throws Exception {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest("index").allowPartialSearchResults(true);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        searchRequest.requestCache(true);
+
+        long nowInMillis = System.currentTimeMillis();
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "index" }, IndicesOptions.strictExpandOpenAndForbidClosed());
+        ShardSearchRequest request = new ShardSearchRequest(
+            originalIndices,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            nowInMillis,
+            null
+        );
+
+        // Create a task and cancel it before execution
+        SearchShardTask task = new SearchShardTask(1L, "", "", "", null, emptyMap());
+        TaskCancelHelper.cancel(task, "pre-cancelled for test");
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> caughtException = new AtomicReference<>();
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+
+        service.executeQueryPhase(request, task, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult result) {
+                try {
+                    service.freeReaderContext(result.getContextId());
+                    succeeded.set(true);
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                caughtException.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Should complete", latch.await(10, TimeUnit.SECONDS));
+        assertFalse("Should not succeed", succeeded.get());
+        assertNotNull("Should have exception", caughtException.get());
+        assertThat(caughtException.get(), instanceOf(TaskCancelledException.class));
+        assertThat(caughtException.get().getMessage(), containsString("pre-cancelled for test"));
     }
 
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

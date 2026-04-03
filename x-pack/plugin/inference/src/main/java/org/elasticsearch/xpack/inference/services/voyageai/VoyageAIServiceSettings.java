@@ -49,9 +49,7 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
 
         String modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new VoyageAIServiceSettings(modelId, rateLimitSettings);
     }

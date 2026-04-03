@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.inference.services.contextualai;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.inference.TaskSettings;
 
+import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
+
 public abstract class ContextualAiTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersion.minimumCompatible();
+        return ML_INFERENCE_CONTEXTUAL_AI_ADDED;
     }
 
     @Override

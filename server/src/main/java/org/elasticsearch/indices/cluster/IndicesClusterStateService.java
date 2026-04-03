@@ -890,7 +890,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             threadPool.scheduleUnlessShuttingDown(
                 shardLockRetryInterval,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                // TODO NOCOMMIT this shouldn't be on the applier thread; does it matter if it runs concurrently to other ICSS actions?
+                // TODO this shouldn't be on the applier thread; does it matter if it runs concurrently to other ICSS actions?
                 () -> clusterService.getClusterApplierService()
                     .runOnApplierThread("create shard " + shardRouting, Priority.NORMAL, currentState -> {
 

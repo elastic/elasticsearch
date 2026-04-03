@@ -129,7 +129,7 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
                 Thread.sleep(50);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new AssertionError("nocommit", e);
+                throw new AssertionError("do-not-forget-to-remove-this", e);
             }
             logger.info("--> async applying [{}]", source);
             applier.applyClusterState(new ClusterChangedEvent(source, stateToApply, appliedState));

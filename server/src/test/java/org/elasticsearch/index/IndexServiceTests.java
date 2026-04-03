@@ -230,7 +230,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
     }
 
     @TestLogging(
-        reason = "nocommit",
+        reason = "do-not-forget-to-remove-this",
         value = "org.elasticsearch.cluster.service.MasterService:TRACE," + "org.elasticsearch.cluster.action.shard.ShardStateAction:TRACE"
     )
     public void testFsyncTaskIsRunning() throws Exception {

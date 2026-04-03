@@ -2449,9 +2449,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".deprecation-")) {
             return true;
         }
-        if (name.startsWith(".query-logging-")) {
-            return true;
-        }
         if (name.startsWith(".fleet-")) {
             return true;
         }
@@ -2476,6 +2473,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             return true;
         }
         if (name.startsWith(".slm-history") || name.startsWith("ilm-history")) {
+            return true;
+        }
+        if (name.startsWith("logs-elasticsearch.querylog")) {
             return true;
         }
         switch (name) {

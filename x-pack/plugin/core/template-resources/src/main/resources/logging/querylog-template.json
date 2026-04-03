@@ -8,12 +8,12 @@
     "logs@mappings",
     "logs@settings",
     "ecs@mappings",
-    ".query-logging-mappings",
-    ".query-logging-settings"
+    "logs-elasticsearch.querylog@mappings",
+    "logs-elasticsearch.querylog@settings"
   ],
   "allow_auto_create": true,
   "_meta": {
-    "description": "Elasticsearch query activity log index template",
+    "description": "Default index template for the Elasticsearch query logs installed by x-pack",
     "managed": true
   },
   "deprecated": ${xpack.stack.querylog.template.deprecated},

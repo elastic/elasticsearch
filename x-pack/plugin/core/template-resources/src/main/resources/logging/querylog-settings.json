@@ -27,7 +27,7 @@
     }
   },
   "_meta": {
-    "description": "Elasticsearch query activity log index template",
+    "description": "Default settings for the Elasticsearch query logs index template installed by x-pack",
     "managed": true
   },
   "version": ${xpack.stack.querylog.template.version}

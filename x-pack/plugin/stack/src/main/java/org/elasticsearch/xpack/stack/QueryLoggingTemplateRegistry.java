@@ -35,9 +35,9 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE = "xpack.stack.querylog.template.version";
 
-    public static final String QUERY_LOGGING_MAPPINGS_NAME = ".query-logging-mappings";
-    public static final String QUERY_LOGGING_SETTINGS_NAME = ".query-logging-settings";
-    public static final String QUERY_LOGGING_TEMPLATE_NAME = ".query-logging-template";
+    public static final String QUERY_LOGGING_MAPPINGS_NAME = "logs-elasticsearch.querylog@mappings";
+    public static final String QUERY_LOGGING_SETTINGS_NAME = "logs-elasticsearch.querylog@settings";
+    public static final String QUERY_LOGGING_TEMPLATE_NAME = "logs-elasticsearch.querylog@template";
 
     /**
      * Setting for tests to disable the registry.
@@ -105,7 +105,7 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
                 "xpack.stack.querylog.template.deprecated",
                 "false",
                 "xpack.stack.querylog.template.pattern",
-                ".logs-elasticsearch.querylog-*"
+                "logs-elasticsearch.querylog-*"
             )
         )
     );

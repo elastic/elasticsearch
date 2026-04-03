@@ -125,7 +125,7 @@ class ESSynonymMapBuilder {
 
         for (int keyIdx = 0; keyIdx < sortedKeys.length; keyIdx++) {
             // Check real memory circuit breaker every 1024
-            if (((keyIdx + 1) & 0x3FF) == 0) {
+            if ((keyIdx & 0x3FF) == 0) {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
             }
 

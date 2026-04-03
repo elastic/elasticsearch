@@ -78,7 +78,10 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
     public void testFromMap_EmptyUrl_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")), randomFrom(ConfigurationParseContext.values()))
+            () -> CohereServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.URL, "")),
+                randomFrom(ConfigurationParseContext.values())
+            )
         );
 
         assertThat(

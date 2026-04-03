@@ -1943,8 +1943,13 @@ setup:
 ---
 "Downsample index with multi-value dimensions":
   - requires:
+      test_runner_features: [ "capabilities" ]
       cluster_features: [ "data_stream.downsample.fix_support_multi_value_dimensions" ]
       reason: "Support multi-value dimensions in downsampling (bug fix)"
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsample.sampling_mode.last_value" ]
 
   - do:
       indices.create:

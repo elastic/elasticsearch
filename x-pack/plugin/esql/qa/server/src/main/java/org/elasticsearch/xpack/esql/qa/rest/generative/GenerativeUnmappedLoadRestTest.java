@@ -14,8 +14,11 @@ import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
 
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 
 /**
  * Generative REST tests that always prepend {@code SET unmapped_fields="load"} to queries.
@@ -23,6 +26,18 @@ import java.util.stream.Collectors;
  * of these tests does not affect the main generative test suite.
  */
 public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest {
+
+    private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
+
+    /**
+     * Matches "argument of [X] is [keyword] so ... argument must also be [keyword] but was [Y]" errors.
+     * This happens when an unmapped field that is force-loaded as keyword is used in a binary operation
+     * with a non-keyword typed value (e.g. {@code unmapped_field > 31}).
+     */
+    private static final Pattern KEYWORD_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*argument of \\[([^]]+)] is \\[keyword] so .* argument must also be \\[keyword] but was \\[.*].*",
+        Pattern.DOTALL
+    );
 
     protected static final Set<String> LOAD_ALLOWED_ERRORS = Set.of(
         // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
@@ -62,6 +77,9 @@ public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest 
         if (isUnmappedFieldPrefixError(errorMessage, query.query(), FromLoadGenerator.SET_LOAD_PREFIX)) {
             return;
         }
+        if (isKeywordTypeMismatchForLoadedField(errorMessage)) {
+            return;
+        }
         super.checkPipelineException(query, previousCommands, currentSchema);
     }
 
@@ -94,7 +112,19 @@ public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest 
         if (isUnmappedFieldPrefixError(errorMsg, result.query(), FromLoadGenerator.SET_LOAD_PREFIX)) {
             return outputValidation;
         }
+        if (isKeywordTypeMismatchForLoadedField(errorMsg)) {
+            return outputValidation;
+        }
         failOnUnexpectedValidationError(outputValidation, result, previousCommands, currentSchema);
         return outputValidation;
+    }
+
+    private static boolean isKeywordTypeMismatchForLoadedField(String errorMessage) {
+        Matcher matcher = KEYWORD_TYPE_MISMATCH_PATTERN.matcher(errorMessage);
+        if (matcher.matches()) {
+            String expression = matcher.group(1);
+            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
+        return false;
     }
 }

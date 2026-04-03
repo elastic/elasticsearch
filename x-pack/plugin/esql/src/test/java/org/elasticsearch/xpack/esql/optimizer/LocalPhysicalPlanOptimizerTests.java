@@ -348,7 +348,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      * segment has terms.size()=2, getDocCount()=2 which wrongly reported the field as being single-valued.
      */
     public void testCountPushDownFor_SpecificDistributionOfMVValues() throws IOException {
-        String properties = EsqlTestUtils.loadUtf8TextFile("/index/mappings/mapping-basic.json");
+        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-basic.json");
         String mapping = "{\"mappings\": " + properties + "}";
         String keywordQuery = """
             from test

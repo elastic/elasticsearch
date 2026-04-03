@@ -43,7 +43,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -148,6 +147,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
@@ -967,13 +967,6 @@ public class CsvTests extends ESTestCase {
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
 
-        UserAgentParserRegistry userAgentRegistry;
-        try {
-            userAgentRegistry = createUserAgentRegistry();
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to create UserAgentParserRegistry", e);
-        }
-
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             getTestName(),
             "",
@@ -987,7 +980,7 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
-            userAgentRegistry,
+            createUserAgentRegistry(),
             physicalOperationProviders,
             operatorFactoryRegistry
         );
@@ -1105,17 +1098,19 @@ public class CsvTests extends ESTestCase {
      * Creates a {@link UserAgentParserRegistry} with a config directory
      * containing the custom-regexes.yml test resource, so csv-spec tests can exercise the {@code regex_file} option.
      */
-    private static UserAgentParserRegistry createUserAgentRegistry() throws IOException {
-        Path homeDir = createTempDir();
-        Path userAgentConfigDir = homeDir.resolve("config").resolve("user-agent");
-        Files.createDirectories(userAgentConfigDir);
-        try (InputStream is = CsvTests.class.getResourceAsStream("/custom-regexes.yml")) {
-            assert is != null : "custom-regexes.yml not found on classpath";
-            Files.copy(is, userAgentConfigDir.resolve("custom-regexes.yml"));
+    private static UserAgentParserRegistry createUserAgentRegistry() {
+        Environment env = TestPhysicalOperationProviders.TEST_ENV.getOrCompute();
+        Path userAgentConfigDir = env.configDir().resolve("user-agent");
+        Path customRegexes = userAgentConfigDir.resolve("custom-regexes.yml");
+        if (Files.exists(customRegexes) == false) {
+            try (InputStream is = CsvTests.class.getResourceAsStream("/custom-regexes.yml")) {
+                assert is != null : "custom-regexes.yml not found on classpath";
+                Files.createDirectories(userAgentConfigDir);
+                Files.copy(is, customRegexes);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
-        return UserAgentPlugin.createRegistry(
-            TestEnvironment.newEnvironment(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), homeDir).build()),
-            Settings.EMPTY
-        );
+        return UserAgentPlugin.createRegistry(env, Settings.EMPTY);
     }
 }

@@ -48,9 +48,14 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
+import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -120,6 +125,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -175,9 +181,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var indexName = randomIdentifier();
         internalCluster().startDataOnlyNode();
         var randomNonDefaultCodec = randomFrom(
-            CodecService.BEST_COMPRESSION_CODEC,
+            CodecService.LEGACY_BEST_COMPRESSION_CODEC,
             CodecService.LEGACY_DEFAULT_CODEC,
-            CodecService.BEST_COMPRESSION_CODEC,
             CodecService.LUCENE_DEFAULT_CODEC
         );
 
@@ -197,7 +202,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             containsString(
                 "The setting ["
                     + IndexSettings.SYNTHETIC_ID.getKey()
-                    + "] is only permitted when [index.codec] is set to [default]. Current mode: ["
+                    + "] is only permitted when [index.codec] is set to [default] or [best_compression]. Current mode: ["
                     + randomNonDefaultCodec
                     + "]."
             )
@@ -1300,6 +1305,76 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
+    public void testBestCompressionCodec() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        String indexName = randomIndexName();
+
+        // Set best_compression codec
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC);
+        final var mapping = """
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "metric": {
+                        "properties": {
+                            "field": {
+                                "type": "keyword"
+                            },
+                            "value": {
+                                "type": "integer",
+                                "time_series_metric": "counter"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(settingsBuilder).setMapping(mapping).get());
+
+        var timestamp = Instant.now();
+        createDocuments(
+            indexName,
+            document(timestamp, "vm-dev01", "cpu-load", 0),
+            document(timestamp.plus(1, ChronoUnit.SECONDS), "vm-dev02", "cpu-load", 1)
+        );
+        ensureGreen(indexName);
+        flushAndRefresh(indexName);
+
+        // Validate synthetic ids are being used correctly
+        var diskUsage = diskUsage(indexName);
+        var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
+        assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+        assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
+
+        var indices = new HashSet<String>();
+        indices.add(indexName);
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+
+        // Validate assumption about index version
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get();
+        String versionSetting = getSettingsResponse.getSetting(indexName, IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+        IndexVersion version = IndexVersion.fromId(Integer.parseInt(versionSetting));
+        assertTrue(version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION));
+
+        // Validate codec setting is best_compression
+        String codecSetting = getSettingsResponse.getSetting(indexName, EngineConfig.INDEX_CODEC_SETTING.getKey());
+        assertThat(codecSetting, equalTo(CodecService.BEST_COMPRESSION_CODEC));
+
+        // Validate shards use best_compression format
+        assertShardsAreUsingZstdBestCompressionMode(indices);
+    }
+
     public void testDefaultSetting() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
 
@@ -1310,8 +1385,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // (codec will be randomised by ESIntegTestCase.randomIndexTemplate if not explicitly set)
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
-            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC);
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname");
+        if (randomBoolean()) {
+            settingsBuilder.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
+        }
         final var mapping = """
             {
                 "properties": {
@@ -1362,6 +1439,154 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var indices = new HashSet<String>();
         indices.add(indexName);
         assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+    }
+
+    public void testBloomFilterSettings() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        final var maxSize = ByteSizeValue.ofKb(64);
+        // small_segment_max_docs must be strictly less than large_segment_min_docs; high >= low bits/doc
+        final int smallMaxDocs = randomIntBetween(1, 99);
+        final int largeMinDocs = randomIntBetween(100, 200);
+        final double lowBitsPerDoc = randomDoubleBetween(8.0, 32.0, true);
+        final double highBitsPerDoc = randomDoubleBetween(lowBitsPerDoc, 256.0, true);
+        final Settings extraSettings = Settings.builder()
+            .put(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(), randomIntBetween(1, 11))
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), smallMaxDocs)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), largeMinDocs)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), lowBitsPerDoc)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), highBitsPerDoc)
+            .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), maxSize.getStringRep())
+            .put(SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE.getKey(), randomBoolean())
+            .build();
+        putDataStreamTemplate(dataStreamName, 1, 0, extraSettings, false);
+
+        var timestamp = Instant.now();
+
+        // Index documents in several batches, flushing between each to create multiple segments
+        for (int batch = 0; batch < 3; batch++) {
+            var bulkRequest = client().prepareBulk();
+            for (int i = 0; i < 100; i++) {
+                bulkRequest.add(
+                    client().prepareIndex(dataStreamName)
+                        .setOpType(DocWriteRequest.OpType.CREATE)
+                        .setSource(document(timestamp, "vm-test-" + (i % 5), "cpu-load", i))
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+            assertNoFailures(bulkRequest.get());
+            flush(dataStreamName);
+        }
+
+        final String firstBackingIndex = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(dataStreamName).get().indices()[0];
+
+        if (randomBoolean()) {
+            assertThat(
+                indicesAdmin().prepareStats(firstBackingIndex).clear().setSegments(true).get().getPrimaries().getSegments().getCount(),
+                greaterThan(1L)
+            );
+            assertThat(indicesAdmin().prepareForceMerge(firstBackingIndex).setMaxNumSegments(1).get().getFailedShards(), equalTo(0));
+            flushAndRefresh(firstBackingIndex);
+            assertThat(
+                indicesAdmin().prepareStats(firstBackingIndex).clear().setSegments(true).get().getPrimaries().getSegments().getCount(),
+                equalTo(1L)
+            );
+        }
+
+        var idFieldUsage = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage(firstBackingIndex), IdFieldMapper.NAME);
+        assertThat("_id field should not have inverted index on disk", idFieldUsage.getInvertedIndexBytes(), equalTo(0L));
+        assertThat("_id field should have a bloom filter", idFieldUsage.getBloomFilterBytes(), greaterThan(0L));
+        assertThat(
+            "_id bloom filter must be capped at the configured max_size",
+            idFieldUsage.getBloomFilterBytes(),
+            lessThanOrEqualTo(maxSize.getBytes())
+        );
+        final long initialBloomFilterBytes = idFieldUsage.getBloomFilterBytes();
+
+        // Update the template with different bloom filter settings, rollover, and verify the new
+        // backing index picks up the new settings and its bloom filter respects the new max_size.
+        final var newMaxSize = ByteSizeValue.ofKb(128);
+        final int newSmallMaxDocs = randomIntBetween(1, 49);
+        final int newLargeMinDocs = randomIntBetween(50, 99);
+        // Use maximum bits-per-doc in the rolled-over index so the bloom filter is measurably
+        // larger than the initial index (which used a lower random bits-per-doc value).
+        // With 300 docs at 256 bits/doc the bloom filter is ~9,600 bytes, vs at most ~1,200 bytes
+        // at the initial max of 32 bits/doc — always strictly greater.
+        putDataStreamTemplate(
+            dataStreamName,
+            1,
+            0,
+            Settings.builder()
+                .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), newMaxSize.getStringRep())
+                .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), newSmallMaxDocs)
+                .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), newLargeMinDocs)
+                .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC)
+                .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC)
+                .build(),
+            false
+        );
+
+        RolloverResponse rolloverResponse = indicesAdmin().prepareRolloverIndex(dataStreamName).get();
+        assertThat(rolloverResponse.isRolledOver(), equalTo(true));
+        final String newBackingIndex = rolloverResponse.getNewIndex();
+
+        GetSettingsResponse newIndexSettings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, newBackingIndex).get();
+        assertThat(
+            newIndexSettings.getSetting(newBackingIndex, SyntheticIdBloomFilterSettings.MAX_SIZE.getKey()),
+            equalTo(newMaxSize.getStringRep())
+        );
+        assertThat(
+            newIndexSettings.getSetting(newBackingIndex, SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey()),
+            equalTo(Integer.toString(newSmallMaxDocs))
+        );
+        assertThat(
+            newIndexSettings.getSetting(newBackingIndex, SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey()),
+            equalTo(Integer.toString(newLargeMinDocs))
+        );
+
+        // The new backing index's start_time = old backing index's end_time (≈ T_start + 30 min
+        // look-ahead). Documents must have @timestamp >= start_time to route to the new index.
+        // Read it directly from the index settings to get the exact boundary.
+        Settings newIdxRawSettings = newIndexSettings.getIndexToSettings().get(newBackingIndex);
+        timestamp = IndexSettings.TIME_SERIES_START_TIME.get(newIdxRawSettings);
+
+        // Index into the new backing index across multiple batches with flushes between them so that
+        // the force merge has multiple segments to merge.
+        for (int batch = 0; batch < 3; batch++) {
+            var bulkRequest = client().prepareBulk();
+            for (int i = 0; i < 1000; i++) {
+                bulkRequest.add(
+                    client().prepareIndex(dataStreamName)
+                        .setOpType(DocWriteRequest.OpType.CREATE)
+                        .setSource(document(timestamp, "vm-rollover-" + (i % 5), "cpu-load", i))
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+            assertNoFailures(bulkRequest.get());
+            flush(dataStreamName);
+        }
+
+        if (randomBoolean()) {
+            assertThat(indicesAdmin().prepareForceMerge(newBackingIndex).setMaxNumSegments(1).get().getFailedShards(), equalTo(0));
+            flushAndRefresh(newBackingIndex);
+        }
+
+        var newIdFieldUsage = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage(newBackingIndex), IdFieldMapper.NAME);
+        assertThat("_id field should have a bloom filter on new backing index", newIdFieldUsage.getBloomFilterBytes(), greaterThan(0L));
+        assertThat(
+            "_id bloom filter on new backing index must be capped at the new max_size",
+            newIdFieldUsage.getBloomFilterBytes(),
+            lessThanOrEqualTo(newMaxSize.getBytes())
+        );
+        // The new index uses MAX_BITS_PER_DOC (256) vs the initial index's random low bits/doc (8–32),
+        // so the bloom filter must be strictly larger, proving the new settings took effect.
+        assertThat(
+            "_id bloom filter on new backing index must be larger than the initial index's bloom filter",
+            newIdFieldUsage.getBloomFilterBytes(),
+            greaterThan(initialBloomFilterBytes)
+        );
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(Set.of(firstBackingIndex, newBackingIndex));
     }
 
     /**
@@ -1566,6 +1791,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);  // Sequence numbers are needed for id validation.
         if (randomBoolean()) {
+            settings.put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomValidCodec());
+        }
+        if (randomBoolean()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
         } else if (rarely()) {
@@ -1658,7 +1886,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      */
     public void testNoopTombstones() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        internalCluster().startDataOnlyNodes(2);
+        internalCluster().startMasterOnlyNode();
+        List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2);
 
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
@@ -1669,6 +1898,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), Integer.MAX_VALUE)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put("index.routing.allocation.include._name", String.join(",", dataNodeNames))
                 .build(),
             useNestedDocs
         );
@@ -1827,6 +2059,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // Verify GET and search by synthetic _id after snapshot restore
         assertGetAndSearchById(docsIndicesById, backingIndex, useNestedDocs);
 
+        // Remove allocation filter to allow shards on any data node
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.include._name"), backingIndex);
+
         internalCluster().startDataOnlyNode();
 
         // Add a replica to test peer recovery from a primary with NOOP tombstones in Lucene
@@ -1925,6 +2160,42 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             }
         }
         assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
+    }
+
+    private static void assertShardsAreUsingZstdBestCompressionMode(Set<String> indices) {
+        int nbVisitedIndices = 0;
+        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesServices) {
+                if (indices.contains(indexService.index().getName())) {
+                    int nbVisitedShards = 0;
+                    for (var indexShard : indexService) {
+                        nbVisitedShards += indexShard.withEngineOrNull(engine -> {
+                            if (engine != null) {
+                                assertThat(engine.config().getCodec().getName(), equalTo(ES94TSDBBestCompressionLucene104Codec.NAME));
+                                try (var searcher = engine.acquireSearcher("test_codec")) {
+                                    for (var leaf : searcher.getLeafContexts()) {
+                                        var segInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo().info;
+                                        assertThat(
+                                            segInfo.getAttribute(Zstd814StoredFieldsFormat.MODE_KEY),
+                                            equalTo(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION.name())
+                                        );
+                                    }
+                                }
+                                return 1;
+                            }
+                            return 0;
+                        });
+                    }
+                    nbVisitedIndices++;
+                    assertThat("Expected at least one shard to be verified for each index", nbVisitedShards, greaterThanOrEqualTo(1));
+                }
+            }
+        }
+        assertThat("Expected all indices to be visited", nbVisitedIndices, greaterThanOrEqualTo(indices.size()));
+    }
+
+    private static String randomValidCodec() {
+        return randomFrom(CodecService.DEFAULT_CODEC, CodecService.BEST_COMPRESSION_CODEC);
     }
 
     private static IndexShard findPrimaryShard(ShardId shardId) {
@@ -2030,6 +2301,82 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     .setSize(0)
                     .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
                 docsIndicesById.size()
+            );
+        }
+    }
+
+    public void testTermInSetQueryWithSyntheticIds() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(dataStreamName, 1, 0, rarely());
+
+        final int nbBulks = randomIntBetween(1, 5);
+        final int nbDocs = randomIntBetween(10, 100);
+        final var docsIds = new HashSet<String>();
+        final var docsIndices = new HashSet<String>();
+
+        var timestamp = Instant.now();
+        for (int i = 0; i < nbBulks; i++) {
+            var client = client();
+            var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int j = 0; j < nbDocs; j++) {
+                bulkRequest.add(
+                    client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(String.format(Locale.ROOT, """
+                        {"@timestamp": "%s", "hostname": "%s", "metric": {"field": "metric_%d", "value": %d}}
+                        """, timestamp, "vm-test-" + randomIntBetween(0, 4), randomIntBetween(0, 1), randomInt()), XContentType.JSON)
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+            for (var result : bulkResponse.getItems()) {
+                assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                assertThat(result.getVersion(), equalTo(1L));
+                docsIndices.add(result.getIndex());
+                docsIds.add(result.getId());
+            }
+        }
+
+        for (int i = 0; i < 10; i++) {
+            final var idsQuery = new ArrayList<String>();
+
+            final var randomMatchingDocIds = randomSubsetOf(docsIds);
+            idsQuery.addAll(randomMatchingDocIds);
+
+            if (randomBoolean()) {
+                var randomStringsThatMatchNothing = randomList(
+                    1,
+                    10,
+                    () -> randomValueOtherThanMany(
+                        candidate -> docsIds.contains(candidate),
+                        () -> randomAlphaOfLength(randomIntBetween(1, 35))
+                    )
+                );
+                idsQuery.addAll(randomStringsThatMatchNothing);
+            }
+
+            if (randomBoolean()) {
+                var otherStringsThatMatchNothing = randomList(
+                    1,
+                    10,
+                    () -> TsidExtractingIdFieldMapper.createSyntheticId(new BytesRef(), randomNonNegativeLong(), randomInt())
+                );
+                idsQuery.addAll(otherStringsThatMatchNothing);
+            }
+
+            assertCheckedResponse(
+                client().prepareSearch(docsIndices.toArray(new String[] {}))
+                    .setQuery(QueryBuilders.idsQuery().addIds(idsQuery.toArray(new String[] {})))
+                    .setSize(1000),
+                searchResponse -> {
+                    assertHitCount(searchResponse, (long) randomMatchingDocIds.size());
+                    assertThat(searchResponse.getHits().getHits(), arrayWithSize(randomMatchingDocIds.size()));
+                    for (var searchHit : searchResponse.getHits().getHits()) {
+                        assertThat(searchHit.getId(), randomMatchingDocIds.contains(searchHit.getId()), equalTo(true));
+                    }
+                }
             );
         }
     }

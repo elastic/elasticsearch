@@ -44,7 +44,9 @@ public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest 
         // https://github.com/elastic/elasticsearch/issues/142033, https://github.com/elastic/elasticsearch/issues/142026
         "is not supported with unmapped_fields",
         "does not support full-text search function",
-        "type \\[null\\] .* not supported"
+        "type \\[null\\] .* not supported",
+        // https://github.com/elastic/elasticsearch/issues/145555
+        "Multiple index patterns should be disabled with unmapped fields"
     );
 
     protected static final Set<Pattern> LOAD_ALLOWED_ERROR_PATTERNS = LOAD_ALLOWED_ERRORS.stream()

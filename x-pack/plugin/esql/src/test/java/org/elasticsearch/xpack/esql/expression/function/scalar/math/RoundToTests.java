@@ -347,7 +347,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
                 case DATETIME, DATE_NANOS, LONG -> "Long";
                 default -> throw new UnsupportedOperationException();
             };
-            String spec = forcedSpecialization != null ? forcedSpecialization : specialization(points.size(), fieldType, points);
+            String spec = forcedSpecialization != null ? forcedSpecialization : specialization(points.size(), expectedType, points);
             Matcher<String> expectedEvaluatorName = startsWith("RoundTo" + type + spec + "Evaluator");
             return new TestCaseSupplier.TestCase(params, expectedEvaluatorName, expectedType, equalTo(expected.apply(field, points)));
         });

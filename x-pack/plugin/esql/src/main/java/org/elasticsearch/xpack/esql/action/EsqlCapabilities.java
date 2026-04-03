@@ -2428,7 +2428,7 @@ public class EsqlCapabilities {
         KEYWORDS_MV_COUNT_AS_SINGLE_VALUE_FIX,
 
         /**
-         * Fix for full-text functions (MATCH, MATCH_PHRASE, :, KQL, QSTR) on constant_keyword fields.
+         * Fix for full-text functions (MATCH, MATCH_PHRASE, :) on constant_keyword fields.
          * The optimizer no longer replaces their field arguments with literal constants.
          * See https://github.com/elastic/elasticsearch/issues/145570
          */

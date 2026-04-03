@@ -1393,11 +1393,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         var limit = as(localPlan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        // The AND condition: match_phrase should keep its field, while last_name == "Doe" should fold
-        filter.condition().forEachDown(SingleFieldFullTextFunction.class, ftf -> {
-            assertThat(ftf.field(), instanceOf(FieldAttribute.class));
-            assertThat(Expressions.name(ftf.field()), equalTo("first_name"));
-        });
+        // last_name is a constant field with value "Doe", so last_name == "Doe" folds to true
+        // and is eliminated from the AND, leaving only the full-text function in the condition.
+        // If constant substitution had NOT happened, the condition would still be an And.
+        var matchPhrase = as(filter.condition(), SingleFieldFullTextFunction.class);
+        assertThat(matchPhrase.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(matchPhrase.field()), equalTo("first_name"));
     }
 
     public void testMatchOperatorOnConstantField() {
@@ -1445,9 +1446,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var filter = as(limit.child(), Filter.class);
         // first_name is protected everywhere because it appears in a full-text function;
         // semantic equality in AttributeSet means all references to the same field are kept.
-        filter.condition().forEachDown(FieldAttribute.class, fa -> { assertThat(Expressions.name(fa), equalTo("first_name")); });
-        filter.condition()
-            .forEachDown(SingleFieldFullTextFunction.class, ftf -> { assertThat(ftf.field(), instanceOf(FieldAttribute.class)); });
+        filter.condition().forEachDown(FieldAttribute.class, fa -> assertThat(Expressions.name(fa), equalTo("first_name")));
+        filter.condition().forEachDown(SingleFieldFullTextFunction.class, ftf -> assertThat(ftf.field(), instanceOf(FieldAttribute.class)));
     }
 
     public void testMultipleFullTextFunctionsOnConstantFields() {

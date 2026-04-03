@@ -136,10 +136,13 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || plan instanceof TopN) {
 
             // full-text functions need actual index fields to construct Lucene queries
+            // Note: AttributeSet uses semanticEquals for lookups, so any FieldAttribute that refers to the same underlying field as
+            // one used inside a FullTextFunction is protected here, even if it also appears outside the function (e.g. in a plain equality
+            // check). This slight loss of constant-folding opportunity is intentional to keep the logic simple.
             var fullTextFieldArgsBuilder = AttributeSet.builder();
             plan.forEachExpression(
                 FullTextFunction.class,
-                ftf -> { ftf.forEachDown(FieldAttribute.class, fullTextFieldArgsBuilder::add); }
+                ftf -> ftf.forEachDown(FieldAttribute.class, fullTextFieldArgsBuilder::add)
             );
             AttributeSet fullTextFieldArgs = fullTextFieldArgsBuilder.build();
 

@@ -7,11 +7,19 @@
 
 package org.elasticsearch.xpack.dlm.frozen;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.WrappedRunnable;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -23,6 +31,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -93,6 +102,56 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
             ErrorEntry err = errorStore.getError(ProjectId.DEFAULT, "exception-index");
             assertNotNull("expected an error to be recorded in the error store", err);
             assertThat(err.error(), containsString("simulated failure"));
+        }
+    }
+
+    public void testIndexUnmarkedAfterUnrecoverableFailure() throws Exception {
+        var errorStore = makeErrorStore();
+        String indexName = "exception-index";
+        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 2, 100, Settings.EMPTY, errorStore)) {
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(ClusterState.EMPTY_STATE)
+                    .nodes(
+                        DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("local")).localNodeId("local").masterNodeId("local").build()
+                    )
+                    .putProjectMetadata(
+                        ProjectMetadata.builder(ProjectId.DEFAULT)
+                            .put(
+                                IndexMetadata.builder(indexName)
+                                    .settings(
+                                        Settings.builder()
+                                            .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                            .build()
+                                    )
+                                    .putCustom(
+                                        DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                                        Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, "myrepo")
+                                    )
+                            )
+                    )
+            );
+            var runtimeTask = new TestDLMFrozenTransitionRunnable(indexName);
+            runtimeTask.throwOnRun = new DLMUnrecoverableException(indexName, "simulated unrecoverable failure");
+            executor.submit(runtimeTask).get(10, TimeUnit.SECONDS);
+            assertFalse(executor.transitionSubmitted(indexName));
+            assertNull(errorStore.getError(ProjectId.DEFAULT, indexName));
+
+            // Check that the cluster state has been updated with the index having its mark removed
+            ClusterServiceUtils.awaitClusterState(cs -> {
+                IndexMetadata index = clusterService.state().projectState(ProjectId.DEFAULT).metadata().index(indexName);
+                if (index == null) {
+                    fail("index should always exist");
+                }
+                Map<String, String> custom = index.getCustomData(DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+                if (custom.containsKey(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY)) {
+                    return false;
+                }
+                return custom.get(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY) == null;
+            }, clusterService);
         }
     }
 

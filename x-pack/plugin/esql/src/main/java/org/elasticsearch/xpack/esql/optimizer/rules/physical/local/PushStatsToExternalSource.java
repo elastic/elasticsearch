@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -80,7 +79,10 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             return aggregateExec;
         }
 
-        Map<String, Object> sourceMetadata = resolveEffectiveMetadata(externalExec);
+        Map<String, Object> sourceMetadata = SourceStatisticsSerializer.resolveEffectiveMetadata(
+            externalExec.splits(),
+            externalExec.sourceMetadata()
+        );
         if (sourceMetadata == null) {
             return aggregateExec;
         }
@@ -162,22 +164,6 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
             return maxVal.orElse(null);
         }
         return null;
-    }
-
-    private static Map<String, Object> resolveEffectiveMetadata(ExternalSourceExec externalExec) {
-        List<? extends ExternalSplit> splits = externalExec.splits();
-        if (splits.size() <= 1) {
-            return externalExec.sourceMetadata();
-        }
-        List<Map<String, Object>> splitStats = new ArrayList<>(splits.size());
-        for (ExternalSplit split : splits) {
-            if (split instanceof FileSplit fileSplit) {
-                splitStats.add(fileSplit.statistics());
-            } else {
-                return null;
-            }
-        }
-        return SourceStatisticsSerializer.mergeStatistics(splitStats);
     }
 
     private static Block[] buildBlocks(List<Object> values) {

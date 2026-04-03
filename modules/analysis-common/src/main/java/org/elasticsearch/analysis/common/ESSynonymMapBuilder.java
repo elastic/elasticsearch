@@ -101,7 +101,7 @@ class ESSynonymMapBuilder {
 
     SynonymMap build() throws IOException {
         ByteSequenceOutputs outputs = ByteSequenceOutputs.getSingleton();
-        // TODO: consider setting suffixRAMLimitMB to cap NodeHash memory during FST compilation
+        // TODO: default suffixRAMLimitMB is 32MB regardless of heap size -- consider scaling to circuit breaker limit
         FSTCompiler<BytesRef> fstCompiler = new FSTCompiler.Builder<>(FST.INPUT_TYPE.BYTE4, outputs).build();
 
         BytesRefBuilder scratch = new BytesRefBuilder();

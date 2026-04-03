@@ -123,7 +123,8 @@ class ESSynonymMapBuilder {
         final IntsRefBuilder scratchIntsRef = new IntsRefBuilder();
 
         for (int keyIdx = 0; keyIdx < sortedKeys.length; keyIdx++) {
-            if ((keyIdx & 0x3FF) == 0) {
+            // Check real memory circuit breaker every 1024
+            if (((keyIdx + 1) & 0x3FF) == 0) {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
             }
 

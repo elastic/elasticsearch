@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -119,6 +121,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
      * Creates a ParquetReadOptions.Builder initialized with an allocator backed by the block factory's circuit breaker.
      */
     private ParquetReadOptions.Builder readOptionsBuilder() {
+        // parquet-mr defaults useColumnIndexFilter=true (since 1.12.0), so when a FilterPredicate
+        // is set via withRecordFilter, page-index filtering (ColumnIndex/OffsetIndex) is automatically
+        // active in addition to row-group level statistics, dictionary, and bloom filter checks.
         // Note: all read operations happen synchronously with the ESQL engine. If some operations
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();
@@ -336,7 +341,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     }
 
     @Override
-    public List<long[]> discoverSplitRanges(StorageObject object) throws IOException {
+    public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
         ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = openParquetFile(object, parquetInputFile, options)) {
@@ -344,18 +349,37 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (rowGroups.size() <= 1) {
                 return List.of();
             }
-            List<long[]> ranges = new ArrayList<>(rowGroups.size());
+            List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
             for (BlockMetaData block : rowGroups) {
-                ranges.add(new long[] { block.getStartingPos(), block.getTotalByteSize() });
+                Map<String, Object> stats = buildRowGroupStats(block);
+                ranges.add(new SplitRange(block.getStartingPos(), block.getTotalByteSize(), stats));
             }
-            List<long[]> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
-            // If the whole file fits into a single macro-split target, keep row-group split granularity
-            // (i.e. return the original ranges) to preserve parallelism.
+            List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
             return coalesced.size() < 2 ? ranges : coalesced;
         }
     }
 
-    static List<long[]> coalesceRowGroupRanges(List<long[]> rowGroupRanges, long targetBytes) {
+    @SuppressWarnings("rawtypes")
+    private static Map<String, Object> buildRowGroupStats(BlockMetaData rowGroup) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowGroup.getRowCount());
+        stats.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, rowGroup.getTotalByteSize());
+        for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+            String colName = col.getPath().toDotString();
+            Statistics colStats = col.getStatistics();
+            if (colStats == null || colStats.isEmpty()) {
+                continue;
+            }
+            stats.put(SourceStatisticsSerializer.columnNullCountKey(colName), colStats.getNumNulls());
+            if (colStats.hasNonNullValue()) {
+                stats.put(SourceStatisticsSerializer.columnMinKey(colName), colStats.genericGetMin());
+                stats.put(SourceStatisticsSerializer.columnMaxKey(colName), colStats.genericGetMax());
+            }
+        }
+        return Map.copyOf(stats);
+    }
+
+    static List<SplitRange> coalesceRowGroupRanges(List<SplitRange> rowGroupRanges, long targetBytes) {
         if (rowGroupRanges == null || rowGroupRanges.size() <= 1) {
             return List.of();
         }
@@ -363,16 +387,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             return List.copyOf(rowGroupRanges);
         }
 
-        List<long[]> sorted = new ArrayList<>(rowGroupRanges);
-        sorted.sort(Comparator.comparingLong(a -> a[0]));
+        List<SplitRange> sorted = new ArrayList<>(rowGroupRanges);
+        sorted.sort(Comparator.comparingLong(SplitRange::offset));
 
-        List<long[]> out = new ArrayList<>();
+        List<SplitRange> out = new ArrayList<>();
         long groupStart = -1;
         long groupEnd = -1;
+        List<Map<String, Object>> pendingStats = new ArrayList<>();
 
-        for (long[] range : sorted) {
-            long start = range[0];
-            long length = range[1];
+        for (SplitRange range : sorted) {
+            long start = range.offset();
+            long length = range.length();
             long end = start + length;
 
             if (groupStart < 0) {
@@ -381,16 +406,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             } else {
                 groupEnd = Math.max(groupEnd, end);
             }
+            pendingStats.add(range.statistics());
 
             if (groupEnd - groupStart >= targetBytes) {
-                out.add(new long[] { groupStart, groupEnd - groupStart });
+                out.add(new SplitRange(groupStart, groupEnd - groupStart, SourceStatisticsSerializer.mergeStatistics(pendingStats)));
                 groupStart = -1;
                 groupEnd = -1;
+                pendingStats.clear();
             }
         }
 
         if (groupStart >= 0) {
-            out.add(new long[] { groupStart, groupEnd - groupStart });
+            out.add(new SplitRange(groupStart, groupEnd - groupStart, SourceStatisticsSerializer.mergeStatistics(pendingStats)));
         }
 
         return out;

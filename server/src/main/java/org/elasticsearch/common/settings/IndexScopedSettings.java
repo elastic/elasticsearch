@@ -30,6 +30,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -241,6 +242,13 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
                 IndexSettings.SYNTHETIC_ID,
+                SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS,
+                SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS,
+                SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS,
+                SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC,
+                SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC,
+                SyntheticIdBloomFilterSettings.MAX_SIZE,
+                SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE,
 
                 // Legacy index settings we must keep around for BWC from 7.x
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,

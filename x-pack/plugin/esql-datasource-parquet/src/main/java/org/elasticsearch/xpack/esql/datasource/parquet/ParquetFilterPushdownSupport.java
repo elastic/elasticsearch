@@ -49,11 +49,14 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * to parquet-java {@link FilterPredicate} objects.
  * <p>
  * When set on {@link org.apache.parquet.ParquetReadOptions}, parquet-java automatically
- * applies three levels of row-group filtering:
+ * applies four levels of filtering:
  * <ol>
  *   <li>Statistics (min/max) — skips row groups where value is outside range</li>
  *   <li>Dictionary — skips row groups where dictionary-encoded column doesn't contain value</li>
  *   <li>Bloom filter — skips row groups where bloom filter says value definitely absent</li>
+ *   <li>Page index (ColumnIndex/OffsetIndex) — skips individual pages within row groups using
+ *       per-page min/max statistics (active by default via {@code useColumnIndexFilter=true}
+ *       since parquet-mr 1.12.0)</li>
  * </ol>
  * <p>
  * Uses a two-pass approach (like {@code OrcPushdownFilters}):
@@ -63,7 +66,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * </ol>
  * <p>
  * All pushed filters use {@link Pushability#RECHECK} semantics: the original filter remains
- * in FilterExec for per-row correctness since row-group skipping is an optimization.
+ * in FilterExec for per-row correctness since predicate pushdown is a conservative approximation.
  */
 public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
 

@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -42,7 +43,10 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlIllegalNameLabelMatcher() {
-        tsdb.error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", containsString("Unknown column [__name__]"));
+        tsdb.error(
+            "PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))",
+            containsString("regex label selectors on __name__ are not supported at this time")
+        );
     }
 
     public void testPromqlSubquery() {
@@ -137,15 +141,86 @@ public class PromqlVerifierTests extends ESTestCase {
         assertThat(localRelations.get(0).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
+    public void testAbsentMetricWithSimilarNameReturnsEmptyResult() {
+        // Prometheus returns empty results for non-existent metrics, not errors.
+        // It uses the load_unmapped="nullify" functionality to do that.
+        // There was a bug in this mechanism where it would throw an exception if the metric name was similar enough to an existing field,
+        // due to a "did you mean" message being left in the plan after resolution.
+        // This test ensures that the fix for that bug is working correctly.
+        var plan = tsdb.query("PROMQL index=test step=5m network.bites_in");
+        assertTrue("Plan should be resolved even when the metric is absent", plan.resolved());
+    }
+
+    public void testSimilarFieldInNonPromqlQueryFailsWithDidYouMean() {
+        // Showcases the did you mean message for non PROMQL queries.
+        tsdb.error(
+            "FROM test | WHERE network.bites_in > 0",
+            allOf(containsString("Unknown column [network.bites_in], did you mean any of ["), containsString("network.bytes_in"))
+        );
+    }
+
+    public void testCounterMetricWithUnsupportedFunction() {
+        // network.bytes_in is a counter metric - avg_over_time doesn't support counters
+        tsdb.error(
+            "PROMQL index=test step=5m avg_over_time(network.bytes_in[5m])",
+            containsString("function [avg_over_time] does not support counter metric [network.bytes_in]")
+        );
+    }
+
+    public void testCounterMetricWithAcrossSeriesAggregateIsValid() {
+        // sum(counter) works because the implicit LastOverTime on the InstantSelector
+        // converts the counter type to its numeric base type before the aggregate sees it
+        var plan = tsdb.query("PROMQL index=test step=5m sum(network.bytes_in)");
+        assertTrue("sum() on a counter should be valid (implicit last_over_time converts the type)", plan.resolved());
+    }
+
+    public void testCounterMetricWithValueTransformationIsValid() {
+        // ceil(counter) works for the same reason — implicit LastOverTime on InstantSelector
+        var plan = tsdb.query("PROMQL index=test step=5m ceil(network.bytes_in)");
+        assertTrue("ceil() on a counter should be valid (implicit last_over_time converts the type)", plan.resolved());
+    }
+
+    public void testCounterMetricWithRateIsValid() {
+        // rate() accepts counter metrics - this should succeed
+        var plan = tsdb.query("PROMQL index=test step=5m rate(network.bytes_in[5m])");
+        assertTrue("rate() on a counter should be valid", plan.resolved());
+    }
+
+    public void testCounterMetricWithSumOfRateIsValid() {
+        // sum(rate(...)) is the standard pattern for counter metrics
+        var plan = tsdb.query("PROMQL index=test step=5m sum(rate(network.bytes_in[5m]))");
+        assertTrue("sum(rate()) on a counter should be valid", plan.resolved());
+    }
+
+    public void testGaugeMetricWithCounterOnlyFunction() {
+        // network.connections is a gauge - rate() requires counter metrics
+        tsdb.error(
+            "PROMQL index=test step=5m rate(network.connections[5m])",
+            containsString("function [rate] requires a counter metric, but [network.connections] has type [long]")
+        );
+    }
+
+    public void testRateOnNonNumericField() {
+        // host is a keyword dimension field, not a numeric metric - should get a clear 4xx-style error
+        tsdb.error(
+            "PROMQL index=test step=5m rate(host[5m])",
+            containsString("field [host] of type [keyword] cannot be used as a metric; it is a dimension field")
+        );
+    }
+
+    public void testAggregationOnNonNumericField() {
+        // metricset is a keyword dimension field, not a numeric metric
+        tsdb.error(
+            "PROMQL index=test step=5m sum(metricset)",
+            containsString("field [metricset] of type [keyword] cannot be used as a metric; it is a dimension field")
+        );
+    }
+
     public void testNoMetricNameMatcherNotSupported() {
         tsdb.error(
             "PROMQL index=test step=5m {foo=\"bar\"}",
             containsString("__name__ label selector is required at this time [{foo=\"bar\"}]")
         );
-    }
-
-    public void testWithoutNotSupported() {
-        tsdb.error("PROMQL index=test step=5m avg(foo) without (bar)", containsString("'without' grouping is not supported at this time"));
     }
 
     public void testGroupModifiersNotSupported() {

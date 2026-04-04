@@ -1,0 +1,7 @@
+ExchangeSinkExec[[_doc{f}#0, s1{r}#1, s2{r}#2, r2{r}#3],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#0, s1{r}#1, s2{r}#2, r2{r}#3]]
+\_TopN[[Order[s1{r}#1,DESC,FIRST]],10[INTEGER],false]
+  \_Eval[[HAMMING([0.15351605, 0.47691387, 0.6555141][DENSE_VECTOR],dense_vector{f}#4) AS s1#1, HAMMING([0.15351605, 0.47691387, 0.6555141][DENSE_VECTOR],dense_vector{f}#4) * 2[INTEGER] / 3[INTEGER] AS s2#2, COSINESIMILARITY([0.18848974, 0.56734943, 0.5018673][DENSE_VECTOR],dense_vector{f}#4) + COSINESIMILARITY([0.19720656, 0.54328305, 0.5056714][DENSE_VECTOR],dense_vector{f}#4) AS r2#3]]
+    \_Filter[HAMMING([0.15351605, 0.47691387, 0.6555141][DENSE_VECTOR],dense_vector{f}#4) + 5[INTEGER] + COSINESIMILARITY(dense_vector{f}#4,[0.18848974, 0.56734943, 0.5018673][DENSE_VECTOR]) > 0[INTEGER]]
+      \_EsRelation[all_types][_doc{f}#0, !alias_integer, boolean{f}#5, byte{f}#6, constant_keyword-foo{f}#7, date{f}#8, date_nanos{f}#9, dense_vector{f}#4, double{f}#10, float{f}#11, half_float{f}#12, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#17, semantic_text{f}#18, short{f}#19, text{f}#20, unsigned_long{f}#21, version{f}#22, wildcard{f}#23]<>]]

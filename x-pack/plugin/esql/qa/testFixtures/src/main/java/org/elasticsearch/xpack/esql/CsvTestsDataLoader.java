@@ -43,6 +43,7 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -107,6 +108,7 @@ public class CsvTestsDataLoader {
         new TestDataset("languages_mixed_numerics").withSetting("lookup-settings.json"),
         new TestDataset("ul_logs"),
         new TestDataset("sample_data"),
+        new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv").withTypeMapping(
             Stream.of("timestamp", "client_ip", "event_duration").collect(toMap(k -> k, k -> "keyword"))
@@ -216,7 +218,8 @@ public class CsvTestsDataLoader {
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        )
+        ),
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -254,7 +257,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("country_languages"),
         new ViewConfig("airports_mp_filtered"),
         new ViewConfig("employees_rehired"),
-        new ViewConfig("employees_not_rehired")
+        new ViewConfig("employees_not_rehired"),
+        new ViewConfig("employees_all"),
+        new ViewConfig("employees_extra")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -641,8 +646,16 @@ public class CsvTestsDataLoader {
     }
 
     public static void createInferenceEndpoints(RestClient client) throws IOException {
-        for (var config : INFERENCE_CONFIGS.values()) {
-            if (hasInferenceEndpoint(client, config) == false) {
+        createInferenceEndpoints(client, INFERENCE_CONFIGS.keySet());
+    }
+
+    /**
+     * Creates only the listed inference endpoints (by id in {@link #INFERENCE_CONFIGS}), skipping any that already exist.
+     */
+    public static void createInferenceEndpoints(RestClient client, Collection<String> inferenceIds) throws IOException {
+        for (String id : inferenceIds) {
+            InferenceConfig config = INFERENCE_CONFIGS.get(id);
+            if (config != null && hasInferenceEndpoint(client, config) == false) {
                 createInferenceEndpoint(client, config);
             }
         }

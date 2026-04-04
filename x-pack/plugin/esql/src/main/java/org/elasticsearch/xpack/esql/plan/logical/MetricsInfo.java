@@ -101,7 +101,7 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
 
     @Override
     protected AttributeSet computeReferences() {
-        return AttributeSet.EMPTY;
+        return child().outputSet();
     }
 
     @Override

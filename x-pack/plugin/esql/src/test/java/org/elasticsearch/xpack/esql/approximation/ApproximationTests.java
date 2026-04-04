@@ -70,7 +70,7 @@ public class ApproximationTests extends ApproximationTestCase {
     public void testVerify_exactlyOneStats() {
         assertError(
             "FROM test | EVAL x = 1 | SORT emp_no | LIMIT 100 | MV_EXPAND x",
-            equalTo("line 1:1: approximation not supported: query without [STATS] cannot be approximated")
+            equalTo("line 1:1: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated")
         );
         assertError(
             "FROM test | STATS COUNT() BY emp_no | STATS COUNT()",
@@ -135,6 +135,10 @@ public class ApproximationTests extends ApproximationTestCase {
         assertError(
             "FROM test | STATS 5+10*POW(MAX(emp_no), 2) BY gender",
             equalTo("line 1:28: approximation not supported: aggregation function [MAX(emp_no)] cannot be approximated")
+        );
+        assertError(
+            "ROW x=[1,2]::DENSE_VECTOR | STATS SUM(x)",
+            equalTo("line 1:35: approximation not supported: aggregation function [SUM(x)] must return a numeric value; got [DENSE_VECTOR]")
         );
     }
 
@@ -278,6 +282,13 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-6), withAggs(CountApproximate.class)));
+
+        // Filtered count of 0, so increase the sample probability.
+        approximation.newMainPlan(newCountResult(0));
+        subplan = approximation.firstSubPlan();
+        assertThat(subplan, hasPlan(Filter.class));
+        assertThat(subplan, not(hasPlan(Aggregate.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-2), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so no more subplans.
         mainPlan = approximation.newMainPlan(newCountResult(0));

@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collection;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
@@ -112,7 +113,11 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
         for (int i = 0; i < 100; i++) {
             client().prepareDelete("index", Integer.toString(i)).get();
         }
-        assertBusy(() -> assertThat(shard.getEngineOrNull().getIndexBufferRAMBytesUsed(), lessThanOrEqualTo(ByteSizeUnit.KB.toBytes(1))));
+        assertBusy(
+            () -> assertThat(shard.getEngineOrNull().getIndexBufferRAMBytesUsed(), lessThanOrEqualTo(ByteSizeUnit.KB.toBytes(1))),
+            5,
+            TimeUnit.SECONDS
+        );
     }
 
     /* When there is memory pressure, we write indexing buffers to disk on the same thread as the indexing thread,

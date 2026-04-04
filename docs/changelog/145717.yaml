@@ -1,0 +1,4 @@
+pr: 145717
+summary: "Stabilize PruningMergePolicyTests to eliminate flakiness"
+area: Engine
+type: bug

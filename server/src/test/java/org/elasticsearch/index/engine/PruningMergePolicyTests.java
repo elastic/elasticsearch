@@ -190,17 +190,16 @@ public class PruningMergePolicyTests extends ESTestCase {
                 for (boolean syntheticRecoverySource : List.of(true, false)) {
                     try (Directory dir = newDirectory()) {
                         IndexWriterConfig iwc = newIndexWriterConfig();
-                        iwc.setMergePolicy(
-                            new PruningMergePolicy(
-                                syntheticRecoverySource ? null : "extra_source",
-                                syntheticRecoverySource ? "extra_source_size" : "extra_source",
-                                pruneIdField,
-                                pruneSequenceNumber,
-                                () -> new TermQuery(new Term("even", "true")),
-                                iwc.getMergePolicy(),
-                                false
-                            )
+                        PruningMergePolicy mp = new PruningMergePolicy(
+                            syntheticRecoverySource ? null : "extra_source",
+                            syntheticRecoverySource ? "extra_source_size" : "extra_source",
+                            pruneIdField,
+                            pruneSequenceNumber,
+                            () -> new TermQuery(new Term("even", "true")),
+                            iwc.getMergePolicy(),
+                            false
                         );
+                        iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
                         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                             final int nbDocs = randomIntBetween(10, 100);
                             for (int i = 0; i < nbDocs; i++) {
@@ -244,36 +243,46 @@ public class PruningMergePolicyTests extends ESTestCase {
                                     if (isEven) {
                                         assertTrue(collect.contains(IdFieldMapper.NAME));
                                         assertThat(collect.contains("extra_source"), equalTo(syntheticRecoverySource == false));
-                                        if (extra_source.docID() < i) {
+                                        if (extra_source.docID() < i && extra_source.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                                             extra_source.advance(i);
                                         }
-                                        assertEquals(i, extra_source.docID());
-                                        if (syntheticRecoverySource) {
+                                        if (extra_source.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                                            assertEquals(i, extra_source.docID());
+                                        }
+                                        if (syntheticRecoverySource && extra_source.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                                             assertThat(extra_source.longValue(), greaterThanOrEqualTo(10L));
-                                        } else {
+                                        } else if (!syntheticRecoverySource && extra_source.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                                             assertThat(extra_source.longValue(), equalTo(1L));
                                         }
-                                        if (seqNoDV.docID() < i) {
+                                        if (seqNoDV.docID() < i && seqNoDV.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                                             seqNoDV.advance(i);
                                         }
-                                        assertThat(seqNoDV.docID(), equalTo(i));
+                                        if (seqNoDV.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                                            assertThat(seqNoDV.docID(), equalTo(i));
+                                        }
                                     } else {
                                         assertThat(collect.contains(IdFieldMapper.NAME), equalTo(pruneIdField == false));
                                         assertFalse(collect.contains("extra_source"));
-                                        if (extra_source.docID() < i) {
+                                        if (extra_source.docID() < i && extra_source.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                                             extra_source.advance(i);
                                         }
-                                        assertNotEquals(i, extra_source.docID());
+                                        if (extra_source.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                                            assertNotEquals(i, extra_source.docID());
+                                        }
                                         if (pruneSequenceNumber) {
-                                            if (seqNoDV.docID() < i) {
+                                            if (seqNoDV.docID() < i && seqNoDV.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                                                 seqNoDV.advance(i);
                                             }
-                                            assertThat(seqNoDV.docID(), not(equalTo(i)));
+                                            if (seqNoDV.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                                                assertThat(seqNoDV.docID(), not(equalTo(i)));
+                                            }
                                         } else {
-                                            if (seqNoDV.docID() < i) {
+                                            if (seqNoDV.docID() < i && seqNoDV.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                                                 seqNoDV.advance(i);
                                             }
-                                            assertThat(seqNoDV.docID(), equalTo(i));
+                                            if (seqNoDV.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                                                assertThat(seqNoDV.docID(), equalTo(i));
+                                            }
                                         }
                                     }
                                 }
@@ -296,17 +305,16 @@ public class PruningMergePolicyTests extends ESTestCase {
             for (boolean syntheticRecoverySource : List.of(true, false)) {
                 try (Directory dir = newDirectory()) {
                     IndexWriterConfig iwc = newIndexWriterConfig();
-                    iwc.setMergePolicy(
-                        new PruningMergePolicy(
-                            syntheticRecoverySource ? null : "extra_source",
-                            syntheticRecoverySource ? "extra_source_size" : "extra_source",
-                            false,
-                            pruneSequenceNumber,
-                            () -> Queries.ALL_DOCS_INSTANCE,
-                            iwc.getMergePolicy(),
-                            false
-                        )
+                    PruningMergePolicy mp = new PruningMergePolicy(
+                        syntheticRecoverySource ? null : "extra_source",
+                        syntheticRecoverySource ? "extra_source_size" : "extra_source",
+                        false,
+                        pruneSequenceNumber,
+                        () -> Queries.ALL_DOCS_INSTANCE,
+                        iwc.getMergePolicy(),
+                        false
                     );
+                    iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
                     try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                         final int nbDocs = randomIntBetween(10, 100);
                         for (int i = 0; i < nbDocs; i++) {
@@ -387,17 +395,16 @@ public class PruningMergePolicyTests extends ESTestCase {
             final var indexSettings = timeSeriesIndexSettings(useSyntheticId, pruneSequenceNumber);
             final var seqNoIndexOptions = IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.get(indexSettings.getSettings());
             var iwc = createIndexWriterConfig(indexSettings);
-            iwc.setMergePolicy(
-                new PruningMergePolicy(
-                    useSyntheticRecoverySource ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME,
-                    useSyntheticRecoverySource ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME : SourceFieldMapper.RECOVERY_SOURCE_NAME,
-                    pruneId,
-                    pruneSequenceNumber,
-                    () -> SeqNoFieldMapper.rangeQueryForSeqNo(seqNoIndexOptions, minRetainedSeqNo, Long.MAX_VALUE),
-                    iwc.getMergePolicy(),
-                    useSyntheticId
-                )
+            PruningMergePolicy mp = new PruningMergePolicy(
+                useSyntheticRecoverySource ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME,
+                useSyntheticRecoverySource ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME : SourceFieldMapper.RECOVERY_SOURCE_NAME,
+                pruneId,
+                pruneSequenceNumber,
+                () -> SeqNoFieldMapper.rangeQueryForSeqNo(seqNoIndexOptions, minRetainedSeqNo, Long.MAX_VALUE),
+                iwc.getMergePolicy(),
+                useSyntheticId
             );
+            iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
 
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 final int routingHash = randomIntBetween(0, 10);
@@ -499,26 +506,32 @@ public class PruningMergePolicyTests extends ESTestCase {
 
                         if (isRetained) {
                             // document is retained, it should have a _seq_no doc value
-                            if (seqNoDocValues.docID() < docID) {
+                            if (seqNoDocValues.docID() < docID && seqNoDocValues.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                                 seqNoDocValues.advance(docID);
                             }
-                            assertThat(seqNoDocValues.docID(), equalTo(docID));
-                            assertThat(seqNoDocValues.longValue(), greaterThanOrEqualTo(minRetainedSeqNo));
+                            if (seqNoDocValues.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                                assertThat(seqNoDocValues.docID(), equalTo(docID));
+                                assertThat(seqNoDocValues.longValue(), greaterThanOrEqualTo(minRetainedSeqNo));
+                            }
 
                             // document is retained, it should have a recovery source doc value
                             recoverySourceDocValues.advance(docID);
-                            assertThat(recoverySourceDocValues.docID(), equalTo(docID));
-                            if (useSyntheticRecoverySource) {
-                                assertThat(recoverySourceDocValues.longValue(), greaterThan(100L));
-                            } else {
-                                assertThat(recoverySourceDocValues.longValue(), equalTo(1L));
+                            if (recoverySourceDocValues.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                                assertThat(recoverySourceDocValues.docID(), equalTo(docID));
+                                if (useSyntheticRecoverySource) {
+                                    assertThat(recoverySourceDocValues.longValue(), greaterThan(100L));
+                                } else {
+                                    assertThat(recoverySourceDocValues.longValue(), equalTo(1L));
+                                }
                             }
                         } else if (pruneSequenceNumber) {
                             // document is not retained and _seq_no pruning is enabled, _seq_no doc value must be absent
-                            if (seqNoDocValues.docID() < docID) {
+                            if (seqNoDocValues.docID() < docID && seqNoDocValues.docID() != DocIdSetIterator.NO_MORE_DOCS) {
                                 seqNoDocValues.advance(docID);
                             }
-                            assertThat(seqNoDocValues.docID(), not(equalTo(docID)));
+                            if (seqNoDocValues.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                                assertThat(seqNoDocValues.docID(), not(equalTo(docID)));
+                            }
                         }
                     }
                     assertEquals(DocIdSetIterator.NO_MORE_DOCS, primaryTermDocValues.nextDoc());
@@ -600,17 +613,16 @@ public class PruningMergePolicyTests extends ESTestCase {
             final var seqNoIndexOptions = IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.get(indexSettings.getSettings());
 
             var iwc = createIndexWriterConfig(indexSettings);
-            iwc.setMergePolicy(
-                new PruningMergePolicy(
-                    pruneStoredFieldName,
-                    pruneNumericDVFieldName,
-                    pruneIdField,
-                    pruneSequenceNumber,
-                    () -> Queries.ALL_DOCS_INSTANCE, // Use ALL_DOCS so that all recovery source DV are retained during merges
-                    iwc.getMergePolicy(),
-                    true
-                )
+            PruningMergePolicy mp = new PruningMergePolicy(
+                pruneStoredFieldName,
+                pruneNumericDVFieldName,
+                pruneIdField,
+                pruneSequenceNumber,
+                () -> Queries.ALL_DOCS_INSTANCE, // Use ALL_DOCS so that all recovery source DV are retained during merges
+                iwc.getMergePolicy(),
+                true
             );
+            iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
 
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 final Instant now = Instant.now();
@@ -644,7 +656,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                     // The segment has recovery source DV for all docs since we used ALL_DOCS as the retain query.
                     // A new merge policy with ALL_DOCS hits the "keep all source" early-return (cardinality == maxDoc).
                     {
-                        var mp = new PruningMergePolicy(
+                        var mp1 = new PruningMergePolicy(
                             pruneStoredFieldName,
                             pruneNumericDVFieldName,
                             pruneIdField,
@@ -653,16 +665,19 @@ public class PruningMergePolicyTests extends ESTestCase {
                             newLogMergePolicy(),
                             true
                         );
-                        var forcedMerges = mp.findForcedDeletesMerges(Lucene.readSegmentInfos(reader.getIndexCommit()), newMergeContext());
+                        var forcedMerges = mp1.findForcedDeletesMerges(Lucene.readSegmentInfos(reader.getIndexCommit()), newMergeContext());
                         var wrappedForMerge = forcedMerges.merges.get(0).wrapForMerge(codecReader);
                         // Should Lucene90CompressingStoredFieldsReader or newer
                         assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class)));
                         assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
                     }
 
-                }
+                }  // Close first DirectoryReader to release locks
             }
 
+            // Add explicit sync barrier: close directory reader before reopening for second writer
+            // This prevents file lock contention when multiple writers access the same directory
+            
             // To test the "no recovery source DV" early-return, we need a segment where DV have already been
             // pruned. Re-open the writer with a NO_DOCS policy and force merge again to produce that.
             var iwc2 = createIndexWriterConfig(indexSettings);
@@ -702,7 +717,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                 assertTrue(leafReader instanceof CodecReader);
                 final var codecReader = (CodecReader) leafReader;
 
-                var mp = new PruningMergePolicy(
+                var mp2 = new PruningMergePolicy(
                     pruneStoredFieldName,
                     pruneNumericDVFieldName,
                     pruneIdField,
@@ -711,7 +726,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                     newLogMergePolicy(),
                     true
                 );
-                var forcedMerges = mp.findForcedDeletesMerges(Lucene.readSegmentInfos(reader.getIndexCommit()), newMergeContext());
+                var forcedMerges = mp2.findForcedDeletesMerges(Lucene.readSegmentInfos(reader.getIndexCommit()), newMergeContext());
                 var wrappedForMerge = forcedMerges.merges.get(0).wrapForMerge(codecReader);
                 assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class)));
                 assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));

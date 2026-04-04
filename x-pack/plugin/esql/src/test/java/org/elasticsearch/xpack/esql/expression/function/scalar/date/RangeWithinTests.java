@@ -36,18 +36,20 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        // (date, date_range): point in range
-        suppliers.add(pointInRange("date inside range (datetime)", DataType.DATETIME, 1000L, 500L, 1500L, true));
-        suppliers.add(pointInRange("date outside range (datetime)", DataType.DATETIME, 2000L, 500L, 1500L, false));
-        suppliers.add(pointInRange("date at range start (datetime)", DataType.DATETIME, 500L, 500L, 1500L, true));
-        // Block stores [from, to); use range (500, 1501) so point 1500 is included
-        suppliers.add(pointInRange("date at range end (datetime)", DataType.DATETIME, 1500L, 500L, 1501L, true));
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
+            // (date, date_range): point in range
+            suppliers.add(pointInRange("date inside range (datetime)", DataType.DATETIME, 1000L, 500L, 1500L, true));
+            suppliers.add(pointInRange("date outside range (datetime)", DataType.DATETIME, 2000L, 500L, 1500L, false));
+            suppliers.add(pointInRange("date at range start (datetime)", DataType.DATETIME, 500L, 500L, 1500L, true));
+            // Block stores [from, to); use range (500, 1501) so point 1500 is included
+            suppliers.add(pointInRange("date at range end (datetime)", DataType.DATETIME, 1500L, 500L, 1501L, true));
 
-        // (date_range, date_range): first contains second
-        suppliers.add(rangeContainsRange("first contains second", 100L, 2000L, 500L, 1500L, true));
-        suppliers.add(rangeContainsRange("first does not contain second (overlap)", 100L, 1000L, 500L, 1500L, false));
-        suppliers.add(rangeContainsRange("equal ranges", 500L, 1500L, 500L, 1500L, true));
-        suppliers.add(rangeContainsRange("point range in range", 500L, 1500L, 1000L, 1000L, true));
+            // (date_range, date_range): first contains second
+            suppliers.add(rangeContainsRange("first contains second", 100L, 2000L, 500L, 1500L, true));
+            suppliers.add(rangeContainsRange("first does not contain second (overlap)", 100L, 1000L, 500L, 1500L, false));
+            suppliers.add(rangeContainsRange("equal ranges", 500L, 1500L, 500L, 1500L, true));
+            suppliers.add(rangeContainsRange("point range in range", 500L, 1500L, 1000L, 1000L, true));
+        }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

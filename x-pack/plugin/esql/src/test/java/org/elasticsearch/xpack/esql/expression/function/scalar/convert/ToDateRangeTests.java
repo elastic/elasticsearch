@@ -36,19 +36,21 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
         final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        // DATE_RANGE passthrough - returns input unchanged
-        suppliers.add(new TestCaseSupplier("date_range passthrough", List.of(DataType.DATE_RANGE), () -> {
-            long from = randomLongBetween(0L, 1_000_000_000_000L);
-            long to = randomLongBetween(from, from + 1_000_000_000_000L);
-            var range = new LongRangeBlockBuilder.LongRange(from, to);
+        // DATE_RANGE passthrough - returns input unchanged; only available on snapshot builds
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
+            suppliers.add(new TestCaseSupplier("date_range passthrough", List.of(DataType.DATE_RANGE), () -> {
+                long from = randomLongBetween(0L, 1_000_000_000_000L);
+                long to = randomLongBetween(from, from + 1_000_000_000_000L);
+                var range = new LongRangeBlockBuilder.LongRange(from, to);
 
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
-                read,
-                DataType.DATE_RANGE,
-                equalTo(range)
-            );
-        }));
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
+                    read,
+                    DataType.DATE_RANGE,
+                    equalTo(range)
+                );
+            }));
+        }
 
         // KEYWORD to DATE_RANGE - parses "start..end" format
         suppliers.add(new TestCaseSupplier("keyword date range string", List.of(DataType.KEYWORD), () -> {

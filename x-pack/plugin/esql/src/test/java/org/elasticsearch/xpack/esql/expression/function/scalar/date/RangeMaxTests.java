@@ -37,45 +37,47 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
         final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        // Block stores [from, to); RANGE_MAX returns inclusive end (to - 1)
-        suppliers.add(new TestCaseSupplier("basic range", List.of(DataType.DATE_RANGE), () -> {
-            long from = 1000L;
-            long to = 2000L;
-            var range = new LongRangeBlockBuilder.LongRange(from, to);
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
+            // Block stores [from, to); RANGE_MAX returns inclusive end (to - 1)
+            suppliers.add(new TestCaseSupplier("basic range", List.of(DataType.DATE_RANGE), () -> {
+                long from = 1000L;
+                long to = 2000L;
+                var range = new LongRangeBlockBuilder.LongRange(from, to);
 
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
-                "RangeMaxEvaluator[range=" + read + "]",
-                DataType.DATETIME,
-                equalTo(to - 1)
-            );
-        }));
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
+                    "RangeMaxEvaluator[range=" + read + "]",
+                    DataType.DATETIME,
+                    equalTo(to - 1)
+                );
+            }));
 
-        suppliers.add(new TestCaseSupplier("large range", List.of(DataType.DATE_RANGE), () -> {
-            long from = 0L;
-            long to = 1_000_000_000_000L;
-            var range = new LongRangeBlockBuilder.LongRange(from, to);
+            suppliers.add(new TestCaseSupplier("large range", List.of(DataType.DATE_RANGE), () -> {
+                long from = 0L;
+                long to = 1_000_000_000_000L;
+                var range = new LongRangeBlockBuilder.LongRange(from, to);
 
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
-                "RangeMaxEvaluator[range=" + read + "]",
-                DataType.DATETIME,
-                equalTo(to - 1)
-            );
-        }));
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
+                    "RangeMaxEvaluator[range=" + read + "]",
+                    DataType.DATETIME,
+                    equalTo(to - 1)
+                );
+            }));
 
-        suppliers.add(new TestCaseSupplier("small range", List.of(DataType.DATE_RANGE), () -> {
-            long from = 500L;
-            long to = 501L;
-            var range = new LongRangeBlockBuilder.LongRange(from, to);
+            suppliers.add(new TestCaseSupplier("small range", List.of(DataType.DATE_RANGE), () -> {
+                long from = 500L;
+                long to = 501L;
+                var range = new LongRangeBlockBuilder.LongRange(from, to);
 
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
-                "RangeMaxEvaluator[range=" + read + "]",
-                DataType.DATETIME,
-                equalTo(to - 1)
-            );
-        }));
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
+                    "RangeMaxEvaluator[range=" + read + "]",
+                    DataType.DATETIME,
+                    equalTo(to - 1)
+                );
+            }));
+        }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.test.knn.data.DatasetConfig;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -42,11 +43,13 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
 
+import static org.elasticsearch.test.knn.data.DatasetConfig.PartitionGenerated;
+
 /**
  * Command line arguments for the KNN index tester.
  * This class encapsulates all the parameters required to run the KNN index tests.
  */
-record TestConfiguration(
+public record TestConfiguration(
     List<Path> docVectors,
     Path queryVectors,
     int numDocs,
@@ -59,6 +62,7 @@ record TestConfiguration(
     boolean reindex,
     boolean forceMerge,
     VectorSimilarityFunction vectorSpace,
+    boolean normalizeVectors,
     Integer quantizeBits,
     KnnIndexTester.VectorEncoding vectorEncoding,
     int dimensions,
@@ -73,7 +77,8 @@ record TestConfiguration(
     int preconditioningBlockDims,
     int flatVectorThreshold,
     int secondaryClusterSize,
-    String directoryType
+    String directoryType,
+    DatasetConfig datasetConfig
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -131,7 +136,7 @@ record TestConfiguration(
     static final ObjectParser<TestConfiguration.Builder, Void> PARSER = new ObjectParser<>("test_configuration", false, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setDataset, DATASET_FIELD);
+        PARSER.declareField(Builder::setDatasetConfig, DatasetConfig::parse, DATASET_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareString(Builder::setDataDir, DATA_DIR_FIELD);
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
         PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS_FIELD);
@@ -198,7 +203,14 @@ record TestConfiguration(
 
     public static String formattedParameterHelp() {
         List<ParameterHelp> params = List.of(
-            new ParameterHelp("dataset", "string", "Optional. Name of the dataset to use. Available datasets displayed in help text."),
+            new ParameterHelp(
+                "dataset",
+                "object",
+                "Optional. {\"gcp\": {\"name\": \"...\"}}, "
+                    + "{\"file\": {\"doc_vectors\": [...], \"query_vectors\": \"...\"}}, "
+                    + "or {\"partition_generated\": {\"num_partitions\": N, "
+                    + "\"partition_distribution\": \"uniform|zipf\", \"generator_seed\": L}}."
+            ),
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
             new ParameterHelp("num_docs", "int", "Number of documents to index."),
@@ -212,7 +224,12 @@ record TestConfiguration(
             new ParameterHelp("reindex", "boolean", "Whether to build a new index from the document vectors."),
             new ParameterHelp("force_merge", "boolean", "Whether to force-merge the index after indexing."),
             new ParameterHelp("force_merge_max_num_segments", "int", "Force-merge target number of segments."),
-            new ParameterHelp("vector_space", "string", "Similarity: euclidean, dot_product, or cosine."),
+            new ParameterHelp(
+                "vector_space",
+                "string",
+                "Similarity: euclidean, maximum_inner_product, dot_product, or cosine. "
+                    + "If cosine is selected with float vectors, vectors are L2-normalized and dot_product is used internally."
+            ),
             new ParameterHelp("quantize_bits", "int", "Quantization bits; valid values depend on index_type."),
             new ParameterHelp("vector_encoding", "string", "Vector encoding: byte, float32, or bfloat16."),
             new ParameterHelp("dimensions", "int", "Vector dimensions; -1 uses dimensions from the vector file."),
@@ -348,7 +365,7 @@ record TestConfiguration(
     }
 
     static class Builder implements ToXContentObject {
-        private String dataset;
+        private DatasetConfig datasetConfig;
         private String dataDir = ".data";
         private List<Path> docVectors;
         private Path queryVectors;
@@ -394,9 +411,13 @@ record TestConfiguration(
          */
         private int writerMaxBufferedDocs = IndexWriterConfig.DISABLE_AUTO_FLUSH;
 
-        public Builder setDataset(String dataset) {
-            this.dataset = dataset;
+        public Builder setDatasetConfig(DatasetConfig datasetConfig) {
+            this.datasetConfig = datasetConfig;
             return this;
+        }
+
+        DatasetConfig datasetConfig() {
+            return datasetConfig;
         }
 
         public Builder setDataDir(String dataDir) {
@@ -613,7 +634,7 @@ record TestConfiguration(
              "num_query_vectors": 5000
            }
          */
-        private void resolveDataset() throws Exception {
+        private void resolveDataset(String dataset) throws Exception {
             final String cloudProjectId = "benchmarking";
             final String datasetBucket = "knnindextester";
 
@@ -748,13 +769,26 @@ record TestConfiguration(
         }
 
         public TestConfiguration build() throws Exception {
-            if (dataset != null) {
-                // this fills in various options from the dataset
-                resolveDataset();
+            switch (datasetConfig) {
+                case DatasetConfig.GcpDataset gcpDataset -> resolveDataset(gcpDataset.name());
+                case DatasetConfig.FileDataset fileDataset -> {
+                    docVectors = fileDataset.docVectors().stream().map(PathUtils::get).toList();
+                    if (fileDataset.queryVectors() != null) {
+                        queryVectors = PathUtils.get(fileDataset.queryVectors());
+                    }
+                }
+                case null, default -> {
+                }
             }
             // specify some defaults here, so they can be set by the config file or dataset first
             if (vectorSpace == null) {
                 vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
+            }
+            boolean normalizeVectors = false;
+            if (vectorSpace == VectorSimilarityFunction.COSINE && vectorEncoding != KnnIndexTester.VectorEncoding.BYTE) {
+                KnnIndexTester.logger.info("vector_space=cosine: normalizing float vectors and using dot_product internally");
+                vectorSpace = VectorSimilarityFunction.DOT_PRODUCT;
+                normalizeVectors = true;
             }
             if (numDocs == null) {
                 numDocs = 1000;
@@ -763,13 +797,28 @@ record TestConfiguration(
                 numQueries = 100;
             }
 
-            if (docVectors == null) {
-                throw new IllegalArgumentException("Dataset or document vectors path must be provided");
+            switch (datasetConfig) {
+                case PartitionGenerated pg -> {
+                    if (dimensions <= 0) {
+                        throw new IllegalArgumentException("dimensions must be specified when using data generator");
+                    }
+                    if (docVectors == null) {
+                        docVectors = List.of(PathUtils.get("generated-" + pg.numPartitions() + "-partitions"));
+                    }
+                }
+                case null, default -> {
+                    if (docVectors == null) {
+                        throw new IllegalArgumentException("Dataset or document vectors path must be provided");
+                    }
+                }
             }
             if (dimensions <= 0 && dimensions != -1) {
                 throw new IllegalArgumentException(
                     "dimensions must be a positive integer or -1 for when dimension is available in the vector file"
                 );
+            }
+            if (vectorSpace == VectorSimilarityFunction.COSINE && vectorEncoding == KnnIndexTester.VectorEncoding.BYTE) {
+                KnnIndexTester.logger.info("vector_space=cosine with byte vectors: using cosine directly (no normalization)");
             }
 
             // length of the longest array parameter
@@ -821,6 +870,7 @@ record TestConfiguration(
                 reindex,
                 forceMerge,
                 vectorSpace,
+                normalizeVectors,
                 quantizeBits,
                 vectorEncoding,
                 dimensions,
@@ -835,15 +885,16 @@ record TestConfiguration(
                 preconditioningBlockDims,
                 flatVectorThreshold,
                 secondaryClusterSize,
-                directoryType
+                directoryType,
+                datasetConfig
             );
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (dataset != null) {
-                builder.field(DATASET_FIELD.getPreferredName(), dataset);
+            if (datasetConfig != null) {
+                datasetConfig.toXContent(builder, params);
             }
             if (!dataDir.equals(".data")) {
                 builder.field(DATA_DIR_FIELD.getPreferredName(), dataDir);

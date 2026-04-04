@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.useragent.UserAgentPlugin;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -83,7 +84,10 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -154,8 +158,11 @@ public class CsvIT extends ESTestCase {
         return SpecReader.readScriptSpec(urls, specParser());
     }
 
+    private static java.nio.file.Path nodeConfigDir;
+
     @BeforeClass
     public static void setupCluster() throws Exception {
+        nodeConfigDir = createConfigDir();
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
         cluster = new InternalTestCluster(
@@ -177,7 +184,7 @@ public class CsvIT extends ESTestCase {
 
                 @Override
                 public java.nio.file.Path nodeConfigPath(int nodeOrdinal) {
-                    return null;
+                    return nodeConfigDir;
                 }
             },
             0,
@@ -195,6 +202,7 @@ public class CsvIT extends ESTestCase {
                 MapperExtrasPlugin.class,
                 SpatialPlugin.class,
                 UnsignedLongMapperPlugin.class,
+                UserAgentPlugin.class,
                 VersionFieldPlugin.class,
                 Wildcard.class
             ),
@@ -537,6 +545,20 @@ public class CsvIT extends ESTestCase {
                 throw new RuntimeException("Resource loading failure", failure);
             }
         }
+    }
+
+    private static Path createConfigDir() throws IOException {
+        Path configDir = createTempDir();
+
+        // create a subdir for the user-agent with custom regex files so we can test the USER_AGENT with the regex_file option
+        Path userAgentDir = configDir.resolve("user-agent");
+        Files.createDirectories(userAgentDir);
+        try (InputStream is = CsvIT.class.getResourceAsStream("/custom-regexes.yml")) {
+            assert is != null : "custom-regexes.yml not found on classpath";
+            Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
+        }
+
+        return configDir;
     }
 
     private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {

@@ -1,0 +1,3 @@
+FROM all_types
+| user_agent ua = `constant_keyword-foo` WITH { "extract_device_type": true }
+| WHERE `constant_keyword-foo` == "foo"

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.command.RegisteredDomainFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
+import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -85,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -1084,7 +1086,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1122,7 +1123,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByQualifiedName() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1156,7 +1157,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByNegativeValue() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
@@ -1168,7 +1168,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByExpressionForN() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
             FROM foo
             | LIMIT -1 * 42 BY languages
@@ -4691,4 +4690,66 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(expectedFieldNames, actualFieldNames);
     }
 
+    public void testUserAgentCommand() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a ");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+        assertFalse(ua.extractDeviceType());
+        assertEquals("_default_", ua.regexFile());
+
+        List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .filter(name -> name.equals("device.type") == false)
+            .map(name -> "ua." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandWithOptions() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"regex_file\": \"custom\", \"extract_device_type\": true }");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+        assertTrue(ua.extractDeviceType());
+        assertEquals("custom", ua.regexFile());
+
+        List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .map(name -> "ua." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandWithProperties() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"properties\": [\"name\", \"os\"] }");
+        UserAgent ua = as(cmd, UserAgent.class);
+
+        List<String> expectedFieldNames = List.of("ua.name", "ua.os.name", "ua.os.version", "ua.os.full");
+
+        List<String> actualFieldNames = ua.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testUserAgentCommandInvalidOption() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        expectError(
+            "row a = \"test\" | user_agent ua = a WITH { \"unknown_option\": \"value\" }",
+            "Invalid option [unknown_option] in USER_AGENT"
+        );
+    }
+
+    public void testUserAgentCommandOriginalIgnored() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"original\": true }");
+        UserAgent ua = as(cmd, UserAgent.class);
+        assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+    }
 }

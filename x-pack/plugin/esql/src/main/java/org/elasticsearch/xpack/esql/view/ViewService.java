@@ -42,9 +42,9 @@ public class ViewService {
     // TODO: these are not currently publicly allowed on Serverless, should they be?
     public static final Setting<Integer> MAX_VIEWS_COUNT_SETTING = Setting.intSetting(
         "esql.views.max_count",
-        100,
+        500,
         0,
-        1_000_000,
+        10_000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -52,7 +52,7 @@ public class ViewService {
         "esql.views.max_view_length",
         10_000,
         1,
-        1_000_000,
+        100_000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

@@ -4,6 +4,7 @@
 * [`MV_CONTAINS`](../../functions-operators/mv-functions/mv_contains.md) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * [`MV_COUNT`](../../functions-operators/mv-functions/mv_count.md)
 * [`MV_DEDUPE`](../../functions-operators/mv-functions/mv_dedupe.md)
+* [`MV_DIFFERENCE`](../../functions-operators/mv-functions/mv_difference.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`MV_FIRST`](../../functions-operators/mv-functions/mv_first.md)
 * [`MV_INTERSECTION`](../../functions-operators/mv-functions/mv_intersection.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 * [`MV_INTERSECTS`](../../functions-operators/mv-functions/mv_intersects.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`

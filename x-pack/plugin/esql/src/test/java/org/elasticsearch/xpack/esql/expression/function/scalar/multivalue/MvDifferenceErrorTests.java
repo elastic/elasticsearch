@@ -20,15 +20,15 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MvIntersectsErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class MvDifferenceErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(MvIntersectsTests.parameters());
+        return paramsToSuppliers(MvDifferenceTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvIntersects(source, args.get(0), args.get(1));
+        return new MvDifference(source, args.get(0), args.get(1));
     }
 
     @Override

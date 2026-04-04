@@ -1210,7 +1210,7 @@ public class EsqlCapabilities {
         /**
          * Support for views in cluster state (and REST API).
          */
-        VIEWS_IN_CLUSTER_STATE(EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+        VIEWS_IN_CLUSTER_STATE,
 
         /**
          * Basic Views with no branching (do not need subqueries or FORK).

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145713
+summary: "Fix excessive memory usage in lookup join leading to heap attack scenarios"
+type: bug

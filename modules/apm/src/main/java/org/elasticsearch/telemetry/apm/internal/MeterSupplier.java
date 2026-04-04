@@ -15,6 +15,13 @@ import java.util.function.Supplier;
 
 public interface MeterSupplier extends Supplier<Meter>, AutoCloseable {
 
+    /**
+     * Export any buffered metrics on a best-effort basis.
+     * <p>
+     * This defaults to a no-op just to support the fairly widespread practice of using a lambda for this in tests.
+     */
+    default void attemptFlushMetrics() {}
+
     @Override
     default void close() {}
 }

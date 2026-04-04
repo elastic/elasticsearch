@@ -42,6 +42,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -52,6 +53,8 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.useragent.UserAgentPlugin;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -120,6 +123,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.planner.ConstantShardContextIndexedByShardId;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
@@ -142,6 +146,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
@@ -326,7 +332,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalseLogging(
                 "Can't simulate _source loading for unmapped fields in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V4.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName())
             );
             assumeFalseLogging(
                 "can't use rereank in csv tests",
@@ -906,6 +912,7 @@ public class CsvTests extends ESTestCase {
                 || p instanceof HashJoinExec
                 || p instanceof ChangePointExec
                 || p instanceof MergeExec
+                || p instanceof SparklineGenerateEmptyBucketsExec
                 || p instanceof MMRExec
                 || p instanceof ExternalSourceExec
                 || p instanceof ExchangeExec
@@ -973,6 +980,7 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
+            createUserAgentRegistry(),
             physicalOperationProviders,
             operatorFactoryRegistry
         );
@@ -1047,7 +1055,7 @@ public class CsvTests extends ESTestCase {
                     if (withSplits.splits().isEmpty() == false) {
                         coordinatorSplits.addAll(withSplits.splits());
                     } else {
-                        // Fallback: FileSplitProvider returns empty for FileSet.UNRESOLVED (single-file).
+                        // Fallback: FileSplitProvider returns empty for FileList.UNRESOLVED (single-file).
                         // Create a single split from the path so the operator can read.
                         String path = withSplits.sourcePath();
                         if (path != null && path.startsWith("file://")) {
@@ -1084,5 +1092,25 @@ public class CsvTests extends ESTestCase {
             }));
         }
         return coordinatorSplits;
+    }
+
+    /**
+     * Creates a {@link UserAgentParserRegistry} with a config directory
+     * containing the custom-regexes.yml test resource, so csv-spec tests can exercise the {@code regex_file} option.
+     */
+    private static UserAgentParserRegistry createUserAgentRegistry() {
+        Environment env = TestPhysicalOperationProviders.TEST_ENV.getOrCompute();
+        Path userAgentConfigDir = env.configDir().resolve("user-agent");
+        Path customRegexes = userAgentConfigDir.resolve("custom-regexes.yml");
+        if (Files.exists(customRegexes) == false) {
+            try (InputStream is = CsvTests.class.getResourceAsStream("/custom-regexes.yml")) {
+                assert is != null : "custom-regexes.yml not found on classpath";
+                Files.createDirectories(userAgentConfigDir);
+                Files.copy(is, customRegexes);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        return UserAgentPlugin.createRegistry(env, Settings.EMPTY);
     }
 }

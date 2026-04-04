@@ -24,6 +24,7 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.junit.Assume.assumeTrue;
 
 /**
  * Tests that run ESQL lookup join and enrich queries that use a ton of memory.
@@ -141,6 +142,10 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     public void testLookupExplosionBigStringManyMatches() throws IOException {
         // 500, 1 is enough with a single node, but the serverless copy of this test uses many nodes.
         // So something like 5000, 10 is much more of a sure thing there.
+        assumeTrue(
+            "Skipping test on single processor due to timeout risk",
+            Runtime.getRuntime().availableProcessors() > 1
+        );
         assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 5000, 10));
     }
 

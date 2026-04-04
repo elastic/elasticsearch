@@ -937,11 +937,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .get()
         );
 
-        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(
-                TEST_REQUEST_TIMEOUT,
-                repoName,
-                "test-snap"
-            )
+        final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "test-snap")
             .setIndices(indexName)
             .setPartial(true)
             .setWaitForCompletion(true)

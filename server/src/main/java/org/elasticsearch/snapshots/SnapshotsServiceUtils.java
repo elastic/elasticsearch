@@ -979,8 +979,8 @@ public class SnapshotsServiceUtils {
                 builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), SnapshotsInProgress.ShardSnapshotStatus.MISSING);
             } else {
                 final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexName);
-                if(indexMetadata.getState() == CLOSE && indexRoutingTable == null){
-                    for(int i = 0; i < indexMetadata.getNumberOfShards(); i++){
+                if (indexMetadata.getState() == CLOSE && indexRoutingTable == null) {
+                    for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                         ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
                         builder.put(
                             shardId,

@@ -36,63 +36,31 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
         final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        // DATE_RANGE passthrough - returns input unchanged; only available on snapshot builds
-        if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
-            suppliers.add(new TestCaseSupplier("date_range passthrough", List.of(DataType.DATE_RANGE), () -> {
-                long from = randomLongBetween(0L, 1_000_000_000_000L);
-                long to = randomLongBetween(from, from + 1_000_000_000_000L);
-                var range = new LongRangeBlockBuilder.LongRange(from, to);
+        // DATE_RANGE passthrough - uses shared dateRangeCases() so future edge cases are covered
+        TestCaseSupplier.forUnaryDateRange(suppliers, read, DataType.DATE_RANGE, v -> v, List.of());
+
+        // String types (KEYWORD, TEXT, etc.) to DATE_RANGE - parses "start..end" format
+        for (DataType stringType : DataType.stringTypes()) {
+            suppliers.add(new TestCaseSupplier(stringType.typeName() + " date range string", List.of(stringType), () -> {
+                long fromMillis = randomLongBetween(0L, 1_000_000_000_000L);
+                long toMillis = randomLongBetween(fromMillis + 1, fromMillis + 1_000_000_000_000L);
+
+                String fromStr = Instant.ofEpochMilli(fromMillis).toString();
+                String toStr = Instant.ofEpochMilli(toMillis).toString();
+                String rangeString = fromStr + ".." + toStr;
+
+                long expectedFrom = DEFAULT_DATE_TIME_FORMATTER.parseMillis(fromStr);
+                long expectedTo = DEFAULT_DATE_TIME_FORMATTER.parseMillis(toStr);
+                var expectedRange = new LongRangeBlockBuilder.LongRange(expectedFrom, expectedTo);
 
                 return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
-                    read,
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(rangeString), stringType, "field")),
+                    "ToDateRangeFromStringEvaluator[field=" + read + "]",
                     DataType.DATE_RANGE,
-                    equalTo(range)
+                    equalTo(expectedRange)
                 );
             }));
         }
-
-        // KEYWORD to DATE_RANGE - parses "start..end" format
-        suppliers.add(new TestCaseSupplier("keyword date range string", List.of(DataType.KEYWORD), () -> {
-            long fromMillis = randomLongBetween(0L, 1_000_000_000_000L);
-            long toMillis = randomLongBetween(fromMillis + 1, fromMillis + 1_000_000_000_000L);
-
-            String fromStr = Instant.ofEpochMilli(fromMillis).toString();
-            String toStr = Instant.ofEpochMilli(toMillis).toString();
-            String rangeString = fromStr + ".." + toStr;
-
-            long expectedFrom = DEFAULT_DATE_TIME_FORMATTER.parseMillis(fromStr);
-            long expectedTo = DEFAULT_DATE_TIME_FORMATTER.parseMillis(toStr);
-            var expectedRange = new LongRangeBlockBuilder.LongRange(expectedFrom, expectedTo);
-
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")),
-                "ToDateRangeFromStringEvaluator[field=" + read + "]",
-                DataType.DATE_RANGE,
-                equalTo(expectedRange)
-            );
-        }));
-
-        // TEXT to DATE_RANGE - same parsing as keyword
-        suppliers.add(new TestCaseSupplier("text date range string", List.of(DataType.TEXT), () -> {
-            long fromMillis = randomLongBetween(0L, 1_000_000_000_000L);
-            long toMillis = randomLongBetween(fromMillis + 1, fromMillis + 1_000_000_000_000L);
-
-            String fromStr = Instant.ofEpochMilli(fromMillis).toString();
-            String toStr = Instant.ofEpochMilli(toMillis).toString();
-            String rangeString = fromStr + ".." + toStr;
-
-            long expectedFrom = DEFAULT_DATE_TIME_FORMATTER.parseMillis(fromStr);
-            long expectedTo = DEFAULT_DATE_TIME_FORMATTER.parseMillis(toStr);
-            var expectedRange = new LongRangeBlockBuilder.LongRange(expectedFrom, expectedTo);
-
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.TEXT, "field")),
-                "ToDateRangeFromStringEvaluator[field=" + read + "]",
-                DataType.DATE_RANGE,
-                equalTo(expectedRange)
-            );
-        }));
 
         // Helper-based cases: easy to add timezone/locale later when TO_DATE_RANGE supports them
         suppliers.addAll(

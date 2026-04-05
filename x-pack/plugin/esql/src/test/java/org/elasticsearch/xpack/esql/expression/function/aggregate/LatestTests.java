@@ -46,7 +46,10 @@ public class LatestTests extends AbstractFirstLastTestCase {
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
         assertThat(params, hasSize(2));
-        assertThat(params.get(1).dataType(), anyOf(equalTo(DataType.LONG), equalTo(DataType.DATETIME), equalTo(DataType.DATE_NANOS)));
+        assertThat(
+            params.get(1).dataType(),
+            anyOf(equalTo(DataType.LONG), equalTo(DataType.DATETIME), equalTo(DataType.DATE_NANOS), equalTo(DataType.INTEGER))
+        );
         return List.of(params.get(0));
     }
 }

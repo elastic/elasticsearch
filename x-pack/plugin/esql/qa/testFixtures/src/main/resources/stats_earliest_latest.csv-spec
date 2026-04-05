@@ -27,7 +27,7 @@ value:long
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-Test retrieval of first long by timestamp
+retrieve earliest long by timestamp
 required_capability: earliest_latest_aggs
 
 ROW row = [
@@ -90,7 +90,7 @@ null            | delta
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-Test retrieval of last long by timestamp
+lastest long by timestamp
 required_capability: earliest_latest_aggs
 
 ROW row = [
@@ -124,7 +124,7 @@ null          | delta
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-Test retrieval of multi-values
+retrieve multi-values
 required_capability: earliest_latest_aggs
 
 FROM voyager
@@ -154,7 +154,7 @@ f_distance:long            | f_active_instruments:integer | f_collision_risk:dou
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-Test retrieval of nulls
+retrieve nulls
 required_capability: earliest_latest_aggs
 
 FROM voyager
@@ -180,25 +180,6 @@ FROM voyager
 
 f_distance:long | f_active_instruments:integer | f_collision_risk:double | f_ack_station_ip:ip | f_status:keyword | f_notes:keyword | l_distance:long | l_active_instruments:integer | l_collision_risk:double | l_ack_station_ip:ip | l_status:keyword | l_notes:keyword
 null            | null                         | null                    | null                | null             | null            | null            | null                         | null                    | null                | null             | null
-;
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-Test retrieval of multi-values and nulls with groups
-required_capability: earliest_latest_aggs
-
-FROM voyager
-# limit the input to the row with null values, and a non-existing row
-| STATS distance = EARLIEST(distance_to_earth) BY status
-| SORT status ASC
-;
-
-distance:long              | status:keyword
-[21190910701, 21190910702] | OK
-[21190910701, 21190910702] | green
-21190910706                | red
-21190910703                | yellow
-null                       | null
 ;
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -236,17 +217,76 @@ d1:long | d2:long | status:keyword
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-Test date types in the search field
+date types in the search field
 required_capability: earliest_latest_aggs
-
-# TODO: Add tests that do EARLIEST(@timestamp) and LATEST(@timestamp) once https://github.com/elastic/elasticsearch/issues/142180 is addressed
 
 FROM voyager
 | STATS
-    e_date_nanos = EARLIEST(@timestamp::date_nanos),
-    l_date_nanos = LATEST(@timestamp::date_nanos)
+    x = EARLIEST(@timestamp),
+    y = LATEST(@timestamp)
 ;
 
-e_date_nanos:date_nanos                                                        | l_date_nanos:date_nanos
+x:datetime                                                                     | y:datetime
 [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z]
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+pass foldables in the search field
+required_capability: earliest_latest_aggs
+
+FROM voyager
+| SORT row_no ASC
+| LIMIT 1000
+| EVAL p = 7::long, q = null
+| STATS
+    x01 = EARLIEST(p),
+    x02 = LATEST(p),
+    
+    x05 = EARLIEST(null),
+    x06 = LATEST(null),
+    
+    x07 = EARLIEST(q),   
+    x08 = LATEST(q)
+    
+    # Note that we can't yet aggregate over constants. EARLIEST(7) or LATEST(7) fails with the error below:
+    # "org.elasticsearch.xpack.esql.core.InvalidArgumentException: Does not support yet aggregations over constants"
+;
+
+x01:long | x02:long | x05:null | x06:null | x07:null | x08:null
+7        | 7        | null     | null     | null     | null
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+pass foldables with grouping
+required_capability: earliest_latest_aggs
+
+FROM voyager 
+| SORT row_no ASC
+| EVAL p = 3.14
+| STATS x = EARLIEST(p) BY status
+| SORT status ASC NULLS FIRST
+;
+
+x:double | status:keyword
+3.14     | null
+3.14     | OK
+3.14     | green
+3.14     | red
+3.14     | yellow
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+pass foldables with agg as pipeline breaker-Ignore
+required_capability: earliest_latest_aggs
+
+FROM employees 
+| STATS x = EARLIEST(emp_no, null)
+;
+
+x:integer
+10001..10100
+;
+

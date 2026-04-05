@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.IMPLICIT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
@@ -39,9 +40,9 @@ public class Earliest extends AggregateFunction implements SurrogateExpression, 
         preview = true,
         returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
         description = """
-            An alias for [`FIRST`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-first) where
+            An alias for [`FIRST`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md) where
             the sort field (the second parameter) is implicit and is set to `@timestamp`.""",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = @Example(file = "stats_earliest_latest", tag = "earliest")
     )
     public Earliest(
@@ -106,6 +107,14 @@ public class Earliest extends AggregateFunction implements SurrogateExpression, 
             "ip",
             "string",
             "numeric except unsigned_long or counter types"
+        ).and(
+            isType(
+                timestamp,
+                dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                sourceText(),
+                IMPLICIT,
+                "int or long or date_nanos or datetime"
+            )
         );
     }
 
@@ -126,6 +135,6 @@ public class Earliest extends AggregateFunction implements SurrogateExpression, 
 
     @Override
     public String toString() {
-        return "earliest(" + field() + ")";
+        return "earliest(" + field() + ", " + timestamp() + ")";
     }
 }

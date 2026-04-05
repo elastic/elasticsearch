@@ -406,9 +406,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidBigDecimalFromBooleanWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145702
-- class: org.elasticsearch.index.engine.PruningMergePolicyTests
-  method: testPruneAll
-  issue: https://github.com/elastic/elasticsearch/issues/145704
 
 # Examples:
 #

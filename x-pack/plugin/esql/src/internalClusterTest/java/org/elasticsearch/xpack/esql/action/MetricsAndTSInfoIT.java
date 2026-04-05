@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
+import org.elasticsearch.Build;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,6 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assume.assumeTrue;
 
 public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
 
@@ -149,6 +151,8 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMetricsInfo() {
+        assumeTrue("pragma only allowed in snapshot builds", Build.current().isSnapshot());
+
         for (String index : List.of("index-1", "index-2", "index-1,index-2")) {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.query("TS " + index + " | METRICS_INFO");
@@ -161,6 +165,8 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testTsInfo() {
+        assumeTrue("pragma only allowed in snapshot builds", Build.current().isSnapshot());
+
         for (String index : List.of("index-1", "index-2", "index-1,index-2")) {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.query("TS " + index + " | TS_INFO");

@@ -78,23 +78,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
     }
 
-    static long directWriterSizeOnDisk(long numValues, int bitsPerValue) {
-        // TODO: use method in https://github.com/apache/lucene/pull/15422 when/if merged.
-        long bytes = (numValues * bitsPerValue + Byte.SIZE - 1) / 8;
-        int paddingBitsNeeded;
-        if (bitsPerValue > Integer.SIZE) {
-            paddingBitsNeeded = Long.SIZE - bitsPerValue;
-        } else if (bitsPerValue > Short.SIZE) {
-            paddingBitsNeeded = Integer.SIZE - bitsPerValue;
-        } else if (bitsPerValue > Byte.SIZE) {
-            paddingBitsNeeded = Short.SIZE - bitsPerValue;
-        } else {
-            paddingBitsNeeded = 0;
-        }
-        final int paddingBytesNeeded = (paddingBitsNeeded + Byte.SIZE - 1) / Byte.SIZE;
-        return bytes + paddingBytesNeeded;
-    }
-
     private void ensureCompatibleEncoding(IndexInput metaInput, ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding)
         throws CorruptIndexException {
         if (versionMeta < ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
@@ -133,7 +116,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
         }
         final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
-        final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
+        final long sizeLookup = DirectWriter.bytesRequired(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
         if (approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
@@ -613,6 +596,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
+        int numVectors,
         IndexInput indexInput,
         float[] target,
         Bits acceptDocs,
@@ -620,10 +604,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     ) throws IOException {
         NextFieldEntry entry = fields.get(fieldInfo.number);
         final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());
-        final long sizeLookup = directWriterSizeOnDisk(
-            getReaderForField(fieldInfo.name).getFloatVectorValues(fieldInfo.name).size(),
-            bitsRequired
-        );
+        final long sizeLookup = DirectWriter.bytesRequired(numVectors, bitsRequired);
         centroidSlice.skipBytes(sizeLookup);
         ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = entry.quantEncoding();
         int numParents = centroidSlice.readVInt();

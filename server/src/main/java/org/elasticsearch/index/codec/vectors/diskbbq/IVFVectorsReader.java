@@ -350,7 +350,14 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, numVectors, postListSlice, target, acceptDocsBits, entry.centroidSlice(ivfCentroids));
+        PostingVisitor scorer = getPostingVisitor(
+            fieldInfo,
+            numVectors,
+            postListSlice,
+            target,
+            acceptDocsBits,
+            entry.centroidSlice(ivfCentroids)
+        );
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"

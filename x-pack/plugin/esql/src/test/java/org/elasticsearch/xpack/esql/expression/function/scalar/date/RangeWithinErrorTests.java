@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RangeWithinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
+        assumeTrue("DATE_RANGE type is only supported in snapshot builds", DataType.DATE_RANGE.supportedVersion().supportedLocally());
         return paramsToSuppliers(RangeWithinTests.parameters());
     }
 

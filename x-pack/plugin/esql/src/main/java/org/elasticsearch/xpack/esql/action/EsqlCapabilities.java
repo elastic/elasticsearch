@@ -1730,13 +1730,7 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
-         * Support for the DATE_RANGE field type.
-         */
-        DATE_RANGE_FIELD_TYPE(Build.current().isSnapshot()),
-
-        /**
-         * Support for RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX (date_range ESQL functions).
-         * When this is active, date_range_field_type is expected to be available too.
+         * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
          */
         RANGE_WITHIN(Build.current().isSnapshot()),
 

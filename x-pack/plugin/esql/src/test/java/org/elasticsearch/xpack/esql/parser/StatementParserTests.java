@@ -4468,7 +4468,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE.isEnabled() == false) {
+            if (EsqlCapabilities.Cap.RANGE_WITHIN.isEnabled() == false) {
                 // Some types do not have a converter function if the capability is disabled
                 namesAndAliases.removeAll(List.of("date_range"));
             }

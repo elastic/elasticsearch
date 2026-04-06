@@ -523,6 +523,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated,
+                isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal,
                 experimentalFeaturesEnabled,
                 vectorsFormatProviders
@@ -3386,7 +3387,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private final DenseVectorIndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
-    private final boolean isExcludeSourceVectors;
+    private final boolean excludeSourceVectorsSetting;
+    private final boolean excludeSourceVectors;
     private final boolean experimentalFeaturesEnabled;
     private final List<VectorsFormatProvider> extraVectorsFormatProviders;
 
@@ -3396,14 +3398,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
         IndexVersion indexCreatedVersion,
-        boolean isExcludeSourceVectorsFinal,
+        boolean excludeSourceVectorsSetting,
+        boolean excludeSourceVectors,
         boolean experimentalFeaturesEnabled,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
-        this.isExcludeSourceVectors = isExcludeSourceVectorsFinal;
+        this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
+        this.excludeSourceVectors = excludeSourceVectors;
         this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
         this.extraVectorsFormatProviders = vectorsFormatProviders;
     }
@@ -3529,7 +3533,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return new Builder(
             leafName(),
             indexCreatedVersion,
-            isExcludeSourceVectors,
+            excludeSourceVectorsSetting,
             experimentalFeaturesEnabled,
             extraVectorsFormatProviders
         ).init(this);
@@ -3654,7 +3658,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isExcludeSourceVectors) {
+        if (excludeSourceVectors) {
             return new SyntheticVectorsPatchFieldLoader<>(
                 // Recreate the object for each leaf so that different segments can be searched concurrently.
                 () -> new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity),

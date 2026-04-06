@@ -354,6 +354,7 @@ toc:
                   - file: esql/functions-operators/mv-functions/mv_contains.md
                   - file: esql/functions-operators/mv-functions/mv_count.md
                   - file: esql/functions-operators/mv-functions/mv_dedupe.md
+                  - file: esql/functions-operators/mv-functions/mv_difference.md
                   - file: esql/functions-operators/mv-functions/mv_first.md
                   - file: esql/functions-operators/mv-functions/mv_intersection.md
                   - file: esql/functions-operators/mv-functions/mv_intersects.md

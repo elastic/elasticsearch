@@ -85,6 +85,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "failed to parse date field \\[.*\\] with format",
         // full-text function trying to parse a non-IP string
         "is not an IP string literal",
+        // a values(<that field>) agg could more than 100,000 values into a single multi-valued field, and a subsequent
+        // inline stats … by <that field> hits the hard limit Block.MAX_LOOKUP = 100_000 in the compute layer
+        // throwing IllegalArgumentException via PackedValuesBlockHash
+        // see https://github.com/elastic/elasticsearch/issues/145694
+        "Found a single entry with .* entries",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,

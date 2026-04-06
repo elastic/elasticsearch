@@ -8,19 +8,21 @@
 #
 
 # Cross-compilation toolchain image for libvec.
-# Contains clang-18+lld-18 (Darwin target) and gcc-14 (Linux targets).
+# Contains clang-21 (all targets: Darwin, Linux x64, Linux aarch64).
 # No macOS SDK required — Darwin builds use a minimal C++ std library
 # (tinystd) bundled in the source tree, with clang's freestanding headers.
 #
 # To build and push (see also build_cross_toolchain_image.sh):
 #   docker build \
 #     -f Dockerfile.cross-toolchain \
-#     -t docker.elastic.co/es-dev/es-native-cross-toolchain:1 .
-#   docker push docker.elastic.co/es-dev/es-native-cross-toolchain:1
+#     -t docker.elastic.co/es-dev/es-native-cross-toolchain:2 .
+#   docker push docker.elastic.co/es-dev/es-native-cross-toolchain:2
 
 FROM debian:trixie-slim
 
-# clang-18 and lld-18 from the official LLVM apt repository.
+# clang-21 from the official LLVM apt repository.
+# libstdc++-14-dev-arm64-cross provides the aarch64 sysroot (C++ headers + libs)
+# for cross-compiling Linux aarch64 from x64.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         gnupg \
@@ -28,17 +30,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
         | gpg --dearmor > /usr/share/keyrings/llvm-archive-keyring.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] \
-        https://apt.llvm.org/trixie/ llvm-toolchain-trixie-18 main" \
-        > /etc/apt/sources.list.d/llvm.list \
+        https://apt.llvm.org/trixie/ llvm-toolchain-trixie-21 main" \
+        > /etc/apt/sources.list.d/llvm-21.list \
     && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         make \
-        clang-18 \
-        lld-18 \
-        llvm-18 \
-        gcc-14 \
-        g++-14 \
-        gcc-14-aarch64-linux-gnu \
-        g++-14-aarch64-linux-gnu \
+        clang-21 \
+        lld-21 \
+        llvm-21 \
+        libstdc++-14-dev-arm64-cross \
     && rm -rf /var/lib/apt/lists/*

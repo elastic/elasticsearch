@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DefaultTimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Locale;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ignoreIds;
@@ -69,14 +70,33 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
             | SORT s
             | LIMIT 10
             """;
-        var plan1 = metricsAnalyzer().query(String.format(Locale.ROOT, baseQuery, stats1));
-        var plan2 = metricsAnalyzer().query(String.format(Locale.ROOT, baseQuery, stats2));
-        Function<Alias, Expression> ignoreAliasName = (Alias a) -> new Alias(a.source(), "dummy", a.child(), a.id());
-        plan1 = plan1.transformExpressionsDown(Alias.class, ignoreAliasName);
-        plan2 = plan2.transformExpressionsDown(Alias.class, ignoreAliasName);
-        plan1 = plan1.transformExpressionsDown(DefaultTimeSeriesAggregateFunction.class, DefaultTimeSeriesAggregateFunction::surrogate);
-        plan2 = plan2.transformExpressionsDown(DefaultTimeSeriesAggregateFunction.class, DefaultTimeSeriesAggregateFunction::surrogate);
-        assertThat(ignoreIds(plan1), equalToIgnoringIds(plan2));
+        // If transport version is pre-DimensionValues, the plan may use Values instead of DimensionValues, causing
+        // slightly different plans
+        var analyzer = metricsAnalyzer().minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
+        var plan1 = analyzer.query(String.format(Locale.ROOT, baseQuery, stats1));
+        var plan2 = analyzer.query(String.format(Locale.ROOT, baseQuery, stats2));
+        assertThat(ignoreIds(normalize(plan1)), equalToIgnoringIds(normalize(plan2)));
     }
 
+    /**
+     * Normalizes a plan for comparison by:
+     * <ol>
+     *   <li>Renaming all aliases to {@code "dummy"} — internal first-pass alias names differ between the
+     *       implicit form (e.g. {@code $DEFAULTTIMESERIESAGGREGATEFUNCTION_1}) and the explicit form
+     *       (e.g. {@code $LASTOVERTIME_1}).</li>
+     *   <li>Renaming all {@link ReferenceAttribute}s to {@code "dummy"} — the second-pass {@code Aggregate}
+     *       and {@code SORT} reference the first-pass aliases by name, so those names differ too.</li>
+     *   <li>Replacing {@link DefaultTimeSeriesAggregateFunction} with its delegate ({@link
+     *       org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime}).</li>
+     * </ol>
+     */
+    private static LogicalPlan normalize(LogicalPlan plan) {
+        plan = plan.transformExpressionsDown(Alias.class, a -> new Alias(a.source(), "dummy", a.child(), a.id()));
+        plan = plan.transformExpressionsDown(
+            ReferenceAttribute.class,
+            ra -> new ReferenceAttribute(ra.source(), ra.qualifier(), "dummy", ra.dataType(), ra.nullable(), ra.id(), ra.synthetic())
+        );
+        plan = plan.transformExpressionsDown(DefaultTimeSeriesAggregateFunction.class, DefaultTimeSeriesAggregateFunction::surrogate);
+        return plan;
+    }
 }

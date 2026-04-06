@@ -37,7 +37,8 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             timeBucket,
             outputBucket,
             AbstractExpressionSerializationTests.randomChild(),
-            collapsed
+            collapsed,
+            TimeSeriesAggregate.Origin.TS_COMMAND
         );
     }
 
@@ -49,7 +50,8 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         Bucket timeBucket = instance.timeBucket();
         Bucket outputBucket = instance.outputTimeBucket();
         boolean collapsed = instance.isCollapsed();
-        switch (between(0, 5)) {
+        TimeSeriesAggregate.Origin origin = instance.origin();
+        switch (between(0, 6)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(
                 groupings,
@@ -59,6 +61,10 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             case 3 -> timeBucket = randomValueOtherThan(timeBucket, () -> BucketSerializationTests.createRandomBucket(configuration()));
             case 4 -> outputBucket = randomValueOtherThan(outputBucket, () -> BucketSerializationTests.createRandomBucket(configuration()));
             case 5 -> collapsed = collapsed == false;
+            case 6 -> origin = randomValueOtherThan(
+                origin,
+                () -> TimeSeriesAggregate.Origin.values()[randomInt(TimeSeriesAggregate.Origin.values().length - 1)]
+            );
             default -> throw new IllegalStateException();
         }
         return new TimeSeriesAggregate(
@@ -69,7 +75,8 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             timeBucket,
             outputBucket,
             instance.timestamp(),
-            collapsed
+            collapsed,
+            origin
         );
     }
 

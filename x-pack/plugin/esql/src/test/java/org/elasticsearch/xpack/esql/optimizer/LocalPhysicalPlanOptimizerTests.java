@@ -2464,20 +2464,35 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var pack = as(secondAgg.child(), EvalExec.class);
         var finalAgg = as(pack.child(), TimeSeriesAggregateExec.class);
         var sink = as(finalAgg.child(), ExchangeExec.class);
-        ProjectExec projectExec = as(sink.child(), ProjectExec.class);
-        EvalExec evalExec = as(projectExec.child(), EvalExec.class);
-        FieldExtractExec readDimensions = as(evalExec.child(), FieldExtractExec.class);
-        assertThat(Expressions.names(readDimensions.attributesToExtract()), containsInAnyOrder("cluster", "pod"));
-        TimeSeriesAggregateExec partialAgg = as(readDimensions.child(), TimeSeriesAggregateExec.class);
-        assertThat(partialAgg.aggregates(), hasSize(2));
-        assertThat(Alias.unwrap(partialAgg.aggregates().get(0)), instanceOf(Rate.class));
-        assertThat(Alias.unwrap(partialAgg.aggregates().get(1)), instanceOf(FirstDocId.class));
-        FieldExtractExec readMetrics = as(partialAgg.child(), FieldExtractExec.class);
-        assertThat(
-            Expressions.names(readMetrics.attributesToExtract()),
-            containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", TemporalityAttribute.NAME)
-        );
-        as(readMetrics.child(), EsQueryExec.class);
+
+        // the plan when analyzer supports DimensionValues
+        if (sink.child() instanceof TimeSeriesAggregateExec) {
+            var partialAgg = as(sink.child(), TimeSeriesAggregateExec.class);
+            assertThat(partialAgg.aggregates(), hasSize(3));
+            assertThat(Alias.unwrap(partialAgg.aggregates().get(0)), instanceOf(Rate.class));
+            FieldExtractExec readMetrics = as(partialAgg.child(), FieldExtractExec.class);
+            assertThat(
+                Expressions.names(readMetrics.attributesToExtract()),
+                containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", "cluster", "pod", TemporalityAttribute.NAME)
+            );
+            as(readMetrics.child(), EsQueryExec.class);
+        } else {
+            // the plan with Values: dimensions extracted via a separate ProjectExec/EvalExec/FieldExtractExec wrapper
+            ProjectExec projectExec = as(sink.child(), ProjectExec.class);
+            EvalExec evalExec = as(projectExec.child(), EvalExec.class);
+            FieldExtractExec readDimensions = as(evalExec.child(), FieldExtractExec.class);
+            assertThat(Expressions.names(readDimensions.attributesToExtract()), containsInAnyOrder("cluster", "pod"));
+            TimeSeriesAggregateExec partialAgg = as(readDimensions.child(), TimeSeriesAggregateExec.class);
+            assertThat(partialAgg.aggregates(), hasSize(2));
+            assertThat(Alias.unwrap(partialAgg.aggregates().get(0)), instanceOf(Rate.class));
+            assertThat(Alias.unwrap(partialAgg.aggregates().get(1)), instanceOf(FirstDocId.class));
+            FieldExtractExec readMetrics = as(partialAgg.child(), FieldExtractExec.class);
+            assertThat(
+                Expressions.names(readMetrics.attributesToExtract()),
+                containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", TemporalityAttribute.NAME)
+            );
+            as(readMetrics.child(), EsQueryExec.class);
+        }
     }
 
     /**

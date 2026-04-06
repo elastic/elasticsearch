@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -108,7 +109,11 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                 case AggregateFunction af -> af.withField(addDefaultInnerAggs(af.field(), timestamp, changed));
                 // avoid modifying filter conditions, just the delegate
                 case FilteredExpression filtered -> filtered.withDelegate(addDefaultInnerAggs(filtered.delegate(), timestamp, changed));
-                case ConvertFunction convert when expr.allMatch(e -> e instanceof ConvertFunction || e instanceof TypedAttribute) -> {
+                case ConvertFunction convert when expr.allMatch(
+                    e -> (e instanceof ConvertFunction || e instanceof TypedAttribute)
+                        && (e instanceof ReferenceAttribute == false || ((ReferenceAttribute) e).name().equals("step") == false)
+                ) -> {
+                    // TODO: maybe add special Attribute type for step (promql)
                     changed.set(true);
                     yield new DefaultTimeSeriesAggregateFunction(expr, timestamp);
                 }
@@ -116,7 +121,8 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                 // if we reach a TypedAttribute, it hasn't been wrapped in a TimeSeriesAggregateFunction yet
                 // (otherwise the traversal would have stopped earlier)
                 // so we wrap it with a default one
-                case TypedAttribute ta -> {
+                case TypedAttribute ta when ((ta instanceof ReferenceAttribute == false || ta.name().equals("step") == false)) -> {
+                    // TODO: maybe add special Attribute type for step (promql)
                     changed.set(true);
                     yield new DefaultTimeSeriesAggregateFunction(ta, timestamp);
                 }

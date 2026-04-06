@@ -22,12 +22,15 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
@@ -239,15 +242,19 @@ public class Aggregate extends UnaryPlan
         // don't allow the group by itself to avoid duplicates in the output
         // and since the groups are copied, only look at the declared aggregates
         // List<? extends NamedExpression> aggs = agg.aggregates();
+        Holder<Boolean> containsTimeSeries = new Holder<>(false);
+        forEachDown(TimeSeriesAggregate.class, ts -> containsTimeSeries.set(true));
         aggregates.subList(0, aggregates.size() - groupings.size()).forEach(e -> {
             var exp = Alias.unwrap(e);
-            if (exp.foldable()) {
+            if (containsTimeSeries.get()) {
+                checkInvalidTimeSeriesExpression(exp, failures);
+            } else if (exp.foldable()) {
                 failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
             }
             // traverse the tree to find invalid matches
             checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
         });
-        checkTimeSeriesAggregates(failures);
+        checkTimeSeriesAggregates(failures, containsTimeSeries.get());
         checkCategorizeGrouping(failures);
         checkMultipleScoreAggregations(failures);
     }
@@ -269,20 +276,45 @@ public class Aggregate extends UnaryPlan
         }
     }
 
-    protected void checkTimeSeriesAggregates(Failures failures) {
-        Holder<Boolean> isTimeSeries = new Holder<>(false);
+    protected void checkTimeSeriesAggregates(Failures failures, boolean shouldContainTimeSeriesAggregate) {
+        if (shouldContainTimeSeriesAggregate) {
+            // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
+            groupings.forEach(g -> g.forEachDown(e -> {
+                if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric()) {
+                    failures.add(
+                        fail(
+                            fieldAttr,
+                            "cannot group by a metric field [{}] in a time-series aggregation. "
+                                + "If you want to group by a metric field, use the FROM "
+                                + "command instead of the TS command.",
+                            fieldAttr.sourceText()
+                        )
+                    );
+                }
+            }));
+        }
+        Holder<Boolean> isTimeSeriesIndexMode = new Holder<>(false);
         child().forEachDown(p -> {
             if (p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES) {
-                isTimeSeries.set(true);
+                isTimeSeriesIndexMode.set(true);
             }
         });
-        if (isTimeSeries.get()) {
+        if (isTimeSeriesIndexMode.get()) {
             return;
         }
         forEachExpression(
             TimeSeriesAggregateFunction.class,
             r -> failures.add(fail(r, "time_series aggregate[{}] can only be used with the TS command", r.sourceText()))
         );
+    }
+
+    protected void checkInvalidTimeSeriesExpression(Expression exp, Failures failures) {
+        if (exp instanceof Count count && count.field().equals(Literal.keyword(exp.source(), StringUtils.WILDCARD))) {
+            // reject `TS metrics | STATS COUNT(*)`
+            failures.add(fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", exp.sourceText()));
+            // reject COUNT(keyword), but allow COUNT(numeric)
+        }
+
     }
 
     private void checkMultipleScoreAggregations(Failures failures) {
@@ -461,7 +493,11 @@ public class Aggregate extends UnaryPlan
             }
             // TimeSeriesAggregates allow bare named expressions as they are implicitly wrapped in a time series aggregate function
             if (foundInGrouping == false && (this instanceof TimeSeriesAggregate) == false) {
-                failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
+                Holder<Boolean> foundExpression = new Holder<>(Boolean.FALSE);
+                forEachDown(TimeSeriesAggregate.class, ts -> { foundExpression.set(Boolean.TRUE); });
+                if (foundExpression.get() == false) {
+                    failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
+                }
             }
         } else if (e instanceof Sparkline) {
             // don't do anything

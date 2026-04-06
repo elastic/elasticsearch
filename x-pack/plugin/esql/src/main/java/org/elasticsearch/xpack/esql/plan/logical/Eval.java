@@ -174,7 +174,8 @@ public class Eval extends UnaryPlan
         fields.forEach(field -> {
             // check supported types
             DataType dataType = field.dataType();
-            if (DataType.isRepresentable(dataType) == false) {
+            // TODO: see if there's a better/more specific way to handle this
+            if (DataType.isRepresentable(dataType) == false && dataType != DataType.SOURCE) {
                 failures.add(
                     fail(
                         field,

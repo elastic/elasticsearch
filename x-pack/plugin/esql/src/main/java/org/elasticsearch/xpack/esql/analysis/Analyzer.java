@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.analysis.rules.ResolvedProjects;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -119,7 +120,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -244,26 +250,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolvePromqlFunctions(),
             new ResolveTimestampBoundsAware(),
             new ResolveInference(),
-            new DateMillisToNanosInEsRelation()
+            new DateMillisToNanosInEsRelation(),
+            // Must happen before Translating PromQL plan to ESQL plan
+            new ResolvePromqlRefs(),
+            // Populates the TS_COLLAPSE wrapping a PromqlCommand with dimensions and bounds drawn from the
+            // PromqlCommand. The wrapped PromqlCommand is left in place and translated to ESQL nodes by the next rule.
+            new TranslateTimeSeriesCollapse(),
+            // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate and implicit casting
+            new TranslatePromqlToEsqlPlan()
         ),
         new Batch<>(
             "Resolution",
             new ResolveRefs(),
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
+            new ResolveUnionTypesInUnionAll(),
+            new ResolveUnmapped(),
             new InsertDefaultInnerTimeSeriesAggregate(),
             new ImplicitCastAggregateMetricDoubles(),
-            new InsertFromAggregateMetricDouble(),
-            new ResolveImplicitTimeSeriesIdentityGrouping(),
-            new ResolveUnionTypesInUnionAll(),
-            new ResolveUnmapped()
+            new InsertFromAggregateMetricDouble()
         ),
         new Batch<>(
             "Finish Analysis",
             Limiter.ONCE,
+            new ResolveImplicitTimeSeriesIdentityGrouping(),
             new ResolvedProjects(),
             new AddImplicitLimit(),
             new AddImplicitTimestampSort(),
+            // Replace TimeSeriesWithout grouping nodes with TimeSeriesMetadataAttribute carrying the excluded dimensions.
+            // Must run before TranslateTimeSeriesAggregate which expects the lowered attribute form.
+            new TranslateTimeSeriesWithout(),
+            // translate metric aggregates early before they are converted to nested expressions
+            new TranslateTimeSeriesAggregate(),
+            new ApplyWindowFilter(),
             new UnionTypesCleanup()
         )
     );
@@ -700,6 +719,52 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    public static class ResolvePromqlRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            if (plan.childrenResolved() == false) {
+                return plan;
+            }
+            final List<Attribute> childrenOutput = new ArrayList<>();
+            for (LogicalPlan child : plan.children()) {
+                var output = child.output();
+                childrenOutput.addAll(output);
+            }
+            if (plan instanceof PromqlCommand promql) {
+                return resolvePromql(promql, childrenOutput).transformDown(PromqlCommand.class, p -> {
+                    Failures failures = new Failures();
+                    p.postAnalysisVerification(failures);
+                    if (failures.hasFailures()) {
+                        throw new VerificationException(failures);
+                    }
+                    return p;
+                });
+            }
+            return plan;
+        }
+
+        private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
+            if ((promql.child() instanceof EsRelation esRelation) && esRelation.concreteQualifiedIndices().isEmpty()) {
+                var source = promql.source();
+                var localRelation = new LocalRelation(
+                    source,
+                    List.of(promql.valueAttribute(), promql.stepAttribute()),
+                    EmptyLocalSupplier.EMPTY
+                );
+                // Wrap in an explicit LIMIT 0 so that AddImplicitLimit skips the "No limit defined" warning,
+                // which would otherwise fire because the LocalRelation contains no PromqlCommand marker.
+                // TODO: is this still needed?
+                return new Limit(source, new Literal(source, 0, DataType.INTEGER), localRelation);
+            }
+            LogicalPlan promqlPlan = promql.promqlPlan();
+            Function<UnresolvedAttribute, Expression> lambda = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
+            // resolve the nested plan
+            return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, lambda))
+                // but also any unresolved expressions
+                .transformExpressionsOnly(UnresolvedAttribute.class, lambda);
+        }
+    }
+
     public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
@@ -731,7 +796,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Insist i -> resolveInsist(i, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
-                case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
@@ -1367,30 +1431,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
-        }
-
-        private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
-            // When the index pattern resolves to no concrete indices (e.g. the data stream hasn't been created yet),
-            // the EsRelation has an empty mapping. Trying to resolve the metric field name would leave it as an
-            // UnresolvedAttribute, causing a VerificationException.
-            // Prometheus expects empty results (not errors) so we short-circuit to an empty local relation.
-            if ((promql.child() instanceof EsRelation esRelation) && esRelation.concreteQualifiedIndices().isEmpty()) {
-                var source = promql.source();
-                var localRelation = new LocalRelation(
-                    source,
-                    List.of(promql.valueAttribute(), promql.stepAttribute()),
-                    EmptyLocalSupplier.EMPTY
-                );
-                // Wrap in an explicit LIMIT 0 so that AddImplicitLimit skips the "No limit defined" warning,
-                // which would otherwise fire because the LocalRelation contains no PromqlCommand marker.
-                return new Limit(source, new Literal(source, 0, DataType.INTEGER), localRelation);
-            }
-            LogicalPlan promqlPlan = promql.promqlPlan();
-            Function<UnresolvedAttribute, Expression> lambda = ua -> maybeResolveAttribute(ua, childrenOutput);
-            // resolve the nested plan
-            return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, lambda))
-                // but also any unresolved expressions
-                .transformExpressionsOnly(UnresolvedAttribute.class, lambda);
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

@@ -273,7 +273,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Counters c = esql("""
             TS k8s
             | STATS sum(avg_over_time(network.cost))""");
-        assertMetrics(c, Map.of(STATS, 1L, TS, 1L), Map.of("sum", 1L, "avg_over_time", 1L));
+        assertMetrics(c, Map.of(STATS, 1L, FROM, 1L), Map.of("sum", 1L, "avg", 1L));
     }
 
     public void testTimeSeriesNoAggregate() {
@@ -299,7 +299,11 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testPromql() {
         Counters c = esql("""
             PROMQL index=k8s step=5m sum(network.cost)""");
-        assertMetrics(c, Map.of(PROMQL, 1L, TS, 1L));
+        assertMetrics(
+            c,
+            Map.of(PROMQL, 1L, FROM, 1L, EVAL, 1L, WHERE, 1L),
+            Map.of("sum", 1L, "last_over_time", 1L, "to_double", 1L, "bucket", 1L)
+        );
     }
 
     private void assertMetrics(Counters c, Map<FeatureMetric, Long> expectedFeatures) {

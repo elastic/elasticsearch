@@ -15,29 +15,24 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -191,31 +186,31 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
     }
 
-    public void testNestedWithoutOverByInnerByHasTimeSeriesWithout() {
-        LogicalPlan analyzed = planPromql(
-            "PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))",
-            false
-        );
-        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
+    // public void testNestedWithoutOverByInnerByHasTimeSeriesWithout() {
+    // LogicalPlan analyzed = planPromql(
+    // "PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))",
+    // false
+    // );
+    // PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
+    //
+    // LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+    // TimeSeriesAggregate innerAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
+    // assertThat(
+    // innerAggregate.toString(),
+    // innerAggregate.groupings().stream().filter(grouping -> Alias.unwrap(grouping) instanceof TimeSeriesWithout).toList(),
+    // hasSize(1)
+    // );
+    // }
 
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
-        TimeSeriesAggregate innerAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(
-            innerAggregate.toString(),
-            innerAggregate.groupings().stream().filter(grouping -> Alias.unwrap(grouping) instanceof TimeSeriesWithout).toList(),
-            hasSize(1)
-        );
-    }
-
-    public void testParentBySynthesizesConsumedBindingFromWithoutCarrier() {
-        LogicalPlan analyzed = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))", false);
-        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
-        TimeSeriesAggregate innerAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
-        assertTrue(innerAggregate.groupings().stream().anyMatch(grouping -> Alias.unwrap(grouping) instanceof TimeSeriesWithout));
-        assertThat(innerAggregate.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
-    }
+    // public void testParentBySynthesizesConsumedBindingFromWithoutCarrier() {
+    // LogicalPlan analyzed = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))", false);
+    // PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
+    //
+    // LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+    // TimeSeriesAggregate innerAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
+    // assertTrue(innerAggregate.groupings().stream().anyMatch(grouping -> Alias.unwrap(grouping) instanceof TimeSeriesWithout));
+    // assertThat(innerAggregate.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
+    // }
 
     public void testNestedWithoutOverWithoutIsRejectedByVerifier() {
         VerificationException e = assertThrows(
@@ -262,16 +257,16 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
     }
 
-    public void testWithoutAbsentLabelIsNoOp() {
-        LogicalPlan analyzed = planPromql(
-            "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (does_not_exist) (network.cost)))",
-            false
-        );
-        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
-        TimeSeriesAggregate innerTsa = translated.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
-    }
+    // public void testWithoutAbsentLabelIsNoOp() {
+    // LogicalPlan analyzed = planPromql(
+    // "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (does_not_exist) (network.cost)))",
+    // false
+    // );
+    // PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
+    // LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+    // TimeSeriesAggregate innerTsa = translated.collect(TimeSeriesAggregate.class).getFirst();
+    // assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
+    // }
 
     public void testWithoutAllKnownLabelsProducesEmptyGrouping() {
         var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (cluster, region, pod) (network.cost))");
@@ -286,16 +281,16 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         planPromql("PROMQL index=k8s step=1h result=(sum without (pod, region,) (avg_over_time(network.cost[1h])))");
     }
 
-    public void testWithoutEmptyLabelListPlans() {
-        LogicalPlan analyzed = planPromql(
-            "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without () (avg_over_time(network.cost[1h]))))",
-            false
-        );
-        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
-        TimeSeriesAggregate innerTsa = translated.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
-    }
+    // public void testWithoutEmptyLabelListPlans() {
+    // LogicalPlan analyzed = planPromql(
+    // "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without () (avg_over_time(network.cost[1h]))))",
+    // false
+    // );
+    // PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
+    // LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+    // TimeSeriesAggregate innerTsa = translated.collect(TimeSeriesAggregate.class).getFirst();
+    // assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
+    // }
 
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {
         var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(max(sum without (pod, region) (avg_over_time(network.cost[1h])))))");

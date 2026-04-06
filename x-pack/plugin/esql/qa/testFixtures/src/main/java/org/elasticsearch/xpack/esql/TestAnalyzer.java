@@ -751,11 +751,11 @@ public class TestAnalyzer {
      * }
      */
     public String statementError(String query, Matcher<String> messageMatcher) {
-        var e = expectThrows(
-            VerificationException.class,
-            "Expected error for statement [" + query + "] but no error was raised",
-            () -> statement(query)
-        );
+        return statementError(query, VerificationException.class, messageMatcher);
+    }
+
+    public String statementError(String query, Class<? extends Exception> exception, Matcher<String> messageMatcher) {
+        var e = expectThrows(exception, "Expected error for statement [" + query + "] but no error was raised", () -> statement(query));
         assertThat(e.getMessage(), messageMatcher);
         return e.getMessage();
     }

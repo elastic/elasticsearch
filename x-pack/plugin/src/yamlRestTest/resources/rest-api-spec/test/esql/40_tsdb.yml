@@ -893,7 +893,7 @@ error on rename timestamp:
           parameters: [ ]
           # inline_stats_with_no_columns is a stand-in for a missed capability that should have been introduced along with the
           # TimestampAware interface. This capability is the first one added past #137040.
-          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message, inline_stats_with_no_columns ]
+          capabilities: [ ts_command_v0, ts_rename_timestamp_error_message, inline_stats_with_no_columns, ts_and_promql_translation_in_analyzer ]
       reason: "TS specific check"
 
   - do:
@@ -907,7 +907,7 @@ error on rename timestamp:
             | RENAME @timestamp AS newTs
             | STATS max(rate(k8s.pod.network.tx))  BY tbucket = bucket(newTs, 1hour)
 
-  - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ \[rate\(k8s.pod.network.tx\)\]\ requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
+  - match: { error.reason: "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, use the original @timestamp field instead." }
 
 ---
 Stats with partial submetrics for aggregate metric double with average as default:

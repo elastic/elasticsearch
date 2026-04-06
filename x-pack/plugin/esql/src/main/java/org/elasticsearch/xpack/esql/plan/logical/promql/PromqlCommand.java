@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -29,8 +28,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -376,6 +373,7 @@ public class PromqlCommand extends UnaryPlan
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        // TODO: probably should move this out to a separate function
         LogicalPlan p = promqlPlan();
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
@@ -415,18 +413,6 @@ public class PromqlCommand extends UnaryPlan
                     }
                     if (s.series() == null) {
                         failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
-                    } else if (s.series() instanceof FieldAttribute seriesField) {
-                        if (seriesField.isDimension()) {
-                            failures.add(
-                                fail(
-                                    s,
-                                    "field [{}] of type [{}] cannot be used as a metric; it is a dimension field [{}]",
-                                    seriesField.name(),
-                                    seriesField.dataType().typeName(),
-                                    s.sourceText()
-                                )
-                            );
-                        }
                     }
                     if (s.evaluation() != null) {
                         if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
@@ -458,7 +444,7 @@ public class PromqlCommand extends UnaryPlan
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
-                    validateCounterSupport(functionCall, failures);
+                    // ok
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok
@@ -520,50 +506,6 @@ public class PromqlCommand extends UnaryPlan
 
     private static boolean usesWithoutGrouping(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
-    }
-
-    /**
-     * Validates that the metric field type is compatible with the function's counter support.
-     * Only checks when the function's direct child is a RangeSelector, because InstantSelectors
-     * are implicitly wrapped in LastOverTime during translation, which converts counter types
-     * to their numeric base types. RangeSelectors pass the raw field type through to the function.
-     */
-    private static void validateCounterSupport(PromqlFunctionCall functionCall, Failures failures) {
-        if (functionCall.child() instanceof RangeSelector s && s.series() instanceof FieldAttribute seriesField) {
-            DataType seriesType = seriesField.dataType();
-            if (DataType.isNull(seriesType)) {
-                return;
-            }
-            var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(functionCall.functionName());
-            if (metadata == null) {
-                return;
-            }
-            var counterSupport = metadata.counterSupport();
-            if (DataType.isCounter(seriesType) && counterSupport == PromqlFunctionDefinition.CounterSupport.UNSUPPORTED) {
-                failures.add(
-                    fail(
-                        functionCall,
-                        "function [{}] does not support counter metric [{}] of type [{}];"
-                            + " use rate() or increase() to convert counters first [{}]",
-                        functionCall.functionName(),
-                        seriesField.name(),
-                        seriesType.typeName(),
-                        functionCall.sourceText()
-                    )
-                );
-            } else if (DataType.isCounter(seriesType) == false && counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED) {
-                failures.add(
-                    fail(
-                        functionCall,
-                        "function [{}] requires a counter metric, but [{}] has type [{}] [{}]",
-                        functionCall.functionName(),
-                        seriesField.name(),
-                        seriesType.typeName(),
-                        functionCall.sourceText()
-                    )
-                );
-            }
-        }
     }
 
     /**

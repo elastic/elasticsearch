@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -974,6 +975,9 @@ public class EsqlSession {
         // TODO this is a quick hack to alleviate the pressure off of https://github.com/elastic/elasticsearch/issues/145920. A btter
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
         boolean trackedUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD || parsed.anyMatch(p -> p instanceof Insist);
+        Holder<Boolean> nullify = new Holder<>(Boolean.FALSE);
+        parsed.forEachDown(PromqlCommand.class, p -> { nullify.set(Boolean.TRUE); });
+
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, trackedUnmappedFieldIndices, result, requestFilter, l)
         ).andThenApply(r -> {
@@ -1052,7 +1056,7 @@ public class EsqlSession {
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
                 analyzeWithRetry(
                     parsed,
-                    unmappedResolution,
+                    nullify.get() ? UnmappedResolution.NULLIFY : unmappedResolution,
                     configuration,
                     executionInfo,
                     description,

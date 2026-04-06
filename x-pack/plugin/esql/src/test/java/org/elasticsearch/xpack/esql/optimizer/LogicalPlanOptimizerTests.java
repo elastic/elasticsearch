@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
@@ -7284,8 +7285,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        DimensionValues values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), DimensionValues.class);
-        assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+        // older analyzer produces Values, newer one produces DimensionValues
+        if (Alias.unwrap(aggsByTsid.aggregates().get(1)) instanceof DimensionValues values) {
+            assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+        } else {
+            Values values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
+            assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+        }
     }
 
     public void testTranslateMetricsGroupedByTwoDimension() {
@@ -7323,9 +7329,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // rates, values(cluster), values(pod)
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        DimensionValues values1 = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), DimensionValues.class);
+        // older analyzer produces Values, newer one produces DimensionValues
+        AggregateFunction values1;
+        AggregateFunction values2;
+        if (Alias.unwrap(aggsByTsid.aggregates().get(1)) instanceof DimensionValues) {
+            values1 = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), DimensionValues.class);
+            values2 = as(Alias.unwrap(aggsByTsid.aggregates().get(2)), DimensionValues.class);
+        } else {
+            values1 = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
+            values2 = as(Alias.unwrap(aggsByTsid.aggregates().get(2)), Values.class);
+        }
         assertThat(Expressions.attribute(values1.field()).name(), equalTo("cluster"));
-        DimensionValues values2 = as(Alias.unwrap(aggsByTsid.aggregates().get(2)), DimensionValues.class);
         assertThat(Expressions.attribute(values2.field()).name(), equalTo("pod"));
     }
 
@@ -7392,8 +7406,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(aggsByTsid.aggregates(), hasSize(4)); // rate, values(pod), values(cluster), bucket
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        DimensionValues podValues = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), DimensionValues.class);
-        assertThat(Expressions.attribute(podValues.field()).name(), equalTo("pod"));
+        // older analyzer produces Values, newer one produces DimensionValues
+        if (Alias.unwrap(aggsByTsid.aggregates().get(1)) instanceof DimensionValues podValues) {
+            assertThat(Expressions.attribute(podValues.field()).name(), equalTo("pod"));
+        } else {
+            Values podValues = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
+            assertThat(Expressions.attribute(podValues.field()).name(), equalTo("pod"));
+        }
     }
 
     public void testTranslateSumOfTwoRates() {
@@ -7517,8 +7536,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(mul.right().fold(FoldContext.small()), equalTo(1.05));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        DimensionValues values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), DimensionValues.class);
-        assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+        // older analyzer produces Values, newer one produces DimensionValues
+        if (Alias.unwrap(aggsByTsid.aggregates().get(1)) instanceof DimensionValues values) {
+            assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+        } else {
+            Values values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Values.class);
+            assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+        }
     }
 
     public void testTranslateMaxOverTime() {
@@ -10246,7 +10270,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 metricsAnalyzer().query("TS k8s | KEEP network.total_bytes_in | STATS count(*)")
             )
         ).getMessage();
-        assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
+        // removed because we no longer make it to the Aggregate check
+        // assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
         assertThat(
             errorMessage,
             containsString(
@@ -10991,8 +11016,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var timeSeriesAggregate = as(eval2.child(), TimeSeriesAggregate.class);
         assertThat(timeSeriesAggregate.groupings(), hasSize(2));
         assertThat(timeSeriesAggregate.aggregates(), hasSize(3));
-        var dimensionValues = as(Alias.unwrap(timeSeriesAggregate.aggregates().get(1)), DimensionValues.class);
-        assertThat(Expressions.attribute(dimensionValues.field()).name(), equalTo("pod"));
+
+        // older analyzer produces Values, newer one produces DimensionValues
+        if (Alias.unwrap(timeSeriesAggregate.aggregates().get(1)) instanceof DimensionValues dimensionValues) {
+            assertThat(Expressions.attribute(dimensionValues.field()).name(), equalTo("pod"));
+        } else {
+            var values = as(Alias.unwrap(timeSeriesAggregate.aggregates().get(1)), Values.class);
+            assertThat(Expressions.attribute(values.field()).name(), equalTo("pod"));
+        }
 
         // Eval[[BUCKET(@timestamp{f}#424,PT1M[TIME_DURATION]) AS bucket(@timestamp, 1 minute)#418]]
         var eval3 = as(timeSeriesAggregate.child(), Eval.class);

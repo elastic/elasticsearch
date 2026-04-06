@@ -2757,6 +2757,11 @@ public class EsqlCapabilities {
         PROMQL_DAYS_IN_MONTH,
 
         /**
+         * Move rules for translating TimeSeriesAggregate and PromQL to Analyzer.
+         */
+        TS_AND_PROMQL_TRANSLATION_IN_ANALYZER,
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */

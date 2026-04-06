@@ -11,6 +11,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstTests;
@@ -30,7 +31,9 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class PromqlVerifierTests extends ESTestCase {
 
-    private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json").stripErrorPrefix(true);
+    private final TestAnalyzer tsdb = analyzer().addIndex("test", "tsdb-mapping.json")
+        .stripErrorPrefix(true)
+        .unmappedResolution(UnmappedResolution.NULLIFY);
 
     public void testPromqlRangeVector() {
         tsdb.error(
@@ -41,8 +44,11 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testPromqlRangeVectorBinaryExpression() {
         tsdb.error(
-            "PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[5m])",
-            equalTo("1:31: binary expression must contain only scalar and instant vector types")
+            "PROMQL index=test step=5m max(network.bytes_in[5m] / network.bytes_in[10m])",
+            equalTo(
+                "1:31: binary expression must contain only scalar and instant vector types\n"
+                    + "line 1:54: binary expression must contain only scalar and instant vector types"
+            )
         );
     }
 
@@ -169,17 +175,22 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testSimilarFieldInNonPromqlQueryFailsWithDidYouMean() {
         // Showcases the did you mean message for non PROMQL queries.
-        tsdb.error(
-            "FROM test | WHERE network.bites_in > 0",
-            allOf(containsString("Unknown column [network.bites_in], did you mean any of ["), containsString("network.bytes_in"))
-        );
+        tsdb.unmappedResolution(UnmappedResolution.DEFAULT)
+            .error(
+                "FROM test | WHERE network.bites_in > 0",
+                allOf(containsString("Unknown column [network.bites_in], did you mean any of ["), containsString("network.bytes_in"))
+            );
     }
 
     public void testCounterMetricWithUnsupportedFunction() {
         // network.bytes_in is a counter metric - avg_over_time doesn't support counters
         tsdb.error(
             "PROMQL index=test step=5m avg_over_time(network.bytes_in[5m])",
-            containsString("function [avg_over_time] does not support counter metric [network.bytes_in]")
+            containsString(
+                "argument of [avg_over_time(network.bytes_in[5m])] must be [aggregate_metric_double, "
+                    + "exponential_histogram, tdigest or numeric except unsigned_long or counter types], found value "
+                    + "[network.bytes_in] type [counter_long]"
+            )
         );
     }
 
@@ -212,7 +223,10 @@ public class PromqlVerifierTests extends ESTestCase {
         // network.connections is a gauge - rate() requires counter metrics
         tsdb.error(
             "PROMQL index=test step=5m rate(network.connections[5m])",
-            containsString("function [rate] requires a counter metric, but [network.connections] has type [long]")
+            containsString(
+                "first argument of [rate(network.connections[5m])] must be [counter_long, counter_integer "
+                    + "or counter_double], found value [network.connections] type [long]"
+            )
         );
     }
 
@@ -220,10 +234,14 @@ public class PromqlVerifierTests extends ESTestCase {
         // host is a keyword dimension field, not a numeric metric - should get a clear 4xx-style error
         tsdb.error(
             "PROMQL index=test step=5m rate(host[5m])",
-            containsString("field [host] of type [keyword] cannot be used as a metric; it is a dimension field")
+            containsString(
+                "first argument of [rate(host[5m])] must be [counter_long, counter_integer or counter_double], "
+                    + "found value [host] type [keyword]"
+            )
         );
     }
 
+    // TODO: fix
     public void testAggregationOnNonNumericField() {
         // metricset is a keyword dimension field, not a numeric metric
         tsdb.error(

@@ -596,8 +596,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
       - label: third-party / azure
         command: |
@@ -611,8 +611,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
       - label: third-party / gcs
         command: |
@@ -626,8 +626,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
       - label: third-party / geoip
         command: |
@@ -636,8 +636,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
       - label: third-party / s3
         command: |
@@ -651,8 +651,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
       - label: third-party / ms-graph
         command: |
@@ -663,8 +663,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
   - group: lucene-compat
     steps:

@@ -1,7 +1,7 @@
-ExchangeSinkExec[[$$SUM$SUM(LENGTH(last>$0$sum{r}#0, $$SUM$SUM(LENGTH(last>$0$seen{r}#1, $$COUNT$$$AVG$SUM(LENGTH(last>$1$1$count{r}#2, $$COUNT$$$AVG$SUM(LENGTH(last>$1$1$seen{r}#3, $$SUM$SUM(LENGTH(last>$2$sum{r}#4, $$SUM$SUM(LENGTH(last>$2$seen{r}#5],false]
+ExchangeSinkExec[[$$SUM$SUM(LENGTH(last>$0$sum{r}#0, $$SUM$SUM(LENGTH(last>$0$seen{r}#1, $$COUNT$$$AVG$SUM(LENGTH(last>$1$count{r}#2, $$COUNT$$$AVG$SUM(LENGTH(last>$1$seen{r}#3, $$SUM$SUM(LENGTH(last>$2$sum{r}#4, $$SUM$SUM(LENGTH(last>$2$seen{r}#5],false]
 \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
-Aggregate[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$SUM(LENGTH(last>$0#7, COUNT(a3{r}#8,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$$$AVG$SUM(LENGTH(last>$1$1#9, SUM($$LENGTH(first_na>$SUM$1{r$}#10,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$SUM(LENGTH(last>$2#11]]
-\_Eval[[LENGTH(last_name{f}#12) AS $$LENGTH(last_nam>$SUM$0#6, LENGTH(first_name{f}#13) AS $$LENGTH(first_na>$SUM$1#10]]
+Aggregate[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS $$SUM$SUM(LENGTH(last>$0#7, COUNT(a3{r}#8,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$$$AVG$SUM(LENGTH(last>$1#9, SUM($$LENGTH(first_na>$SUM$3{r$}#10,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS $$SUM$SUM(LENGTH(last>$2#11]]
+\_Eval[[LENGTH(last_name{f}#12) AS $$LENGTH(last_nam>$SUM$0#6, LENGTH(first_name{f}#13) AS $$LENGTH(first_na>$SUM$3#10]]
   \_Filter[a1{r}#14 > 1[INTEGER]]
     \_Eval[[LENGTH(last_name{f}#12) AS a1#14, LENGTH(last_name{f}#12) AS a3#8]]
       \_Filter[LENGTH(last_name{f}#12) > 1[INTEGER]]

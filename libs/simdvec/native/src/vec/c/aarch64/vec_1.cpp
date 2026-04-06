@@ -85,7 +85,7 @@ static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, con
 EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     cosine_results_t res = cosine_results_t { 0, 0, 0 };
     int i = 0;
-    if (dims > sizeof(int8x16_t)) {
+    if (dims >= sizeof(int8x16_t)) {
         i += dims & ~(sizeof(int8x16_t) - 1);
         res = cosi8_inner(a, b, i);
     }
@@ -232,12 +232,12 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
 static inline int32_t doti8_common(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > sizeof(int8x16x2_t)) {
+    if (dims >= sizeof(int8x16x2_t)) {
         i += dims & ~(sizeof(int8x16x2_t) - 1);
         res = doti8_inner(a, b, i);
     }
     for (; i < dims; i++) {
-        res += a[i] * b[i];
+        res += dot_scalar(a[i], b[i]);
     }
     return res;
 }
@@ -419,7 +419,7 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
 static inline int32_t sqri8_common(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > sizeof(int8x16x2_t)) {
+    if (dims >= sizeof(int8x16x2_t)) {
         i += dims & ~(sizeof(int8x16x2_t) - 1);
         res = sqri8_inner(a, b, i);
     }

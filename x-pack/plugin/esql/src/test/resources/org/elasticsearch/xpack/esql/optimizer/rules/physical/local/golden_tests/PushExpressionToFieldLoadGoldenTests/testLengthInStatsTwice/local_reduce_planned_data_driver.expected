@@ -1,5 +1,5 @@
-ExchangeSinkExec[[$$SUM$SUM(LENGTH(last>$0$sum{r}#0, $$SUM$SUM(LENGTH(last>$0$seen{r}#1, $$COUNT$$$AVG$SUM(LENGTH(last>$1$0$count{r}#2, $$COUNT$$$AVG$SUM(LENGTH(last>$1$0$seen{r}#3],false]
+ExchangeSinkExec[[$$SUM$SUM(LENGTH(last>$0$sum{r}#0, $$SUM$SUM(LENGTH(last>$0$seen{r}#1, $$COUNT$$$AVG$SUM(LENGTH(last>$1$count{r}#2, $$COUNT$$$AVG$SUM(LENGTH(last>$1$seen{r}#3],false]
 \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
-Aggregate[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS $$SUM$SUM(LENGTH(last>$0#5, COUNT($$LENGTH(last_nam>$SUM$0{r$}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$$$AVG$SUM(LENGTH(last>$1$0#6]]
+Aggregate[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS $$SUM$SUM(LENGTH(last>$0#5, COUNT($$LENGTH(last_nam>$SUM$0{r$}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNT$$$AVG$SUM(LENGTH(last>$1#6]]
 \_Eval[[LENGTH(last_name{f}#7) AS $$LENGTH(last_nam>$SUM$0#4]]
   \_EsRelation[employees][avg_worked_seconds{f}#8, birth_date{f}#9, emp_no{f}#10, first_name{f}#11, gender{f}#12, height{f}#13, height.float{f}#14, height.half_float{f}#15, height.scaled_float{f}#16, hire_date{f}#17, is_rehired{f}#18, job_positions{f}#19, languages{f}#20, languages.byte{f}#21, languages.long{f}#22, languages.short{f}#23, last_name{f}#7, salary{f}#24, salary_change{f}#25, salary_change.int{f}#26, salary_change.keyword{f}#27, salary_change.long{f}#28, still_hired{f}#29]<>]]

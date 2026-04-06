@@ -3,7 +3,7 @@
 ####################
 // These ones verify we don't do anything extra when unmapped_fields is not set to "load"
 doesNotLoadUnmappedFieldsSort
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 FROM partial_mapping_sample_data
 | SORT @timestamp DESC
@@ -20,7 +20,7 @@ FROM partial_mapping_sample_data
 ;
 
 doesNotLoadUnmappedFieldsStats
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 FROM partial_mapping_sample_data
 | STATS count(*) BY message
@@ -36,7 +36,7 @@ count(*):long | message:keyword
 ;
 
 doesNotLoadUnmappedFieldsInlineStats
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 FROM partial_mapping_sample_data
 | INLINE STATS count = COUNT(*) BY message
@@ -51,7 +51,7 @@ FROM partial_mapping_sample_data
 ;
 
 doesNotLoadUnmappedFieldsInlineStatsNoGrouping
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 FROM partial_mapping_sample_data
 | INLINE STATS max_duration = MAX(event_duration)
@@ -66,7 +66,7 @@ FROM partial_mapping_sample_data
 ;
 
 doesNotLoadUnmappedFieldsEnrich
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: enrich_load
 
 FROM partial_mapping_sample_data
@@ -84,7 +84,7 @@ FROM partial_mapping_sample_data
 
 doesNotLoadUnmappedFieldsLookupJoin-Ignore
 // temporarily forbidding "load" with LOOKUP JOIN
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: join_lookup_v12
 
 FROM partial_mapping_sample_data
@@ -105,7 +105,7 @@ FROM partial_mapping_sample_data
 ######################
 
 unmappedFieldDoesNotAppearLast
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -118,7 +118,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldDoesNotExistSingleIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -137,7 +137,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldIsUnmappedSingleIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -156,7 +156,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldUnmappedInSourceButExcludedSingleIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -176,7 +176,7 @@ FROM partial_mapping_excluded_source_sample_data
 ;
 
 fieldUnmappedInSourceButSourceDisabledSingleIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -196,7 +196,7 @@ FROM partial_mapping_no_source_sample_data
 ;
 
 statsByUnmappedFieldExistsInSource
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -213,7 +213,7 @@ s:long       | c:long | unmapped_message:keyword
 ;
 
 inlineStatsByUnmappedFieldExistsInSource
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -231,7 +231,7 @@ FROM partial_mapping_sample_data
 ;
 
 unmappedFieldNonExistentTsIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
@@ -250,7 +250,7 @@ FROM k8s_unmapped
 ;
 
 unmappedNumericFromK8sSyntheticTsIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
@@ -269,7 +269,7 @@ TS k8s_unmapped
 ;
 
 statsImplicitLastOverTimeUnmappedTsIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
@@ -287,7 +287,7 @@ time_bucket:datetime     | x:keyword
 ;
 
 statsByUnmappedFieldTsIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
@@ -312,7 +312,7 @@ s:long | c:long | event_log:keyword
 ;
 
 explicitLastOverTimeUnmappedTsIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
@@ -332,7 +332,7 @@ qa              | 2024-05-10T00:10:00.000Z | volutpat hac
 ;
 
 fieldIsNestedAndUnmapped
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -351,7 +351,7 @@ FROM partial_mapping_sample_data
 ;
 
 fieldIsNestedAndNonExistent
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -374,7 +374,7 @@ FROM partial_mapping_sample_data
 ###############################
 
 noFieldExistsMultiParametersSingleIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -393,7 +393,7 @@ FROM partial_mapping_sample_data
 ;
 
 mixedFieldsMultiParametersSingleIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -416,7 +416,7 @@ FROM partial_mapping_sample_data
 #####################
 
 mixedFieldsMultiParametersMultiIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data, sample_data METADATA _index
@@ -442,7 +442,7 @@ sample_data                 | 2023-10-23T12:15:03.360Z | null        | Connected
 ;
 
 fieldDoesNotExistMultiIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data, sample_data METADATA _index
@@ -468,7 +468,7 @@ sample_data                 | 2023-10-23T12:15:03.360Z | null
 ;
 
 fieldIsUnmappedMultiIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data, sample_data METADATA _index
@@ -494,7 +494,7 @@ FROM partial_mapping_sample_data, sample_data METADATA _index
 ;
 
 fieldIsPartiallyUnmappedMultiIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -520,7 +520,7 @@ sample_data            | Connected to 10.1.0.1
 ;
 
 fieldIsPartiallyUnmappedAndRenamedMultiIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data
@@ -547,7 +547,7 @@ Connected to 10.1.0.1
 ;
 
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -574,7 +574,7 @@ partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 
 ;
 
 threeIndicesKeepMessageUnmappedThird
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -608,7 +608,7 @@ sample_data                           | 2023-10-23T12:15:03.360Z | Connected to 
 ;
 
 threeIndicesDropClientIpUnmappedThird
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -643,7 +643,7 @@ sample_data                           | 2023-10-23T12:15:03.360Z | Connected to 
 ;
 
 threeIndicesKeepMessageExcludedThird
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -677,7 +677,7 @@ sample_data                                 | 2023-10-23T12:15:03.360Z | Connect
 ;
 
 threeIndicesDropClientIpExcludedThird
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -712,7 +712,7 @@ sample_data                                 | 2023-10-23T12:15:03.360Z | Connect
 ;
 
 partialMappingStats
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -731,7 +731,7 @@ max(@timestamp):date     | count(*):long | message:keyword
 ;
 
 partialMappingCoalesce
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -760,7 +760,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 ;
 
 partialMappingKeywordCast
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -788,7 +788,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 ;
 
 partialMappingStatsAfterCast
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -804,7 +804,7 @@ count(*):long | message::INT:integer
 ;
 
 filterOnPartiallyUnmappedField
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -823,7 +823,7 @@ sample_data            | Connection error
 ;
 
 sortOnPartiallyUnmappedField
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -841,7 +841,7 @@ no_mapping_sample_data | Connected to 10.1.0.2!
 ;
 
 filterOnFullyUnmappedField
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -857,7 +857,7 @@ FROM partial_mapping_sample_data
 ;
 
 filterOnConjunctionMappedAndUnmapped
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -873,7 +873,7 @@ FROM partial_mapping_sample_data
 ;
 
 filterOnConjunctionMappedAndNonExistent
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -885,7 +885,7 @@ _index:keyword         | message:keyword   | does_not_exist:keyword
 ;
 
 filterOnDisjunctionMappedAndUnmapped
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -902,7 +902,7 @@ FROM partial_mapping_sample_data
 ;
 
 filterOnDisjunctionMappedAndNonExistent
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -918,7 +918,7 @@ sample_data            | Connection error  | null
 ;
 
 sortOnNonExistentField
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM no_mapping_sample_data METADATA _index
@@ -936,7 +936,7 @@ no_mapping_sample_data | null
 ;
 
 sortOnUnmappedField
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -953,7 +953,7 @@ FROM partial_mapping_sample_data
 ;
 
 sortOnExpressionOnUnmappedField
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -971,7 +971,7 @@ FROM partial_mapping_sample_data
 ;
 
 sortOnMultipleFieldsWithNonExistent
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -989,7 +989,7 @@ no_mapping_sample_data | Connected to 10.1.0.2! | null
 ;
 
 sortOnMultipleFieldsWithUnmapped
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -1007,7 +1007,7 @@ FROM partial_mapping_sample_data
 ;
 
 filterOnNonExistentFieldCastToLong
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -1019,7 +1019,7 @@ _index:keyword         | message:keyword        | does_not_exist:keyword
 ;
 
 filterOnUnmappedFieldCastToLong
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -1032,7 +1032,7 @@ FROM partial_mapping_sample_data
 ;
 
 maxOverTimeOfKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
@@ -1056,7 +1056,7 @@ us          | 2024-05-10T00:04:00.000Z | k8s_unmapped
 
 // Copied over from max_over_time_with_filtering, except bytes_in is unmapped.
 maxOverTimeWithFiltering
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
@@ -1081,7 +1081,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 
 // Copied over from eval_on_max_over_time, except bytes_in is unmapped.
 evalOnMaxOverTime
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
@@ -1106,7 +1106,7 @@ max_bytes:double  | cluster:keyword | time_bucket:datetime     | kb_minus_offset
 
 // https://github.com/elastic/elasticsearch/issues/143991
 statsFilteredAggAfterEvalWithDottedUnmappedField
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
 
 SET unmapped_fields="load"\;
@@ -1121,7 +1121,7 @@ null                   | foo
 
 // https://github.com/elastic/elasticsearch/issues/143991
 statsFilteredAggAfterEvalWithDottedUnmappedFieldLoadsFromSource
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
 
 SET unmapped_fields="load"\;
@@ -1140,7 +1140,7 @@ msg_count:integer | unmapped_messag:keyword
 
 // Regression test: indices with the same mapping hash must not be treated as partially unmapped.
 sameMappingHashFullyMapped
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, cloned_sample_data
@@ -1158,7 +1158,7 @@ c:long | message:keyword
 
 // Regression test: two same-hash indices + an unmapped index should still treat the field as partially unmapped.
 sameMappingHashWithUnmappedIndex
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, cloned_sample_data, no_mapping_sample_data

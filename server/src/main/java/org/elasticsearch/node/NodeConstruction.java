@@ -93,6 +93,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -110,7 +111,9 @@ import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
 import org.elasticsearch.health.node.tracker.DiskHealthTracker;
 import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.health.node.tracker.HealthTracker;
@@ -164,6 +167,7 @@ import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.monitor.metrics.SystemMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.node.internal.TerminationHandlerProvider;
+import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
@@ -752,7 +756,7 @@ class NodeConstruction {
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         MatcherWatchdog matcherWatchdog = IngestService.createGrokThreadWatchdog(environment, threadPool);
         UserAgentParserRegistry userAgentParserRegistry = getSinglePlugin(UserAgentParserRegistryProvider.class).map(
-            p -> p.createUserAgentParserRegistry(environment)
+            p -> p.createRegistry(environment)
         ).orElse(UserAgentParserRegistry.NOOP);
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -1022,6 +1026,11 @@ class NodeConstruction {
 
         final CrossProjectModeDecider crossProjectModeDecider = new CrossProjectModeDecider(settings);
 
+        final var persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+        final var taskLifecycleManager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+
+        final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1050,7 +1059,9 @@ class NodeConstruction {
             linkedProjectConfigService,
             projectRoutingResolver,
             remoteTransportClient,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            taskLifecycleManager,
+            dlmErrorStore
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1309,7 +1320,16 @@ class NodeConstruction {
 
         final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
 
-        modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
+        modules.add(
+            loadPersistentTasks(
+                settingsModule,
+                clusterService,
+                threadPool,
+                clusterModule.getIndexNameExpressionResolver(),
+                persistentTasksService,
+                taskLifecycleManager
+            )
+        );
 
         modules.add(
             loadPluginShutdownService(clusterService),
@@ -1370,6 +1390,7 @@ class NodeConstruction {
             b.bind(BigArrays.class).toInstance(bigArrays);
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
+            b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
@@ -1411,6 +1432,7 @@ class NodeConstruction {
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
+            b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
         });
 
         if (ReadinessService.enabled(environment)) {
@@ -1822,18 +1844,19 @@ class NodeConstruction {
         return module;
     }
 
-    private Module loadPersistentTasksService(
+    private Module loadPersistentTasks(
         SettingsModule settingsModule,
         ClusterService clusterService,
         ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        PersistentTasksService persistentTasksService,
+        PersistentTaskLifecycleManager persistentTaskLifecycleManager
     ) {
-        PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
-        HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
-            clusterService,
-            persistentTasksService,
-            settingsModule.getSettings(),
-            clusterService.getClusterSettings()
+        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService);
+        persistentTaskLifecycleManager.registerClusterTask(
+            HealthNode.TASK_NAME,
+            HealthNodeTaskExecutor.ENABLED_SETTING,
+            () -> HealthNodeTaskParams.INSTANCE
         );
         Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor);
 
@@ -1854,6 +1877,7 @@ class NodeConstruction {
 
         return b -> {
             b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
+            b.bind(PersistentTaskLifecycleManager.class).toInstance(persistentTaskLifecycleManager);
             b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
             b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
             b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);

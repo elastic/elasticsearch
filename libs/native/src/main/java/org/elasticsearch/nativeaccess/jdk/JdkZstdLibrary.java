@@ -69,22 +69,6 @@ class JdkZstdLibrary implements ZstdLibrary {
     }
 
     @Override
-    public long compress(CloseableByteBuffer dst, ByteBuffer src, int compressionLevel) {
-        assert dst instanceof JdkCloseableByteBuffer;
-        assert src.isDirect();
-        var nativeDst = (JdkCloseableByteBuffer) dst;
-        var dstSize = dst.buffer().remaining();
-        var srcSize = src.remaining();
-        var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dstSize);
-        var segmentSrc = MemorySegment.ofBuffer(src);
-        try {
-            return (long) compress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize, compressionLevel);
-        } catch (Throwable t) {
-            throw new AssertionError(t);
-        }
-    }
-
-    @Override
     public boolean isError(long code) {
         try {
             return (boolean) isError$mh.invokeExact(code);

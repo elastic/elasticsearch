@@ -19,13 +19,6 @@ public non-sealed interface ZstdLibrary extends NativeLibrary {
 
     long compress(CloseableByteBuffer dst, CloseableByteBuffer src, int compressionLevel);
 
-    /**
-     * Compress variant that accepts a direct {@link ByteBuffer} as the source, avoiding the need for a
-     * {@link CloseableByteBuffer} wrapper when the caller already holds a direct buffer (e.g. from
-     * {@code DirectAccessInput.withByteBufferSlice}).
-     */
-    long compress(CloseableByteBuffer dst, ByteBuffer src, int compressionLevel);
-
     boolean isError(long code);
 
     String getErrorName(long code);

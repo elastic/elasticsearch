@@ -9,9 +9,12 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -28,6 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
+@Seed("DE9A97F0020F982F")
 public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFromDocValuesBlockLoaderTests {
     private static final long[] POINTS = new long[] { 0, 1_000_000, 10_000_000, 50_000_000, 90_000_000 };
 
@@ -113,13 +117,29 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
             try (DirectoryReader dr = iw.getReader()) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
                 assertNotNull(ctx.reader().getDocValuesSkipper("field"));
+
+                // Derive expected rounded values from actual index state since
+                // RandomIndexWriter may reorder segments during merge.
+                SortedNumericDocValues dv = ctx.reader().getSortedNumericDocValues("field");
+                long[] expectedRounded = new long[docCount];
+                int bucket100Count = 0;
+                int bucket200Count = 0;
+                for (int i = 0; i < docCount; i++) {
+                    assertTrue("doc " + i + " should have a value", dv.advanceExact(i));
+                    expectedRounded[i] = RoundToLongsFromDocValuesBlockLoader.roundTo(dv.nextValue(), points);
+                    if (expectedRounded[i] == 100L) bucket100Count++;
+                    else bucket200Count++;
+                }
+                assertThat("docs rounding to 100", bucket100Count, equalTo(100));
+                assertThat("docs rounding to 200", bucket200Count, equalTo(100));
+
                 RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     BlockLoader.Docs docs = TestBlock.docs(ctx);
                     try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
                         assertThat(block.size(), equalTo(docCount));
                         for (int i = 0; i < docCount; i++) {
-                            assertThat(block.get(i), equalTo(i < 100 ? 100L : 200L));
+                            assertThat("doc " + i, block.get(i), equalTo(expectedRounded[i]));
                         }
                     }
                 }
@@ -146,16 +166,28 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
             try (DirectoryReader dr = iw.getReader()) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
                 assertNotNull(ctx.reader().getDocValuesSkipper("field"));
+
+                // Derive which docs have values from the actual index state since
+                // RandomIndexWriter may reorder segments during merge.
+                SortedNumericDocValues dv = ctx.reader().getSortedNumericDocValues("field");
+                boolean[] docHasValue = new boolean[docCount];
+                int missingCount = 0;
+                for (int i = 0; i < docCount; i++) {
+                    docHasValue[i] = dv != null && dv.advanceExact(i);
+                    if (docHasValue[i] == false) missingCount++;
+                }
+                assertThat("number of missing docs", missingCount, equalTo(20));
+
                 RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     BlockLoader.Docs docs = TestBlock.docs(ctx);
                     try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
                         assertThat(block.size(), equalTo(docCount));
                         for (int i = 0; i < docCount; i++) {
-                            if (i % 10 == 0) {
-                                assertThat("doc " + i, block.get(i), nullValue());
-                            } else {
+                            if (docHasValue[i]) {
                                 assertThat("doc " + i, block.get(i), equalTo(100L));
+                            } else {
+                                assertThat("doc " + i, block.get(i), nullValue());
                             }
                         }
                     }

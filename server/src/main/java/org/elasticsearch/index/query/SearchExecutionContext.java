@@ -774,6 +774,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return rewriteToNamedQueries;
     }
 
+
+    /**
+     * Returns the circuit breaker used for query construction memory accounting, or {@code null}
+     * if none was configured.
+     */
+    @Nullable
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
+    }
+
     /**
      * Adds memory usage to the circuit breaker for query construction.
      * <p>

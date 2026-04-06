@@ -538,6 +538,10 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return keyedLock.acquire(uid);
     }
 
+    Releasable tryAcquireLock(BytesRef uid) {
+        return keyedLock.tryAcquire(uid);
+    }
+
     boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
         assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() + "], uid [" + uid.utf8ToString() + "]";
         return true;

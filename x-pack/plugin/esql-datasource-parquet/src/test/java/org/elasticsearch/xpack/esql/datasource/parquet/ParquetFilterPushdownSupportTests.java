@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -544,6 +545,67 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         Expression filter = new Range(Source.EMPTY, col, boolLit(false), true, boolLit(true), true, ZoneOffset.UTC);
 
         assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    // --- StartsWith tests ---
+
+    public void testStartsWithKeywordPushed() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression filter = new StartsWith(Source.EMPTY, col, keywordLit("alice"));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testStartsWithNonKeywordNotPushed() {
+        Attribute col = attr("age", DataType.INTEGER);
+        Expression filter = new StartsWith(Source.EMPTY, col, intLit(10));
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testStartsWithNonFoldableNotPushed() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Attribute prefix = attr("prefix", DataType.KEYWORD);
+        Expression filter = new StartsWith(Source.EMPTY, col, prefix);
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testStartsWithNullPrefixNotPushed() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression filter = new StartsWith(Source.EMPTY, col, new Literal(Source.EMPTY, null, DataType.KEYWORD));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertFalse(result.hasPushedFilter());
+    }
+
+    public void testStartsWithCombinedWithEquals() {
+        Attribute name = attr("name", DataType.KEYWORD);
+        Attribute age = attr("age", DataType.INTEGER);
+        Expression sw = new StartsWith(Source.EMPTY, name, keywordLit("alice"));
+        Expression eq = new Equals(Source.EMPTY, age, intLit(30), null);
+        Expression filter = new And(Source.EMPTY, sw, eq);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testStartsWithInOr() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression sw = new StartsWith(Source.EMPTY, col, keywordLit("a"));
+        Expression eq = new Equals(Source.EMPTY, col, keywordLit("z"), null);
+        Expression filter = new Or(Source.EMPTY, sw, eq);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
     }
 
     // --- helpers ---

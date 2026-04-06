@@ -17,6 +17,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.DataType.TEXT;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
 import static org.hamcrest.Matchers.is;
 
 public class EmbeddingsInputTests extends ESTestCase {
@@ -24,7 +25,7 @@ public class EmbeddingsInputTests extends ESTestCase {
         AtomicBoolean invoked = new AtomicBoolean();
         final List<InferenceStringGroup> list = List.of(
             new InferenceStringGroup(new InferenceString(TEXT, "input1")),
-            new InferenceStringGroup(new InferenceString(IMAGE, "image_url"))
+            new InferenceStringGroup(new InferenceString(IMAGE, TEST_IMAGE_DATA_URI))
         );
         Supplier<List<InferenceStringGroup>> supplier = () -> {
             invoked.set(true);
@@ -57,7 +58,7 @@ public class EmbeddingsInputTests extends ESTestCase {
     public void testCallingGetTextInputs_withNonTextInput_throws() {
         Supplier<List<InferenceStringGroup>> supplier = () -> List.of(
             new InferenceStringGroup(new InferenceString(TEXT, "input1")),
-            new InferenceStringGroup(new InferenceString(IMAGE, "image_url"))
+            new InferenceStringGroup(new InferenceString(IMAGE, TEST_IMAGE_DATA_URI))
         );
         EmbeddingsInput input = new EmbeddingsInput(supplier, null);
         var exception = expectThrows(AssertionError.class, input::getTextInputs);

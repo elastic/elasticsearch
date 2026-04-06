@@ -33,10 +33,10 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.AgentExportMetricsInterval;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 
@@ -56,9 +56,6 @@ import java.util.stream.Collectors;
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.tracing.Tracer {
 
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
-
-    /** Default interval when agent export timing is unknown; same semantics as APMMeterService. */
-    private static final TimeValue DEFAULT_AGENT_INTERVAL = TimeValue.timeValueSeconds(10);
 
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
@@ -99,19 +96,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
-        this.agentFlushWaitMs = 2 * agentExportIntervalMs(settings);
-    }
-
-    private static long agentExportIntervalMs(Settings settings) {
-        String intervalStr = settings.get("telemetry.agent.metrics_interval");
-        if (intervalStr != null && intervalStr.isEmpty() == false) {
-            try {
-                return TimeValue.parseTimeValue(intervalStr, "telemetry.agent.metrics_interval").millis();
-            } catch (Exception e) {
-                logger.debug("Could not parse telemetry.agent.metrics_interval [{}], using default", intervalStr);
-            }
-        }
-        return DEFAULT_AGENT_INTERVAL.millis();
+        this.agentFlushWaitMs = 2 * AgentExportMetricsInterval.agentMetricsInterval(settings).millis();
     }
 
     /**

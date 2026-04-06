@@ -19,19 +19,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+import static org.elasticsearch.telemetry.apm.internal.AgentExportMetricsInterval.agentMetricsInterval;
 
 public class APMMeterService extends AbstractLifecycleComponent {
 
     private static final Logger LOGGER = LogManager.getLogger(APMMeterService.class);
-
-    /**
-     * Time to wait for the APM agent to export telemetry if we don't have access to the settings to check.
-     */
-    public static final TimeValue DEFAULT_AGENT_INTERVAL = TimeValue.timeValueSeconds(10);
 
     private final APMMeterRegistry meterRegistry;
     private final MeterSupplier otelMeterSupplier;
@@ -87,14 +82,6 @@ public class APMMeterService extends AbstractLifecycleComponent {
                 }
             };
         }
-    }
-
-    private static TimeValue agentMetricsInterval(Settings settings) {
-        String intervalStr = settings.get("telemetry.agent.metrics_interval");
-        if (intervalStr != null && intervalStr.isEmpty() == false) {
-            return TimeValue.parseTimeValue(intervalStr, "telemetry.agent.metrics_interval");
-        }
-        return DEFAULT_AGENT_INTERVAL;
     }
 
     public APMMeterRegistry getMeterRegistry() {

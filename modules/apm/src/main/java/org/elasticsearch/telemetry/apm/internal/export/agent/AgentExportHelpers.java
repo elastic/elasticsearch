@@ -49,12 +49,28 @@ public final class AgentExportHelpers {
      * Determines the appropriate duration to wait for the APM agent to flush telemetry.
      * When {@code telemetry.agent.metrics_interval} is unset, empty, or invalid, uses
      * {@code 2 *} {@link #DEFAULT_AGENT_METRICS_INTERVAL}, matching the formula used when the setting parses.
+     * <p>
+     * When the value parses to a non-negative interval, returns {@code 2 *} that interval in milliseconds.
+     * Negative parsed intervals, values whose doubled wait would overflow {@code long}, or parse failures
+     * fall back to {@code 2 *} {@link #DEFAULT_AGENT_METRICS_INTERVAL}.
      */
     public static long agentFlushWaitTimeMs(Settings settings) {
         String intervalStr = settings.get("telemetry.agent.metrics_interval");
         if (intervalStr != null && intervalStr.isEmpty() == false) {
             try {
-                return 2 * parseTimeValue(intervalStr, "telemetry.agent.metrics_interval").millis();
+                long intervalMillis = parseTimeValue(intervalStr, "telemetry.agent.metrics_interval").millis();
+                if (intervalMillis < 0) {
+                    logger.debug(
+                        "telemetry.agent.metrics_interval [{}] parsed to negative millis [{}], using default",
+                        intervalStr,
+                        intervalMillis
+                    );
+                } else {
+                    return Math.multiplyExact(2, intervalMillis);
+                }
+            } catch (ArithmeticException e) {
+                logger.debug("telemetry.agent.metrics_interval [{}] doubled flush wait overflows long, using Long.MAX_VALUE", intervalStr);
+                return Long.MAX_VALUE;
             } catch (Exception e) {
                 logger.debug("Could not parse telemetry.agent.metrics_interval [{}], using default", intervalStr, e);
             }

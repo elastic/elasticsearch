@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
+import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.agentFlushWaitTimeMs;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -33,7 +34,8 @@ public class AgentExportHelpersAgentFlushWaitFallbackTests extends ESTestCase {
         return List.of(
             new Object[] { "absent", Settings.EMPTY },
             new Object[] { "empty", Settings.builder().put("telemetry.agent.metrics_interval", "").build() },
-            new Object[] { "invalid", Settings.builder().put("telemetry.agent.metrics_interval", "not-a-duration").build() }
+            new Object[] { "invalid", Settings.builder().put("telemetry.agent.metrics_interval", "not-a-duration").build() },
+            new Object[] { "negativeMillis", Settings.builder().put("telemetry.agent.metrics_interval", "-1").build() }
         );
     }
 
@@ -44,6 +46,6 @@ public class AgentExportHelpersAgentFlushWaitFallbackTests extends ESTestCase {
 
     public void testUsesTwiceDefaultInterval() {
         long expected = 2 * AgentExportHelpers.DEFAULT_AGENT_METRICS_INTERVAL.millis();
-        assertThat("scenario [" + scenario + "]", AgentExportHelpers.agentFlushWaitTimeMs(settings), equalTo(expected));
+        assertThat("scenario [" + scenario + "]", agentFlushWaitTimeMs(settings), equalTo(expected));
     }
 }

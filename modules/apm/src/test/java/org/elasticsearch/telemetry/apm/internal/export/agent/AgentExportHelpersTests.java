@@ -27,6 +27,13 @@ public class AgentExportHelpersTests extends ESTestCase {
         }
     }
 
+    public void testAgentFlushWaitTimeMs_overflow() {
+        String intervalStr = Long.MAX_VALUE + "ms";
+        Settings settings = Settings.builder().put("telemetry.agent.metrics_interval", intervalStr).build();
+        long expected = Long.MAX_VALUE;
+        assertThat(agentFlushWaitTimeMs(settings), equalTo(expected));
+    }
+
     public void testSleepForAgentExport_restoresInterruptStatus() {
         sleepForAgentExport(0);
         assertFalse(Thread.interrupted());

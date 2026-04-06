@@ -27,7 +27,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
     }
 
     public void testGetWithEmptyEndpointThrows() {
-        Settings settings = Settings.builder().put(OtelSdkExportMeterSupplier.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), "").build();
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), "").build();
         expectThrows(IllegalStateException.class, () -> new OtelSdkExportMeterSupplier(settings).get());
     }
 
@@ -63,9 +63,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
 
     public void testDoubleCloseAfterGetDoesNotThrow() {
         String bogusUrl = "http://127.0.0.1:9/v1/metrics";
-        Settings settings = Settings.builder()
-            .put(OtelSdkExportMeterSupplier.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl)
-            .build();
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings);
         supplier.get();
         supplier.close();

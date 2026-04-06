@@ -22,7 +22,6 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
@@ -31,12 +30,12 @@ import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
 /**
  * A {@link MeterSupplier} that supplies meters that export telemetry using the OTel SDK.
  *
+ * @see OtelSdkSettings
  * @see org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier
  */
 public class OtelSdkExportMeterSupplier implements MeterSupplier {
@@ -47,22 +46,6 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     public OtelSdkExportMeterSupplier(Settings settings) {
         this.settings = settings;
     }
-
-    public static final Setting<String> TELEMETRY_OTEL_METRICS_ENDPOINT = Setting.simpleString(
-        "telemetry.otel.metrics.endpoint",
-        "",
-        NodeScope
-    );
-    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_INTERVAL = Setting.timeSetting(
-        "telemetry.otel.metrics.interval",
-        TimeValue.timeValueSeconds(10),
-        NodeScope
-    );
-    public static final Setting<Boolean> TELEMETRY_OTEL_METRICS_ENABLED = Setting.boolSetting(
-        "telemetry.otel.metrics.enabled",
-        false,
-        NodeScope
-    );
 
     @Override
     public Meter get() {
@@ -75,7 +58,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private OTelMetricsResources createMeteringResources() {
-        TimeValue intervalTimeValue = TELEMETRY_OTEL_METRICS_INTERVAL.get(settings);
+        TimeValue intervalTimeValue = OtelSdkSettings.TELEMETRY_OTEL_METRICS_INTERVAL.get(settings);
 
         // Reader to collect metrics about OTLPExporter
         var metricHealthReader = PeriodicMetricReader.builder(createOTLPExporter(MeterProvider.noop()))
@@ -90,7 +73,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(systemMeterProvider).build();
 
         // RuntimeTelemetry uses JMX (Java 8+) and JFR (Java 17+) to collect JVM metrics. See https://ela.st/otel-runtime-telemetry
-        var runtimeTelemetry = TELEMETRY_OTEL_METRICS_ENABLED.get(settings) ? RuntimeTelemetry.create(otelSdk) : null;
+        var runtimeTelemetry = OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED.get(settings) ? RuntimeTelemetry.create(otelSdk) : null;
         return new OTelMetricsResources(systemMeterProvider, metricHealthProvider, runtimeTelemetry);
     }
 
@@ -102,7 +85,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private OtlpHttpMetricExporter createOTLPExporter(MeterProvider healthExportMeterProvider) {
-        String endpoint = TELEMETRY_OTEL_METRICS_ENDPOINT.get(settings);
+        String endpoint = OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalStateException(
                 OTEL_METRICS_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.otel.metrics.endpoint to be configured"

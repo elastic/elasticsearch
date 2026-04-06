@@ -997,6 +997,7 @@ public abstract class Engine implements Closeable {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     );
 

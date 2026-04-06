@@ -1,0 +1,13 @@
+area: TSDB
+breaking:
+  area: TSDB
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Disable sequence numbers for TSDB in release builds
+issues:
+ - 136305
+pr: 145737
+summary: Disable sequence numbers for TSDB in release builds
+type: "breaking, enhancement"

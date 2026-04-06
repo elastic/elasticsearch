@@ -7,7 +7,7 @@ highlight:
   title: "Enable PromQL command in ES|QL"
   notable: true
   body: |-
-    PromQL is now supported as a source command in ES|QL. Users can now leverage their existing knowledge of PromQL
+    PromQL is now supported as a source command in ES|QL (Tech Preview). Users can now leverage their existing knowledge of PromQL
     while benefiting from the powerful features and scalability of Elasticsearch. This enhancement expands the
     versatility of ES|QL and makes it easier for users to integrate with Prometheus data sources.
 

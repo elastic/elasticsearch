@@ -1,6 +1,6 @@
 area: TSDB
 breaking:
-  area: TSDB
+  area: Metrics
   details: Sequence numbers get trimmed in time-series indices once they are no longer needed for replication.
   impact: Optimistic concurrency control is no longer applicable to these indices.
     `update_by_query` and `delete_by_query` operations are supported with relaxed consistency semantics.

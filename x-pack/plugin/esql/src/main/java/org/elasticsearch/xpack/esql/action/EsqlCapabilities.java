@@ -2431,12 +2431,22 @@ public class EsqlCapabilities {
          */
         USER_AGENT_COMMAND,
 
+        /**
+         * Fix full-text functions being rejected after SAMPLE.
+         */
+        FIX_SAMPLE_AFTER_KQL_OR_QSTR,
         KEYWORDS_MV_COUNT_AS_SINGLE_VALUE_FIX,
 
         /**
          * Parquet and ORC filter pushdown for StartsWith (prefix range predicates).
          */
         PARQUET_ORC_STARTS_WITH_PUSHDOWN,
+
+        /**
+         * Alias for calling FIRST (or LAST) and only passing the search field. The sort field is implicitly set to @timestamp.
+         * These are not time series agg functions.
+         */
+        EARLIEST_LATEST_AGGS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

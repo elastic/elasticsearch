@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctO
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Deriv;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
@@ -404,7 +406,9 @@ public class EsqlFunctionRegistry {
                 def(Present.class, uni(Present::new), "present"),
                 def(Absent.class, uni(Absent::new), "absent"),
                 def(First.class, bi(First::new), "first"),
-                def(Last.class, bi(Last::new), "last"), },
+                def(Last.class, bi(Last::new), "last"),
+                defTS(Earliest.class, Earliest::new, "earliest"),
+                defTS(Latest.class, Latest::new, "latest"), },
             // math
             new FunctionDefinition[] {
                 Abs.DEFINITION,

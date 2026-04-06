@@ -8,4 +8,6 @@ highlight:
   notable: true
   body: |-
     Time series aggregations in ES|QL are enhanced to support windows smaller than the time bucket.
+    
+    
     Previously, only window values that were equal or exact multiples of the time bucket were supported.

@@ -74,9 +74,9 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.calling(File::delete).enforce(Policies::fileWrite).elseThrowNotEntitled();
             rule.callingVoid(File::deleteOnExit).enforce(Policies::fileWrite).elseThrowNotEntitled();
             rule.calling(File::exists).enforce(Policies::fileRead).elseReturn(false);
-            rule.calling(File::isDirectory).enforce(Policies::fileRead).elseThrowNotEntitled();
-            rule.calling(File::isFile).enforce(Policies::fileRead).elseThrowNotEntitled();
-            rule.calling(File::isHidden).enforce(Policies::fileRead).elseThrowNotEntitled();
+            rule.calling(File::isDirectory).enforce(Policies::fileRead).elseReturn(false);
+            rule.calling(File::isFile).enforce(Policies::fileRead).elseReturn(false);
+            rule.calling(File::isHidden).enforce(Policies::fileRead).elseReturn(false);
             rule.calling(File::lastModified).enforce(Policies::fileRead).elseReturn(0L);
             rule.calling(File::length).enforce(Policies::fileRead).elseReturn(0L);
             rule.calling(File::list).enforce(Policies::fileRead).elseReturn(null);

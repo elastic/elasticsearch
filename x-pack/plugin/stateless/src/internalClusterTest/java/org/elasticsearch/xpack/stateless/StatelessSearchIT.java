@@ -129,6 +129,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.blobcache.CachePopulationSource.BlobStore;
 import static org.elasticsearch.blobcache.CachePopulationSource.Peer;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
@@ -1653,6 +1654,60 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
             measurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),
             is(oneOf(BlobStore.name(), Peer.name()))
         );
+    }
+
+    public void testShardReallocationInTheMiddleOfRealtimeGet() throws InterruptedException {
+        startMasterOnlyNode();
+        final var indexNode = startIndexNode();
+        final var searchNodeOne = startSearchNode();
+        final var searchNodeTwo = startSearchNode();
+        var indexName = randomIndexName();
+
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeTwo)
+                .build()
+        );
+
+        ensureGreen(indexName);
+
+        final var relocated = new AtomicBoolean(false);
+
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        indexDoc(indexName, "id_100", "field", "entry_something");
+        indexDoc(indexName, "id_101", "field_One", "entry_something_else");
+        flush(indexName);
+
+        // Make sure indexNodeOne translog read wait for shard closing.
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportGetFromTranslogAction.NAME, (handler, request, channel, task) -> {
+                // In the middle of handling the translog read on the indexing node to serve searchNodeOne's realtime GET request, trigger a
+                // search shard relocation from searchNodeOne to SearchNodeTwo and then back again.
+                if (relocated.compareAndSet(false, true)) {
+                    updateIndexSettings(
+                        Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeOne),
+                        indexName
+                    );
+                    assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeOne))));
+                    updateIndexSettings(
+                        Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeTwo),
+                        indexName
+                    );
+                    assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeTwo))));
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        // Before ES-12459, the get would time out because we retried on an older allocated invalid indexShard, and the cluster state
+        // observer would not see any more changes.
+        final var getResponse = client().prepareGet().setIndex(indexName).setId("id_100").get();
+        assertTrue(relocated.get());
+        assertTrue(getResponse.isExists());
+        assertThat(getResponse.getId(), equalTo("id_100"));
+        assertThat(getResponse.getSourceAsString(), containsString("entry_something"));
     }
 
     private void assertScrollResponses(SearchRequestBuilder searchRequestBuilder) {

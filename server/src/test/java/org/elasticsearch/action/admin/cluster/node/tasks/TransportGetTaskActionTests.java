@@ -182,9 +182,9 @@ public class TransportGetTaskActionTests extends ESTestCase {
         var originalTaskId = new TaskId(nodeId, 100);
         var relocatedTaskId = new TaskId("nodeB", 200);
 
-        long originalStartTime = 1000L;
-        long relocatedStartTime = 5000L;
-        long relocatedRunningTimeNanos = TimeUnit.SECONDS.toNanos(10);
+        long originalStartTime = randomLongBetween(0, 100_000);
+        long relocatedStartTime = randomLongBetween(originalStartTime + 1, originalStartTime + 100_000);
+        long relocatedRunningTimeNanos = randomLongBetween(1, TimeUnit.HOURS.toNanos(1));
 
         TaskResult originalStoredResult = completedTaskResult(
             originalTaskId.toString(),
@@ -290,17 +290,26 @@ public class TransportGetTaskActionTests extends ESTestCase {
         var secondTaskId = new TaskId(nodeId, 200);
         var finalTaskId = new TaskId(nodeId, 300);
 
+        long originalStartTime = randomLongBetween(0, 100_000);
+        long secondStartTime = randomLongBetween(originalStartTime + 1, originalStartTime + 100_000);
+        long finalStartTime = randomLongBetween(secondStartTime + 1, secondStartTime + 100_000);
+        long finalRunningTimeNanos = randomLongBetween(1, TimeUnit.HOURS.toNanos(1));
+
         TaskResult originalStoredResult = completedTaskResult(
             originalTaskId.toString(),
             ReindexAction.NAME,
-            relocatedErrorBytes(secondTaskId.toString())
+            relocatedErrorBytes(secondTaskId.toString()),
+            originalStartTime,
+            0
         );
         TaskResult secondStoredResult = completedTaskResult(
             secondTaskId.toString(),
             ReindexAction.NAME,
-            relocatedErrorBytes(finalTaskId.toString())
+            relocatedErrorBytes(finalTaskId.toString()),
+            secondStartTime,
+            0
         );
-        TaskResult finalResult = runningTaskResult(finalTaskId.toString(), ReindexAction.NAME);
+        TaskResult finalResult = runningTaskResult(finalTaskId.toString(), ReindexAction.NAME, finalStartTime, finalRunningTimeNanos);
 
         var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
         AtomicReference<TransportGetTaskAction> actionRef = new AtomicReference<>();
@@ -344,9 +353,13 @@ public class TransportGetTaskActionTests extends ESTestCase {
 
         GetTaskResponse response = executeGetTask(taskManager, getTaskAction, originalTaskId);
         TaskResult result = response.getTask();
-        assertThat("task ID should be the original", result.getTask().taskId(), equalTo(originalTaskId));
+        TaskInfo info = result.getTask();
+        assertThat("task ID should be the original", info.taskId(), equalTo(originalTaskId));
         assertThat("final task should be running", result.isCompleted(), equalTo(false));
-        assertThat("action should be reindex", result.getTask().action(), equalTo(ReindexAction.NAME));
+        assertThat("action should be reindex", info.action(), equalTo(ReindexAction.NAME));
+        assertThat("start time should be from the original task", info.startTime(), equalTo(originalStartTime));
+        long expectedRunningTime = finalRunningTimeNanos + TimeUnit.MILLISECONDS.toNanos(finalStartTime - originalStartTime);
+        assertThat("running time should cover full chain", info.runningTimeNanos(), equalTo(expectedRunningTime));
         assertThat("no error on running task", result.getError(), nullValue());
         assertThat("no response on running task", result.getResponse(), nullValue());
     }

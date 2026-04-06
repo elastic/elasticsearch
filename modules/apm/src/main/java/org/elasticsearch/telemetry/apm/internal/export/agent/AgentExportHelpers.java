@@ -18,7 +18,12 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public final class AgentExportHelpers {
     private static final Logger logger = LogManager.getLogger(AgentExportHelpers.class);
-    private static final long DEFAULT_AGENT_FLUSH_WAIT_MS = TimeValue.timeValueSeconds(10).millis();
+
+    /**
+     * Default for {@code telemetry.agent.metrics_interval} when unset or invalid: used only to derive
+     * {@link #agentFlushWaitTimeMs} as {@code 2 *} this interval, consistent with the parseable setting path.
+     */
+    static final TimeValue DEFAULT_AGENT_METRICS_INTERVAL = TimeValue.timeValueSeconds(10);
 
     private AgentExportHelpers() {}
 
@@ -42,6 +47,8 @@ public final class AgentExportHelpers {
 
     /**
      * Determines the appropriate duration to wait for the APM agent to flush telemetry.
+     * When {@code telemetry.agent.metrics_interval} is unset, empty, or invalid, uses
+     * {@code 2 *} {@link #DEFAULT_AGENT_METRICS_INTERVAL}, matching the formula used when the setting parses.
      */
     public static long agentFlushWaitTimeMs(Settings settings) {
         String intervalStr = settings.get("telemetry.agent.metrics_interval");
@@ -52,7 +59,7 @@ public final class AgentExportHelpers {
                 logger.debug("Could not parse telemetry.agent.metrics_interval [{}], using default", intervalStr, e);
             }
         }
-        return DEFAULT_AGENT_FLUSH_WAIT_MS;
+        return 2 * DEFAULT_AGENT_METRICS_INTERVAL.millis();
     }
 
 }

@@ -113,14 +113,17 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .setMeterProvider(() -> healthExportMeterProvider)
             .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST);
-        String authHeader = getAuthorizationHeader();
+        String authHeader = buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }
         return builder.build();
     }
 
-    private String getAuthorizationHeader() {
+    /**
+     * Authorization header for OTLP HTTP requests when API key or secret token is configured.
+     */
+    static String buildOtlpAuthorizationHeader(Settings settings) {
         try (SecureString apiKey = APMAgentSettings.TELEMETRY_API_KEY_SETTING.get(settings)) {
             if (apiKey.isEmpty() == false) {
                 return "ApiKey " + apiKey;

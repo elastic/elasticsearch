@@ -16,6 +16,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.TaskTypeTests;
 import org.junit.Before;
 import org.mockito.Mock;
 
@@ -83,7 +84,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
     }
 
     public void testValidate_SuccessfulCallToServiceForNonReRankTaskType() {
-        when(mockModel.getTaskType()).thenReturn(randomValueOtherThan(TaskType.RERANK, () -> randomFrom(TaskType.values())));
+        when(mockModel.getTaskType()).thenReturn(randomValueOtherThan(TaskType.RERANK, TaskTypeTests::randomTaskTypeOtherThanAny));
 
         mockSuccessfulCallToService(null, mockInferenceServiceResults);
         verify(mockActionListener).onResponse(mockInferenceServiceResults);

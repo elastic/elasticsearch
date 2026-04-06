@@ -160,6 +160,17 @@ public class IngestGeoIpPlugin extends Plugin
             }
         });
 
+        // Note that `ingest.geoip.downloader.enabled` is not yet truly a per-project cluster setting.
+        // When it becomes project-scoped in cluster state, registration should use a project-aware path.
+        // See PersistentTaskLifecycleManager#registerProjectTask.
+        services.taskLifecycleManager()
+            .registerProjectTask(
+                GeoIpDownloader.GEOIP_DOWNLOADER,
+                geoIpDownloaderTaskExecutor::getTaskIdForProject,
+                GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
+                GeoIpTaskParams::new,
+                geoIpDownloaderTaskExecutor::deleteGeoIpDatabasesIndex
+            );
         enterpriseGeoIpDownloaderTaskExecutor = new EnterpriseGeoIpDownloaderTaskExecutor(
             services.client(),
             new HttpClient(),

@@ -493,7 +493,8 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec,
             org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec,
             org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec,
-            org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
+            org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec,
+            org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
@@ -531,4 +532,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.diversification;
     exports org.elasticsearch.search.diversification.mmr;
     exports org.elasticsearch.inference.completion;
+    exports org.elasticsearch.dlm;
 }

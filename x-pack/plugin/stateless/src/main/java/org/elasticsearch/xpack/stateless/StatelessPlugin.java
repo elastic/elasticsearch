@@ -1210,11 +1210,6 @@ public class StatelessPlugin extends Plugin
             StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
             StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING,
             StatelessBalancingWeightsFactory.SEARCH_TIER_BALANCING_THRESHOLD_SETTING,
-            // TODO: Before merging to elasticsearch, make sure that serverless-gitops has been updated and remove the following 4:
-            StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
-            StatelessBalancingWeightsFactory.SERVERLESS_SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING,
-            StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_BALANCING_THRESHOLD_SETTING,
-            StatelessBalancingWeightsFactory.SERVERLESS_SEARCH_TIER_BALANCING_THRESHOLD_SETTING,
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING,
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_REQUEST_TIMEOUT_SETTING,
             StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED,
@@ -1262,7 +1257,29 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.CUT_OFF_TIMEOUT_SETTING,
             ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
             ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
-            ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING
+            ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
+            // TODO: ES-14435 move to ServerlessStatelessPlugin once serverless-gitops has been updated to not use "serverless.*" settings:
+            TransportStatelessPrimaryRelocationAction.SERVERLESS_SLOW_RELOCATION_THRESHOLD_SETTING,
+            TransportStatelessPrimaryRelocationAction.SERVERLESS_ID_LOOKUP_RECENCY_THRESHOLD_SETTING,
+            StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
+            StatelessBalancingWeightsFactory.SERVERLESS_SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING,
+            StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_BALANCING_THRESHOLD_SETTING,
+            StatelessBalancingWeightsFactory.SERVERLESS_SEARCH_TIER_BALANCING_THRESHOLD_SETTING,
+            TransportStatelessUnpromotableRelocationAction.SERVERLESS_START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING,
+            TransportStatelessUnpromotableRelocationAction.SERVERLESS_START_HANDOFF_REQUEST_TIMEOUT_SETTING,
+            StatelessShardRelocationOrder.SERVERLESS_PRIORITIZE_WRITE_SHARD_RELOCATIONS_SETTING,
+            StatelessMemoryMetricsService.SERVERLESS_FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
+            StatelessMemoryMetricsService.SERVERLESS_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
+            StatelessMemoryMetricsService.SERVERLESS_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
+            StatelessMemoryMetricsService.SERVERLESS_MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
+            StatelessMemoryMetricsService.SERVERLESS_ADAPTIVE_EXTRA_OVERHEAD_SETTING,
+            StatelessMemoryMetricsService.SERVERLESS_ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
+            StatelessMemoryMetricsService.SERVERLESS_SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
+            ShardsMappingSizeCollector.SERVERLESS_PUBLISHING_FREQUENCY_SETTING,
+            ShardsMappingSizeCollector.SERVERLESS_CUT_OFF_TIMEOUT_SETTING,
+            ShardsMappingSizeCollector.SERVERLESS_RETRY_INITIAL_DELAY_SETTING,
+            ShardsMappingSizeCollector.SERVERLESS_FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
+            ShardsMappingSizeCollector.SERVERLESS_HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING
         );
     }
 

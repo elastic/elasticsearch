@@ -20,7 +20,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Scorer for quantized vectors stored as an {@link IndexInput}. */
-public class ESNextOSQVectorsScorer {
+public class ES940OSQVectorsScorer {
 
     public static final int BULK_SIZE = 32;
 
@@ -56,7 +56,7 @@ public class ESNextOSQVectorsScorer {
     private final byte[] scratch;
     private final byte[] packedScratch;
 
-    public ESNextOSQVectorsScorer(
+    public ES940OSQVectorsScorer(
         IndexInput in,
         byte queryBits,
         byte indexBits,
@@ -92,11 +92,11 @@ public class ESNextOSQVectorsScorer {
         this.packedScratch = indexBits == 4 && this.int4Encoding == SymmetricInt4Encoding.PACKED_NIBBLE ? new byte[dataLength] : null;
     }
 
-    public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
+    public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
         this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, SymmetricInt4Encoding.STRIPED);
     }
 
-    public ESNextOSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
+    public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
         this(in, queryBits, indexBits, dimensions, dataLength, BULK_SIZE);
     }
 

@@ -85,9 +85,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
   issue: https://github.com/elastic/elasticsearch/issues/138370
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable cardinality is too low}
-  issue: https://github.com/elastic/elasticsearch/issues/138409
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/139024
@@ -226,9 +223,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.ApiKeyIntegTests
   method: testDynamicDeletionInterval
   issue: https://github.com/elastic/elasticsearch/issues/145022
-- class: org.elasticsearch.xpack.ml.integration.AdJobRetryResilienceIT
-  method: testJobReopensAfterIndexUnavailabilityDuringReassignment
-  issue: https://github.com/elastic/elasticsearch/issues/144968
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidByteWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145143

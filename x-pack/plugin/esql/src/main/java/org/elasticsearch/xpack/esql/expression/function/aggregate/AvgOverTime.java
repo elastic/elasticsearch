@@ -48,7 +48,9 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
         returnType = "double",
         description = "Calculates the average over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "avg_over_time") }
     )

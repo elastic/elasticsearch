@@ -73,11 +73,13 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -430,7 +432,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
         );
 
-        List<Attribute> outputAttrs = buildMetricsInfoAttributes();
+        List<Attribute> outputAttrs = buildInfoAttributes(MetricsInfo.ATTRIBUTES);
         MetricsInfoExec metricsInfoExec = new MetricsInfoExec(
             Source.EMPTY,
             queryExec,
@@ -471,7 +473,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
         );
 
-        List<Attribute> outputAttrs = buildMetricsInfoAttributes();
+        List<Attribute> outputAttrs = buildInfoAttributes(MetricsInfo.ATTRIBUTES);
         MetricsInfoExec metricsInfoExec = new MetricsInfoExec(
             Source.EMPTY,
             queryExec,
@@ -496,9 +498,80 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
-    private static List<Attribute> buildMetricsInfoAttributes() {
+    /**
+     * When the child EsQueryExec contains a {@code _doc} attribute, the planner should
+     * build the full LuceneSourceOperator pipeline for TsInfoExec.
+     */
+    public void testPlanTsInfoBuildsLuceneSourceWhenDocAttributePresent() throws IOException {
+        FieldAttribute docAttr = new FieldAttribute(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(docAttr),
+            null,
+            null,
+            1,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+
+        List<Attribute> outputAttrs = buildInfoAttributes(TsInfo.ATTRIBUTES);
+        TsInfoExec tsInfoExec = new TsInfoExec(Source.EMPTY, queryExec, outputAttrs, outputAttrs, TsInfoExec.Mode.INITIAL);
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            tsInfoExec,
+            EmptyIndexedByShardId.instance()
+        );
+        assertThat(plan.driverFactories.size(), equalTo(1));
+        var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
+        assertThat(
+            "Expected LuceneSourceOperator when EsQueryExec child has _doc",
+            sourceFactory,
+            instanceOf(LuceneSourceOperator.Factory.class)
+        );
+    }
+
+    /**
+     * When the child plan does not contain a {@code _doc} attribute,
+     * the planner should correctly fall back to an empty source.
+     */
+    public void testPlanTsInfoEmptySourceWhenNoDocAttribute() throws IOException {
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            null,
+            1,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+
+        List<Attribute> outputAttrs = buildInfoAttributes(TsInfo.ATTRIBUTES);
+        TsInfoExec tsInfoExec = new TsInfoExec(Source.EMPTY, queryExec, outputAttrs, outputAttrs, TsInfoExec.Mode.INITIAL);
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            tsInfoExec,
+            EmptyIndexedByShardId.instance()
+        );
+        assertThat(plan.driverFactories.size(), equalTo(1));
+        var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
+        assertThat(
+            "Expected LocalSourceOperator (empty source) when no _doc attribute is present",
+            sourceFactory,
+            instanceOf(LocalSourceOperator.LocalSourceFactory.class)
+        );
+    }
+
+    private static List<Attribute> buildInfoAttributes(List<String> infoAttributes) {
         List<Attribute> attributes = new ArrayList<>();
-        for (String name : MetricsInfo.ATTRIBUTES) {
+        for (String name : infoAttributes) {
             attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD));
         }
         return attributes;

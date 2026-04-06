@@ -56,17 +56,20 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -1602,5 +1605,100 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var optimizedAttr = as(alias.child(), TimeSeriesMetadataAttribute.class);
         assertThat(MetadataAttribute.isTimeSeriesAttribute(optimizedAttr), is(true));
         assertThat(optimizedAttr.withoutFields(), equalTo(Set.of()));
+    }
+
+    /**
+     * When MetricsInfo is the fragment root, ReplaceFieldWithConstantOrNull must not
+     * wrap the child EsRelation in Eval+Project for missing fields. Doing so strips the
+     * _doc attribute and causes planMetricsInfo to fall back to an empty source.
+     */
+    public void testMetricsInfoSkipsEsRelationWrapping() {
+        var existingField = getFieldAttribute("existing_field");
+        var missingField = getFieldAttribute("missing_field");
+        var relation = new EsRelation(
+            EMPTY,
+            "ds1,ds2",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("ds1", IndexMode.TIME_SERIES, "ds2", IndexMode.TIME_SERIES),
+            List.of(existingField, missingField)
+        );
+        var metricsInfo = new MetricsInfo(EMPTY, relation);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals("existing_field");
+            }
+        };
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var result = new ReplaceFieldWithConstantOrNull().apply(metricsInfo, localContext);
+
+        var resultMetricsInfo = as(result, MetricsInfo.class);
+        as(resultMetricsInfo.child(), EsRelation.class);
+    }
+
+    /**
+     * Same guard as {@link #testMetricsInfoSkipsEsRelationWrapping()} but for TsInfo.
+     */
+    public void testTsInfoSkipsEsRelationWrapping() {
+        var existingField = getFieldAttribute("existing_field");
+        var missingField = getFieldAttribute("missing_field");
+        var relation = new EsRelation(
+            EMPTY,
+            "ds1,ds2",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("ds1", IndexMode.TIME_SERIES, "ds2", IndexMode.TIME_SERIES),
+            List.of(existingField, missingField)
+        );
+        var tsInfo = new TsInfo(EMPTY, relation);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals("existing_field");
+            }
+        };
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var result = new ReplaceFieldWithConstantOrNull().apply(tsInfo, localContext);
+
+        var resultTsInfo = as(result, TsInfo.class);
+        as(resultTsInfo.child(), EsRelation.class);
+    }
+
+    /**
+     * Without the MetricsInfo guard, ReplaceFieldWithConstantOrNull normally wraps EsRelation.
+     * This baseline confirms the wrapping behavior when MetricsInfo is NOT the root.
+     */
+    public void testEsRelationWrappedWithoutMetricsInfoGuard() {
+        var existingField = getFieldAttribute("existing_field");
+        var missingField = getFieldAttribute("missing_field");
+        var relation = new EsRelation(
+            EMPTY,
+            "ds1,ds2",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("ds1", IndexMode.TIME_SERIES, "ds2", IndexMode.TIME_SERIES),
+            List.of(existingField, missingField)
+        );
+        var limit = new Limit(EMPTY, L(1000), relation);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals("existing_field");
+            }
+        };
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var result = new ReplaceFieldWithConstantOrNull().apply(limit, localContext);
+
+        var resultLimit = as(result, Limit.class);
+        var project = as(resultLimit.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
     }
 }

@@ -26,11 +26,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -89,7 +91,13 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || lookupFields.contains(f)
             || externalFields.contains(f);
 
-        return plan.transformUp(p -> replaceWithNullOrConstant(p, shouldBeRetained, attrToConstant));
+        // MetricsInfo and TsInfo read raw _timeseries_metadata, not individual field attributes.
+        // Wrapping EsRelation in Eval+Project for field reconciliation would strip the _doc attribute
+        // from the child's output and cause planMetricsInfo/planTsInfo to fall back to an empty source.
+        // Expression-level replacements (in Filter, Eval, etc.) are still applied for correct optimization.
+        boolean skipRelationWrapping = plan instanceof MetricsInfo || plan instanceof TsInfo;
+
+        return plan.transformUp(p -> replaceWithNullOrConstant(p, shouldBeRetained, attrToConstant, skipRelationWrapping));
     }
 
     private static boolean isPotentiallyUnmapped(FieldAttribute f) {
@@ -100,9 +108,10 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
     private LogicalPlan replaceWithNullOrConstant(
         LogicalPlan plan,
         Predicate<FieldAttribute> shouldBeRetained,
-        Map<Attribute, Expression> attrToConstant
+        Map<Attribute, Expression> attrToConstant,
+        boolean skipRelationWrapping
     ) {
-        if (plan instanceof EsRelation || plan instanceof ParameterizedQuery) {
+        if (skipRelationWrapping == false && (plan instanceof EsRelation || plan instanceof ParameterizedQuery)) {
             // For any missing field, place an Eval right after the EsRelation/ParameterizedQuery
             // to assign null values to that attribute (using the same name id!),
             // thus avoiding that InsertFieldExtraction inserts a field extraction later.

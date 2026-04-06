@@ -725,9 +725,10 @@ public class SearchEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Searcher, Searcher> searcherWrapper
     ) {
-        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
+        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, splitShardCountSummary, searcherWrapper), false);
     }
 
     @Override

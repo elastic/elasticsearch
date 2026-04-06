@@ -25,6 +25,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.CheckedConsumer;
@@ -287,6 +288,7 @@ public class HollowIndexEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Searcher, Searcher> searcherWrapper
     ) {
         throwShardNotAvailableException("gets are not supported on a hollow engine");

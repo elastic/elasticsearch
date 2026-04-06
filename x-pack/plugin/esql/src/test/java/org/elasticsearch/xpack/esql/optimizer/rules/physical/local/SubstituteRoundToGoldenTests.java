@@ -207,6 +207,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
      * RoundTo stays as-is in the EvalExec.
      */
     public void testDateTruncNotTransformToQueryAndTagsNoBlockLoader() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         for (var queryAndName : dateHistograms) {
             var dateHistogram = queryAndName.query();
             if (dateHistogram.contains("bucket")) {
@@ -228,6 +229,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
      * RoundTo stays as-is in the EvalExec.
      */
     public void testDateTruncBucketNotTransformToQueryAndTagsWithLookupJoinNoBlockLoader() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         for (var queryAndName : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
                 from all_types

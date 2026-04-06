@@ -8,5 +8,5 @@ highlight:
   notable: true
   body: |-
     We're introducing a Prometheus-compatible `GET /_prometheus/api/v1/labels` REST entrypoint for time series discovery and
-    label enumeration and introspection. Web UIs can use this for label auto-completion.
+    label enumeration and introspection (Tech Preview). Web UIs can use this for label auto-completion.
 

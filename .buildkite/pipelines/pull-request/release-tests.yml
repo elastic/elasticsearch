@@ -20,4 +20,5 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           diskSizeGb: 350
-          machineType: custom-32-98304
+          machineType: e2-custom-32-98304
+          diskType: pd-ssd

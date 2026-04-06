@@ -231,6 +231,22 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[KQL] function cannot be used after LOOKUP"));
     }
 
+    public void testKqlBeforeSample() {
+        var query = """
+            FROM test
+            | WHERE kql("content: dog")
+            | SAMPLE 0.9999
+            | KEEP const_keyword
+            | LIMIT 1
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("const_keyword"));
+            assertColumnTypes(resp.columns(), List.of("keyword"));
+            assertValues(resp.values(), List.of(List.of("foobar")));
+        }
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();

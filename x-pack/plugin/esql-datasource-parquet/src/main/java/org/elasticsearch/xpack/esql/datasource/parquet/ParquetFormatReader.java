@@ -362,18 +362,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     @SuppressWarnings("rawtypes")
     private static Map<String, Object> buildRowGroupStats(BlockMetaData rowGroup) {
         Map<String, Object> stats = new HashMap<>();
-        stats.put("_stats.row_count", rowGroup.getRowCount());
-        stats.put("_stats.size_bytes", rowGroup.getTotalByteSize());
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowGroup.getRowCount());
+        stats.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, rowGroup.getTotalByteSize());
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
             String colName = col.getPath().toDotString();
             Statistics colStats = col.getStatistics();
             if (colStats == null || colStats.isEmpty()) {
                 continue;
             }
-            stats.put("_stats.columns." + colName + ".null_count", colStats.getNumNulls());
+            stats.put(SourceStatisticsSerializer.columnNullCountKey(colName), colStats.getNumNulls());
             if (colStats.hasNonNullValue()) {
-                stats.put("_stats.columns." + colName + ".min", colStats.genericGetMin());
-                stats.put("_stats.columns." + colName + ".max", colStats.genericGetMax());
+                stats.put(SourceStatisticsSerializer.columnMinKey(colName), colStats.genericGetMin());
+                stats.put(SourceStatisticsSerializer.columnMaxKey(colName), colStats.genericGetMax());
             }
         }
         return Map.copyOf(stats);
@@ -409,8 +409,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             pendingStats.add(range.statistics());
 
             if (groupEnd - groupStart >= targetBytes) {
-                Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(pendingStats);
-                out.add(new SplitRange(groupStart, groupEnd - groupStart, merged != null ? merged : Map.of()));
+                out.add(new SplitRange(groupStart, groupEnd - groupStart, SourceStatisticsSerializer.mergeStatistics(pendingStats)));
                 groupStart = -1;
                 groupEnd = -1;
                 pendingStats.clear();
@@ -418,8 +417,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         if (groupStart >= 0) {
-            Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(pendingStats);
-            out.add(new SplitRange(groupStart, groupEnd - groupStart, merged != null ? merged : Map.of()));
+            out.add(new SplitRange(groupStart, groupEnd - groupStart, SourceStatisticsSerializer.mergeStatistics(pendingStats)));
         }
 
         return out;

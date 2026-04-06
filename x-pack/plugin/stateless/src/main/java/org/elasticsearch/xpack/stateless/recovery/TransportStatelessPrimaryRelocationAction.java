@@ -101,16 +101,32 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     public static final String PREWARM_RELOCATION_ACTION_NAME = TYPE.name() + "/prewarm";
     public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = TYPE.name() + "/primary_context_handoff";
 
-    public static final Setting<TimeValue> SLOW_RELOCATION_THRESHOLD_SETTING = Setting.timeSetting(
+    // DEPRECATED, do not use
+    public static final Setting<TimeValue> SERVERLESS_SLOW_RELOCATION_THRESHOLD_SETTING = Setting.timeSetting(
         "serverless.cluster.primary_relocation.slow_handoff_warning_threshold",
         TimeValue.timeValueSeconds(5),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+    public static final Setting<TimeValue> SLOW_RELOCATION_THRESHOLD_SETTING = Setting.timeSetting(
+        "stateless.cluster.primary_relocation.slow_handoff_warning_threshold",
+        SERVERLESS_SLOW_RELOCATION_THRESHOLD_SETTING,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<TimeValue> ID_LOOKUP_RECENCY_THRESHOLD_SETTING = Setting.timeSetting(
+    // DEPRECATED, do not use
+    public static final Setting<TimeValue> SERVERLESS_ID_LOOKUP_RECENCY_THRESHOLD_SETTING = Setting.timeSetting(
         "serverless.cluster.primary_relocation.id_lookup_recency_threshold",
         TimeValue.timeValueMinutes(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+    public static final Setting<TimeValue> ID_LOOKUP_RECENCY_THRESHOLD_SETTING = Setting.timeSetting(
+        "stateless.cluster.primary_relocation.id_lookup_recency_threshold",
+        SERVERLESS_ID_LOOKUP_RECENCY_THRESHOLD_SETTING,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

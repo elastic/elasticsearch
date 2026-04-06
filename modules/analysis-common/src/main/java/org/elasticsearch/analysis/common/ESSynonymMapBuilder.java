@@ -38,6 +38,10 @@ import java.util.Set;
  */
 class ESSynonymMapBuilder {
 
+    // Check the circuit breaker every 8192 rules during add() and every 1024 keys during build().
+    private static final int ADD_CHECK_INTERVAL = 0x1FFF;
+    private static final int BUILD_CHECK_INTERVAL = 0x3FF;
+
     private final HashMap<CharsRef, MapEntry> workingSet = new HashMap<>();
     private final BytesRefHash words = new BytesRefHash();
     private final BytesRefBuilder utf8Scratch = new BytesRefBuilder();
@@ -74,8 +78,7 @@ class ESSynonymMapBuilder {
             throw new IllegalArgumentException("output.length must be > 0 (got " + output.length + ")");
         }
 
-        // Check real memory circuit breaker every 8k
-        if ((ruleCount++ & 0x1FFF) == 0) {
+        if ((ruleCount++ & ADD_CHECK_INTERVAL) == 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
         }
 
@@ -125,10 +128,10 @@ class ESSynonymMapBuilder {
         final IntsRefBuilder scratchIntsRef = new IntsRefBuilder();
 
         for (int keyIdx = 0; keyIdx < sortedKeys.length; keyIdx++) {
-            // Check real memory circuit breaker every 1024 keys during FST compilation.
+            // Check real memory circuit breaker during FST compilation.
             // Catches memory growth from FST construction for synonym sets that passed
             // through add() without tripping the breaker.
-            if ((keyIdx & 0x3FF) == 0) {
+            if ((keyIdx & BUILD_CHECK_INTERVAL) == 0) {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
             }
 
@@ -159,6 +162,8 @@ class ESSynonymMapBuilder {
             final int pos2 = scratchOutput.getPosition();
             final int vIntLen = pos2 - pos;
 
+            // spare is sized for a 32-bit VInt; resize if Lucene widens this encoding.
+            assert vIntLen <= spare.length : "count VInt encoding exceeded spare buffer: " + vIntLen + " > " + spare.length;
             System.arraycopy(scratch.bytes(), pos, spare, 0, vIntLen);
             System.arraycopy(scratch.bytes(), 0, scratch.bytes(), vIntLen, pos);
             System.arraycopy(spare, 0, scratch.bytes(), 0, vIntLen);

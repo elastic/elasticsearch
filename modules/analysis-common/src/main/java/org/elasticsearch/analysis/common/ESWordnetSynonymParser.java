@@ -41,6 +41,8 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
         // else would happen only in the case when the input or output is empty and lenient is set, in which case we
         // quietly ignore it. For more details on the control-flow see SolrSynonymParser::addInternal.
         if (lenient == false || (input.length > 0 && output.length > 0)) {
+            // Does not call super.add(): state is owned by esBuilder; build() is also overridden.
+            // Revisit if Lucene ever uses SynonymMap.Builder state outside of build().
             esBuilder.add(input, output, includeOrig);
         }
     }

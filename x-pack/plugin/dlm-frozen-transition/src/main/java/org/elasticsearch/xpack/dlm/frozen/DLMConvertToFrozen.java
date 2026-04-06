@@ -607,13 +607,11 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         try {
             AcknowledgedResponse resp = client.projectClient(projectId).execute(TransportDeleteSnapshotAction.TYPE, deleteRequest).get();
             if (resp.isAcknowledged() == false) {
-                throw new ElasticsearchException(
-                    Strings.format("Failed to acknowledge delete of snapshot [%s] for index [%s]", snapshotName, indexName)
-                );
+                throw new ElasticsearchException("Failed to acknowledge delete of snapshot [{}] for index [{}]", snapshotName, indexName);
             }
             logger.info("DLM successfully deleted stale snapshot [{}] for index [{}]", snapshotName, indexName);
         } catch (Exception e) {
-            Throwable cause = unwrapExecutionException(e);
+            Exception cause = unwrapExecutionException(e);
             if (cause instanceof SnapshotMissingException) {
                 logger.debug("DLM snapshot [{}] for index [{}] already missing, proceeding to create", snapshotName, indexName);
             } else {
@@ -621,7 +619,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                     Thread.currentThread().interrupt();
                 }
                 throw ExceptionsHelper.convertToElastic(
-                    (Exception) cause,
+                    cause,
                     "DLM failed to delete stale snapshot [{}] for index [{}]",
                     snapshotName,
                     indexName
@@ -643,14 +641,14 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             List<SnapshotInfo> snapshots = response.getSnapshots();
             return snapshots.isEmpty() ? null : snapshots.getFirst();
         } catch (Exception e) {
-            Throwable cause = unwrapExecutionException(e);
+            Exception cause = unwrapExecutionException(e);
             if (cause instanceof SnapshotMissingException) {
                 return null;
             }
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw ExceptionsHelper.convertToElastic((Exception) cause, "DLM failed while checking snapshots for index [{}]", indexName);
+            throw ExceptionsHelper.convertToElastic(cause, "DLM failed while checking snapshots for index [{}]", indexName);
         }
     }
 
@@ -658,8 +656,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * Unwraps an {@link ExecutionException} to its cause, since {@code Future.get()} wraps
      * failures. Returns the original exception if it is not an {@code ExecutionException}.
      */
-    private static Throwable unwrapExecutionException(Exception e) {
-        return e instanceof ExecutionException && e.getCause() != null ? ExceptionsHelper.unwrapCause(e.getCause()) : e;
+    private static Exception unwrapExecutionException(Exception e) {
+        return e instanceof ExecutionException && e.getCause() != null ? (Exception) ExceptionsHelper.unwrapCause(e.getCause()) : e;
     }
 
     /**
@@ -684,16 +682,11 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 indexName
             );
         } catch (Exception e) {
-            final Throwable unwrapped = unwrapExecutionException(e);
+            final Exception unwrapped = unwrapExecutionException(e);
             if (unwrapped instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw ExceptionsHelper.convertToElastic(
-                (Exception) unwrapped,
-                "DLM failed to start snapshot [{}] for index [{}]",
-                snapshotName,
-                indexName
-            );
+            throw ExceptionsHelper.convertToElastic(unwrapped, "DLM failed to start snapshot [{}] for index [{}]", snapshotName, indexName);
         }
     }
 

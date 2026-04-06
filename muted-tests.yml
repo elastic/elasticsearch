@@ -277,8 +277,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/145377
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionToFieldLoadGoldenTests
-  issue: https://github.com/elastic/elasticsearch/issues/145381
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:spatial.twoCitiesPointDistanceGeo}
   issue: https://github.com/elastic/elasticsearch/issues/145406
@@ -377,9 +375,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
   method: testLicenseCheck
   issue: https://github.com/elastic/elasticsearch/issues/145600
-- class: org.elasticsearch.indices.IndexingMemoryControllerIT
-  method: testDeletesAloneCanTriggerRefresh
-  issue: https://github.com/elastic/elasticsearch/issues/145609
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
   method: testTopNByKeyEncoderTooMuchMemory
   issue: https://github.com/elastic/elasticsearch/issues/145627
@@ -401,6 +396,20 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
   method: testApplicationDefaultCredentialsFallbackToComputeEngine
   issue: https://github.com/elastic/elasticsearch/issues/145689
+- class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcPreparedStatementIT
+  issue: https://github.com/elastic/elasticsearch/issues/145448
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidBigDecimalFromBooleanWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145702
+- class: org.elasticsearch.xpack.esql.action.MetricsAndTSInfoIT
+  method: testTsInfo
+  issue: https://github.com/elastic/elasticsearch/issues/145720
+- class: org.elasticsearch.xpack.esql.action.MetricsAndTSInfoIT
+  method: testMetricsInfo
+  issue: https://github.com/elastic/elasticsearch/issues/145719
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidIntegerWithCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145735
 
 # Examples:
 #

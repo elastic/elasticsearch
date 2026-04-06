@@ -1,0 +1,7 @@
+area: Distributed
+issues:
+ - 123773
+pr: 145209
+summary: Do not attempt marking store as corrupted if the check is rejected due to
+  shutdown
+type: bug

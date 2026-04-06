@@ -11,6 +11,8 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -21,24 +23,33 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -50,9 +61,13 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.BytesTransportRequest;
+import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -66,6 +81,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
 /**
  * An encapsulation of {@link SearchService} operations exposed through
@@ -109,6 +127,7 @@ public class SearchTransportService {
         Transport.Connection,
         ActionListener<? super SearchPhaseResult>,
         ActionListener<? super SearchPhaseResult>> responseWrapper;
+    private SearchService searchService;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     public SearchTransportService(
@@ -122,6 +141,10 @@ public class SearchTransportService {
         this.transportService = transportService;
         this.client = client;
         this.responseWrapper = responseWrapper;
+    }
+
+    public void setSearchService(SearchService searchService) {
+        this.searchService = searchService;
     }
 
     public TransportService transportService() {
@@ -188,6 +211,12 @@ public class SearchTransportService {
         SearchTask task,
         final ActionListener<SearchPhaseResult> listener
     ) {
+
+        // Set coordinator node so data node can detect chunked fetch scenarios
+        if (request.getCoordinatingNode() == null) {
+            request.setCoordinatingNode(transportService.getLocalNode());
+        }
+
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1
@@ -204,18 +233,28 @@ public class SearchTransportService {
         );
     }
 
+    ActionListener<? super SearchPhaseResult> newStatsCollector(Transport.Connection connection) {
+        if (responseWrapper == null) {
+            return null;
+        }
+        return responseWrapper.apply(connection, ActionListener.noop());
+    }
+
     public void sendExecuteQuery(
         Transport.Connection connection,
         final QuerySearchRequest request,
         SearchTask task,
-        final ActionListener<QuerySearchResult> listener
+        final ActionListener<SearchPhaseResult> listener
     ) {
+        final ActionListener<? super SearchPhaseResult> handler = responseWrapper != null
+            ? responseWrapper.apply(connection, listener)
+            : listener;
         transportService.sendChildRequest(
             connection,
             QUERY_ID_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, QuerySearchResult::new, connection)
+            new ConnectionCountingHandler<>(handler, QuerySearchResult::new, connection)
         );
     }
 
@@ -264,13 +303,88 @@ public class SearchTransportService {
         );
     }
 
+    /**
+     * Sends a fetch request to retrieve documents from a data node.
+     *
+     * <p>This method decides between two fetch strategies:
+     * <ul>
+     *   <li><b>Chunked fetch</b>: Results are streamed back in chunks.</li>
+     *   <li><b>Traditional fetch</b>: All results returned in a single response.</li>
+     * </ul>
+     *
+     * <p>For chunked fetch, the request is routed through {@link TransportFetchPhaseCoordinationAction}
+     * on the local (coordinator) node, which registers a response stream before forwarding to the data node.
+     * The data node then streams chunks back via {@link TransportFetchPhaseResponseChunkAction}.
+     *
+     * @param connection      the transport connection to the data node
+     * @param shardFetchRequest the fetch request containing doc IDs to retrieve
+     * @param context         the search context for this async action
+     * @param shardTarget     identifies the shard being fetched from
+     * @param listener        callback for the fetch result
+     */
     public void sendExecuteFetch(
         Transport.Connection connection,
-        final ShardFetchSearchRequest request,
-        SearchTask task,
-        final ActionListener<FetchSearchResult> listener
+        ShardFetchSearchRequest shardFetchRequest,
+        AbstractSearchAsyncAction<?> context,
+        SearchShardTarget shardTarget,
+        ActionListener<FetchSearchResult> listener
     ) {
-        sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
+        SearchTask task = context.getTask();
+
+        final TransportVersion dataNodeVersion = connection.getTransportVersion();
+        boolean dataNodeSupports = dataNodeVersion.supports(CHUNKED_FETCH_PHASE);
+        boolean isCCSQuery = shardTarget.getClusterAlias() != null;
+        boolean isScrollOrReindex = context.getRequest().scroll() != null
+            || (shardFetchRequest.getShardSearchRequest() != null && shardFetchRequest.getShardSearchRequest().scroll() != null);
+
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "FetchSearchPhase decision for shard {}: chunkEnabled={}, "
+                    + "dataNodeSupports={}, dataNodeVersionId={}, CHUNKED_FETCH_PHASE_id={}, "
+                    + "targetNode={}, isCCSQuery={}, isScrollOrReindex={}",
+                shardTarget.getShardId(),
+                searchService.fetchPhaseChunked(),
+                dataNodeSupports,
+                dataNodeVersion.id(),
+                CHUNKED_FETCH_PHASE.id(),
+                connection.getNode(),
+                isCCSQuery,
+                isScrollOrReindex
+            );
+        }
+
+        // Determine if chunked fetch can be used for this request, checking
+        // 1. Feature flag enabled
+        // 2. Data node supports CHUNKED_FETCH_PHASE transport version
+        // 3. Not a cross-cluster search (CCS)
+        // 4. Not a scroll or reindex operation
+        if (searchService.fetchPhaseChunked() && dataNodeSupports && isCCSQuery == false && isScrollOrReindex == false) {
+            // Route through local TransportFetchPhaseCoordinationAction
+            shardFetchRequest.setCoordinatingNode(context.getSearchTransport().transportService().getLocalNode());
+            shardFetchRequest.setCoordinatingTaskId(task.getId());
+
+            // Capture ThreadContext headers (security credentials etc.) to propagate
+            // through the local coordination action. ThreadContext is thread-local and would be
+            // lost when the coordination action executes on a different thread/executor.
+            // This is required for authentication/authorization where applied.
+            ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+            Map<String, String> headers = new HashMap<>(threadContext.getHeaders());
+
+            transportService.sendChildRequest(
+                transportService.getConnection(transportService.getLocalNode()),
+                TransportFetchPhaseCoordinationAction.TYPE.name(),
+                new TransportFetchPhaseCoordinationAction.Request(shardFetchRequest, connection.getNode(), headers),
+                task,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(
+                    listener.map(TransportFetchPhaseCoordinationAction.Response::getResult),
+                    TransportFetchPhaseCoordinationAction.Response::new,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                )
+            );
+        } else {
+            sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, shardFetchRequest, task, listener);
+        }
     }
 
     public void sendExecuteFetchScroll(
@@ -457,7 +571,7 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                channelListener(transportService, channel, searchService.getCircuitBreaker())
             )
         );
         TransportActionProxy.registerProxyActionWithDynamicResponseType(
@@ -513,7 +627,7 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeFetchPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                channelListener(transportService, channel, searchService.getCircuitBreaker())
             )
         );
         TransportActionProxy.registerProxyAction(
@@ -540,8 +654,113 @@ public class SearchTransportService {
             namedWriteableRegistry
         );
 
-        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
-            .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+        /**
+         * Handler for fetch requests on the data node side.
+         *
+         * <p>When chunked fetch is used, creates a {@link FetchPhaseResponseChunk.Writer} that
+         * sends chunks back to the coordinator via {@link TransportFetchPhaseResponseChunkAction}.
+         * The writer preserves the ThreadContext to maintain security headers across async chunk sends.
+         */
+        final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> {
+            boolean fetchPhaseChunkedEnabled = searchService.fetchPhaseChunked();
+            boolean hasCoordinator = request instanceof ShardFetchSearchRequest fetchSearchReq
+                && fetchSearchReq.getCoordinatingNode() != null;
+
+            TransportVersion channelVersion = channel.getVersion();
+            boolean versionSupported = channelVersion.supports(CHUNKED_FETCH_PHASE);
+
+            // Check if we can connect to the coordinator (CCS detection)
+            boolean canConnectToCoordinator = false;
+            boolean coordinatorSupportsChunkedFetch = false;
+            if (hasCoordinator) {
+                ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
+                DiscoveryNode coordinatorNode = fetchSearchReq.getCoordinatingNode();
+                canConnectToCoordinator = transportService.nodeConnected(coordinatorNode);
+
+                if (canConnectToCoordinator) {
+                    try {
+                        Transport.Connection coordConnection = transportService.getConnection(coordinatorNode);
+                        coordinatorSupportsChunkedFetch = coordConnection.getTransportVersion().supports(CHUNKED_FETCH_PHASE);
+                    } catch (Exception e) {
+                        coordinatorSupportsChunkedFetch = false;
+                    }
+                }
+            }
+
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "CHUNKED_FETCH decision: enabled={}, versionSupported={}, hasCoordinator={}, "
+                        + "canConnectToCoordinator={}, channelVersion={}",
+                    fetchPhaseChunkedEnabled,
+                    versionSupported,
+                    hasCoordinator,
+                    canConnectToCoordinator,
+                    channelVersion
+                );
+            }
+
+            FetchPhaseResponseChunk.Writer chunkWriter = null;
+
+            // Decides whether to use chunked or traditional fetch based on:
+            // 1. Feature flag enabled on this node (fetchPhaseChunkedEnabled)
+            // 2. Channel transport version supports chunked fetch (versionSupported)
+            // 3. Request includes coordinator node info (hasCoordinator) - set by coordinator when using chunked path
+            // 4. Can establish connection back to coordinator (canConnectToCoordinator) - fails for CCS scenarios
+            // 5. Coordinator's connection supports chunked fetch version (coordinatorSupportsChunkedFetch)
+            //
+            // Double-checking here (already checked on coordinator side) ensures compatibility when
+            // coordinator and data node have different feature flag states or versions.
+            if (fetchPhaseChunkedEnabled && versionSupported && coordinatorSupportsChunkedFetch) {
+                ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
+
+                // Capture the current ThreadContext to preserve authentication headers
+                final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()
+                    .getThreadContext()
+                    .newRestorableContext(true);
+
+                // Create chunk writer that provides both sending and buffer allocation. Each chunk is sent to the coordinator's
+                // TransportFetchPhaseResponseChunkAction endpoint. The coordinator accumulates chunks in a FetchPhaseResponseStream and
+                // sends ACKs.
+                chunkWriter = new FetchPhaseResponseChunk.Writer() {
+                    @Override
+                    public void writeResponseChunk(FetchPhaseResponseChunk responseChunk, ActionListener<Void> listener) {
+                        ReleasableBytesReference bytesToSend = null;
+                        // Restore the ThreadContext before sending the chunk
+                        try (ThreadContext.StoredContext ignored = contextSupplier.get()) {
+                            Transport.Connection connection = transportService.getConnection(fetchSearchReq.getCoordinatingNode());
+                            bytesToSend = responseChunk.toReleasableBytesReference(fetchSearchReq.getCoordinatingTaskId());
+                            BytesTransportRequest request = new BytesTransportRequest(bytesToSend, connection.getTransportVersion());
+
+                            final ReleasableBytesReference bytesRef = bytesToSend;
+                            bytesToSend = null;
+
+                            transportService.sendChildRequest(
+                                connection,
+                                TransportFetchPhaseResponseChunkAction.ZERO_COPY_ACTION_NAME,
+                                request,
+                                task,
+                                TransportRequestOptions.EMPTY,
+                                new ActionListenerResponseHandler<>(
+                                    ActionListener.releaseBefore(bytesRef, listener.map(r -> null)),
+                                    in -> ActionResponse.Empty.INSTANCE,
+                                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                                )
+                            );
+                        } catch (Exception e) {
+                            Releasables.closeWhileHandlingException(bytesToSend);
+                            listener.onFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                        return transportService.newNetworkBytesStream(searchService.getCircuitBreaker());
+                    }
+                };
+            }
+            searchService.executeFetchPhase(request, (SearchShardTask) task, chunkWriter, new ChannelActionListener<>(channel));
+        };
+
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -669,6 +888,75 @@ public class SearchTransportService {
             // Always return true, there is additional asserting here, the boolean is just so this
             // can be skipped when assertions are not enabled
             return true;
+        }
+    }
+
+    /**
+     * Returns a listener that serializes responses to bytes on the network path.
+     *
+     * <p>On the <b>network path</b>, the response is serialized into bytes using a
+     * circuit-breaker-aware stream and sent as a {@link BytesTransportResponse}.
+     *
+     * <p>On the <b>direct (same-node) path</b> the response is forwarded as-is.
+     *
+     * <p>Circuit-breaker accounting for response objects is handled by the caller.
+     */
+    static <T extends TransportResponse> ActionListener<T> channelListener(
+        TransportService transportService,
+        TransportChannel channel,
+        @Nullable CircuitBreaker circuitBreaker
+    ) {
+        if (isDirectResponseChannel(channel)) {
+            return new ChannelActionListener<>(channel);
+        }
+        return new NetworkPathListener<>(transportService, channel, circuitBreaker);
+    }
+
+    private static boolean isDirectResponseChannel(TransportChannel channel) {
+        if (channel instanceof TaskTransportChannel ttc) {
+            channel = ttc.getChannel();
+        }
+        return TransportService.isDirectResponseChannel(channel);
+    }
+
+    /**
+     * Serializes the response into a {@link BytesTransportResponse} while keeping the breaker-accounted
+     * bytes alive for the response lifecycle. Captures the transport version from the channel at
+     * construction time and reuses it for serialization and the response metadata.
+     */
+    private static class NetworkPathListener<T extends TransportResponse> implements ActionListener<T> {
+        private final TransportService transportService;
+        private final TransportVersion transportVersion;
+        private final ChannelActionListener<BytesTransportResponse> channelListener;
+        @Nullable
+        private final CircuitBreaker circuitBreaker;
+
+        NetworkPathListener(TransportService transportService, TransportChannel channel, @Nullable CircuitBreaker circuitBreaker) {
+            this.transportService = transportService;
+            this.transportVersion = channel.getVersion();
+            this.channelListener = new ChannelActionListener<>(channel);
+            this.circuitBreaker = circuitBreaker;
+        }
+
+        @Override
+        public void onResponse(T response) {
+            // The bytes reference keeps breaker-accounted bytes; the stream output closes after serialization.
+            final ReleasableBytesReference bytesRef;
+            try (var out = transportService.newNetworkBytesStream(circuitBreaker)) {
+                out.setTransportVersion(transportVersion);
+                response.writeTo(out);
+                bytesRef = out.moveToBytesReference();
+            } catch (Exception e) {
+                // Propagate to caller so wrapFailureListener in SearchService can free the reader context.
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
+            // respondAndRelease releases the bytes once the transport layer completes.
+            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(bytesRef, transportVersion));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            channelListener.onFailure(e);
         }
     }
 

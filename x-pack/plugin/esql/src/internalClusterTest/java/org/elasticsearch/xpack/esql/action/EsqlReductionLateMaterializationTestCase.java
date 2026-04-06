@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -55,6 +56,7 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
 
     @BeforeClass
     public static void checkCapabilities() {
+        assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
         assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
     }
 

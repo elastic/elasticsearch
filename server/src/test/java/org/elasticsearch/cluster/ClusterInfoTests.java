@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -21,7 +22,22 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
+
+    public void testShardHeapUsageIsDefaultedForMissingShards() {
+        ShardAndIndexHeapUsage defaultHeapUsage = new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong());
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .estimatedShardHeapUsages(Map.of())
+            .defaultShardHeapUsageForShardsWithoutMetrics(defaultHeapUsage)
+            .build();
+
+        assertThat(
+            clusterInfo.getEstimatedShardHeapUsage(new ShardId(new Index(randomIndexName(), "_na_"), randomNonNegativeInt())),
+            equalTo(defaultHeapUsage)
+        );
+    }
 
     @Override
     protected Writeable.Reader<ClusterInfo> instanceReader() {
@@ -48,6 +64,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomReservedSpace(),
             randomNodeHeapUsage(),
             randomShardHeapUsages(),
+            new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()),
             randomNodeUsageStatsForThreadPools(),
             randomShardWriteLoad(),
             randomMaxHeapSizes(),

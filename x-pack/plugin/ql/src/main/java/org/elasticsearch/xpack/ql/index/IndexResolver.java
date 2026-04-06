@@ -6,10 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
@@ -26,7 +24,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -349,34 +346,16 @@ public class IndexResolver {
         Map<String, Object> runtimeMappings,
         boolean crossProjectEnabled,
         String projectRouting,
-        ResolvedIndexExpressions resolvedIndexExpressions,
         ActionListener<IndexResolution> listener
     ) {
-        IndicesOptions iOpts;
-        if (crossProjectEnabled) {
-            iOpts = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
-        } else {
-            iOpts = indicesOptions;
-        }
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, iOpts, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, indicesOptions, runtimeMappings);
         if (crossProjectEnabled) {
             fieldRequest.includeResolvedTo(true);
+            if (projectRouting != null) {
+                fieldRequest.projectRouting(projectRouting);
+            }
         }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((l, response) -> {
-            if (crossProjectEnabled) {
-                Map<String, ResolvedIndexExpressions> resolvedRemotely = response.getResolvedRemotely();
-                ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
-                    iOpts,
-                    projectRouting,
-                    resolvedIndexExpressions,
-                    resolvedRemotely,
-                    Map.of()
-                );
-                if (ex != null) {
-                    l.onFailure(ex);
-                    return;
-                }
-            }
             l.onResponse(mergedMappings(typeRegistry, indexWildcard, response));
         }));
     }

@@ -112,7 +112,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                             final int nbDocs = randomIntBetween(10, 100);
                             for (int i = 0; i < nbDocs; i++) {
-                                if (i > 0 && randomBoolean()) {
+                                if (i > 0 && (randomBoolean() || i == nbDocs / 2)) {
                                     writer.flush();
                                 }
                                 Document doc = new Document();
@@ -792,7 +792,7 @@ public class PruningMergePolicyTests extends ESTestCase {
         var tsid = new TsidBuilder().addStringDimension("hostname", hostname)
             .addStringDimension("metric.field", metricField)
             .addLongDimension("metric.value", metricValue)
-            .buildTsid();
+            .buildTsid(IndexVersion.current());
         var routingHashBytes = Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash));
         doc.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, tsid));
         doc.add(SortedNumericDocValuesField.indexedField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));

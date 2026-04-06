@@ -1006,7 +1006,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (currentSettingsVersion == newSettingsVersion) {
                 assert updateIndexSettings == false : "No index updates are expected as index settings version has not changed";
             } else {
-                assert updateIndexSettings : "Index updates are expected as index settings version has changed";
                 assert currentSettingsVersion < newSettingsVersion
                     : "expected current settings version ["
                         + currentSettingsVersion

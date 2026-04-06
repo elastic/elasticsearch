@@ -35,7 +35,7 @@ import java.util.Objects;
  * multiplied by the supplied "boost" parameter, so this should be less than 1 to achieve a
  * demoting effect
  */
-public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
+public class BoostingQueryBuilder extends LeafQueryBuilder<BoostingQueryBuilder> {
     public static final String NAME = "boosting";
 
     private static final ParseField POSITIVE_FIELD = new ParseField("positive");

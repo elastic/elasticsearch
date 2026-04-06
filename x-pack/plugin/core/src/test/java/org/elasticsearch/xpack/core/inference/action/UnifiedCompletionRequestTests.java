@@ -213,7 +213,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                     )
                 ),
                 0.2F,
-                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, null, Reasoning.ReasoningSummary.DETAILED, false, false)
+                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, Reasoning.ReasoningSummary.DETAILED, false, false)
             );
 
             assertThat(request, is(expected));

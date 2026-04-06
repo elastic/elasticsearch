@@ -1017,8 +1017,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     createIndexClusterStateUpdateRequest,
                     true,
                     // Copy index metadata from source index to downsample index
-                    RerouteBehavior.PERFORM_REROUTE,
                     (builder, indexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, indexMetadata, indexScopedSettings)),
+                    RerouteBehavior.PERFORM_REROUTE,
                     delegate.reroute()
                 );
             }

@@ -325,7 +325,7 @@ book_no:keyword
 ;
 
 
-testMatchPhraseWithOptionsSlop
+testMatchPhraseWithOptionsSlopStandardAnalyzerAndZeroTermsQuery
 required_capability: match_phrase_function
 from books 
 | where match_phrase(title, "Lord of Rings", {"slop": 3, "analyzer": "standard", "zero_terms_query": "none"})  

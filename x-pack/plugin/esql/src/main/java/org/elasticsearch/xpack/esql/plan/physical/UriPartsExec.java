@@ -21,7 +21,7 @@ import java.util.List;
 /**
  * Physical plan for the URI_PARTS command.
  */
-public class UriPartsExec extends CompoundOutputEvalExec {
+public class UriPartsExec extends CompoundOutputEvalExec implements CompoundOutputEvaluator.OutputFieldsCollectorProvider {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,

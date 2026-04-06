@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -24,12 +25,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
+import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.randomPitWorkerResumeInfo;
 import static org.elasticsearch.index.reindex.resumeinfo.ScrollWorkerResumeInfoWireSerializingTests.randomScrollWorkerResumeInfo;
 import static org.elasticsearch.index.reindex.resumeinfo.SliceStatusWireSerializingTests.randomSliceStatusWithId;
 import static org.elasticsearch.index.reindex.resumeinfo.SliceStatusWireSerializingTests.sliceStatusContentEquals;
 import static org.elasticsearch.index.reindex.resumeinfo.SliceStatusWireSerializingTests.sliceStatusContentHashCode;
+import static org.elasticsearch.index.reindex.resumeinfo.SliceStatusWireSerializingTests.workerResumeInfoContentEquals;
+import static org.elasticsearch.index.reindex.resumeinfo.SliceStatusWireSerializingTests.workerResumeInfoContentHashCode;
 
 /**
  * Wire serialization tests for {@link ResumeInfo}.
@@ -52,6 +55,13 @@ public class ResumeInfoWireSerializingTests extends AbstractWireSerializingTestC
                 ResumeInfo.ScrollWorkerResumeInfo::new
             )
         );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                ResumeInfo.WorkerResumeInfo.class,
+                ResumeInfo.PitWorkerResumeInfo.NAME,
+                ResumeInfo.PitWorkerResumeInfo::new
+            )
+        );
         return new NamedWriteableRegistry(entries);
     }
 
@@ -67,7 +77,8 @@ public class ResumeInfoWireSerializingTests extends AbstractWireSerializingTestC
             randomNonNegativeLong()
         );
         if (randomBoolean()) {
-            return new Wrapper(new ResumeInfo(origin, randomScrollWorkerResumeInfo(), null));
+            WorkerResumeInfo worker = randomBoolean() ? randomScrollWorkerResumeInfo() : randomPitWorkerResumeInfo();
+            return new Wrapper(new ResumeInfo(origin, worker, null));
         } else {
             return new Wrapper(new ResumeInfo(origin, null, randomSlicesMap()));
         }
@@ -126,7 +137,7 @@ public class ResumeInfoWireSerializingTests extends AbstractWireSerializingTestC
         }
 
         private static boolean resumeInfoContentEquals(ResumeInfo a, ResumeInfo b) {
-            if (Objects.equals(a.worker(), b.worker()) == false) return false;
+            if (workerResumeInfoContentEquals(a.worker(), b.worker()) == false) return false;
             if (a.slices() == null && b.slices() == null) return true;
             if (a.slices() == null || b.slices() == null) return false;
             if (a.slices().keySet().equals(b.slices().keySet()) == false) return false;
@@ -137,7 +148,7 @@ public class ResumeInfoWireSerializingTests extends AbstractWireSerializingTestC
         }
 
         private static int resumeInfoContentHashCode(ResumeInfo info) {
-            int result = Objects.hashCode(info.worker());
+            int result = workerResumeInfoContentHashCode(info.worker());
             if (info.slices() != null) {
                 for (Map.Entry<Integer, ResumeInfo.SliceStatus> entry : info.slices().entrySet()) {
                     result = 31 * result + entry.getKey().hashCode();

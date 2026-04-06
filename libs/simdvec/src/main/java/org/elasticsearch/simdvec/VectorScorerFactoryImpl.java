@@ -12,22 +12,37 @@ package org.elasticsearch.simdvec;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.internal.BFloat16VectorScorer;
+import org.elasticsearch.simdvec.internal.BFloat16VectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.ByteVectorScorer;
+import org.elasticsearch.simdvec.internal.ByteVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.FloatVectorScorer;
+import org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.Int4VectorScorer;
+import org.elasticsearch.simdvec.internal.Int4VectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
+import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorer;
+import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorerSupplier;
 
 import java.util.Optional;
 
 final class VectorScorerFactoryImpl implements VectorScorerFactory {
 
-    /*
-     * This class is never actually used, it only exists here to be referenced at compile time.
-     * The actual implementation is loaded from main21 or main22, depending on JVM version,
-     * by the multi-release jar set up by the MrjarPlugin during build time.
-     */
+    static final VectorScorerFactoryImpl INSTANCE;
 
-    static final VectorScorerFactoryImpl INSTANCE = null;
+    private VectorScorerFactoryImpl() {}
+
+    static {
+        INSTANCE = NativeAccess.instance().getVectorSimilarityFunctions().map(ignore -> new VectorScorerFactoryImpl()).orElse(null);
+    }
 
     @Override
     public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
@@ -35,7 +50,36 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         FloatVectorValues values
     ) {
-        throw new UnsupportedOperationException("should not reach here");
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        if (input instanceof MemorySegmentAccessInput msInput) {
+            checkInvariants(values.size(), values.dimension(), input);
+            return switch (similarityType) {
+                case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(msInput, values));
+                case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(msInput, values));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
+            };
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getBFloat16VectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        FloatVectorValues values
+    ) {
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        if (input instanceof MemorySegmentAccessInput msInput) {
+            checkInvariants(values.size(), values.getVectorByteLength(), input);
+            return switch (similarityType) {
+                case COSINE, DOT_PRODUCT -> Optional.of(new BFloat16VectorScorerSupplier.DotProductSupplier(msInput, values));
+                case EUCLIDEAN -> Optional.of(new BFloat16VectorScorerSupplier.EuclideanSupplier(msInput, values));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new BFloat16VectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
+            };
+        }
+        return Optional.empty();
     }
 
     @Override
@@ -44,17 +88,37 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         ByteVectorValues values
     ) {
-        throw new UnsupportedOperationException("should not reach here");
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        if (input instanceof MemorySegmentAccessInput msInput) {
+            checkInvariants(values.size(), values.dimension(), input);
+            return switch (similarityType) {
+                case COSINE -> Optional.of(new ByteVectorScorerSupplier.CosineSupplier(msInput, values));
+                case DOT_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.DotProductSupplier(msInput, values));
+                case EUCLIDEAN -> Optional.of(new ByteVectorScorerSupplier.EuclideanSupplier(msInput, values));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
+            };
+        }
+        return Optional.empty();
     }
 
     @Override
     public Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
-        throw new UnsupportedOperationException("should not reach here");
+        return FloatVectorScorer.create(sim, values, queryVector);
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getBFloat16VectorScorer(
+        VectorSimilarityFunction sim,
+        FloatVectorValues values,
+        float[] queryVector
+    ) {
+        return BFloat16VectorScorer.create(sim, values, queryVector);
     }
 
     @Override
     public Optional<RandomVectorScorer> getByteVectorScorer(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
-        throw new UnsupportedOperationException("should not reach here");
+        return ByteVectorScorer.create(sim, values, queryVector);
     }
 
     @Override
@@ -64,7 +128,21 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         QuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
-        throw new UnsupportedOperationException("should not reach here");
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        if (input instanceof MemorySegmentAccessInput msInput) {
+            checkInvariants(values.size(), values.dimension(), input);
+            return switch (similarityType) {
+                case COSINE, DOT_PRODUCT -> Optional.of(
+                    new Int7SQVectorScorerSupplier.DotProductSupplier(msInput, values, scoreCorrectionConstant)
+                );
+                case EUCLIDEAN -> Optional.of(new Int7SQVectorScorerSupplier.EuclideanSupplier(msInput, values, scoreCorrectionConstant));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(
+                    new Int7SQVectorScorerSupplier.MaxInnerProductSupplier(msInput, values, scoreCorrectionConstant)
+                );
+            };
+        }
+        return Optional.empty();
     }
 
     @Override
@@ -73,7 +151,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         QuantizedByteVectorValues values,
         float[] queryVector
     ) {
-        throw new UnsupportedOperationException("should not reach here");
+        return Int7SQVectorScorer.create(sim, values, queryVector);
     }
 
     @Override
@@ -82,7 +160,17 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
     ) {
-        throw new UnsupportedOperationException("should not reach here");
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        if (input instanceof MemorySegmentAccessInput msInput) {
+            checkInvariants(values.size(), values.dimension(), input);
+            return switch (similarityType) {
+                case COSINE, DOT_PRODUCT -> Optional.of(new Int7uOSQVectorScorerSupplier.DotProductSupplier(msInput, values));
+                case EUCLIDEAN -> Optional.of(new Int7uOSQVectorScorerSupplier.EuclideanSupplier(msInput, values));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new Int7uOSQVectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
+            };
+        }
+        return Optional.empty();
     }
 
     @Override
@@ -95,7 +183,15 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         float additionalCorrection,
         int quantizedComponentSum
     ) {
-        throw new UnsupportedOperationException("should not reach here");
+        return Int7uOSQVectorScorer.create(
+            sim,
+            values,
+            quantizedQuery,
+            lowerInterval,
+            upperInterval,
+            additionalCorrection,
+            quantizedComponentSum
+        );
     }
 
     @Override
@@ -104,7 +200,10 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
     ) {
-        throw new UnsupportedOperationException("should not reach here");
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        checkInvariants(values.size(), values.dimension() / 2, input);
+        return Optional.of(new Int4VectorScorerSupplier(input, values, similarityType));
     }
 
     @Override
@@ -117,6 +216,20 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         float additionalCorrection,
         int quantizedComponentSum
     ) {
-        throw new UnsupportedOperationException("should not reach here");
+        return Int4VectorScorer.create(
+            sim,
+            values,
+            unpackedQuery,
+            lowerInterval,
+            upperInterval,
+            additionalCorrection,
+            quantizedComponentSum
+        );
+    }
+
+    static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
+        if (input.length() < (long) vectorByteLength * maxOrd) {
+            throw new IllegalArgumentException("input length is less than expected vector data");
+        }
     }
 }

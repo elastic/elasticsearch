@@ -1012,7 +1012,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testBackToBackQueuedDeletes() throws Exception {
-        final String masterName = internalCluster().startMasterOnlyNode();
+        final String masterName = internalCluster().startMasterOnlyNode(
+            Settings.builder()
+                // we block a snapshot thread, and SnapshotDeletionStartBatcher requires one, so we must have >=2 of them
+                .put("thread_pool.snapshot.max", 2)
+                .build()
+        );
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "mock");

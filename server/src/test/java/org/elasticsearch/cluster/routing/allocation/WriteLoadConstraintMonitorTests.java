@@ -327,6 +327,24 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         assertMetricsCollected(recordingMeterRegistry, List.of(), Map.of(), flagCounts);
     }
 
+    public void testCollectBeforeClusterStateHasFinishedInitializing() {
+
+        TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 0);
+
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
+            new WriteLoadConstraintSettings(testState.clusterSettings),
+            testState.currentTimeSupplier,
+            () -> null, // clusterStateSupplier returns null before the state is fully initialized in the ClusterService
+            testState.mockRerouteService,
+            recordingMeterRegistry
+        );
+
+        recordingMeterRegistry.getRecorder().collect();
+        // Collect returns empty values, but does not error out
+        assertMetricsCollected(recordingMeterRegistry, List.of(), Map.of(), Map.of());
+    }
+
     public void testZeroHotspotCount() {
         // test a zero count is issued when there has been an onNewInfo call
         TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 0);

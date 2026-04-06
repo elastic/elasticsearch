@@ -33,6 +33,25 @@ public class FilterPushdownRegistry {
         return sourceType != null ? pushdownSupport.get(sourceType) : null;
     }
 
+    /**
+     * Look up pushdown support by source type with format-based fallback.
+     * <p>
+     * File-based sources all share source type "file" (from FileSourceFactory). To enable
+     * per-format pushdown (e.g., ORC, Parquet), this method first checks the source type
+     * and falls back to the format name if no direct match is found.
+     *
+     * @param sourceType the source type (e.g., "file", "iceberg", "flight")
+     * @param formatName the format name (e.g., "orc", "parquet"), may be null
+     * @return the pushdown support, or null if none registered
+     */
+    public FilterPushdownSupport get(String sourceType, String formatName) {
+        FilterPushdownSupport support = get(sourceType);
+        if (support == null && formatName != null) {
+            support = pushdownSupport.get(formatName);
+        }
+        return support;
+    }
+
     public boolean hasSupport(String sourceType) {
         return sourceType != null && pushdownSupport.containsKey(sourceType);
     }

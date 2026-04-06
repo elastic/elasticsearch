@@ -203,6 +203,34 @@ public class LocalClusterSpec implements ClusterSpec {
             return extraConfigFiles;
         }
 
+        /**
+         * Returns a copy of this spec with the given extra config files replacing the original ones.
+         */
+        public LocalNodeSpec copyWithExtraConfigFiles(Map<String, Resource> newExtraConfigFiles) {
+            return new LocalNodeSpec(
+                cluster,
+                name,
+                version,
+                settingsProviders,
+                settings,
+                environmentProviders,
+                environment,
+                modules,
+                plugins,
+                distributionType,
+                features,
+                keystoreProviders,
+                keystoreSettings,
+                keystoreFiles,
+                keystorePassword,
+                newExtraConfigFiles,
+                systemPropertyProviders,
+                systemProperties,
+                jvmArgs,
+                configDir
+            );
+        }
+
         public List<String> getJvmArgs() {
             return jvmArgs;
         }

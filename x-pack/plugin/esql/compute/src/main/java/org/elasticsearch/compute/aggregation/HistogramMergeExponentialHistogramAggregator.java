@@ -25,12 +25,12 @@ public class HistogramMergeExponentialHistogramAggregator {
     }
 
     public static void combine(ExponentialHistogramStates.SingleState state, ExponentialHistogram value) {
-        state.add(value, true);
+        state.add(value);
     }
 
     public static void combineIntermediate(ExponentialHistogramStates.SingleState state, ExponentialHistogram value, boolean seen) {
         if (seen) {
-            state.add(value, false);
+            state.add(value);
         }
     }
 
@@ -43,7 +43,7 @@ public class HistogramMergeExponentialHistogramAggregator {
     }
 
     public static void combine(ExponentialHistogramStates.GroupingState current, int groupId, ExponentialHistogram value) {
-        current.add(groupId, value, true);
+        current.add(groupId, value);
     }
 
     public static void combineIntermediate(
@@ -53,7 +53,7 @@ public class HistogramMergeExponentialHistogramAggregator {
         boolean seen
     ) {
         if (seen) {
-            state.add(groupId, value, false);
+            state.add(groupId, value);
         }
     }
 

@@ -9,20 +9,26 @@
 
 package org.elasticsearch.search.diversification;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.diversification.mmr.MMRResultDiversificationContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -36,7 +42,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -46,7 +52,9 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.search.diversification.ResultDiversification.getVectorComparisonScore;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.elasticsearch.search.vectors.VectorDataUtils.extractVectorDataFromObject;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -55,6 +63,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     public static final int DEFAULT_SIZE_VALUE = 10;
 
     public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE = new NodeFeature("retriever.result_diversification_mmr");
+    private static final VectorSimilarityFunction QUERY_VECTOR_SIMILARITY_FUNCTION = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
     public static final String NAME = "diversify";
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
@@ -155,7 +164,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         this.size = size == null ? Math.min(DEFAULT_SIZE_VALUE, rankWindowSize) : size;
     }
 
-    DiversifyRetrieverBuilder(
+    private DiversifyRetrieverBuilder(
         List<RetrieverSource> innerRetrievers,
         ResultDiversificationType diversificationType,
         String diversificationField,
@@ -259,6 +268,20 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 validationException
             );
         }
+
+        // don't handle string encoded query vectors yet
+        if (queryVector != null && queryVector.get() != null && queryVector.get().isStringVector()) {
+            validationException = addValidationError(
+                String.format(
+                    Locale.ROOT,
+                    "[%s] retriever cannot have a [%s] that is string encoded",
+                    getName(),
+                    QUERY_VECTOR_FIELD.getPreferredName()
+                ),
+                validationException
+            );
+        }
+
         return validationException;
     }
 
@@ -302,9 +325,22 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
-        SearchSourceBuilder builder = sourceBuilder.from(0);
-        builder.trackScores(true);
-        return super.finalizeSourceBuilder(builder).docValueField(diversificationField);
+        StoredFieldsContext sfCtx = StoredFieldsContext.fromList(List.of(InferenceMetadataFieldsMapper.NAME, diversificationField));
+        FetchSourceContext fsCtx = FetchSourceContext.of(
+            false,
+            false,
+            new String[] { InferenceMetadataFieldsMapper.NAME, diversificationField },
+            null
+        );
+
+        SearchSourceBuilder builder = sourceBuilder.from(0)
+            .excludeVectors(false)
+            .trackScores(true)
+            .storedFields(sfCtx)
+            .fetchSource(fsCtx)
+            .fetchField(InferenceMetadataFieldsMapper.NAME)
+            .fetchField(diversificationField);
+        return super.finalizeSourceBuilder(builder);
     }
 
     @Override
@@ -318,7 +354,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                     return new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
-                            "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?",
+                            "Failed to retrieve vectors for field [%s]. "
+                                + "Is it a [dense_vector] or [semantic_text] field with text embeddings?",
                             diversificationField
                         ),
                         ex
@@ -354,13 +391,13 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         for (int i = 0; i < scoreDocs.length; i++) {
             RankDocWithSearchHit asRankDoc = (RankDocWithSearchHit) scoreDocs[i];
             results[i] = asRankDoc;
-
-            var field = asRankDoc.hit().getFields().getOrDefault(diversificationField, null);
-            if (field != null) {
-                var fieldValue = field.getValue();
-                if (fieldValue != null) {
-                    extractFieldVectorData(asRankDoc.rank, fieldValue, fieldVectors);
+            try {
+                VectorData vector = getFieldVectorForSearchHit(asRankDoc, diversificationContext);
+                if (vector != null) {
+                    fieldVectors.put(asRankDoc.rank, vector);
                 }
+            } catch (IOException ioEx) {
+                throw new UncheckedIOException(ioEx);
             }
         }
 
@@ -368,7 +405,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             throw new ElasticsearchStatusException(
                 String.format(
                     Locale.ROOT,
-                    "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?",
+                    "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] or [semantic_text] field with text embeddings?",
                     diversificationField
                 ),
                 RestStatus.BAD_REQUEST
@@ -396,72 +433,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         // should not happen
         throw new IllegalArgumentException("Unknown diversification type [" + diversificationType + "]");
-    }
-
-    private void extractFieldVectorData(int docId, Object fieldValue, Map<Integer, VectorData> fieldVectors) {
-        switch (fieldValue) {
-            case float[] floatArray -> {
-                fieldVectors.put(docId, new VectorData(floatArray));
-                return;
-            }
-            case byte[] byteArray -> {
-                fieldVectors.put(docId, new VectorData(byteArray));
-                return;
-            }
-            case Float[] boxedFloatArray -> {
-                fieldVectors.put(docId, new VectorData(unboxedFloatArray(boxedFloatArray)));
-                return;
-            }
-            case Byte[] boxedByteArray -> {
-                fieldVectors.put(docId, new VectorData(unboxedByteArray(boxedByteArray)));
-                return;
-            }
-            default -> {
-            }
-        }
-
-        // CCS search returns a generic Object[] array, so we must
-        // examine the individual element type here.
-        if (fieldValue instanceof Object[] objectArray) {
-            if (objectArray.length == 0) {
-                return;
-            }
-
-            if (objectArray[0] instanceof Byte) {
-                Byte[] asByteArray = Arrays.stream(objectArray).map(x -> (Byte) x).toArray(Byte[]::new);
-                fieldVectors.put(docId, new VectorData(unboxedByteArray(asByteArray)));
-                return;
-            }
-
-            if (objectArray[0] instanceof Float) {
-                Float[] asFloatArray = Arrays.stream(objectArray).map(x -> (Float) x).toArray(Float[]::new);
-                fieldVectors.put(docId, new VectorData(unboxedFloatArray(asFloatArray)));
-                return;
-            }
-        }
-
-        throw new ElasticsearchStatusException(
-            String.format(Locale.ROOT, "Failed to retrieve vectors for field [%s]. Is it a [dense_vector] field?", diversificationField),
-            RestStatus.BAD_REQUEST
-        );
-    }
-
-    private static float[] unboxedFloatArray(Float[] array) {
-        float[] unboxedArray = new float[array.length];
-        int bIndex = 0;
-        for (Float b : array) {
-            unboxedArray[bIndex++] = b;
-        }
-        return unboxedArray;
-    }
-
-    private static byte[] unboxedByteArray(Byte[] array) {
-        byte[] unboxedArray = new byte[array.length];
-        int bIndex = 0;
-        for (Byte b : array) {
-            unboxedArray[bIndex++] = b;
-        }
-        return unboxedArray;
     }
 
     @Override
@@ -512,5 +483,74 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             && ((queryVector == null && other.queryVector == null)
                 || (queryVector != null && other.queryVector != null && Objects.equals(queryVector.get(), other.queryVector.get())))
             && Objects.equals(this.queryVectorBuilder, other.queryVectorBuilder);
+    }
+
+    private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, ResultDiversificationContext diversificationContext)
+        throws IllegalArgumentException, IOException {
+
+        // first try and see if it's an inference field
+        VectorData vector = tryGetVectorFromInferenceField(doc.hit, diversificationContext);
+        if (vector != null) {
+            return vector;
+        }
+
+        DocumentField field = doc.hit.getFields().get(diversificationField);
+        return field == null ? null : extractVectorDataFromObject(field.getValues());
+    }
+
+    private VectorData tryGetVectorFromInferenceField(SearchHit hit, ResultDiversificationContext diversificationContext)
+        throws IllegalArgumentException, IOException {
+        var inferenceFields = hit.getFields().getOrDefault(InferenceMetadataFieldsMapper.NAME, null);
+        if (inferenceFields == null) {
+            return null;
+        }
+
+        var fieldValues = inferenceFields.getValues();
+        if (fieldValues == null || fieldValues.isEmpty()) {
+            return null;
+        }
+
+        if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
+            var fieldValue = mappedValues.get(diversificationField);
+            if (fieldValue instanceof DenseVectorSupplier vectorSupplier) {
+                if (diversificationContext.getQueryVector() == null) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "[%s] or [%s] must be supplied when diversifying on a [%s] field.",
+                            QUERY_VECTOR_FIELD.getPreferredName(),
+                            QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
+                            vectorSupplier.getSupplierContentType()
+                        )
+                    );
+                }
+
+                List<VectorData> fieldVectors = vectorSupplier.getDenseVectorData();
+                if (fieldVectors == null || fieldVectors.isEmpty()) {
+                    return null;
+                }
+
+                int bestScoringVectorIndex = 0;
+                float currentHighestScore = Float.NEGATIVE_INFINITY;
+                for (int i = 0; i < fieldVectors.size(); i++) {
+                    VectorData vector = fieldVectors.get(i);
+                    if (vector == null) {
+                        continue;
+                    }
+                    float score = getVectorComparisonScore(
+                        QUERY_VECTOR_SIMILARITY_FUNCTION,
+                        vector,
+                        diversificationContext.getQueryVector()
+                    );
+                    if (score > currentHighestScore) {
+                        bestScoringVectorIndex = i;
+                        currentHighestScore = score;
+                    }
+                }
+
+                return fieldVectors.get(bestScoringVectorIndex);
+            }
+        }
+
+        return null;
     }
 }

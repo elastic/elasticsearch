@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -20,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 
 /**
  * FormatReader implementation for NDJSON files.
@@ -27,28 +31,78 @@ import java.util.List;
  */
 public class NdJsonFormatReader implements SegmentableFormatReader {
 
-    private final BlockFactory blockFactory;
-    private final List<Attribute> resolvedSchema;
+    public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
+    public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 20_000;
 
-    public NdJsonFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, null);
+    private final BlockFactory blockFactory;
+    private final Settings settings;
+    private final List<Attribute> resolvedSchema;
+    private final int schemaSampleSize;
+
+    public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings));
     }
 
-    private NdJsonFormatReader(BlockFactory blockFactory, List<Attribute> resolvedSchema) {
+    NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
+        this(settings, blockFactory, null);
+    }
+
+    private NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema, int schemaSampleSize) {
         this.blockFactory = blockFactory;
+        this.settings = settings == null ? Settings.EMPTY : settings;
         this.resolvedSchema = resolvedSchema;
+        this.schemaSampleSize = schemaSampleSize;
     }
 
     @Override
     public NdJsonFormatReader withSchema(List<Attribute> schema) {
-        return new NdJsonFormatReader(blockFactory, schema);
+        return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize);
+    }
+
+    @Override
+    public FormatReader withConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return this;
+        }
+        int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
+        Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
+        if (newSampleSize == schemaSampleSize) {
+            return this;
+        }
+        return new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize);
+    }
+
+    private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object) throws IOException {
+        if (attributes != null && attributes.isEmpty() == false) {
+            return attributes;
+        }
+
+        try (var stream = object.newStream()) {
+            return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
+        }
+    }
+
+    private static int schemaSampleSize(Settings settings) {
+        Settings resolved = settings == null ? Settings.EMPTY : settings;
+        return resolved.getAsInt(SCHEMA_SAMPLE_SIZE_SETTING, DEFAULT_SCHEMA_SAMPLE_SIZE);
+    }
+
+    private static int parseInt(Object value, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid integer value [" + value + "]", e);
+        }
     }
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema;
         try (var stream = object.newStream()) {
-            schema = NdJsonSchemaInferrer.inferSchema(stream);
+            schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
         }
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
     }
@@ -64,7 +118,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            resolvedSchema
+            inferSchemaIfNeeded(resolvedSchema, object)
         );
     }
 

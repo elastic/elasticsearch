@@ -94,7 +94,7 @@ public class MMROperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new MMROperator.Factory("vector_field", 0, testLimitValue, null, null);
+        return new MMROperator.Factory("vector_field", 0, testLimitValue, null, 0.5f);
     }
 
     @Override
@@ -107,8 +107,7 @@ public class MMROperatorTests extends OperatorTestCase {
             + testLimitValue
             + ", queryVector="
             + "null"
-            + ", lambda="
-            + "null"
+            + ", lambda=0.5"
             + "]";
         return equalTo(description);
     }

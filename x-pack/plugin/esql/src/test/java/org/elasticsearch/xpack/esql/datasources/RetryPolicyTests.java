@@ -14,7 +14,9 @@ import java.io.IOException;
 import java.net.ConnectException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class RetryPolicyTests extends ESTestCase {
 
@@ -32,6 +34,22 @@ public class RetryPolicyTests extends ESTestCase {
     public void testConnectExceptionIsRetryable() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
         assertTrue(policy.isRetryable(new ConnectException("Connection refused")));
+    }
+
+    public void testConnectExceptionWithDnsFailureIsNotRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        ConnectException ce = new ConnectException("Connection refused");
+        ce.initCause(new UnknownHostException("no-such-bucket.s3.amazonaws.com"));
+        assertFalse(policy.isRetryable(ce));
+    }
+
+    public void testConnectExceptionWithNestedDnsFailureIsNotRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        ConnectException ce = new ConnectException("Connection refused");
+        IOException wrapper = new IOException("resolve failed");
+        wrapper.initCause(new UnknownHostException("no-such-host.example.com"));
+        ce.initCause(wrapper);
+        assertFalse(policy.isRetryable(ce));
     }
 
     public void testConnectionResetIsRetryable() {
@@ -60,6 +78,19 @@ public class RetryPolicyTests extends ESTestCase {
         RetryPolicy policy = RetryPolicy.DEFAULT;
         assertTrue(policy.isRetryable(new IOException("SlowDown")));
         assertTrue(policy.isRetryable(new IOException("Reduce your request rate")));
+    }
+
+    public void testHttp500IsRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertTrue(policy.isRetryable(new IOException("Status code: 500")));
+        assertTrue(policy.isRetryable(new IOException("Internal Server Error")));
+        assertTrue(policy.isRetryable(new IOException("InternalError")));
+    }
+
+    public void testWrappedHttp500IsRetryable() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertTrue(policy.isRetryable(new RuntimeException("wrapper", new IOException("500 Internal Server Error"))));
+        assertTrue(policy.isRetryable(new IOException("outer", new IOException("InternalError"))));
     }
 
     public void testNonTransientErrorIsNotRetryable() {
@@ -146,6 +177,23 @@ public class RetryPolicyTests extends ESTestCase {
         assertEquals(3, calls.get());
     }
 
+    public void testExecuteDoesNotRetryDnsFailure() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        ConnectException ce = new ConnectException("Connection refused");
+        ce.initCause(new UnknownHostException("no-such-host.example.com"));
+
+        IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
+            calls.incrementAndGet();
+            throw ce;
+        }, "test", path));
+
+        assertEquals("Connection refused", ex.getMessage());
+        assertEquals(1, calls.get());
+    }
+
     public void testExecuteDoesNotRetryNonTransientError() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
         AtomicInteger calls = new AtomicInteger();
@@ -158,5 +206,132 @@ public class RetryPolicyTests extends ESTestCase {
 
         assertEquals("Access Denied", ex.getMessage());
         assertEquals(1, calls.get());
+    }
+
+    // --- Total duration budget tests ---
+
+    public void testWithTotalDurationBudgetPreservesRetryParameters() {
+        RetryPolicy base = new RetryPolicy(5, 100, 2000);
+        RetryPolicy budgeted = base.withTotalDurationBudget(10_000);
+
+        assertEquals(5, budgeted.maxRetries());
+        assertEquals(10_000, budgeted.maxTotalDurationMs());
+    }
+
+    public void testDefaultPolicyHasNoBudget() {
+        assertEquals(RetryPolicy.NO_BUDGET, RetryPolicy.DEFAULT.maxTotalDurationMs());
+    }
+
+    public void testNonePolicyHasNoBudget() {
+        assertEquals(RetryPolicy.NO_BUDGET, RetryPolicy.NONE.maxTotalDurationMs());
+    }
+
+    public void testExecuteAbortsWhenBudgetExceeded() {
+        RetryPolicy policy = new RetryPolicy(10, 500, 5000, 100);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
+            calls.incrementAndGet();
+            throw new SocketTimeoutException("timeout");
+        }, "test", path));
+
+        assertEquals("timeout", ex.getMessage());
+        assertTrue("should abort on first failure when delay exceeds budget, got " + calls.get(), calls.get() <= 2);
+    }
+
+    public void testExecuteSucceedsWithinBudget() throws IOException {
+        RetryPolicy policy = new RetryPolicy(3, 1, 10, 60_000);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = policy.execute(() -> {
+            if (calls.incrementAndGet() < 3) {
+                throw new SocketTimeoutException("timeout");
+            }
+            return "ok";
+        }, "test", path);
+
+        assertEquals("ok", result);
+        assertEquals(3, calls.get());
+    }
+
+    // --- Throttle-specific retry budget tests ---
+
+    public void testThrottlingErrorGetsHigherRetryBudget() throws IOException {
+        RetryPolicy policy = new RetryPolicy(2, 1, 10, 8, 1, 10, RetryPolicy.NO_BUDGET, null);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        String result = policy.execute(() -> {
+            if (calls.incrementAndGet() <= 6) {
+                throw new IOException("503 Service Unavailable");
+            }
+            return "ok";
+        }, "test", path);
+
+        assertEquals("ok", result);
+        assertEquals(7, calls.get());
+    }
+
+    public void testNonThrottleErrorUsesStandardBudget() {
+        RetryPolicy policy = new RetryPolicy(2, 1, 10, 8, 1, 10, RetryPolicy.NO_BUDGET, null);
+        AtomicInteger calls = new AtomicInteger();
+        StoragePath path = StoragePath.of("s3://bucket/key");
+
+        IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
+            calls.incrementAndGet();
+            throw new SocketTimeoutException("timeout");
+        }, "test", path));
+
+        assertEquals("timeout", ex.getMessage());
+        assertEquals(3, calls.get());
+    }
+
+    public void testThrottlingDelayIsLongerThanStandardDelay() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        long standardDelay = policy.delayMillis(0, false);
+        long throttleDelay = policy.delayMillis(0, true);
+        assertTrue(
+            "throttle delay [" + throttleDelay + "] should be >= standard delay [" + standardDelay + "]",
+            throttleDelay >= standardDelay
+        );
+    }
+
+    public void testIsThrottlingErrorClassification() {
+        assertTrue(RetryPolicy.isThrottlingError(new IOException("Status code: 429")));
+        assertTrue(RetryPolicy.isThrottlingError(new IOException("Too Many Requests")));
+        assertTrue(RetryPolicy.isThrottlingError(new IOException("Status code: 503")));
+        assertTrue(RetryPolicy.isThrottlingError(new IOException("Service Unavailable")));
+        assertTrue(RetryPolicy.isThrottlingError(new IOException("SlowDown")));
+        assertTrue(RetryPolicy.isThrottlingError(new IOException("Reduce your request rate")));
+
+        assertFalse(RetryPolicy.isThrottlingError(new SocketTimeoutException("timeout")));
+        assertFalse(RetryPolicy.isThrottlingError(new ConnectException("refused")));
+        assertFalse(RetryPolicy.isThrottlingError(new IOException("Access Denied")));
+        assertFalse(RetryPolicy.isThrottlingError(new IOException((String) null)));
+    }
+
+    public void testAdaptiveBackoffScalesDelay() {
+        AtomicLong clock = new AtomicLong(0);
+        AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, clock::get);
+        backoff.onThrottled();
+        backoff.onThrottled();
+
+        RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
+        long normalDelay = RetryPolicy.DEFAULT.delayMillis(0, true);
+        long adaptiveDelay = policy.delayMillis(0, true);
+        assertTrue("adaptive delay [" + adaptiveDelay + "] should be > normal delay [" + normalDelay + "]", adaptiveDelay > normalDelay);
+    }
+
+    public void testThrottleMaxRetriesAccessor() {
+        RetryPolicy policy = RetryPolicy.DEFAULT;
+        assertEquals(RetryPolicy.DEFAULT_THROTTLE_MAX_RETRIES, policy.throttleMaxRetries());
+    }
+
+    public void testWithThrottleConfig() {
+        RetryPolicy policy = RetryPolicy.DEFAULT.withThrottleConfig(20, 1000, 60_000);
+        assertEquals(20, policy.throttleMaxRetries());
+        assertEquals(RetryPolicy.DEFAULT_MAX_RETRIES, policy.maxRetries());
     }
 }

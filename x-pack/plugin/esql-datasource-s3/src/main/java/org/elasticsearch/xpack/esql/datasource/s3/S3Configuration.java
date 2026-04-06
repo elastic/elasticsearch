@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -22,12 +23,26 @@ public class S3Configuration {
     private final String secretKey;
     private final String endpoint;
     private final String region;
+    private final String auth;
 
-    private S3Configuration(String accessKey, String secretKey, String endpoint, String region) {
+    private S3Configuration(String accessKey, String secretKey, String endpoint, String region, String auth) {
         this.accessKey = accessKey;
         this.secretKey = secretKey;
         this.endpoint = endpoint;
         this.region = region;
+        this.auth = auth != null ? auth.toLowerCase(Locale.ROOT) : null;
+        validate();
+    }
+
+    private void validate() {
+        if (auth != null && "none".equals(auth) == false) {
+            throw new IllegalArgumentException("Unsupported auth value [" + auth + "]; supported values: [none]");
+        }
+        if (isAnonymous() && (accessKey != null || secretKey != null)) {
+            throw new IllegalArgumentException(
+                "auth=none cannot be combined with access_key/secret_key; anonymous access uses no credentials"
+            );
+        }
     }
 
     public static S3Configuration fromParams(Map<String, Expression> params) {
@@ -39,19 +54,24 @@ public class S3Configuration {
         String secretKey = extractStringParam(params, "secret_key");
         String endpoint = extractStringParam(params, "endpoint");
         String region = extractStringParam(params, "region");
+        String auth = extractStringParam(params, "auth");
 
-        if (accessKey == null && secretKey == null && endpoint == null && region == null) {
+        if (accessKey == null && secretKey == null && endpoint == null && region == null && auth == null) {
             return null;
         }
 
-        return new S3Configuration(accessKey, secretKey, endpoint, region);
+        return new S3Configuration(accessKey, secretKey, endpoint, region, auth);
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region) {
-        if (accessKey == null && secretKey == null && endpoint == null && region == null) {
+        return fromFields(accessKey, secretKey, endpoint, region, null);
+    }
+
+    public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region, String auth) {
+        if (accessKey == null && secretKey == null && endpoint == null && region == null && auth == null) {
             return null;
         }
-        return new S3Configuration(accessKey, secretKey, endpoint, region);
+        return new S3Configuration(accessKey, secretKey, endpoint, region, auth);
     }
 
     private static String extractStringParam(Map<String, Expression> params, String key) {
@@ -82,6 +102,14 @@ public class S3Configuration {
         return region;
     }
 
+    public String auth() {
+        return auth;
+    }
+
+    public boolean isAnonymous() {
+        return "none".equals(auth);
+    }
+
     public boolean hasCredentials() {
         return accessKey != null && secretKey != null;
     }
@@ -98,11 +126,12 @@ public class S3Configuration {
         return Objects.equals(accessKey, that.accessKey)
             && Objects.equals(secretKey, that.secretKey)
             && Objects.equals(endpoint, that.endpoint)
-            && Objects.equals(region, that.region);
+            && Objects.equals(region, that.region)
+            && Objects.equals(auth, that.auth);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(accessKey, secretKey, endpoint, region);
+        return Objects.hash(accessKey, secretKey, endpoint, region, auth);
     }
 }

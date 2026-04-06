@@ -9,6 +9,7 @@
 
 ## Build & Run Commands
 - Refer to BUILDING.md, CONTRIBUTING.md & TESTING.asciidoc for comprehensive build/test instructions.
+- See [Windows PowerShell and Gradle](#windows-powershell-and-gradle) when running Gradle from Windows PowerShell.
 
 ## Verification & Lint Tasks
 - `./gradlew spotlessJavaCheck` / `spotlessApply` (or `:server:spotlessJavaCheck`): enforce formatter profile in `build-conventions/formatterConfig.xml`.
@@ -25,6 +26,15 @@ The repository is organized into several key directories:
 *   `x-pack`: Additional code modules and plugins under Elastic License.
 *   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic. Refer to BUILDING.md for details on how these are structured and used.
 
+## Windows PowerShell and Gradle
+
+In **Windows PowerShell**, do not paste bash/CI `gradlew` lines unchanged.
+
+- Always chain with `;`, not `&&` (PowerShell 5.x rejects `&&`). Example: `Set-Location C:\elasticsearch; ./gradlew …`
+- Quote every JVM flag for Gradle: `"-Dtests.seed=DEADBEEF"`, not bare `-Dtests.seed=…`.
+
+Full line example: `Set-Location C:\elasticsearch; ./gradlew ":x-pack:plugin:esql:test" --tests "org.example.SomeIT" "-Dtests.seed=B511942F98271C64" "-Druntime.java=25"`
+
 ## Testing Cheatsheet
 - Standard suite: `./gradlew test` (respects cached results; add `-Dtests.timestamp=$(date +%s)` to bypass caches when reusing seeds).
 - Single project: `./gradlew :server:test` (or other subproject path).
@@ -34,7 +44,7 @@ The repository is organized into several key directories:
 - Deterministic seed: append `-Dtests.seed=DEADBEEF` (each method uses derived seeds).
 - JVM tuning knobs: `-Dtests.jvms=8`, `-Dtests.heap.size=4G`, `-Dtests.jvm.argline="-verbose:gc"`, `-Dtests.output=always`, etc.
 - Debugging: append `--debug-jvm` to the Gradle test task and attach a debugger on port 5005.
-- CI reproductions: copy the `REPRODUCE WITH` line from CI logs; it includes project path, seed, and JVM flags.
+- CI reproductions: copy the `REPRODUCE WITH` line from CI logs; it includes project path, seed, and JVM flags. On PowerShell, adapt that line per [Windows PowerShell and Gradle](#windows-powershell-and-gradle).
 - Yaml REST tests: `./gradlew ":rest-api-spec:yamlRestTest" --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=<relative_test_file_path>}"`
 - Use the Elasticsearch testing framework where possible for unit and yaml tests and be consistent in style with other elasticsearch tests.
 - Use real classes over mocks or stubs for unit tests, unless the real class is complex then either a simplified subclass should be created within the test or, as a last resort, a mock or stub can be used. Unit tests must be as close to real-world scenarios as possible.
@@ -94,6 +104,7 @@ The repository is organized into several key directories:
 - Never edit unrelated files; keep diffs tightly scoped to the task at hand.
 - Prefer Gradle tasks over ad-hoc scripts.
 - When scripting CLI sequences, leverage `gradlew` task.
+- **Windows:** If the shell is PowerShell, see [Windows PowerShell and Gradle](#windows-powershell-and-gradle) before running Gradle.
 - Unrecognized changes: assume other agent; keep going; focus your changes. If it causes issues, stop + ask user.
 - Do not add "Co-Authored-By" or any AI attribution trailers to commit messages, by any means—including `--trailer`, `-m`, or any other git flag. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary
 

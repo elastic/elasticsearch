@@ -177,6 +177,24 @@ public class ESSynonymMapBuilderTests extends ESTokenStreamTestCase {
         expectThrows(IllegalArgumentException.class, () -> builder.add(word("input"), word(""), false));
     }
 
+    public void testHasHolesAssertionFires() {
+        assumeTrue("requires assertions enabled", ESSynonymMapBuilderTests.class.desiredAssertionStatus());
+        ESSynonymMapBuilder builder = new ESSynonymMapBuilder(true, NOOP_CIRCUIT_BREAKER);
+        final char S = SynonymMap.WORD_SEPARATOR;
+        // consecutive WORD_SEPARATORs (hole in the middle)
+        CharsRef consecutive = new CharsRef(new char[] { 'f', 'o', 'o', S, S, 'b', 'a', 'r' }, 0, 8);
+        expectThrows(AssertionError.class, () -> builder.add(consecutive, word("output"), false));
+        expectThrows(AssertionError.class, () -> builder.add(word("input"), consecutive, false));
+        // leading WORD_SEPARATOR
+        CharsRef leading = new CharsRef(new char[] { S, 'f', 'o', 'o' }, 0, 4);
+        expectThrows(AssertionError.class, () -> builder.add(leading, word("output"), false));
+        expectThrows(AssertionError.class, () -> builder.add(word("input"), leading, false));
+        // trailing WORD_SEPARATOR
+        CharsRef trailing = new CharsRef(new char[] { 'f', 'o', 'o', S }, 0, 4);
+        expectThrows(AssertionError.class, () -> builder.add(trailing, word("output"), false));
+        expectThrows(AssertionError.class, () -> builder.add(word("input"), trailing, false));
+    }
+
     public void testSelfReferencingSynonyms() throws IOException {
         assertBuildersMatch(
             true,

@@ -162,8 +162,8 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             new SearchRequest().scroll(timeValueSeconds(10))
         );
 
-        paginatedHitSource.setScroll("scroll_id");
-        paginatedHitSource.startNextScroll(timeValueSeconds(100));
+        paginatedHitSource.setScrollId("scroll_id");
+        paginatedHitSource.requestNextBatch(timeValueSeconds(100));
         client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
     }
 
@@ -203,7 +203,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             new ParentTaskAssigningClient(client, parentTask),
             new SearchRequest().scroll(timeValueSeconds(10))
         );
-        paginatedHitSource.setScroll("scroll_123");
+        paginatedHitSource.setScrollId("scroll_123");
         AtomicBoolean closeCallbackCalled = new AtomicBoolean();
 
         paginatedHitSource.close(() -> closeCallbackCalled.set(true));
@@ -215,6 +215,34 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
         );
         client.respond(TransportClearScrollAction.TYPE, new ClearScrollResponse(true, 1));
         assertTrue(closeCallbackCalled.get());
+    }
+
+    /** Verifies hasMoreBatches reflects scroll ID state: false when absent or empty, true when non-empty. */
+    public void testHasMoreBatches() {
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("id", randomInt());
+
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            new SearchRequest().scroll(timeValueSeconds(10))
+        );
+
+        // Initially: no scroll id -> false
+        assertFalse(paginatedHitSource.hasMoreBatches());
+
+        // Empty scroll id -> false
+        paginatedHitSource.setScrollId("");
+        assertFalse(paginatedHitSource.hasMoreBatches());
+
+        // Non-empty scroll id -> true
+        paginatedHitSource.setScrollId("scroll_id");
+        assertTrue(paginatedHitSource.hasMoreBatches());
     }
 
     private SearchResponse createSearchResponse() {

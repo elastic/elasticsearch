@@ -42,7 +42,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -54,7 +54,7 @@ import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
-import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
+import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
@@ -574,7 +574,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         long preconditionerOffset,
         long preconditionerLength
     ) throws IOException {
-        metaOutput.writeInt(ESNextOSQVectorsScorer.BULK_SIZE);
+        metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
         metaOutput.writeInt(quantEncoding.id());
         metaOutput.writeLong(preconditionerLength);
         if (preconditionerLength > 0) {

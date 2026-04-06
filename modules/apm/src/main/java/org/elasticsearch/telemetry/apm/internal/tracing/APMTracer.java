@@ -36,7 +36,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
-import org.elasticsearch.telemetry.apm.internal.AgentExportMetricsInterval;
+import org.elasticsearch.telemetry.apm.internal.export.AgentExportMetricsInterval;
+import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportTraceFlush;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 
@@ -46,12 +47,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
- * the OpenTelemetry API to capture spans.
+ * {@link org.elasticsearch.telemetry.tracing.Tracer} implementation provided by the Elasticsearch {@code apm}
+ * module ({@code modules/apm}). It records spans using the OpenTelemetry API. Export is separate: spans may be
+ * shipped by the Elasticsearch APM Java agent (via {@link GlobalOpenTelemetry}) or, for metrics, by an
+ * OpenTelemetry SDK path configured elsewhere in this module.
  * <p>
- * This module doesn't provide an implementation of the OTel API. Normally that would mean that the
- * API's default, no-op implementation would be used. However, when the APM Java is attached, it
- * intercepts the {@link GlobalOpenTelemetry} class and provides its own implementation instead.
+ * Elasticsearch does not bundle an OpenTelemetry API implementation. Normally the API's default no-op would
+ * apply. When the Elasticsearch APM Java agent is attached, it intercepts {@link GlobalOpenTelemetry} and
+ * supplies a real implementation for export to Elastic APM.
  */
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.tracing.Tracer {
 
@@ -107,11 +110,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (enabled == false) {
             return;
         }
-        try {
-            Thread.sleep(agentFlushWaitMs);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        AgentExportTraceFlush.sleepForAgentExport(agentFlushWaitMs);
     }
 
     public void setEnabled(boolean enabled) {

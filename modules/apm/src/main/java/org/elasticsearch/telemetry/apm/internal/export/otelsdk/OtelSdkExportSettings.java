@@ -7,15 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.telemetry.apm.internal;
+package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 
-public class OTelSdkSettings {
-    private OTelSdkSettings() {}
+public class OtelSdkExportSettings {
+    private OtelSdkExportSettings() {}
 
     public static final Setting<String> TELEMETRY_OTEL_METRICS_ENDPOINT = Setting.simpleString(
         "telemetry.otel.metrics.endpoint",

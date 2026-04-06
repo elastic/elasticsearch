@@ -19,6 +19,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
+import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
@@ -46,7 +49,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
     private static MeterSupplier createOtelMeterSupplier(Settings settings) {
         boolean otelMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
         if (otelMetricsEnabled) {
-            return new OTelSdkMeterSupplier(settings);
+            return new OtelSdkExportMeterSupplier(settings);
         } else {
             return new AgentExportMeterSupplier(settings);
         }

@@ -1,0 +1,10 @@
+area: PromQL
+issues: []
+pr: 144494
+summary: Add Prometheus series REST endpoint
+type: enhancement
+highlight:
+  title: "Add Prometheus series REST endpoint"
+  body: |-
+    We're introducing a Prometheus-compatible GET /_prometheus/api/v1/series REST entrypoint that accepts Prometheus
+    series selectors and returns matching label sets. This is typically used for auto-completion in web UIs.

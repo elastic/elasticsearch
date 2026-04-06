@@ -1993,8 +1993,6 @@ setup:
           index.blocks.write: true
 
   - do:
-      allowed_warnings:
-        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test-multi-value
         target_index: test-downsample-multi-value

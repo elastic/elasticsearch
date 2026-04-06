@@ -1210,7 +1210,7 @@ public class EsqlCapabilities {
         /**
          * Support for views in cluster state (and REST API).
          */
-        VIEWS_IN_CLUSTER_STATE(EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+        VIEWS_IN_CLUSTER_STATE,
 
         /**
          * Basic Views with no branching (do not need subqueries or FORK).
@@ -2431,6 +2431,10 @@ public class EsqlCapabilities {
          */
         USER_AGENT_COMMAND,
 
+        /**
+         * Fix full-text functions being rejected after SAMPLE.
+         */
+        FIX_SAMPLE_AFTER_KQL_OR_QSTR,
         KEYWORDS_MV_COUNT_AS_SINGLE_VALUE_FIX,
 
         /**

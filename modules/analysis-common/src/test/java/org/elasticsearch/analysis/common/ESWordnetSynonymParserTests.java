@@ -80,12 +80,12 @@ public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
         assertThat(ex.getMessage(), containsString("Invalid synonym rule at line 1"));
     }
 
-    public void testCircuitBreaker() {
+    public void testCircuitBreakerDuringAdd() {
         TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
         circuitBreaker.startBreaking();
 
-        // Circuit breaker should be called on the first rule and every 1024th rule afterward, so even a single-rule synonym set should
-        // be able to trip the breaker
+        // Circuit breaker is checked on the first pair and every 8192nd pair afterward during add(),
+        // so even a single-rule synonym set should be able to trip the breaker
         ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, true, new StandardAnalyzer(), circuitBreaker);
         String rules = """
             s(100000001,1,'foo',a,1,0).

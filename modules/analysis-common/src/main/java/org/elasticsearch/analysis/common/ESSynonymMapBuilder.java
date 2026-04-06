@@ -125,7 +125,9 @@ class ESSynonymMapBuilder {
         final IntsRefBuilder scratchIntsRef = new IntsRefBuilder();
 
         for (int keyIdx = 0; keyIdx < sortedKeys.length; keyIdx++) {
-            // Check real memory circuit breaker every 1024
+            // Check real memory circuit breaker every 1024 keys during FST compilation.
+            // Catches memory growth from FST construction for synonym sets that passed
+            // through add() without tripping the breaker.
             if ((keyIdx & 0x3FF) == 0) {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
             }

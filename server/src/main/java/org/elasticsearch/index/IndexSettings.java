@@ -1057,8 +1057,7 @@ public final class IndexSettings {
         false,
         new Setting.Validator<>() {
             @Override
-            public void validate(Boolean enabled) {
-            }
+            public void validate(Boolean enabled) {}
 
             @Override
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {

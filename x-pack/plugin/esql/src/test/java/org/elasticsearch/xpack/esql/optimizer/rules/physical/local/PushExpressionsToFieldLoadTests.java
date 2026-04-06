@@ -324,6 +324,112 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertThat(longPushed, hasSize(1));
     }
 
+    // ---- ROUND_TO push tests (TS mode) ----
+    //
+    // These tests exercise {@link PushExpressionsToFieldLoad} and verify that it
+    // replaces ROUND_TO with a FunctionEsField-backed FieldAttribute when the source
+    // is a TS (time-series) command. The TS plan structure differs from FROM
+    // (different source node and plan shape), so these complement the FROM-based
+    // ROUND_TO tests above.
+    //
+    // For the query-and-tags rewrite of BUCKET/ROUND_TO in TS mode (filter-by-filter
+    // execution via {@link ReplaceRoundToWithQueryAndTags}), see
+    // SubstituteRoundToTests.testRoundToWithTimeSeriesIndices.
+
+    /**
+     * Exercises {@link PushExpressionsToFieldLoad}: verifies ROUND_TO on a long field
+     * is pushed to the block loader in TS mode.
+     */
+    public void testRoundToInTsEval() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            TS k8s
+            | EVAL r = ROUND_TO(events_received, 100, 200, 300)
+            | SORT @timestamp
+            | LIMIT 10
+            | KEEP r
+            """, new EsqlTestUtils.TestSearchStats());
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+    }
+
+    /**
+     * Exercises {@link PushExpressionsToFieldLoad}: verifies ROUND_TO on a datetime
+     * field ({@code @timestamp}) is pushed to the block loader in TS mode.
+     */
+    public void testRoundToTimestampInTsEval() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            TS k8s
+            | EVAL r = ROUND_TO(@timestamp, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime)
+            | SORT @timestamp
+            | LIMIT 10
+            | KEEP r
+            """, new EsqlTestUtils.TestSearchStats());
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "@timestamp", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+    }
+
+    /**
+     * Exercises {@link PushExpressionsToFieldLoad}: verifies ROUND_TO in a WHERE
+     * filter is pushed to the block loader in TS mode.
+     */
+    public void testRoundToInTsWhere() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            TS k8s
+            | WHERE ROUND_TO(events_received, 100, 200, 300) > 100
+            """, new EsqlTestUtils.TestSearchStats());
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat(pushed, hasSize(1));
+
+        FilterExec filterExec = findFirst(plan, FilterExec.class);
+        assertNotNull("Should find FilterExec", filterExec);
+        GreaterThan gt = as(filterExec.condition(), GreaterThan.class);
+        assertRoundToPushdown(gt.left(), "events_received");
+    }
+
+    /**
+     * Exercises {@link PushExpressionsToFieldLoad}: verifies that duplicate ROUND_TO
+     * on the same field in WHERE and EVAL is deduplicated to one pushed field in TS mode.
+     */
+    public void testRoundToInTsWhereAndEval() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            TS k8s
+            | WHERE ROUND_TO(events_received, 100, 200, 300) > 100
+            | EVAL r = ROUND_TO(events_received, 100, 200, 300)
+            """, new EsqlTestUtils.TestSearchStats());
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        assertThat("Duplicate ROUND_TO(events_received, ...) should be deduplicated to one pushed field", pushed, hasSize(1));
+    }
+
+    /**
+     * Exercises {@link PushExpressionsToFieldLoad}: verifies that ROUND_TO on two
+     * different fields each get their own pushed field in TS mode.
+     */
+    public void testRoundToTwoFieldsInTs() {
+        assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
+            TS k8s
+            | EVAL t = ROUND_TO(@timestamp, "2023-01-01"::datetime, "2024-01-01"::datetime),
+                  e = ROUND_TO(events_received, 100, 200, 300)
+            | SORT @timestamp
+            | LIMIT 10
+            | KEEP t, e
+            """, new EsqlTestUtils.TestSearchStats());
+
+        List<FieldAttribute> timestampPushed = findPushedFields(plan, "@timestamp", BlockLoaderFunctionConfig.Function.ROUND_TO);
+        List<FieldAttribute> eventsPushed = findPushedFields(plan, "events_received", BlockLoaderFunctionConfig.Function.ROUND_TO);
+
+        assertThat(timestampPushed, hasSize(1));
+        assertThat(eventsPushed, hasSize(1));
+    }
+
     // ---- Vector function push tests ----
 
     public void testVectorFunctionsReplaced() {

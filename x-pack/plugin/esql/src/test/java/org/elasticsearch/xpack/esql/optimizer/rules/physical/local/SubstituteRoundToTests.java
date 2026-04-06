@@ -988,6 +988,13 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         assertThat(byStat.queryBuilderAndTags(), is(not(empty())));
     }
 
+    /**
+     * Exercises {@link ReplaceRoundToWithQueryAndTags}: verifies the query-and-tags
+     * (filter-by-filter) rewrite of BUCKET in TS mode. This does not test the block
+     * loader push-down path. For block loader push-down of ROUND_TO in TS mode
+     * (via {@link PushExpressionsToFieldLoad}), see
+     * {@link PushExpressionsToFieldLoadTests#testRoundToInTsEval} and friends.
+     */
     public void testRoundToWithTimeSeriesIndices() {
         Map<String, Object> minValue = Map.of(
             "@timestamp",
@@ -1034,9 +1041,14 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     /**
-     * When query-and-tags is disabled (threshold=0) but block loader is supported,
+     * Exercises the block loader fallback in {@link ReplaceRoundToWithQueryAndTags}:
+     * when query-and-tags is disabled (threshold=0) but block loader is supported,
      * the RoundTo is replaced with a FunctionEsField-backed FieldAttribute.
      * When supportsLoaderConfig is false, the RoundTo stays.
+     * <p>
+     * Uses FROM (standard index mode). For block loader push-down with TS source
+     * (via {@link PushExpressionsToFieldLoad}), see
+     * {@link PushExpressionsToFieldLoadTests#testRoundToInTsEval} and friends.
      */
     public void testBlockLoaderFallbackForLong() {
         String query = """
@@ -1073,8 +1085,10 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     /**
-     * When query-and-tags is disabled (threshold=0) but block loader is supported,
+     * Exercises the block loader fallback in {@link ReplaceRoundToWithQueryAndTags}:
+     * when query-and-tags is disabled (threshold=0) but block loader is supported,
      * the RoundTo on a date field is replaced with a FunctionEsField-backed FieldAttribute.
+     * Uses FROM (standard index mode).
      */
     public void testBlockLoaderFallbackForDate() {
         String query = """
@@ -1109,8 +1123,10 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     /**
-     * When query-and-tags is disabled (threshold=0) but block loader is supported,
+     * Exercises the block loader fallback in {@link ReplaceRoundToWithQueryAndTags}:
+     * when query-and-tags is disabled (threshold=0) but block loader is supported,
      * the RoundTo on a date_nanos field is replaced with a FunctionEsField-backed FieldAttribute.
+     * Uses FROM (standard index mode).
      */
     public void testBlockLoaderFallbackForDateNanos() {
         String query = """

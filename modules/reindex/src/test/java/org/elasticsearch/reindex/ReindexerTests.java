@@ -59,6 +59,7 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
+import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHits;

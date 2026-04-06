@@ -407,8 +407,8 @@ public class EsqlFunctionRegistry {
                 def(Absent.class, uni(Absent::new), "absent"),
                 def(First.class, bi(First::new), "first"),
                 def(Last.class, bi(Last::new), "last"),
-                def(Earliest.class, uni(Earliest::new), "earliest"),
-                def(Latest.class, uni(Latest::new), "latest"), },
+                defTS(Earliest.class, Earliest::new, "earliest"),
+                defTS(Latest.class, Latest::new, "latest"), },
             // math
             new FunctionDefinition[] {
                 Abs.DEFINITION,

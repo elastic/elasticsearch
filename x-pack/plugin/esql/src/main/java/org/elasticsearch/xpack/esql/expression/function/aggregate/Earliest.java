@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -29,9 +28,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * An alias for {@link First} where the sort field (second parameter) is set to {@code @timestamp}.
+ * An alias for {@link First} where the sort field (second parameter) is set to {@code @timestamp}. This is not a time series function.
  */
-public class Earliest extends AggregateFunction implements SurrogateExpression, TimestampAware {
+public class Earliest extends AggregateFunction implements OnlySurrogateExpression, TimestampAware {
     public static final String NAME = "Earliest";
     private final Expression timestamp;
 
@@ -55,10 +54,6 @@ public class Earliest extends AggregateFunction implements SurrogateExpression, 
         Expression timestamp
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, timestamp);
-    }
-
-    public Earliest(Source source, Expression field) {
-        this(source, field, UnresolvedTimestamp.withSource(source));
     }
 
     private Earliest(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {

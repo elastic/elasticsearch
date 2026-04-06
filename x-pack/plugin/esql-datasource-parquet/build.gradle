@@ -9,8 +9,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 
 versions << [
-  'hadoop'  : '3.4.3',
-  'parquet' : '1.17.0',
+  'hadoop' : '3.4.3',
 ]
 
 esplugin {
@@ -42,8 +41,8 @@ dependencies {
   // 2. ParquetReadOptions.Builder() constructor creates HadoopParquetConfiguration internally,
   //    which requires the Configuration class to be present even when using non-Hadoop code paths
   // 3. parquet-hadoop-bundle includes shaded Parquet classes but not Hadoop Configuration
-  implementation('org.apache.hadoop:hadoop-client-api:3.4.3')
-  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.3')
+  implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
+  implementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}")
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))

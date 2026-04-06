@@ -107,8 +107,11 @@ public class QuerySettings {
     @Param(
         name = "approximation",
         type = { "boolean", "map_param" },
-        // TODO: more detailed description of query approximation and when it can be applied
-        description = "Enables query approximation if possible for the query."
+        since = "9.4.0",
+        // TODO: make "query approximation" a link to an "Advanced workflows" page when that's ready.
+        description = "Enables query approximation if possible for the query. "
+            + "A boolean value `false` (default) disables query approximation and `true` enables it with "
+            + "default settings. Map values enable query approximation with custom settings."
     )
     @MapParam(
         name = "approximation",
@@ -132,8 +135,8 @@ public class QuerySettings {
         "approximation",
         null,
         false,
-        false,
         true,
+        false,
         ApproximationSettings::parse,
         null
     );

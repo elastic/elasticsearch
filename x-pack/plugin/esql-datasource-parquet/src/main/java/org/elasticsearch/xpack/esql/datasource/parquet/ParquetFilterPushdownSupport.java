@@ -19,7 +19,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
+import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -49,11 +51,14 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * to parquet-java {@link FilterPredicate} objects.
  * <p>
  * When set on {@link org.apache.parquet.ParquetReadOptions}, parquet-java automatically
- * applies three levels of row-group filtering:
+ * applies four levels of filtering:
  * <ol>
  *   <li>Statistics (min/max) — skips row groups where value is outside range</li>
  *   <li>Dictionary — skips row groups where dictionary-encoded column doesn't contain value</li>
  *   <li>Bloom filter — skips row groups where bloom filter says value definitely absent</li>
+ *   <li>Page index (ColumnIndex/OffsetIndex) — skips individual pages within row groups using
+ *       per-page min/max statistics (active by default via {@code useColumnIndexFilter=true}
+ *       since parquet-mr 1.12.0)</li>
  * </ol>
  * <p>
  * Uses a two-pass approach (like {@code OrcPushdownFilters}):
@@ -63,7 +68,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * </ol>
  * <p>
  * All pushed filters use {@link Pushability#RECHECK} semantics: the original filter remains
- * in FilterExec for per-row correctness since row-group skipping is an optimization.
+ * in FilterExec for per-row correctness since predicate pushdown is a conservative approximation.
  */
 public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
 
@@ -152,6 +157,9 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         if (expr instanceof Not not) {
             return canConvert(not.field());
         }
+        if (expr instanceof StartsWith sw) {
+            return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD);
+        }
         return false;
     }
 
@@ -208,6 +216,20 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         }
         if (expr instanceof Not not) {
             return FilterApi.not(translateExpression(not.field()));
+        }
+        if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne && sw.prefix().foldable()) {
+            Object prefixValue = literalValueOf(sw.prefix());
+            if (prefixValue == null) {
+                return null;
+            }
+            BytesRef prefix = (BytesRef) prefixValue;
+            var col = FilterApi.binaryColumn(ne.name());
+            FilterPredicate lower = FilterApi.gtEq(col, toBinary(prefix));
+            BytesRef upper = StringPrefixUtils.nextPrefixUpperBound(prefix);
+            if (upper != null) {
+                return FilterApi.and(lower, FilterApi.lt(col, toBinary(upper)));
+            }
+            return lower;
         }
         return null;
     }

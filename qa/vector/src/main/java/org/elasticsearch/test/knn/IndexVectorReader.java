@@ -127,16 +127,16 @@ public interface IndexVectorReader extends Closeable {
             int[] docsPerReader = new int[docPaths.size()];
             int resolvedDim = requestedDim;
             int docsRemaining = maxDocs;
+            boolean hasFvecHeader = requestedDim == -1;
 
             for (int f = 0; f < docPaths.size() && docsRemaining > 0; f++) {
                 Path docsPath = docPaths.get(f);
                 FileChannel in = FileChannel.open(docsPath);
                 channels.add(in);
                 long docsPathSizeInBytes = in.size();
-                int offsetByteSize = 0;
+                int offsetByteSize = hasFvecHeader ? Integer.BYTES : 0;
                 int dim = resolvedDim;
                 if (dim == -1) {
-                    offsetByteSize = Integer.BYTES;
                     ByteBuffer preamble = ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
                     int bytesRead = Channels.readFromFileChannel(in, 0, preamble);
                     if (bytesRead < Integer.BYTES) {

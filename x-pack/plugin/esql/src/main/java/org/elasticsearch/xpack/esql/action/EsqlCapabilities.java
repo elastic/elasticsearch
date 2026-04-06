@@ -2438,6 +2438,12 @@ public class EsqlCapabilities {
          */
         PARQUET_ORC_STARTS_WITH_PUSHDOWN,
 
+        /**
+         * Fix for flattened subfields not being nullified when {@code unmapped_fields="nullify"} is set.
+         * See https://github.com/elastic/elasticsearch/issues/142616
+         */
+        FIX_NULLIFY_FLATTENED_SUBFIELD,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

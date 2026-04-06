@@ -321,6 +321,7 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         logger.info("shard is unassigned, proceeding with VBCC chunk request");
         getVBCCChunkRequestBlocked.countDown();
         var refreshResponse = refreshFuture.get();
+        setNodeRepositoryStrategy(searchNode, StatelessMockRepositoryStrategy.DEFAULT);
         // Delete the index, otherwise the test cleanup process would try to flush the index and that would take 60s to timeout
         client().admin().indices().prepareDelete(indexName).get();
     }

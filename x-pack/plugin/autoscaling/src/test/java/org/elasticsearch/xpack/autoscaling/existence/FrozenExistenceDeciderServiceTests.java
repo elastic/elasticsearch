@@ -12,8 +12,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
@@ -37,29 +40,33 @@ public class FrozenExistenceDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
         verify(ClusterState.EMPTY_STATE, this::assertZeroCapacity);
 
+        @NotMultiProjectCapable(description = "FrozenExistenceDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final Settings versionSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final int shards = between(1, 3);
         final int replicas = between(0, 2);
-        final Metadata nonFrozenMetadata = Metadata.builder()
+        final ProjectMetadata nonFrozenMetadata = ProjectMetadata.builder(projectId)
             .put(IndexMetadata.builder("index").settings(versionSettings).numberOfShards(shards).numberOfReplicas(replicas))
             .build();
         verify(nonFrozenMetadata, this::assertZeroCapacity);
 
-        final Metadata frozenMetadata = (randomBoolean() ? Metadata.builder() : Metadata.builder(nonFrozenMetadata)).put(
-            IndexMetadata.builder("index")
-                .settings(versionSettings)
-                .putCustom(
-                    LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
-                    LifecycleExecutionState.builder().setPhase("frozen").build().asMap()
-                )
-                .numberOfShards(shards)
-                .numberOfReplicas(replicas)
-        ).build();
+        final ProjectMetadata frozenMetadata = (randomBoolean()
+            ? ProjectMetadata.builder(projectId)
+            : ProjectMetadata.builder(nonFrozenMetadata)).put(
+                IndexMetadata.builder("index")
+                    .settings(versionSettings)
+                    .putCustom(
+                        LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
+                        LifecycleExecutionState.builder().setPhase("frozen").build().asMap()
+                    )
+                    .numberOfShards(shards)
+                    .numberOfReplicas(replicas)
+            ).build();
         verify(frozenMetadata, this::assertMinimumCapacity);
     }
 
-    private void verify(Metadata metadata, Consumer<AutoscalingDeciderResult> resultConsumer) {
-        verify(ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build(), resultConsumer);
+    private void verify(ProjectMetadata project, Consumer<AutoscalingDeciderResult> resultConsumer) {
+        verify(ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(project).build()).build(), resultConsumer);
     }
 
     private void verify(ClusterState state, Consumer<AutoscalingDeciderResult> resultConsumer) {

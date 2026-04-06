@@ -4,6 +4,7 @@ mapped_pages:
 navigation_title: Time series
 applies_to:
   stack: all
+  serverless: all
 ---
 
 # Time series index settings [tsds-index-settings]

@@ -23,6 +23,7 @@ public record PyTorchResult(
     Boolean isCacheHit,
     Long timeMs,
     @Nullable PyTorchInferenceResult inferenceResult,
+    @Nullable InferenceProcessStats processStats,
     @Nullable ThreadSettings threadSettings,
     @Nullable AckResult ackResult,
     @Nullable ErrorResult errorResult
@@ -34,6 +35,7 @@ public record PyTorchResult(
 
     private static final ParseField RESULT = new ParseField("result");
     private static final ParseField THREAD_SETTINGS = new ParseField("thread_settings");
+    private static final ParseField INFERENCE_PROCESS_STATS = new ParseField("stats");
     private static final ParseField ACK = new ParseField("ack");
 
     public static final ConstructingObjectParser<PyTorchResult, Void> PARSER = new ConstructingObjectParser<>(
@@ -43,9 +45,10 @@ public record PyTorchResult(
             (Boolean) a[1],
             (Long) a[2],
             (PyTorchInferenceResult) a[3],
-            (ThreadSettings) a[4],
-            (AckResult) a[5],
-            (ErrorResult) a[6]
+            (InferenceProcessStats) a[4],
+            (ThreadSettings) a[5],
+            (AckResult) a[6],
+            (ErrorResult) a[7]
         )
     );
 
@@ -54,6 +57,7 @@ public record PyTorchResult(
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CACHE_HIT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), TIME_MS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), PyTorchInferenceResult.PARSER, RESULT);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), InferenceProcessStats.PARSER, INFERENCE_PROCESS_STATS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ThreadSettings.PARSER, THREAD_SETTINGS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), AckResult.PARSER, ACK);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ErrorResult.PARSER, ErrorResult.ERROR);
@@ -77,6 +81,9 @@ public record PyTorchResult(
         }
         if (inferenceResult != null) {
             builder.field(RESULT.getPreferredName(), inferenceResult);
+        }
+        if (processStats != null) {
+            builder.field(INFERENCE_PROCESS_STATS.getPreferredName(), processStats);
         }
         if (threadSettings != null) {
             builder.field(THREAD_SETTINGS.getPreferredName(), threadSettings);

@@ -234,11 +234,15 @@ public class GrokEvaluatorExtracterTests extends ESTestCase {
             blockFactory.newBooleanBlockBuilder(estimatedSize) };
     }
 
-    private GrokEvaluatorExtracter buildExtracter(String pattern, Map<String, Integer> keyToBlock, Map<String, ElementType> types) {
+    private GrokEvaluatorExtracter buildExtracter(
+        String pattern,
+        final Map<String, Integer> keyToBlock,
+        final Map<String, ElementType> types
+    ) {
         var builtinPatterns = GrokBuiltinPatterns.get(true);
         Grok grok = new Grok(builtinPatterns, pattern, logger::warn);
-        GrokEvaluatorExtracter extracter = new GrokEvaluatorExtracter(grok, pattern, keyToBlock, types);
-        return extracter;
+        GrokEvaluatorExtracter.Factory factory = new GrokEvaluatorExtracter.Factory(grok, pattern, keyToBlock, types);
+        return factory.create(null);
     }
 
 }

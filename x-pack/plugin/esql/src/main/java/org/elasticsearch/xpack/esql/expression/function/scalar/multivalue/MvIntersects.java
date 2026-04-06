@@ -18,8 +18,8 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -100,7 +100,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression superset,
         @Param(
             name = "field2",
@@ -123,7 +123,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression subset
     ) {
         super(source, superset, subset);
@@ -185,7 +185,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
         var rightType = PlannerUtils.toElementType(right().dataType());
 
         if (lefType == ElementType.NULL || rightType == ElementType.NULL) {
-            return EvalOperator.CONSTANT_FALSE_FACTORY;
+            return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
 
         if (lefType != rightType) {

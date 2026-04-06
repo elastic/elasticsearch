@@ -12,29 +12,29 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToUnsignedLong}.
+ * {@link ExpressionEvaluator} implementation for {@link ToUnsignedLong}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToUnsignedLongFromIntEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToUnsignedLongFromIntEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator i;
+  private final ExpressionEvaluator i;
 
-  public ToUnsignedLongFromIntEvaluator(Source source, EvalOperator.ExpressionEvaluator i,
+  public ToUnsignedLongFromIntEvaluator(Source source, ExpressionEvaluator i,
       DriverContext driverContext) {
     super(driverContext, source);
     this.i = i;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return i;
   }
 
@@ -124,12 +124,12 @@ public final class ToUnsignedLongFromIntEvaluator extends AbstractConvertFunctio
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory i;
+    private final ExpressionEvaluator.Factory i;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory i) {
+    public Factory(Source source, ExpressionEvaluator.Factory i) {
       this.source = source;
       this.i = i;
     }

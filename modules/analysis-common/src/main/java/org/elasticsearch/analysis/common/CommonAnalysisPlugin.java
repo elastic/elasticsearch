@@ -101,6 +101,7 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
@@ -118,6 +119,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -143,11 +145,13 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
 
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
     private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
+    private final SetOnce<CircuitBreakerService> circuitBreakerServiceHolder = new SetOnce<>();
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.scriptServiceHolder.set(services.scriptService());
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client()));
+        this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
         return Collections.emptyList();
     }
 
@@ -313,13 +317,33 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("sorani_normalization", SoraniNormalizationFilterFactory::new);
         filters.put("stemmer_override", requiresAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
         filters.put("stemmer", StemmerTokenFilterFactory::new);
+        // It doesn't really matter which child circuit breaker we use in the synonym filters because we only use them to trip on real
+        // memory usage, which is only checked by the parent circuit breaker
         filters.put(
             "synonym",
-            requiresAnalysisSettings((i, e, n, s) -> new SynonymTokenFilterFactory(i, e, n, s, synonymsManagementServiceHolder.get()))
+            requiresAnalysisSettings(
+                (i, e, n, s) -> new SynonymTokenFilterFactory(
+                    i,
+                    e,
+                    n,
+                    s,
+                    synonymsManagementServiceHolder.get(),
+                    circuitBreakerServiceHolder.get().getBreaker(CircuitBreaker.FIELDDATA)
+                )
+            )
         );
         filters.put(
             "synonym_graph",
-            requiresAnalysisSettings((i, e, n, s) -> new SynonymGraphTokenFilterFactory(i, e, n, s, synonymsManagementServiceHolder.get()))
+            requiresAnalysisSettings(
+                (i, e, n, s) -> new SynonymGraphTokenFilterFactory(
+                    i,
+                    e,
+                    n,
+                    s,
+                    synonymsManagementServiceHolder.get(),
+                    circuitBreakerServiceHolder.get().getBreaker(CircuitBreaker.FIELDDATA)
+                )
+            )
         );
         filters.put("trim", TrimTokenFilterFactory::new);
         filters.put("truncate", requiresAnalysisSettings(TruncateTokenFilterFactory::new));

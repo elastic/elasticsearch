@@ -82,6 +82,7 @@ public class AdaptiveHnswQueueSaturationCollectorTests extends LuceneTestCase {
             if (delegate.earlyTerminated()) {
                 TopDocs topDocs = queueSaturationCollector.topDocs();
                 assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, topDocs.totalHits.relation());
+                break;
             }
             if (queueSaturationCollector.earlyTerminated()) {
                 TopDocs topDocs = queueSaturationCollector.topDocs();

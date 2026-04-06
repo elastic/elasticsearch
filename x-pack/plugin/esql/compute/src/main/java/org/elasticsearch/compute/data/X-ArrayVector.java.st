@@ -134,6 +134,11 @@ $else$
     public $type$ get$Type$(int position) {
         return values[position];
     }
+
+    @Override
+    public void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
 $endif$
 
     @Override
@@ -197,8 +202,49 @@ $endif$
         return new $Type$Lookup(asBlock(), positions, targetBlockSize);
     }
 
+$if(BytesRef)$
+    /**
+     * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
+     * average value length exceeds {@code overestimateThreshold}. This compensates for heap
+     * overhead that {@link RamUsageEstimator} does not track, such as page-level waste in
+     * {@link BytesRefArray} when loading large text fields from {@code _source}.
+     */
+    public static long ramBytesEstimated(BytesRefArray values, long overestimateThreshold, double overestimateFactor) {
+        long valuesSize = RamUsageEstimator.sizeOf(values);
+        if (values.size() > 0 && valuesSize / values.size() > overestimateThreshold) {
+            valuesSize = Math.round(valuesSize * overestimateFactor);
+        }
+        return BASE_RAM_BYTES_USED + valuesSize;
+    }
+
+$else$
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+$endif$
+    @Override
+    public $Type$Vector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+$if(BytesRef)$
+        var scratch = new BytesRef();
+        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBytesRef(getBytesRef(i, scratch));
+            }
+            return builder.build();
+        }
+$else$
+        try ($Type$Vector.FixedBuilder builder = blockFactory().new$Type$VectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.append$Type$(get$Type$(i));
+            }
+            return builder.build();
+        }
+$endif$
     }
 
 $if(int)$
@@ -262,7 +308,11 @@ $endif$
 
     @Override
     public long ramBytesUsed() {
+$if(BytesRef)$
+        return ramBytesEstimated(values, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
+$else$
         return ramBytesEstimated(values);
+$endif$
     }
 
     @Override

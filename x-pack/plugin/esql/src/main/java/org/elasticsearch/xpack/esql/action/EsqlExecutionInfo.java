@@ -172,7 +172,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public void markEndQuery() {
         if (isMainPlan()) {
-            queryProfile.stop();
+            queryProfile.stopAllStartedMarkers();
         }
     }
 

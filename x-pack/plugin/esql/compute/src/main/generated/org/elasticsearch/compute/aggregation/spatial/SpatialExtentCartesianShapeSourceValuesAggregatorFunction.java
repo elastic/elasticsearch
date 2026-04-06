@@ -39,16 +39,11 @@ public final class SpatialExtentCartesianShapeSourceValuesAggregatorFunction imp
 
   private final List<Integer> channels;
 
-  public SpatialExtentCartesianShapeSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, SpatialExtentState state) {
+  SpatialExtentCartesianShapeSourceValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialExtentCartesianShapeSourceValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialExtentCartesianShapeSourceValuesAggregatorFunction(driverContext, channels, SpatialExtentCartesianShapeSourceValuesAggregator.initSingle());
+    this.state = SpatialExtentCartesianShapeSourceValuesAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

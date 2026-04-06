@@ -79,3 +79,35 @@ setup:
   - match: {values.1.1: "abc"}
   - match: {values.2.0: "2"}
   - match: {values.2.1: "abcdef"}
+
+---
+"Test mv max":
+  - requires:
+      cluster_features: ["mapper.keyword.mv_max_function_fuse_to_load"]
+      reason: "testing mv_max fuse to load"
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          keyword: ["abcdef", "abc", "abcdefg"]
+  - do:
+      indices.refresh: { }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | EVAL l = mv_max(keyword) | SORT l | KEEP _id, l | LIMIT 10'
+
+  - length: {columns: 2}
+  - match: { columns.0.name: "_id" }
+  - match: { columns.0.type: "keyword" }
+  - match: {columns.1.name: "l"}
+  - match: {columns.1.type: "keyword"}
+  - length: {values: 3}
+  - match: {values.0.0: "1"}
+  - match: {values.0.1: "abc"}
+  - match: {values.1.0: "2"}
+  - match: {values.1.1: "abcdef"}
+  - match: {values.2.0: "3"}
+  - match: {values.2.1: "abcdefg"}

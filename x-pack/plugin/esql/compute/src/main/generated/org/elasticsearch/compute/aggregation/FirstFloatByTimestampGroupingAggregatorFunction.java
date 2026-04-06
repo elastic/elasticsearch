@@ -36,16 +36,11 @@ public final class FirstFloatByTimestampGroupingAggregatorFunction implements Gr
 
   private final DriverContext driverContext;
 
-  public FirstFloatByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      FirstFloatByTimestampAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static FirstFloatByTimestampGroupingAggregatorFunction create(List<Integer> channels,
+  FirstFloatByTimestampGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new FirstFloatByTimestampGroupingAggregatorFunction(channels, FirstFloatByTimestampAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = FirstFloatByTimestampAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -364,14 +359,24 @@ public final class FirstFloatByTimestampGroupingAggregatorFunction implements Gr
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = FirstFloatByTimestampAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = FirstFloatByTimestampAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

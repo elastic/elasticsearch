@@ -44,6 +44,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -196,6 +197,7 @@ public class MockNode extends Node {
             TelemetryProvider telemetryProvider,
             String nodeId,
             LinkedProjectConfigService linkedProjectConfigService,
+            CrossProjectModeDecider crossProjectModeDecider,
             ProjectResolver projectResolver
         ) {
 
@@ -216,6 +218,7 @@ public class MockNode extends Node {
                     telemetryProvider,
                     nodeId,
                     linkedProjectConfigService,
+                    crossProjectModeDecider,
                     projectResolver
                 );
             } else {
@@ -229,6 +232,7 @@ public class MockNode extends Node {
                     taskManager,
                     linkedProjectConfigService,
                     telemetryProvider,
+                    crossProjectModeDecider,
                     projectResolver
                 );
             }

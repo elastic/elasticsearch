@@ -76,10 +76,11 @@ When `fuse_method` is `LINEAR`, `options` supports the following parameters:
 
 ## Examples
 
+The following examples use `FORK` to run parallel queries and `FUSE` to merge the results.
+
 ### Use RRF
 
-In the following example, we use the [`FORK`](/reference/query-languages/esql/commands/fork.md) command to run two different queries: a lexical and a semantic query.
-We then use `FUSE` to merge the results (applies `RRF` by default):
+Run a lexical and a semantic query in parallel with `FORK`, then merge with `FUSE` (applies `RRF` by default):
 
 ```esql
 FROM books METADATA _id, _index, _score  # Include document ID, index name, and relevance score

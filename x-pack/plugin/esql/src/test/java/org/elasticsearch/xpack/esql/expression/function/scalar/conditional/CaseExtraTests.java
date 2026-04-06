@@ -16,8 +16,8 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -213,7 +213,7 @@ public class CaseExtraTests extends ESTestCase {
             DriverContext driverContext = driverContext();
             Page page = new Page(driverContext.blockFactory().newConstantIntBlockWith(0, 1));
             try (
-                EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(AbstractFunctionTestCase.toEvaluator()).get(driverContext);
+                ExpressionEvaluator eval = caseExpr.toEvaluator(AbstractFunctionTestCase.toEvaluator()).get(driverContext);
                 Block block = eval.eval(page)
             ) {
                 return toJavaObject(block, 0);
@@ -340,10 +340,10 @@ public class CaseExtraTests extends ESTestCase {
         DriverContext driveContext = driverContext();
         EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
             @Override
-            public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
+            public ExpressionEvaluator.Factory apply(Expression expression) {
                 Object value = expression.fold(FoldContext.small());
                 if (value != null && value.equals(2)) {
-                    return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                    return dvrCtx -> new ExpressionEvaluator() {
                         @Override
                         public Block eval(Page page) {
                             fail("Unexpected evaluation of 4th argument");
@@ -367,7 +367,7 @@ public class CaseExtraTests extends ESTestCase {
                 return FoldContext.small();
             }
         };
-        EvalOperator.ExpressionEvaluator evaluator = caseExpr.toEvaluator(toEvaluator).get(driveContext);
+        ExpressionEvaluator evaluator = caseExpr.toEvaluator(toEvaluator).get(driveContext);
         Page page = new Page(driveContext.blockFactory().newConstantIntBlockWith(0, 1));
         try (Block block = evaluator.eval(page)) {
             assertEquals(1, toJavaObject(block, 0));
@@ -402,9 +402,8 @@ public class CaseExtraTests extends ESTestCase {
 
     protected final DriverContext driverContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }
 
     @After

@@ -898,7 +898,7 @@ public class ServiceUtilsTests extends ESTestCase {
                 exception.getMessage(),
                 is(
                     "Validation Failed: 1: Map field [setting] has an entry that is not valid, "
-                        + "[num_key => 1]. Value type of [1] is not one of [String].;"
+                        + "[num_key => 1]. Value type of [Integer] is not one of [String].;"
                 )
             );
         }
@@ -958,7 +958,7 @@ public class ServiceUtilsTests extends ESTestCase {
                 exception.getMessage(),
                 is(
                     "Validation Failed: 1: Map field [setting] has an entry that is not valid, "
-                        + "[num_key => 1]. Value type of [1] is not one of [String].;"
+                        + "[num_key => 1]. Value type of [Integer] is not one of [String].;"
                 )
             );
         }

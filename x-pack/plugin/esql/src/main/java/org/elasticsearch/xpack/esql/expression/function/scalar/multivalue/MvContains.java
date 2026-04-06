@@ -18,8 +18,8 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -102,7 +102,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression superset,
         @Param(
             name = "subset",
@@ -125,7 +125,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression subset
     ) {
         super(source, superset, subset);
@@ -187,7 +187,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         var subsetType = PlannerUtils.toElementType(right().dataType());
 
         if (subsetType == ElementType.NULL) {
-            return EvalOperator.CONSTANT_TRUE_FACTORY;
+            return ConstantEvaluators.CONSTANT_TRUE_FACTORY;
         }
 
         if (supersetType != ElementType.NULL && supersetType != subsetType) {

@@ -52,6 +52,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
         .feature(FeatureFlag.RANDOM_SAMPLING)
         .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .feature(FeatureFlag.TSDB_SYNTHETIC_ID_FEATURE_FLAG)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

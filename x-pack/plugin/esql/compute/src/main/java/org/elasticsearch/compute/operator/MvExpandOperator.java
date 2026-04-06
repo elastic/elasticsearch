@@ -91,6 +91,11 @@ public class MvExpandOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return prev != null;
+    }
+
+    @Override
     public final Page getOutput() {
         Page result = getOutputInternal();
         if (result != null) {

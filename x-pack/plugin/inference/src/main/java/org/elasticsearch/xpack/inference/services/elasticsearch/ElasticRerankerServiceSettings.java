@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
@@ -123,9 +124,7 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
             );
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new ElasticRerankerServiceSettings(baseSettings.build(), longDocumentStrategy, maxChunksPerDoc);
     }
@@ -178,6 +177,16 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
 
         public static LongDocumentStrategy fromString(String name) {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
+        }
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
+        if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
+            return new ElasticRerankerServiceSettings(esSettings, longDocumentStrategy, maxChunksPerDoc);
+        } else {
+            throw new IllegalStateException("Unexpected service settings type [" + updated.getClass().getName() + "]");
         }
     }
 }

@@ -29,13 +29,31 @@ public class DocsV3SupportTests extends ESTestCase {
     private static DocsV3Support docs = DocsV3Support.forFunctions("test", DocsV3SupportTests.class, null);
     private static final String ESQL = "/reference/query-languages/esql";
 
+    /**
+     * Functions have their own individual pages, so section titles are H2 headings.
+     */
+    public void testFormatSectionTitleForFunctions() {
+        assertThat(docs.formatSectionTitle("Supported types"), equalTo("## Supported types\n\n"));
+        assertThat(docs.formatSectionTitle("Examples"), equalTo("## Examples\n\n"));
+    }
+
+    /**
+     * Operator snippets are included inside H3 sections, so section titles are bold text
+     * to avoid breaking the heading hierarchy on operators.md.
+     */
+    public void testFormatSectionTitleForOperators() {
+        var opDocs = new DocsV3Support.OperatorsDocsSupport("add", DocsV3SupportTests.class, null, Set::of, null);
+        assertThat(opDocs.formatSectionTitle("Supported types"), equalTo("**Supported types**\n\n"));
+        assertThat(opDocs.formatSectionTitle("Examples"), equalTo("**Examples**\n\n"));
+    }
+
     public void testFunctionLink() {
         String text = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% <<esql-percentile>>.";
         String expected = "The value that is greater than half of all values and less than half of all values, also known as the 50% "
             + "[`PERCENTILE`]("
             + ESQL
-            + "/functions-operators/aggregation-functions.md#esql-percentile).";
+            + "/functions-operators/aggregation-functions/percentile.md).";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
@@ -49,13 +67,13 @@ public class DocsV3SupportTests extends ESTestCase {
         String text = "This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function";
         String expected = "This is the inverse of the [ST_DISJOINT]("
             + ESQL
-            + "/functions-operators/spatial-functions.md#esql-st_disjoint) function";
+            + "/functions-operators/spatial-functions/st_disjoint.md) function";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testStringFunctionLink() {
         String text = "a known order like <<esql-split>>.";
-        String expected = "a known order like [`SPLIT`](" + ESQL + "/functions-operators/string-functions.md#esql-split).";
+        String expected = "a known order like [`SPLIT`](" + ESQL + "/functions-operators/string-functions/split.md).";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
@@ -84,10 +102,10 @@ public class DocsV3SupportTests extends ESTestCase {
         String text = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.";
         String expected = "Like [`PERCENTILE`]("
             + ESQL
-            + "/functions-operators/aggregation-functions.md#esql-percentile), "
+            + "/functions-operators/aggregation-functions/percentile.md), "
             + "`MEDIAN` is [usually approximate]("
             + ESQL
-            + "/functions-operators/aggregation-functions.md#esql-percentile-approximate).";
+            + "/functions-operators/aggregation-functions/percentile.md#esql-percentile-approximate).";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
@@ -195,6 +213,34 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(results, equalTo(expectedResults));
     }
 
+    /**
+     * Verify that RFC 4180 CSV-quoted values with doubled quotes are properly unescaped,
+     * so JSON strings render correctly in docs instead of showing {""key"":""value""}.
+     */
+    public void testRenderingExampleResultCsvJsonUnescaping() throws IOException {
+        String expectedResults = """
+            | log:keyword | severity:keyword |
+            | --- | --- |
+            | {"severity":"ERROR","body":"Payment processing failed"} | ERROR |
+            """;
+        String results = docs.loadExample("json_extract.csv-spec", "json_extract-result");
+        assertThat(results, equalTo(expectedResults));
+    }
+
+    /**
+     * Verify that simple quoted values (no doubled quotes inside) are preserved as-is.
+     * Only values with "" (RFC 4180 escaping) should be unescaped.
+     */
+    public void testRenderingExampleResultSimpleQuotesPreserved() throws IOException {
+        String expectedResults = """
+            | wkt:keyword | pt:geo_point |
+            | --- | --- |
+            | "POINT(42.97109630194 14.7552534413725)" | POINT(42.97109630194 14.7552534413725) |
+            """;
+        String results = docs.loadExample("spatial.csv-spec", "to_geopoint-str-result");
+        assertThat(results, equalTo(expectedResults));
+    }
+
     public void testRenderingExampleRaw2() throws IOException {
         String expectedExample = """
             ROW n=1
@@ -233,7 +279,7 @@ public class DocsV3SupportTests extends ESTestCase {
         String expected = """
             % This is generated by ESQL's AbstractFunctionTestCase. Do not edit it. See ../README.md for how to regenerate it.
 
-            **Examples**
+            ## Examples
 
             ```esql
             FROM employees
@@ -311,12 +357,11 @@ public class DocsV3SupportTests extends ESTestCase {
         String expected = """
             % This is generated by ESQL's AbstractFunctionTestCase. Do not edit it. See ../README.md for how to regenerate it.
 
-            ## `COUNT` [esql-count]
             ```{applies_to}
             stack: ga 9.1.0
             ```
 
-            **Syntax**
+            ## Syntax
 
             :::{image} ../../../images/functions/count.svg
             :alt: Embedded

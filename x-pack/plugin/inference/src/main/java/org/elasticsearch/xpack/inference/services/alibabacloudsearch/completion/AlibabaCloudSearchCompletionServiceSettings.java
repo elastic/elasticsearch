@@ -25,11 +25,11 @@ public class AlibabaCloudSearchCompletionServiceSettings implements ServiceSetti
     public static final String NAME = "alibabacloud_search_completion_service_settings";
 
     public static AlibabaCloudSearchCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-        var commonServiceSettings = AlibabaCloudSearchServiceSettings.fromMap(map, context);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        var validationException = new ValidationException();
+
+        var commonServiceSettings = AlibabaCloudSearchServiceSettings.fromMap(map, context, validationException);
+
+        validationException.throwIfValidationErrorsExist();
 
         return new AlibabaCloudSearchCompletionServiceSettings(commonServiceSettings);
     }
@@ -41,7 +41,7 @@ public class AlibabaCloudSearchCompletionServiceSettings implements ServiceSetti
     }
 
     public AlibabaCloudSearchCompletionServiceSettings(StreamInput in) throws IOException {
-        commonSettings = new AlibabaCloudSearchServiceSettings(in);
+        this.commonSettings = new AlibabaCloudSearchServiceSettings(in);
     }
 
     public AlibabaCloudSearchServiceSettings getCommonSettings() {
@@ -51,6 +51,17 @@ public class AlibabaCloudSearchCompletionServiceSettings implements ServiceSetti
     @Override
     public String modelId() {
         return commonSettings.modelId();
+    }
+
+    @Override
+    public AlibabaCloudSearchCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var updatedCommonServiceSettings = commonSettings.updateServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AlibabaCloudSearchCompletionServiceSettings(updatedCommonServiceSettings);
     }
 
     @Override

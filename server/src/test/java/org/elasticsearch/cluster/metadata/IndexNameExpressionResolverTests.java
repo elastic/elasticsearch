@@ -2414,7 +2414,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS,
                     IndicesOptions.WildcardOptions.DEFAULT,
                     IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).build(),
-                    IndicesOptions.CrossProjectModeOptions.DEFAULT
+                    IndicesOptions.CrossProjectModeOptions.DEFAULT,
+                    IndicesOptions.IndexAbstractionOptions.DEFAULT
                 ),
                 "ind*",
                 "test-index"

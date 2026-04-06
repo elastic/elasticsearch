@@ -14,27 +14,27 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateDiff}.
+ * {@link ExpressionEvaluator} implementation for {@link DateDiff}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class DateDiffConstantNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateDiffConstantNanosEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateDiffConstantNanosEvaluator.class);
 
   private final Source source;
 
   private final DateDiff.Part datePartFieldUnit;
 
-  private final EvalOperator.ExpressionEvaluator startTimestamp;
+  private final ExpressionEvaluator startTimestamp;
 
-  private final EvalOperator.ExpressionEvaluator endTimestamp;
+  private final ExpressionEvaluator endTimestamp;
 
   private final ZoneId zoneId;
 
@@ -43,8 +43,8 @@ public final class DateDiffConstantNanosEvaluator implements EvalOperator.Expres
   private Warnings warnings;
 
   public DateDiffConstantNanosEvaluator(Source source, DateDiff.Part datePartFieldUnit,
-      EvalOperator.ExpressionEvaluator startTimestamp,
-      EvalOperator.ExpressionEvaluator endTimestamp, ZoneId zoneId, DriverContext driverContext) {
+      ExpressionEvaluator startTimestamp, ExpressionEvaluator endTimestamp, ZoneId zoneId,
+      DriverContext driverContext) {
     this.source = source;
     this.datePartFieldUnit = datePartFieldUnit;
     this.startTimestamp = startTimestamp;
@@ -151,20 +151,20 @@ public final class DateDiffConstantNanosEvaluator implements EvalOperator.Expres
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final DateDiff.Part datePartFieldUnit;
 
-    private final EvalOperator.ExpressionEvaluator.Factory startTimestamp;
+    private final ExpressionEvaluator.Factory startTimestamp;
 
-    private final EvalOperator.ExpressionEvaluator.Factory endTimestamp;
+    private final ExpressionEvaluator.Factory endTimestamp;
 
     private final ZoneId zoneId;
 
     public Factory(Source source, DateDiff.Part datePartFieldUnit,
-        EvalOperator.ExpressionEvaluator.Factory startTimestamp,
-        EvalOperator.ExpressionEvaluator.Factory endTimestamp, ZoneId zoneId) {
+        ExpressionEvaluator.Factory startTimestamp, ExpressionEvaluator.Factory endTimestamp,
+        ZoneId zoneId) {
       this.source = source;
       this.datePartFieldUnit = datePartFieldUnit;
       this.startTimestamp = startTimestamp;

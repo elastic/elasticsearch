@@ -12,13 +12,14 @@ package org.elasticsearch.reindex.remote;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
+import org.elasticsearch.reindex.PaginatedHitSource.BasicHit;
+import org.elasticsearch.reindex.PaginatedHitSource.Hit;
+import org.elasticsearch.reindex.PaginatedHitSource.Response;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -30,6 +31,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -40,7 +43,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Parsers to convert the response from the remote host into objects useful for {@link RemoteScrollableHitSource}.
+ * Parsers to convert the response from the remote host into objects useful for {@link RemoteScrollablePaginatedHitSource}.
  */
 final class RemoteResponseParsers {
     private RemoteResponseParsers() {}
@@ -83,10 +86,26 @@ final class RemoteResponseParsers {
             String routing;
         }
         ObjectParser<Fields, XContentType> fieldsParser = new ObjectParser<>("fields", Fields::new);
-        HIT_PARSER.declareObject((hit, fields) -> { hit.setRouting(fields.routing); }, fieldsParser, new ParseField("fields"));
+        HIT_PARSER.declareObject((hit, fields) -> hit.setRouting(fields.routing), fieldsParser, new ParseField("fields"));
         fieldsParser.declareString((fields, routing) -> fields.routing = routing, routingField);
         fieldsParser.declareLong((fields, ttl) -> {}, ttlField); // ignore ttls since they have been removed
         fieldsParser.declareString((fields, parent) -> {}, parentField); // ignore parents since they have been removed
+        HIT_PARSER.declareField(BasicHit::setSortValues, (p, c) -> {
+            if (p.currentToken() != XContentParser.Token.START_ARRAY) {
+                return null;
+            }
+            List<Object> values = new ArrayList<>();
+            while (p.nextToken() != XContentParser.Token.END_ARRAY) {
+                switch (p.currentToken()) {
+                    case VALUE_STRING -> values.add(p.text());
+                    case VALUE_NUMBER -> values.add(p.numberValue());
+                    case VALUE_BOOLEAN -> values.add(p.booleanValue());
+                    case VALUE_NULL -> values.add(null);
+                    default -> throw new ParsingException(p.getTokenLocation(), "Expected value in sort array");
+                }
+            }
+            return values.isEmpty() ? null : values.toArray();
+        }, new ParseField("sort"), ValueType.VALUE_ARRAY);
     }
 
     /**
@@ -110,7 +129,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for {@code failed} shards in the {@code _shards} elements.
      */
-    public static final ConstructingObjectParser<SearchFailure, Void> SEARCH_FAILURE_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<PaginatedSearchFailure, Void> SEARCH_FAILURE_PARSER = new ConstructingObjectParser<>(
         "failure",
         true,
         a -> {
@@ -126,7 +145,7 @@ final class RemoteResponseParsers {
             } else {
                 reasonThrowable = (Throwable) reason;
             }
-            return new SearchFailure(reasonThrowable, index, shardId, nodeId);
+            return new PaginatedSearchFailure(reasonThrowable, index, shardId, nodeId);
         }
     );
     static {
@@ -167,27 +186,28 @@ final class RemoteResponseParsers {
             int i = 0;
             Throwable catastrophicFailure = (Throwable) a[i++];
             if (catastrophicFailure != null) {
-                return new Response(false, singletonList(new SearchFailure(catastrophicFailure)), 0, emptyList(), null);
+                return new Response(false, singletonList(new PaginatedSearchFailure(catastrophicFailure)), 0, emptyList(), null);
             }
-            boolean timedOut = (boolean) a[i++];
+            boolean timedOut = Boolean.TRUE.equals(a[i++]);
             String scroll = (String) a[i++];
             Object[] hitsElement = (Object[]) a[i++];
             @SuppressWarnings("unchecked")
-            List<SearchFailure> failures = (List<SearchFailure>) a[i++];
+            List<PaginatedSearchFailure> failures = (List<PaginatedSearchFailure>) a[i++];
+            BytesReference pitId = (BytesReference) a[i++];
 
             long totalHits = 0;
             List<Hit> hits = emptyList();
 
             // Pull apart the hits element if we got it
             if (hitsElement != null) {
-                i = 0;
-                totalHits = (long) hitsElement[i++];
+                int j = 0;
+                totalHits = (long) hitsElement[j++];
                 @SuppressWarnings("unchecked")
-                List<Hit> h = (List<Hit>) hitsElement[i++];
+                List<Hit> h = (List<Hit>) hitsElement[j++];
                 hits = h;
             }
 
-            return new Response(timedOut, failures, totalHits, hits, scroll);
+            return new Response(timedOut, failures, totalHits, hits, scroll, null, pitId);
         }
     );
     static {
@@ -196,6 +216,10 @@ final class RemoteResponseParsers {
         RESPONSE_PARSER.declareString(optionalConstructorArg(), new ParseField("_scroll_id"));
         RESPONSE_PARSER.declareObject(optionalConstructorArg(), HITS_PARSER, new ParseField("hits"));
         RESPONSE_PARSER.declareObject(optionalConstructorArg(), (p, c) -> SHARDS_PARSER.apply(p, null), new ParseField("_shards"));
+        RESPONSE_PARSER.declareField(optionalConstructorArg(), (p, c) -> {
+            String id = p.text();
+            return id == null || id.isEmpty() ? null : new BytesArray(Base64.getUrlDecoder().decode(id));
+        }, new ParseField("pit_id"), ValueType.STRING);
     }
 
     /**
@@ -267,6 +291,24 @@ final class RemoteResponseParsers {
         public void setCausedBy(Throwable causedBy) {
             this.causedBy = causedBy;
         }
+    }
+
+    /**
+     * Parser for the open point-in-time response. Returns the PIT id as {@link BytesReference}.
+     */
+    public static final ConstructingObjectParser<BytesReference, XContentType> OPEN_PIT_PARSER = new ConstructingObjectParser<>(
+        "open_pit_response",
+        true,
+        a -> {
+            String id = (String) a[0];
+            if (id == null || id.isEmpty()) {
+                throw new IllegalArgumentException("open point-in-time response must contain [id] field");
+            }
+            return new BytesArray(Base64.getUrlDecoder().decode(id));
+        }
+    );
+    static {
+        OPEN_PIT_PARSER.declareString(optionalConstructorArg(), new ParseField("id"));
     }
 
     /**

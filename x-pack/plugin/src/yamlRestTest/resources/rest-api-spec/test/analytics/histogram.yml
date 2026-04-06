@@ -359,4 +359,4 @@ histogram with synthetic source and ignore_malformed:
         id: 2
   - match:
       _source:
-        latency: [{"values": [2.0], "counts": [2]}, {"values": [1.0], "counts": [1], "hello": "world"}, 123, 456, "fox"]
+        latency: [{"values": [2.0], "counts": [2]}, "fox", 123, 456, {"values": [1.0], "counts": [1], "hello": "world"}]

@@ -600,7 +600,6 @@ setup:
                     type: int8_hnsw
                     m: 20
                     ef_construction: 100
-                    confidence_interval: 1.0
 
   - do:
       indices.get_mapping:
@@ -609,7 +608,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
   - do:
       index:
@@ -641,7 +639,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": int8_hnsw }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
 ---
 "Specifying incompatible dense vector index options will fail":
@@ -712,13 +709,13 @@ setup:
                     type: int8_hnsw
 
 ---
-"Index option type is required":
+"Index option type is required when specifying more than element_type":
   - requires:
-      cluster_features: "semantic_text.index_options"
-      reason: Index options introduced in 8.19.0
+      cluster_features: [ "semantic_text.index_options", "semantic_text.element_type_in_index_options" ]
+      reason: Element type support in dense vector index options
 
   - do:
-      catch: /Required type/
+      catch: bad_request
       indices.create:
         index: test-invalid-index-options-dense
         body:
@@ -735,6 +732,64 @@ setup:
                 index_options:
                   dense_vector:
                     foo: bar
+
+  - match: { error.caused_by.type: illegal_argument_exception }
+  - match: { error.caused_by.reason: "[type] is required when specifying more params than [element_type]" }
+
+---
+"Index option element_type or type is required":
+  - requires:
+      cluster_features: [ "semantic_text.index_options", "semantic_text.element_type_in_index_options" ]
+      reason: Element type support in dense vector index options
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-invalid-index-options-dense
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector: {}
+
+  - match: { error.caused_by.type: illegal_argument_exception }
+  - match: { error.caused_by.reason: "Must specify at least [element_type] or [type]" }
+
+---
+"Invalid element type":
+  - requires:
+      cluster_features: [ "semantic_text.index_options", "semantic_text.element_type_in_index_options" ]
+      reason: Element type support in dense vector index options
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-invalid-element-type
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: foo
+
+  - match: { error.caused_by.type: illegal_argument_exception }
+  - match: { error.caused_by.reason: "/Invalid.element_type.\\[foo\\]/" }
 
 ---
 "Specifying index options requires model information":
@@ -811,7 +866,6 @@ setup:
                     type: int8_hnsw
                     m: 16
                     ef_construction: 100
-                    confidence_interval: 1.0
 
   - do:
       indices.get_mapping:
@@ -820,7 +874,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 16 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 100 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
   - do:
       indices.put_mapping:
@@ -835,7 +888,6 @@ setup:
                   type: int8_hnsw
                   m: 20
                   ef_construction: 90
-                  confidence_interval: 1.0
 
   - do:
       indices.get_mapping:
@@ -844,7 +896,6 @@ setup:
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.type": "int8_hnsw" }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.m": 20 }
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.ef_construction": 90 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.confidence_interval": 1.0 }
 
   - do:
       catch: /Cannot update parameter \[index_options\]/
@@ -861,6 +912,66 @@ setup:
 
   - match: { status: 400 }
 
+---
+"Cannot update element type in index options":
+  - requires:
+      cluster_features: [ "semantic_text.index_options", "semantic_text.element_type_in_index_options" ]
+      reason: Element type support in dense vector index options
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    element_type: float
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.dense_vector.element_type": float }
+
+  # Explicitly update element type to bfloat16
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index-options
+        body:
+          properties:
+            semantic_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+              index_options:
+                dense_vector:
+                  element_type: bfloat16
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "/Cannot.update.parameter.\\[element_type\\].from.\\[float\\].to.\\[bfloat16\\]/" }
+
+  # Implicitly update element type to by excluding it and relying on default behavior
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test-index-options
+        body:
+          properties:
+            semantic_field:
+              type: semantic_text
+              inference_id: dense-inference-id
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "/Cannot.update.parameter.\\[element_type\\].from.\\[float\\].to.\\[bfloat16\\]/" }
 
 ---
 "Displaying default index_options with and without include_defaults":

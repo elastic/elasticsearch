@@ -19,6 +19,7 @@ public final class ServiceFields {
     public static final String MAX_INPUT_TOKENS = "max_input_tokens";
     public static final String URL = "url";
     public static final String MODEL_ID = "model_id";
+    public static final String USER = "user";
     /**
      * Represents the field elasticsearch uses to determine the embedding type (e.g. float, byte).
      * The value this field is normally set to one of the values in

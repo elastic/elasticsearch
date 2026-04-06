@@ -11,8 +11,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,22 +18,16 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteAsyncAction;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,11 +37,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQueryBuilder> {
-    private static final MatchNoDocsQuery EMPTY_QUERY_VECTORS = new MatchNoDocsQuery("Empty query vectors");
+public class SparseVectorQueryBuilder extends LeafQueryBuilder<SparseVectorQueryBuilder> {
     public static final String NAME = "sparse_vector";
     public static final String ALLOWED_FIELD_TYPE = "sparse_vector";
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -227,7 +216,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (queryVectors == null) {
-            return EMPTY_QUERY_VECTORS;
+            throw new IllegalStateException("query vectors should be set during sparse_vector query rewrite");
         }
 
         final MappedFieldType ft = context.getFieldType(fieldName);
@@ -281,78 +270,6 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         );
 
         return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
-    }
-
-    private static class SparseInferenceRewriteAction extends QueryRewriteAsyncAction<TextExpansionResults, SparseInferenceRewriteAction> {
-
-        private final String inferenceId;
-        private final String query;
-
-        SparseInferenceRewriteAction(String inferenceId, String query) {
-            this.inferenceId = inferenceId;
-            this.query = query;
-        }
-
-        @Override
-        protected void execute(Client client, ActionListener<TextExpansionResults> responseListener) {
-            // TODO: Move this class to `server` and update to use InferenceAction.Request
-            CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
-                inferenceId,
-                List.of(query),
-                TextExpansionConfigUpdate.EMPTY_UPDATE,
-                false,
-                null
-            );
-
-            inferRequest.setHighPriority(true);
-            inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
-
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                CoordinatedInferenceAction.INSTANCE,
-                inferRequest,
-                responseListener.delegateFailureAndWrap((listener, inferenceResponse) -> {
-                    List<InferenceResults> inferenceResults = inferenceResponse.getInferenceResults();
-                    if (inferenceResults.isEmpty()) {
-                        listener.onFailure(new IllegalStateException("inference response contain no results"));
-                        return;
-                    }
-                    if (inferenceResults.size() > 1) {
-                        listener.onFailure(new IllegalStateException("inference response should contain only one result"));
-                        return;
-                    }
-
-                    if (inferenceResults.getFirst() instanceof TextExpansionResults textExpansionResults) {
-                        listener.onResponse(textExpansionResults);
-                    } else if (inferenceResults.getFirst() instanceof WarningInferenceResults warning) {
-                        listener.onFailure(new IllegalStateException(warning.getWarning()));
-                    } else {
-                        listener.onFailure(
-                            new IllegalArgumentException(
-                                "expected a result of type ["
-                                    + TextExpansionResults.NAME
-                                    + "] received ["
-                                    + inferenceResults.getFirst().getWriteableName()
-                                    + "]. Is ["
-                                    + inferenceId
-                                    + "] a compatible model?"
-                            )
-                        );
-                    }
-                })
-            );
-        }
-
-        @Override
-        public int doHashCode() {
-            return Objects.hash(inferenceId, query);
-        }
-
-        @Override
-        public boolean doEquals(SparseInferenceRewriteAction other) {
-            return Objects.equals(inferenceId, other.inferenceId) && Objects.equals(query, other.query);
-        }
     }
 
     @Override

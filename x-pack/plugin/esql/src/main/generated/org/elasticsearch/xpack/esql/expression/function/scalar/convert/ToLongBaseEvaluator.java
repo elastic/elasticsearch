@@ -16,32 +16,32 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToLongBase}.
+ * {@link ExpressionEvaluator} implementation for {@link ToLongBase}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ToLongBaseEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ToLongBaseEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToLongBaseEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator string;
+  private final ExpressionEvaluator string;
 
-  private final EvalOperator.ExpressionEvaluator base;
+  private final ExpressionEvaluator base;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ToLongBaseEvaluator(Source source, EvalOperator.ExpressionEvaluator string,
-      EvalOperator.ExpressionEvaluator base, DriverContext driverContext) {
+  public ToLongBaseEvaluator(Source source, ExpressionEvaluator string, ExpressionEvaluator base,
+      DriverContext driverContext) {
     this.source = source;
     this.string = string;
     this.base = base;
@@ -146,15 +146,15 @@ public final class ToLongBaseEvaluator implements EvalOperator.ExpressionEvaluat
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory string;
+    private final ExpressionEvaluator.Factory string;
 
-    private final EvalOperator.ExpressionEvaluator.Factory base;
+    private final ExpressionEvaluator.Factory base;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory string,
-        EvalOperator.ExpressionEvaluator.Factory base) {
+    public Factory(Source source, ExpressionEvaluator.Factory string,
+        ExpressionEvaluator.Factory base) {
       this.source = source;
       this.string = string;
       this.base = base;

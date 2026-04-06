@@ -34,16 +34,10 @@ public final class MinIpAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinIpAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      MinIpAggregator.SingleState state) {
+  MinIpAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinIpAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MinIpAggregatorFunction(driverContext, channels, MinIpAggregator.initSingle());
+    this.state = MinIpAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

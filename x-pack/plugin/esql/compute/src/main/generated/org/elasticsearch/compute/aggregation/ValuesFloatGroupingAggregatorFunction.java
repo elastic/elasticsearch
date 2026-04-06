@@ -33,16 +33,10 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
 
   private final DriverContext driverContext;
 
-  public ValuesFloatGroupingAggregatorFunction(List<Integer> channels,
-      ValuesFloatAggregator.GroupingState state, DriverContext driverContext) {
+  ValuesFloatGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = ValuesFloatAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static ValuesFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new ValuesFloatGroupingAggregatorFunction(channels, ValuesFloatAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -281,14 +275,15 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return ValuesFloatAggregator.prepareEvaluateIntermediate(state, selected, ctx);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = ValuesFloatAggregator.evaluateFinal(state, selected, ctx);
+    return ValuesFloatAggregator.prepareEvaluateFinal(state, selected, ctx);
   }
 
   @Override

@@ -64,6 +64,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public RankFeaturesFieldMapper build(MapperBuilderContext context) {
             return new RankFeaturesFieldMapper(
                 leafName(),

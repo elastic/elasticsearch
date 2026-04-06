@@ -35,6 +35,8 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -53,7 +55,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests;
@@ -118,7 +119,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             new CommonConfig(TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION)) {
 
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected LlamaService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return LlamaServiceTests.createService(threadPool, clientManager);
                 }
 
@@ -238,7 +239,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         assertThat(llamaModel.getTaskType(), Matchers.is(CHAT_COMPLETION));
     }
 
-    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static LlamaService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
@@ -447,9 +448,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -487,9 +486,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -577,9 +574,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

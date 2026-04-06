@@ -10,14 +10,22 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 public abstract class ESVectorizationProvider {
+
+    protected static final Logger logger = LogManager.getLogger(ESVectorizationProvider.class);
 
     public static ESVectorizationProvider getInstance() {
         return Objects.requireNonNull(
@@ -33,21 +41,71 @@ public abstract class ESVectorizationProvider {
     /** Create a new {@link ES91OSQVectorsScorer} for the given {@link IndexInput}. */
     public abstract ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 
+    /**
+     * Create a new {@link ESNextOSQVectorsScorer} for the given {@link IndexInput} and explicit int4 disk format.
+     * The input should be unwrapped before calling this method. If the input is
+     * still a {@code FilterIndexInput} that does not implement
+     * {@code MemorySegmentAccessInput} or {@code DirectAccessInput}, an
+     * {@link IllegalArgumentException} is thrown. Non-wrapper inputs (e.g.
+     * {@code ByteBuffersIndexInput}) are accepted and use a heap-copy fallback.
+     */
     public abstract ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
         IndexInput input,
         byte queryBits,
         byte indexBits,
         int dimension,
         int dataLength,
-        int bulkSize
+        int bulkSize,
+        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException;
 
-    /** Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}. */
+    /**
+     * Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}.
+     * See {@link #newESNextOSQVectorsScorer} for input type requirements.
+     */
     public abstract ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
+
+    public abstract ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(
+        IndexInput input,
+        int dimension,
+        int vectorLengthInBytes
+    ) throws IOException;
 
     // visible for tests
     static ESVectorizationProvider lookup(boolean testMode) {
-        return new DefaultESVectorizationProvider();
+        final int runtimeVersion = Runtime.version().feature();
+        assert runtimeVersion >= 21;
+        // only use vector module with Hotspot VM
+        if (Constants.IS_HOTSPOT_VM == false) {
+            logger.warn("Java runtime is not using Hotspot VM; Java vector incubator API can't be enabled.");
+            return new DefaultESVectorizationProvider();
+        }
+        // is the incubator module present and readable (JVM providers may to exclude them or it is
+        // build with jlink)
+        final var vectorMod = lookupVectorModule();
+        if (vectorMod.isEmpty()) {
+            logger.warn(
+                "Java vector incubator module is not readable. "
+                    + "For optimal vector performance, pass '--add-modules jdk.incubator.vector' to enable Vector API."
+            );
+            return new DefaultESVectorizationProvider();
+        }
+        vectorMod.ifPresent(ESVectorizationProvider.class.getModule()::addReads);
+        var impl = new PanamaESVectorizationProvider();
+        logger.info(
+            String.format(
+                Locale.ENGLISH,
+                "Java vector incubator API enabled; uses preferredBitSize=%d",
+                PanamaESVectorUtilSupport.VECTOR_BITSIZE
+            )
+        );
+        return impl;
+    }
+
+    private static Optional<Module> lookupVectorModule() {
+        return Optional.ofNullable(ESVectorizationProvider.class.getModule().getLayer())
+            .orElse(ModuleLayer.boot())
+            .findModule("jdk.incubator.vector");
     }
 
     /** This static holder class prevents classloading deadlock. */

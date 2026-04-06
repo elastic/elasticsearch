@@ -196,7 +196,7 @@ use_document_level_security
 :   Depends on document level security being enabled. Include groups and inherited users when indexing permissions.
 
 ::::{warning}
-Enabling `Include groups and inherited users` will cause a signficant performance degradation.
+Enabling `Include groups and inherited users` will cause a significant performance degradation.
 
 ::::
 

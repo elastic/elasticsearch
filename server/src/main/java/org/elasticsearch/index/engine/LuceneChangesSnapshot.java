@@ -35,7 +35,7 @@ import java.util.List;
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
  */
-public class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
+public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
     private long lastSeenSeqNo;
     private int skippedOperations;
     private final boolean singleConsumer;
@@ -63,7 +63,6 @@ public class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
      * @param singleConsumer    true if the snapshot is accessed by a single thread that creates the snapshot
      * @param accessStats       true if the stats of the snapshot can be accessed via {@link #totalOperations()}
      */
-    @SuppressWarnings("this-escape")
     public LuceneChangesSnapshot(
         MapperService mapperService,
         Engine.Searcher engineSearcher,
@@ -252,7 +251,7 @@ public class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {
-            final String id = overrideId(fields.id());
+            final String id = fields.id();
             if (isTombstone) {
                 op = new Translog.Delete(id, seqNo, primaryTerm, version);
                 assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
@@ -264,7 +263,7 @@ public class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                         throw new MissingHistoryOperationsException(
                             "source not found for seqno=" + seqNo + " from_seqno=" + fromSeqNo + " to_seqno=" + toSeqNo
                         );
-                    } else if (skipDocsWithNullSource()) {
+                    } else {
                         skippedOperations++;
                         return null;
                     }

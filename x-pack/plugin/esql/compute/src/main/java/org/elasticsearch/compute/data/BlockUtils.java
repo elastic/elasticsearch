@@ -329,14 +329,17 @@ public final class BlockUtils {
             case TDIGEST -> {
                 TDigestBlock tDigestBlock = (TDigestBlock) block;
                 // return a copy so that the returned value is not bound to the lifetime of the block
-                TDigestHolder blockBacked = tDigestBlock.getTDigestHolder(offset);
-                yield new TDigestHolder(
+                TDigestHolder blockBacked = new TDigestHolder();
+                blockBacked = tDigestBlock.getTDigestHolder(offset, blockBacked);
+                TDigestHolder copy = new TDigestHolder();
+                copy.reset(
                     BytesRef.deepCopyOf(blockBacked.getEncodedDigest()),
                     blockBacked.getMin(),
                     blockBacked.getMax(),
                     blockBacked.getSum(),
-                    blockBacked.getValueCount()
+                    blockBacked.size()
                 );
+                yield copy;
             }
             case LONG_RANGE -> {
                 LongRangeBlock b = (LongRangeBlock) block;

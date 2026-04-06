@@ -73,30 +73,36 @@ PUT my-index-000001
 Index sorting supports the following settings:
 
 $$$index-sort-field$$$
-`index.sort.field` {applies_to}`serverless: all`
+`index.sort.field`
 :   The list of fields used to sort the index. Only `boolean`, `numeric`, `date` and `keyword` fields with `doc_values` are allowed here.
 
 $$$index-sort-order$$$
-`index.sort.order` {applies_to}`serverless: all`
+`index.sort.order`
 :   The sort order to use for each field. The order option can have the following values:
 
-    * `asc`:  For ascending order
+    * `asc`:  For ascending order.
     * `desc`: For descending order.
 
+    When `index.sort.field` is set but `index.sort.order` is not explicitly provided, each field defaults to `asc`.
+
 $$$index-sort-mode$$$
-`index.sort.mode` {applies_to}`serverless: all`
+`index.sort.mode`
 :   Elasticsearch supports sorting by multi-valued fields. The mode option controls what value is picked to sort the document. The mode option can have the following values:
 
     * `min`: 	Pick the lowest value.
     * `max`: 	Pick the highest value.
 
+    When `index.sort.order` is set to `asc`, `index.sort.mode` defaults to `min`. If you set the order to `desc`, the mode defaults to `max`.
+
 
 $$$index-sort-missing$$$
-`index.sort.missing` {applies_to}`serverless: all`
+`index.sort.missing`
 :   The missing parameter specifies how docs which are missing the field should be treated. The missing value can have the following values:
 
     * `_last`: Documents without value for the field are sorted last.
     * `_first`: Documents without value for the field are sorted first.
+
+    Documents missing the sort field are always sorted last by default, regardless of sort order.
 
 
 ::::{warning}

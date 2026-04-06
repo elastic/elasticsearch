@@ -68,6 +68,12 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
     @Nullable
     String modelId();
 
+    /**
+     * Update the service settings with the provided settings, combining them as necessary.
+     *
+     * @param serviceSettings a <b>modifiable</b> map with the new service settings
+     * @return the updated service settings
+     */
     default ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         return this;
     }

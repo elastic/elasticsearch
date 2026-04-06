@@ -34,16 +34,11 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
   private final DriverContext driverContext;
 
-  public CountDistinctBooleanGroupingAggregatorFunction(List<Integer> channels,
-      CountDistinctBooleanAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static CountDistinctBooleanGroupingAggregatorFunction create(List<Integer> channels,
+  CountDistinctBooleanGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new CountDistinctBooleanGroupingAggregatorFunction(channels, CountDistinctBooleanAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    this.channels = channels;
+    this.state = CountDistinctBooleanAggregator.initGrouping(driverContext.bigArrays());
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -300,14 +295,24 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = CountDistinctBooleanAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = CountDistinctBooleanAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

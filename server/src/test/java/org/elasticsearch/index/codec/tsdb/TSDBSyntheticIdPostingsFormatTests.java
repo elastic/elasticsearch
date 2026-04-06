@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -29,12 +30,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.bloomfilter.LazyFilterTermsEnum;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -47,6 +50,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -63,10 +67,11 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
-import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticIdBytesRef;
+import static org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper.createSyntheticId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -134,7 +139,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
                     assertThat(terms.size(), equalTo(-1L));
                     assertThat(terms.getSumTotalTermFreq(), equalTo(0L));
-                    assertThat(terms.getSumDocFreq(), equalTo(0L));
+                    assertThat(terms.getSumDocFreq(), equalTo((long) docsPerSegments[i]));
                     assertThat(terms.getDocCount(), equalTo(docsPerSegments[i]));
 
                     var lazyTermsEnum = terms.iterator();
@@ -159,7 +164,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                         if (previous != null) {
                             assertThat(current.compareTo(previous), greaterThan(0));
                         }
-                        previous = termsEnum.term();
+                        // Deep copy since term() may return a reused BytesRef (scratch buffer)
+                        previous = BytesRef.deepCopyOf(termsEnum.term());
 
                         if (randomBoolean()) {
                             var postings = termsEnum.postings(reuse);
@@ -205,22 +211,29 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
                 final Terms terms = leafReader.terms(IdFieldMapper.NAME);
                 assertNotNull(terms);
-                final TermsEnum wrappedTermsEnum = asInstanceOf(LazyFilterTermsEnum.class, terms.iterator());
-                final TermsEnum unwrappedTermsEnum = asInstanceOf(SyntheticIdTermsEnum.class, LazyFilterTermsEnum.unwrap(wrappedTermsEnum));
+                final TermsEnum delegatingBloomTermsEnum = terms.iterator();
+                final TermsEnum lazyTermsEnum = asInstanceOf(LazyFilterTermsEnum.class, delegatingBloomTermsEnum);
+                final TermsEnum syntheticIdTermsEnum = asInstanceOf(SyntheticIdTermsEnum.class, LazyFilterTermsEnum.unwrap(lazyTermsEnum));
 
-                TermsEnum termsEnum = unwrappedTermsEnum;
+                TermsEnum termsEnum = randomFrom(syntheticIdTermsEnum, lazyTermsEnum, delegatingBloomTermsEnum);
 
                 // Test seek the exact term
                 {
                     for (var docIdTerm : docsIdsTerms) {
                         if (rarely()) {
-                            termsEnum = randomFrom(random(), () -> unwrappedTermsEnum, () -> wrappedTermsEnum, () -> {
-                                try {
-                                    return leafReader.terms(IdFieldMapper.NAME).iterator();
-                                } catch (IOException e) {
-                                    throw new AssertionError(e);
+                            termsEnum = randomFrom(
+                                random(),
+                                () -> syntheticIdTermsEnum,
+                                () -> lazyTermsEnum,
+                                () -> delegatingBloomTermsEnum,
+                                () -> {
+                                    try {
+                                        return leafReader.terms(IdFieldMapper.NAME).iterator();
+                                    } catch (IOException e) {
+                                        throw new AssertionError(e);
+                                    }
                                 }
-                            });
+                            );
                         }
                         switch (randomInt(2)) {
                             case 0:
@@ -306,9 +319,19 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 // Test seek after the last term
                 {
                     final var termAfterEnd = randomTermAfter(finalDocs.navigableKeySet().getLast());
+
+                    // If the terms enum is a SyntheticIdTermsEnum, then seekCeil/seekExact to a term after the last term should correctly
+                    // position the enum after the last term.
+                    //
+                    // When the enum uses a bloom filter, the exact term to seek with seekExact is not found and the result is immediately
+                    // returned without positioning the delegate terms enum. In that case we cannot tell what the #next() method will
+                    // return. But when seekCeil is used, the bloom filter delegates so the delegating terms enum is positioned afterwards.
+                    final var isPositionedAfterSeek = termsEnum instanceof SyntheticIdTermsEnum;
+
                     switch (randomInt(2)) {
                         case 0:
                             assertThat(termsEnum.seekCeil(termAfterEnd), equalTo(TermsEnum.SeekStatus.END));
+                            assertThat(termsEnum.next(), nullValue());
                             break;
                         case 1:
                             assertThat(termsEnum.seekExact(termAfterEnd), equalTo(false));
@@ -329,7 +352,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                         default:
                             throw new AssertionError();
                     }
-                    assertThat(termsEnum.next(), nullValue());
+                    if (isPositionedAfterSeek) {
+                        assertThat(termsEnum.next(), nullValue());
+                    }
                 }
 
                 // Test seek to non-existing terms
@@ -362,6 +387,93 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                             assertThat(termsEnum.seekExact(seekTerm), equalTo(false));
                         }
                     }
+                }
+            }
+        });
+    }
+
+    public void testSeekCeilWithShortOrEmptyTerms() throws IOException {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        runTestWithRandomDocs((writer, finalDocs) -> {
+            try (var reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final var leafReader = reader.leaves().getFirst().reader();
+
+                final Terms terms = leafReader.terms(IdFieldMapper.NAME);
+                assertNotNull(terms);
+
+                final TermsEnum syntheticIdTermsEnum = LazyFilterTermsEnum.unwrap(terms.iterator());
+                assertThat(syntheticIdTermsEnum, instanceOf(SyntheticIdTermsEnum.class));
+
+                final BytesRef firstTerm = finalDocs.firstKey();
+
+                // Test seekCeil with empty BytesRef - should position on first term
+                {
+                    var emptyTerm = new BytesRef();
+                    assertThat(emptyTerm.compareTo(firstTerm), lessThan(0));
+                    assertThat(syntheticIdTermsEnum.seekCeil(emptyTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
+                }
+
+                // Test seekCeil with BytesRef shorter than minimum synthetic ID length
+                // A valid synthetic ID is at least Long.BYTES + Integer.BYTES + 1 bytes
+                {
+                    var shortTerm = new BytesRef(new byte[] { 0x00 });
+                    assertThat(shortTerm.compareTo(firstTerm), lessThan(0));
+                    assertThat(syntheticIdTermsEnum.seekCeil(shortTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
+                }
+
+                {
+                    // Term with exactly Long.BYTES + Integer.BYTES (12 bytes) - still too short
+                    var borderlineTerm = new BytesRef(new byte[Long.BYTES + Integer.BYTES]);
+                    assertThat(syntheticIdTermsEnum.seekCeil(borderlineTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+                    assertThat(syntheticIdTermsEnum.term(), equalTo(firstTerm));
+                }
+
+                // Test seekExact with short terms - should return false
+                {
+                    assertThat(syntheticIdTermsEnum.seekExact(new BytesRef()), equalTo(false));
+                    assertThat(syntheticIdTermsEnum.seekExact(new BytesRef(new byte[] { 0x01, 0x02 })), equalTo(false));
+                }
+
+                // Test seekCeil with truncated versions of existing terms
+                {
+                    var randomDocsIds = randomNonEmptySubsetOf(finalDocs.keySet());
+                    for (var existingTerm : randomDocsIds) {
+                        // Truncate to various lengths shorter than minimum synthetic ID length
+                        var truncatedTerm = new BytesRef(
+                            existingTerm.bytes,
+                            existingTerm.offset,
+                            randomIntBetween(1, Long.BYTES + Integer.BYTES)
+                        );
+
+                        var status = syntheticIdTermsEnum.seekCeil(truncatedTerm);
+                        assertThat(status, equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+
+                        // The positioned term should be >= truncated term
+                        var positionedTerm = syntheticIdTermsEnum.term();
+                        assertThat(positionedTerm.compareTo(truncatedTerm), greaterThanOrEqualTo(0));
+                    }
+                }
+
+                // After seekCeil on a short term, verify we can iterate through all terms
+                {
+                    var emptyTerm = new BytesRef();
+                    assertThat(syntheticIdTermsEnum.seekCeil(emptyTerm), equalTo(TermsEnum.SeekStatus.NOT_FOUND));
+
+                    // Count unique terms by iterating - finalDocs.size() is the number of unique synthetic IDs
+                    int uniqueTermCount = 1; // already positioned on first
+                    BytesRef previousTerm = BytesRef.deepCopyOf(syntheticIdTermsEnum.term());
+                    BytesRef currentTerm;
+                    while ((currentTerm = syntheticIdTermsEnum.next()) != null) {
+                        // Only count when the term changes (skip duplicate docs with same synthetic ID)
+                        if (currentTerm.equals(previousTerm) == false) {
+                            uniqueTermCount++;
+                            previousTerm = BytesRef.deepCopyOf(currentTerm);
+                        }
+                    }
+                    assertThat(uniqueTermCount, equalTo(finalDocs.size()));
                 }
             }
         });
@@ -401,7 +513,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 var doc = randomlyOrderedDocs.get(i);
                 writer.addDocument(parser.parse(doc));
 
-                var uid = createSyntheticIdBytesRef(buildTsId(doc), doc.timestamp(), doc.routing());
+                var uid = uidEncodedSyntheticId(doc);
                 assertThat(finalDocs.put(uid, doc), nullValue());
 
                 if (i > 0 && rarely()) {
@@ -458,6 +570,11 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             directory.setCheckIndexOnClose(false);
 
             final var indexWriterConfig = newIndexWriterConfig();
+            indexWriterConfig.setCodec(
+                new ES93TSDBDefaultCompressionLucene103Codec(
+                    new LegacyPerFieldMapperCodec(Lucene104Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                )
+            );
             // Configure the index writer for time-series indices
             indexWriterConfig.setMergePolicy(indexSettings.getMergePolicy(true));
             indexWriterConfig.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
@@ -475,44 +592,36 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * Builds time-series index settings.
      */
     private static IndexSettings buildIndexSettings(final String indexName) {
-        return new IndexSettings(
-            IndexMetadata.builder(indexName)
-                .settings(
-                    indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-                        .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), List.of("hostname", "metric.field"))
-                        .build()
-                )
-                .putMapping("""
-                    {
+        var settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), List.of("hostname", "metric.field"));
+        if (rarely()) {
+            settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+        }
+        return new IndexSettings(IndexMetadata.builder(indexName).settings(settings.build()).putMapping("""
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "metric": {
                         "properties": {
-                            "@timestamp": {
-                                "type": "date"
-                            },
-                            "hostname": {
+                            "field": {
                                 "type": "keyword",
                                 "time_series_dimension": true
                             },
-                            "metric": {
-                                "properties": {
-                                    "field": {
-                                        "type": "keyword",
-                                        "time_series_dimension": true
-                                    },
-                                    "value": {
-                                        "type": "integer",
-                                        "time_series_metric": "counter"
-                                    }
-                                }
-                            },
-                            "version": {
-                                "type": "integer"
+                            "value": {
+                                "type": "integer",
+                                "time_series_metric": "counter"
                             }
                         }
-                    }""")
-                .build(),
-            Settings.EMPTY
-        );
+                    }
+                }
+            }""").build(), Settings.EMPTY);
     }
 
     /**
@@ -636,12 +745,26 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
         var expectedDocId = TsidExtractingIdFieldMapper.createSyntheticId(expectedTsId, expectedTimestamp, doc.routing());
         assertThat(Uid.decodeId(docId.binaryValue()), equalTo(expectedDocId));
+
+        // version field is set by the engine, not after parsing, so we set it manually here
+        var docVersion = luceneDoc.getField(VersionFieldMapper.NAME);
+        assertThat(docVersion, notNullValue());
+        assertThat(docVersion.numericValue().longValue(), equalTo(-1L /* default value after parsing */));
+        parsedDoc.version().setLongValue(doc.version());
     }
 
     private static BytesRef buildTsId(Doc doc) {
         return new TsidBuilder().addStringDimension("hostname", doc.hostName())
             .addStringDimension("metric.field", doc.metricField())
-            .buildTsid();
+            .buildTsid(IndexVersion.current());
+    }
+
+    /**
+     * Returns the Uid-encoded synthetic ID for a document, matching what term() returns.
+     */
+    private static BytesRef uidEncodedSyntheticId(Doc doc) {
+        String base64Id = createSyntheticId(buildTsId(doc), doc.timestamp(), doc.routing());
+        return Uid.encodeId(base64Id);
     }
 
     /**

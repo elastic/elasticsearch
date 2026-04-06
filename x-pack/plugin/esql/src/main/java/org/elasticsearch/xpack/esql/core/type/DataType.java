@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.areTypesCompatible;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -378,6 +379,7 @@ public enum DataType implements Writeable {
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
+    PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024).underConstruction(DataTypesTransportVersions.ESQL_AGG_FROM_PARTIAL)),
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
@@ -603,6 +605,49 @@ public enum DataType implements Writeable {
 
     }
 
+    /**
+     * Infers the ES|QL DataType from a Java Class.
+     * This method mirrors the logic of {@link #fromJava(Object)} but operates on {@code Class<?>} types,
+     * handling both primitive and wrapper classes equivalently.
+     *
+     * @param classType The Java Class to infer the DataType from.
+     * @return The corresponding ES|QL DataType, or {@code null} if no direct mapping is found or can be reliably inferred.
+     */
+    public static DataType fromJavaType(Class<?> classType) {
+        if (classType == null || classType == Void.class) {
+            return NULL;
+        }
+
+        if (classType == int.class || classType == Integer.class) {
+            return INTEGER;
+        } else if (classType == long.class || classType == Long.class) {
+            return LONG;
+        } else if (classType == BigInteger.class) {
+            return UNSIGNED_LONG;
+        } else if (classType == boolean.class || classType == Boolean.class) {
+            return BOOLEAN;
+        } else if (classType == double.class || classType == Double.class) {
+            return DOUBLE;
+        } else if (classType == float.class || classType == Float.class) {
+            return FLOAT;
+        } else if (classType == byte.class || classType == Byte.class) {
+            return BYTE;
+        } else if (classType == short.class || classType == Short.class) {
+            return SHORT;
+        } else if (classType == ZonedDateTime.class) {
+            return DATETIME;
+        } else if (classType == String.class || classType == char.class || classType == Character.class || classType == BytesRef.class) {
+            // Note: BytesRef is an object, not a primitive or wrapper, so it's directly compared.
+            // char.class and Character.class map to KEYWORD
+            return KEYWORD;
+        } else if (List.class.isAssignableFrom(classType)) {
+            // Consistent with fromJava(Object) returning null for empty lists or lists with unknown element types.
+            return null;
+        }
+        // Fallback for any other Class<?> type not explicitly handled
+        return null;
+    }
+
     public static boolean isUnsupported(DataType from) {
         return from == UNSUPPORTED;
     }
@@ -671,7 +716,7 @@ public enum DataType implements Writeable {
         if (left == right) {
             return true;
         } else {
-            return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
+            return areTypesCompatible(left, right);
         }
     }
 
@@ -689,6 +734,7 @@ public enum DataType implements Writeable {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
+            && t != PARTIAL_AGG
             && t.isCounter() == false;
     }
 
@@ -1122,5 +1168,10 @@ public enum DataType implements Writeable {
          * Release version for Histogram data type support
          */
         public static final TransportVersion ESQL_HISTOGRAM_DATATYPE_RELEASE = TransportVersion.fromName("esql_histogram_datatype_release");
+
+        /**
+         * Development version for partial_agg type support (used by ToPartial/FromPartial aggregate functions).
+         */
+        public static final TransportVersion ESQL_AGG_FROM_PARTIAL = TransportVersion.fromName("esql_agg_from_partial");
     }
 }

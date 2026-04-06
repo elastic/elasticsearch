@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services.llama.request.completion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -81,9 +83,9 @@ public class LlamaChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     private static void testSerialization(String modelId, boolean isStreaming, String expectedJson) throws IOException {
-        var message = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("Hello, world!"), ROLE, null, null);
+        var message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
 
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
 
         var unifiedRequest = UnifiedCompletionRequest.of(messageList);

@@ -11,6 +11,7 @@ package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
@@ -498,5 +499,12 @@ public class ESTestCaseTests extends ESTestCase {
         ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(expected, actual, 0.01f, 0.0f));
         assertThat(ex.getMessage(), startsWith("arrays first differed at element [3]"));
         assertArrayEqualsPercent(expected, actual, 0.001f, 0.02f);
+    }
+
+    public void testEmbedInRandomBytes() {
+        BytesRef v = new BytesRef(randomByteArrayOfLength(between(1, 10)));
+        BytesRef withGarbage = embedInRandomBytes(v);
+        assertThat(withGarbage, equalTo(v));
+        assertThat(withGarbage.bytes.length, greaterThan(withGarbage.length));
     }
 }

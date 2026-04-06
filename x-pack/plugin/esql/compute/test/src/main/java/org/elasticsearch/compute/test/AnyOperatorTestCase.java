@@ -7,16 +7,19 @@
 
 package org.elasticsearch.compute.test;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -116,6 +119,57 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
         DriverContext driverContext = driverContext();
         try (var operator = simple().get(driverContext)) {
             assertOperatorStatus(operator, List.of(), List.of());
+        }
+    }
+
+    /**
+     * Tests that {@link Operator#canProduceMoreDataWithoutExtraInput()} returns false before the operator has started
+     * (for non-source operators, before any input is added; for source operators, before any output is produced)
+     * and after it is finished.
+     */
+    public void testCanProduceMoreDataWithoutExtraInput() {
+        DriverContext driverContext = driverContext();
+        try (var operator = simple().get(driverContext)) {
+            // Before operator has started
+            // For non-source operators: no input added yet - should return false
+            // For source operators: they can produce data without input, so this may return true
+            // We just verify the method doesn't throw
+            boolean initialValue = operator.canProduceMoreDataWithoutExtraInput();
+            if (operator instanceof SourceOperator == false) {
+                assertFalse(
+                    "canProduceMoreDataWithoutExtraInput should return false before operator has started (no input added)",
+                    initialValue
+                );
+            }
+
+            // After operator is finished - should return false for all operators
+            operator.finish();
+            // For async operators, wait for async actions to complete
+            if (operator instanceof AsyncOperator<?>) {
+                driverContext.finish();
+                PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
+                driverContext.waitForAsyncActions(waitForAsync);
+                try {
+                    waitForAsync.actionGet(TimeValue.timeValueSeconds(30));
+                } catch (Exception e) {
+                    // Ignore exceptions - we just want to ensure async actions complete
+                }
+            }
+            // Ensure operator is finished by draining any remaining output
+            while (operator.isFinished() == false) {
+                // Some operators need getOutput() to be called to finish
+                Page output = operator.getOutput();
+                if (output != null) {
+                    output.releaseBlocks();
+                } else {
+                    break;
+                }
+            }
+            assertTrue("Operator should be finished", operator.isFinished());
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
+                operator.canProduceMoreDataWithoutExtraInput()
+            );
         }
     }
 

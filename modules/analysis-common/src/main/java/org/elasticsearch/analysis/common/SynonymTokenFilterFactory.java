@@ -9,10 +9,14 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
@@ -27,12 +31,17 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
+import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
+    private static final Logger LOGGER = LogManager.getLogger(SynonymTokenFilterFactory.class);
+
+    private static final SynonymMap EMPTY_SYNONYM_MAP = buildEmptySynonymMap();
 
     protected enum SynonymsSource {
         INLINE("synonyms") {
@@ -137,13 +146,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected final AnalysisMode analysisMode;
     private final SynonymsManagementAPIService synonymsManagementAPIService;
     protected final SynonymsSource synonymsSource;
+    protected final CircuitBreaker circuitBreaker;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
         Environment env,
         String name,
         Settings settings,
-        SynonymsManagementAPIService synonymsManagementAPIService
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        CircuitBreaker circuitBreaker
     ) {
         super(name);
         this.settings = settings;
@@ -159,6 +170,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;
+        this.circuitBreaker = circuitBreaker;
     }
 
     @Override
@@ -230,21 +242,35 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         try {
             SynonymMap.Builder parser;
             if ("wordnet".equalsIgnoreCase(format)) {
-                parser = new ESWordnetSynonymParser(true, expand, lenient, analyzer);
+                parser = new ESWordnetSynonymParser(true, expand, lenient, analyzer, circuitBreaker);
                 ((ESWordnetSynonymParser) parser).parse(rules.reader);
             } else {
-                parser = new ESSolrSynonymParser(true, expand, lenient, analyzer);
+                parser = new ESSolrSynonymParser(true, expand, lenient, analyzer, circuitBreaker);
                 ((ESSolrSynonymParser) parser).parse(rules.reader);
             }
             return parser.build();
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to build synonyms from [" + rules.origin + "]", e);
+            String message = "failed to build synonyms from [" + rules.origin + "]";
+            if (lenient && e instanceof CircuitBreakingException) {
+                LOGGER.error(message + ". Using an empty synonyms map in its place because lenient=true.", e);
+                return EMPTY_SYNONYM_MAP;
+            }
+
+            throw new IllegalArgumentException(message, e);
         }
     }
 
     record ReaderWithOrigin(Reader reader, String origin, String resource) {
         ReaderWithOrigin(Reader reader, String origin) {
             this(reader, origin, null);
+        }
+    }
+
+    private static SynonymMap buildEmptySynonymMap() {
+        try {
+            return new SynonymMap.Builder().build();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

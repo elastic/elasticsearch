@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 143164
+pr: 143175
+summary: Reduce `LuceneOperator.Status` memory consumption with large QueryDSL queries
+type: bug

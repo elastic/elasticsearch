@@ -36,16 +36,10 @@ public final class FirstFloatByTimestampAggregatorFunction implements Aggregator
 
   private final List<Integer> channels;
 
-  public FirstFloatByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, LongFloatState state) {
+  FirstFloatByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static FirstFloatByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new FirstFloatByTimestampAggregatorFunction(driverContext, channels, FirstFloatByTimestampAggregator.initSingle(driverContext));
+    this.state = FirstFloatByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -30,7 +30,7 @@ public class MockAppender extends AbstractAppender {
     }
 
     public Message lastMessage() {
-        return lastEvent.getMessage();
+        return lastEvent().getMessage();
     }
 
     public LogEvent lastEvent() {

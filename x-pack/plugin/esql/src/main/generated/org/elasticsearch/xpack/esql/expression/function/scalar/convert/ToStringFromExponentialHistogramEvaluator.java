@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -13,29 +14,29 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
+ * {@link ExpressionEvaluator} implementation for {@link ToString}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromExponentialHistogramEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromExponentialHistogramEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator histogram;
+  private final ExpressionEvaluator histogram;
 
-  public ToStringFromExponentialHistogramEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator histogram, DriverContext driverContext) {
+  public ToStringFromExponentialHistogramEvaluator(Source source, ExpressionEvaluator histogram,
+      DriverContext driverContext) {
     super(driverContext, source);
     this.histogram = histogram;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return histogram;
   }
 
@@ -57,13 +58,17 @@ public final class ToStringFromExponentialHistogramEvaluator extends AbstractCon
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          BytesRef value = evalValue(block, i, scratchPad);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+          try {
+            BytesRef value = evalValue(block, i, scratchPad);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendBytesRef(value);
+            valuesAppended = true;
+          } catch (IllegalArgumentException  e) {
+            registerException(e);
           }
-          builder.appendBytesRef(value);
-          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();
@@ -98,12 +103,12 @@ public final class ToStringFromExponentialHistogramEvaluator extends AbstractCon
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory histogram;
+    private final ExpressionEvaluator.Factory histogram;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory histogram) {
+    public Factory(Source source, ExpressionEvaluator.Factory histogram) {
       this.source = source;
       this.histogram = histogram;
     }

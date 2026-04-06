@@ -25,6 +25,10 @@ If the shrink action is used on a [follower index](https://www.elastic.co/docs/a
 `number_of_shards`
 :   (Optional, integer) Number of shards to shrink to. Must be a factor of the number of shards in the source index. This parameter conflicts with `max_primary_shard_size`, only one of them may be set.
 
+::::{warning}
+If the source index already has one primary shard, configuring the shrink operation with `number_of_shards: 1` will cause the request to fail. An index with one primary shard cannot be shrunk further.
+::::
+
 `max_primary_shard_size`
 :   (Optional, [byte units](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) The max primary shard size for the target index. Used to find the optimum number of shards for the target index. When this parameter is set, each shard’s storage in the target index will not be greater than the parameter. The shards count of the target index will still be a factor of the source index’s shards count, but if the parameter is less than the single shard size in the source index, the shards count for the target index will be equal to the source index’s shards count. For example, when this parameter is set to 50gb, if the source index has 60 primary shards with totaling 100gb, then the target index will have 2 primary shards, with each shard size of 50gb; if the source index has 60 primary shards with totaling 1000gb, then the target index will have 20 primary shards; if the source index has 60 primary shards with totaling 4000gb, then the target index will still have 60 primary shards. This parameter conflicts with `number_of_shards` in the `settings`, only one of them may be set.
 

@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * </ul>
  */
 
-public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpression, OptionalArgument, ConvertFunction {
+public class ToLongSurrogate extends EsqlScalarFunction implements OnlySurrogateExpression, OptionalArgument, ConvertFunction {
 
     private final Expression field;
     private final Expression base;
@@ -142,7 +142,7 @@ public class ToLongSurrogate extends EsqlScalarFunction implements SurrogateExpr
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         throw new UnsupportedOperationException("should be rewritten");
     }
 

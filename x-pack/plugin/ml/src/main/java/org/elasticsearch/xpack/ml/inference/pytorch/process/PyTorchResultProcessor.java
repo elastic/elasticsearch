@@ -40,6 +40,7 @@ public class PyTorchResultProcessor {
         LongSummaryStatistics timingStats,
         LongSummaryStatistics timingStatsExcludingCacheHits,
         int errorCount,
+        LongSummaryStatistics inferenceProcessMemoryRssBytesStats,
         long cacheHitCount,
         int numberOfPendingResults,
         Instant lastUsed,
@@ -57,6 +58,7 @@ public class PyTorchResultProcessor {
     private final LongSummaryStatistics timingStats;
     private final LongSummaryStatistics timingStatsExcludingCacheHits;
     private int errorCount;
+    private final LongSummaryStatistics inferenceProcessMemoryRssBytesStats;
     private long cacheHitCount;
     private long peakThroughput;
 
@@ -78,6 +80,7 @@ public class PyTorchResultProcessor {
         this.modelId = Objects.requireNonNull(modelId);
         this.timingStats = new LongSummaryStatistics();
         this.timingStatsExcludingCacheHits = new LongSummaryStatistics();
+        this.inferenceProcessMemoryRssBytesStats = new LongSummaryStatistics();
         this.lastPeriodSummaryStats = new LongSummaryStatistics();
         this.threadSettingsConsumer = Objects.requireNonNull(threadSettingsConsumer);
         this.currentTimeMsSupplier = currentTimeSupplier;
@@ -146,7 +149,7 @@ public class PyTorchResultProcessor {
             logger.warn(format("[%s] clearing [%d] requests pending results", modelId, pendingResults.size()));
         }
         pendingResults.forEach(
-            (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, errorResult))
+            (id, pendingResult) -> pendingResult.listener.onResponse(new PyTorchResult(id, null, null, null, null, null, null, errorResult))
         );
         pendingResults.clear();
     }
@@ -217,7 +220,7 @@ public class PyTorchResultProcessor {
                 String msg = format("[%s] pending result listener cannot handle unknown result type [%s]", modelId, result);
                 logger.error(msg);
                 var errorResult = new ErrorResult(msg);
-                pendingResult.listener.onResponse(new PyTorchResult(result.requestId(), null, null, null, null, null, errorResult));
+                pendingResult.listener.onResponse(new PyTorchResult(result.requestId(), null, null, null, null, null, null, errorResult));
             }
         } else {
             // Cannot look up the listener without a request id
@@ -256,6 +259,7 @@ public class PyTorchResultProcessor {
             cloneSummaryStats(timingStats),
             cloneSummaryStats(timingStatsExcludingCacheHits),
             errorCount,
+            cloneSummaryStats(inferenceProcessMemoryRssBytesStats),
             cacheHitCount,
             pendingResults.size(),
             lastResultTimeMs > 0 ? Instant.ofEpochMilli(lastResultTimeMs) : null,
@@ -276,6 +280,10 @@ public class PyTorchResultProcessor {
         }
         boolean isCacheHit = Boolean.TRUE.equals(result.isCacheHit());
         timingStats.accept(timeMs);
+
+        if (result.processStats() != null) {
+            this.inferenceProcessMemoryRssBytesStats.accept(result.processStats().memoryRss());
+        }
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();
         if (lastResultTimeMs > currentPeriodEndTimeMs) {

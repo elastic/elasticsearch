@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
+import org.elasticsearch.index.mapper.blockloader.script.KeywordScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
@@ -151,7 +152,10 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         } else {
-            return new KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader(leafFactory(blContext.lookup()));
+            return new KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader(
+                leafFactory(blContext.lookup()),
+                blContext.scriptByteSize()
+            );
         }
     }
 

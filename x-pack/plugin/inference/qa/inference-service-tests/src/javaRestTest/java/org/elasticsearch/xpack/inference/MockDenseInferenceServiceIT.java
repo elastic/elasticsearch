@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
@@ -85,7 +86,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         var inference = embedding(
             inferenceEntityId,
             List.of(
-                new InferenceString(DataType.IMAGE, randomAlphaOfLength(5)),
+                new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64," + randomAlphaOfLength(5)),
                 new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
                 new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
             )

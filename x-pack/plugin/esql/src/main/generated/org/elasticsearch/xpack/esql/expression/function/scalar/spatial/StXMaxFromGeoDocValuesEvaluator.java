@@ -13,22 +13,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMax}.
+ * {@link ExpressionEvaluator} implementation for {@link StXMax}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StXMaxFromGeoDocValuesEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StXMaxFromGeoDocValuesEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMaxFromGeoDocValuesEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator encodedBlock;
+  private final ExpressionEvaluator encodedBlock;
 
   private final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder;
 
@@ -36,8 +36,7 @@ public final class StXMaxFromGeoDocValuesEvaluator implements EvalOperator.Expre
 
   private Warnings warnings;
 
-  public StXMaxFromGeoDocValuesEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator encodedBlock,
+  public StXMaxFromGeoDocValuesEvaluator(Source source, ExpressionEvaluator encodedBlock,
       SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.encodedBlock = encodedBlock;
@@ -98,14 +97,14 @@ public final class StXMaxFromGeoDocValuesEvaluator implements EvalOperator.Expre
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory encodedBlock;
+    private final ExpressionEvaluator.Factory encodedBlock;
 
     private final Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encodedBlock,
+    public Factory(Source source, ExpressionEvaluator.Factory encodedBlock,
         Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.encodedBlock = encodedBlock;

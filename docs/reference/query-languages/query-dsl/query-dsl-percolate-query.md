@@ -581,7 +581,7 @@ GET /my-index-000001/_search
       "field": "query",
       "documents": [
         {
-          "message": "Japanse art"
+          "message": "Japanese art"
         },
         {
           "message": "Holand culture"

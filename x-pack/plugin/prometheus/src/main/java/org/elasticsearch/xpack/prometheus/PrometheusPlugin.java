@@ -7,25 +7,27 @@
 
 package org.elasticsearch.xpack.prometheus;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusInstantQueryRestAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusLabelValuesRestAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusLabelsRestAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryRangeRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusSeriesRestAction;
 
 import java.util.Collection;
 import java.util.List;
@@ -33,8 +35,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class PrometheusPlugin extends Plugin implements ActionPlugin {
-
-    public static final FeatureFlag PROMETHEUS_FEATURE_FLAG = new FeatureFlag("prometheus");
 
     // Controls enabling the index template registry.
     // This setting will be ignored if the plugin is disabled.
@@ -46,16 +46,22 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     );
 
     private final SetOnce<PrometheusIndexTemplateRegistry> indexTemplateRegistry = new SetOnce<>();
+    private final SetOnce<IndexingPressure> indexingPressure = new SetOnce<>();
+    private final SetOnce<Recycler<BytesRef>> recycler = new SetOnce<>();
     private final boolean enabled;
+    private final long maxProtobufContentLengthBytes;
 
     public PrometheusPlugin(Settings settings) {
-        this.enabled = XPackSettings.PROMETHEUS_ENABLED.get(settings) && PROMETHEUS_FEATURE_FLAG.isEnabled();
+        this.enabled = XPackSettings.PROMETHEUS_ENABLED.get(settings);
+        this.maxProtobufContentLengthBytes = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.get(settings).getBytes();
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.environment().settings();
         ClusterService clusterService = services.clusterService();
+        indexingPressure.set(services.indexingPressure());
+        recycler.set(services.bigArrays().bytesRefRecycler());
         indexTemplateRegistry.set(
             new PrometheusIndexTemplateRegistry(
                 settings,
@@ -87,18 +93,20 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled) {
-            return List.of(new PrometheusRemoteWriteRestAction());
+            assert indexingPressure.get() != null : "indexing pressure must be set if plugin is enabled";
+            return List.of(
+                new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes, recycler.get()),
+                new PrometheusSeriesRestAction(),
+                new PrometheusQueryRangeRestAction(),
+                new PrometheusInstantQueryRestAction(),
+                new PrometheusLabelsRestAction(),
+                new PrometheusLabelValuesRestAction()
+            );
         }
         return List.of();
     }

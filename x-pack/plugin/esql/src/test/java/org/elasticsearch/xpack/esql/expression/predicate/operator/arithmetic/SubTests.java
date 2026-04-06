@@ -14,6 +14,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -28,7 +29,6 @@ import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
@@ -37,11 +37,13 @@ import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DenseVectorTestCaseHelper.denseVectorScalarCases;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -264,7 +266,7 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "SubDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Sub]",
                 DENSE_VECTOR,
                 equalTo(expected)
             );
@@ -278,7 +280,7 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "SubDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Sub]",
                 DENSE_VECTOR,
                 equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -295,12 +297,20 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
                     new TestCaseSupplier.TypedData(left, DENSE_VECTOR, "vector1"),
                     new TestCaseSupplier.TypedData(right, DENSE_VECTOR, "vector2")
                 ),
-                "SubDenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "DenseVectorsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1], opName=Sub]",
                 DENSE_VECTOR,
                 equalTo(null)
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity");
+                .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite float number: -Infinity");
         }));
+
+        suppliers.addAll(
+            denseVectorScalarCases(
+                "Sub",
+                (v, s) -> v.stream().map(f -> f - (Float) DataTypeConverter.convert(s, FLOAT)).toList(),
+                (s, v) -> v.stream().map(f -> (Float) DataTypeConverter.convert(s, FLOAT) - f).toList()
+            )
+        );
 
         // Set the timezone to UTC for test cases up to here
         suppliers = TestCaseSupplier.mapTestCases(
@@ -317,38 +327,20 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
             suppliersForDate("2025-03-10T01:00:00-05:00", Duration.ofHours(24), "America/New_York", "2025-03-09T01:00:00-05:00")
         );
 
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(suppliers, (nullPosition, nullValueDataType, original) -> {
+        suppliers = anyNullIsNull(suppliers, (nullPosition, nullValueDataType, original) -> {
             if (nullValueDataType == DataType.NULL) {
                 return original.getData().get(nullPosition == 0 ? 1 : 0).type();
             }
             return original.expectedType();
         }, (nullPosition, nullData, original) -> {
-            if (DataType.isTemporalAmount(nullData.type())) {
+            if (DataType.isTemporalAmount(nullData.type()) || nullData.isForceLiteral()) {
                 return equalTo("LiteralsEvaluator[lit=null]");
             }
             return original;
-        }), SubTests::subErrorMessageString);
+        });
 
         // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    private static String subErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        if (types.get(1) == DataType.DATETIME) {
-            if (types.get(0).isNumeric() || DataType.isMillisOrNanos(types.get(0)) || types.get(0) == DENSE_VECTOR) {
-                return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [datetime]";
-            }
-            if (DataType.isNull(types.get(0))) {
-                return "[-] arguments are in unsupported order: cannot subtract a [DATETIME] value [datetime] from a [NULL] amount [null]";
-            }
-        }
-
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "date_nanos, datetime, numeric or dense_vector");
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is from the combination
-            return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
-        }
     }
 
     private static List<TestCaseSupplier> suppliersForDate(

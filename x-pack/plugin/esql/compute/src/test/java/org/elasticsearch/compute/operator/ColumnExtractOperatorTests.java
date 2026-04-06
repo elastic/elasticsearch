@@ -14,13 +14,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -51,32 +51,38 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        Supplier<ColumnExtractOperator.Evaluator> expEval = () -> new FirstWord(0);
-        return new ColumnExtractOperator.Factory(
-            new ElementType[] { ElementType.BYTES_REF },
-            dvrCtx -> new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    BytesRefBlock input = page.getBlock(0);
-                    for (int i = 0; i < input.getPositionCount(); i++) {
-                        if (input.getBytesRef(i, new BytesRef()).utf8ToString().startsWith("no_")) {
-                            return input.blockFactory().newConstantNullBlock(input.getPositionCount());
-                        }
+        ColumnExtractOperator.Evaluator.Factory expEval = new ColumnExtractOperator.Evaluator.Factory() {
+            @Override
+            public ColumnExtractOperator.Evaluator create(DriverContext driverContext) {
+                return new FirstWord(0);
+            }
+
+            @Override
+            public String describe() {
+                return "FirstWord";
+            }
+        };
+        return new ColumnExtractOperator.Factory(new ElementType[] { ElementType.BYTES_REF }, dvrCtx -> new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                BytesRefBlock input = page.getBlock(0);
+                for (int i = 0; i < input.getPositionCount(); i++) {
+                    if (input.getBytesRef(i, new BytesRef()).utf8ToString().startsWith("no_")) {
+                        return input.blockFactory().newConstantNullBlock(input.getPositionCount());
                     }
-                    input.incRef();
-                    return input;
                 }
+                input.incRef();
+                return input;
+            }
 
-                @Override
-                public long baseRamBytesUsed() {
-                    return 0;
-                }
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
+            }
 
-                @Override
-                public void close() {}
-            },
-            expEval
-        );
+            @Override
+            public void close() {}
+        }, expEval);
     }
 
     @Override

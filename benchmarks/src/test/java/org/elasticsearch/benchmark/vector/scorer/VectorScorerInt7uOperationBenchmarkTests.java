@@ -21,8 +21,8 @@ import org.openjdk.jmh.annotations.Param;
 import java.util.Arrays;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProduct;
-import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareDistance;
+import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
+import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
 
 public class VectorScorerInt7uOperationBenchmarkTests extends ESTestCase {
 

@@ -45,6 +45,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
@@ -152,6 +153,18 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     int getMaxRetries() {
         return storageService.clientSettings(projectId, clientName).getMaxRetries();
+    }
+
+    long getMegabytesCopiedPerChunk() {
+        return storageService.clientSettings(projectId, clientName).getMegabytesCopiedPerChunk();
+    }
+
+    RepositoriesMetrics getRepositoriesMetrics() {
+        return statsCollector.getRepositoriesMetrics();
+    }
+
+    String getRepositoryName() {
+        return repositoryName;
     }
 
     @Override

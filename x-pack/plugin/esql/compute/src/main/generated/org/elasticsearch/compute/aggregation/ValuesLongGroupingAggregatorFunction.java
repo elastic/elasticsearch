@@ -33,16 +33,10 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
 
   private final DriverContext driverContext;
 
-  public ValuesLongGroupingAggregatorFunction(List<Integer> channels,
-      ValuesLongAggregator.GroupingState state, DriverContext driverContext) {
+  ValuesLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = ValuesLongAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static ValuesLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new ValuesLongGroupingAggregatorFunction(channels, ValuesLongAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -281,14 +275,15 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return ValuesLongAggregator.prepareEvaluateIntermediate(state, selected, ctx);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = ValuesLongAggregator.evaluateFinal(state, selected, ctx);
+    return ValuesLongAggregator.prepareEvaluateFinal(state, selected, ctx);
   }
 
   @Override

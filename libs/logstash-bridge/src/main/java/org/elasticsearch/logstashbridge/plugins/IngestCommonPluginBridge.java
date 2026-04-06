@@ -54,6 +54,7 @@ public final class IngestCommonPluginBridge implements IngestPluginBridge {
     public static final String URL_DECODE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.URLDecodeProcessor.TYPE;
     public static final String UPPERCASE_PROCESSOR_TYPE = org.elasticsearch.ingest.common.UppercaseProcessor.TYPE;
     public static final String URI_PARTS_PROCESSOR_TYPE = org.elasticsearch.ingest.common.UriPartsProcessor.TYPE;
+    public static final String USER_AGENT_PROCESSOR_TYPE = org.elasticsearch.ingest.common.UserAgentProcessor.TYPE;
 
     private final IngestCommonPlugin delegate;
 

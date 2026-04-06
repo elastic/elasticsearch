@@ -97,10 +97,13 @@ public class SampleOperator implements Operator {
     @Override
     public void addInput(Page page) {
         long startTime = System.nanoTime();
-        createOutputPage(page);
-        rowsReceived += page.getPositionCount();
-        page.releaseBlocks();
-        pagesProcessed++;
+        try {
+            createOutputPage(page);
+            rowsReceived += page.getPositionCount();
+            pagesProcessed++;
+        } finally {
+            page.releaseBlocks();
+        }
         collectNanos += System.nanoTime() - startTime;
     }
 
@@ -129,6 +132,11 @@ public class SampleOperator implements Operator {
     @Override
     public boolean isFinished() {
         return finished && outputPages.isEmpty();
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPages.isEmpty() == false;
     }
 
     @Override

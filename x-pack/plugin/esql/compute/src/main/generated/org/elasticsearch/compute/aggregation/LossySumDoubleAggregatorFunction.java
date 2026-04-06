@@ -34,16 +34,10 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
 
   private final List<Integer> channels;
 
-  public LossySumDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      LossySumDoubleAggregator.SumState state) {
+  LossySumDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static LossySumDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new LossySumDoubleAggregatorFunction(driverContext, channels, LossySumDoubleAggregator.initSingle());
+    this.state = LossySumDoubleAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

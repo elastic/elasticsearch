@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -71,7 +74,7 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
             newSettingsMap.put(OpenAiServiceFields.HEADERS, newSettings.headers());
         }
 
-        var updatedSettings = initialSettings.updatedTaskSettings(Collections.unmodifiableMap(newSettingsMap));
+        var updatedSettings = initialSettings.updatedTaskSettings(newSettingsMap);
 
         if (newSettings.user() == null) {
             assertEquals(initialSettings.user(), updatedSettings.user());
@@ -89,26 +92,26 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
     public void testUpdatedTaskSettings_ApplyingEmptyHeaders() {
         var user = "user";
         var initialSettingsNullHeaders = create(user, null);
-        Map<String, Object> newSettingsMap = Map.of(OpenAiServiceFields.HEADERS, Map.of());
+        var newSettingsMap = new HashMap<String, Object>(Map.of(OpenAiServiceFields.HEADERS, Map.of()));
 
         var updatedSettings = initialSettingsNullHeaders.updatedTaskSettings(newSettingsMap);
         assertThat(updatedSettings, is(create(user, Map.of())));
 
         var initialSettingsDefinedHeaders = create(user, Map.of("key", "value"));
-        updatedSettings = initialSettingsDefinedHeaders.updatedTaskSettings(newSettingsMap);
+        updatedSettings = initialSettingsDefinedHeaders.updatedTaskSettings(new HashMap<>(Map.of(OpenAiServiceFields.HEADERS, Map.of())));
         assertThat(updatedSettings, is(create(user, Map.of())));
     }
 
     public void testUpdatedTaskSettings_KeepsOriginalValuesWithOverridesAreNull() {
         var taskSettings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
 
-        assertThat(taskSettings.updatedTaskSettings(Map.of()), is(taskSettings));
+        assertThat(taskSettings.updatedTaskSettings(new HashMap<>()), is(taskSettings));
     }
 
     public void testUpdatedTaskSettings_UsesOverriddenSettings() {
         var taskSettings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
 
-        assertThat(taskSettings.updatedTaskSettings(Map.of(OpenAiServiceFields.USER, "user2")), is(create("user2", null)));
+        assertThat(taskSettings.updatedTaskSettings(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user2"))), is(create("user2", null)));
     }
 
     public void testUpdatedTaskSettings_UsesOverriddenSettings_ForHeaders() {
@@ -116,7 +119,10 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
         var taskSettings = createFromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, user)));
 
         var headers = Map.of("key", "value");
-        assertThat(taskSettings.updatedTaskSettings(Map.of(OpenAiServiceFields.HEADERS, headers)), is(create(user, headers)));
+        assertThat(
+            taskSettings.updatedTaskSettings(new HashMap<>(Map.of(OpenAiServiceFields.HEADERS, headers))),
+            is(create(user, headers))
+        );
     }
 
     public void testFromMap_WithUserAndHeaders() {
@@ -192,7 +198,7 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
             exception.getMessage(),
             is(
                 "Validation Failed: 1: Map field [headers] has an entry that is not valid, "
-                    + "[key => 1]. Value type of [1] is not one of [String].;"
+                    + "[key => 1]. Value type of [Integer] is not one of [String].;"
             )
         );
     }
@@ -220,6 +226,62 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
             }
             default -> throw new IllegalStateException("Unexpected value: " + fieldToMutate);
         };
+    }
+
+    public void testToXContent_WritesUserAndHeaders() throws IOException {
+        var settings = create("user", Map.of("key", "value"));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        settings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "user": "user",
+                "headers": {"key": "value"}
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testToXContent_WritesOnlyUser_WhenHeadersIsNull() throws IOException {
+        var settings = create("user", null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        settings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "user": "user"
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testToXContent_WritesOnlyHeaders_WhenUserIsNull() throws IOException {
+        var settings = create(null, Map.of("key", "value"));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        settings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "headers": {"key": "value"}
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testToXContent_WritesEmptyObject_WhenBothNull() throws IOException {
+        var settings = create(null, null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        settings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is("{}"));
     }
 
     protected abstract T create(@Nullable String user, @Nullable Map<String, String> headers);

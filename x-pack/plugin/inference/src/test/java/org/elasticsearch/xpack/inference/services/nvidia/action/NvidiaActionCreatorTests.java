@@ -468,7 +468,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 thrownException.getMessage(),
                 is(
                     Strings.format(
-                        "Failed to send Nvidia text_embedding request from inference entity id [inferenceEntityId]. Cause: %s",
+                        "Failed to send NVIDIA text_embedding request from inference entity id [inferenceEntityId]. Cause: %s",
                         failureCauseMessage
                     )
                 )
@@ -612,7 +612,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 thrownException.getMessage(),
                 is(
                     Strings.format(
-                        "Failed to send Nvidia completion request from inference entity id [inferenceEntityId]. Cause: %s",
+                        "Failed to send NVIDIA completion request from inference entity id [inferenceEntityId]. Cause: %s",
                         failureCauseMessage
                     )
                 )
@@ -859,7 +859,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to send Nvidia rerank request from inference entity id [inferenceEntityId]. Cause: Required [rankings]")
+                is("Failed to send NVIDIA rerank request from inference entity id [inferenceEntityId]. Cause: Required [rankings]")
             );
         }
     }

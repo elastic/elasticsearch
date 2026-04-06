@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -18,8 +20,12 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -42,6 +48,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class PlanExecutor {
 
     private final IndexResolver indexResolver;
+    private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
     private final EsqlFunctionRegistry functionRegistry;
     private final Mapper mapper;
@@ -49,22 +56,32 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
     private final EsqlQueryLog queryLog;
+    private final DataSourceModule dataSourceModule;
+    private final ExternalSourceCacheService cacheService;
 
     public PlanExecutor(
         IndexResolver indexResolver,
         MeterRegistry meterRegistry,
         XPackLicenseState licenseState,
         EsqlQueryLog queryLog,
-        List<BiConsumer<LogicalPlan, Failures>> extraCheckers
+        List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        CrossProjectModeDecider crossProjectModeDecider,
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        EsqlParser parser,
+        ExternalSourceCacheService cacheService
     ) {
         this.indexResolver = indexResolver;
+        this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
-        this.functionRegistry = new EsqlFunctionRegistry();
+        this.functionRegistry = functionRegistry;
         this.mapper = new Mapper();
-        this.metrics = new Metrics(functionRegistry);
+        this.metrics = new Metrics(functionRegistry, crossProjectModeDecider.crossProjectEnabled());
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
+        this.dataSourceModule = dataSourceModule;
+        this.cacheService = cacheService;
     }
 
     public void esql(
@@ -81,6 +98,14 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
+        // Create ExternalSourceResolver for Iceberg/Parquet resolution
+        // Use the same executor as for searches to avoid blocking
+        final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
+            services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
+            dataSourceModule,
+            Settings.EMPTY,
+            cacheService
+        );
         final var session = new EsqlSession(
             sessionId,
             localClusterMinimumVersion,
@@ -88,10 +113,13 @@ public class PlanExecutor {
             indexResolver,
             enrichPolicyResolver,
             viewResolver,
+            externalSourceResolver,
+            parser,
             preAnalyzer,
             functionRegistry,
             mapper,
             verifier,
+            metrics,
             planTelemetry,
             indicesExpressionGrouper,
             services.projectResolver().getProjectMetadata(services.clusterService().state()),
@@ -118,7 +146,7 @@ public class PlanExecutor {
         PlanTelemetry planTelemetry
     ) {
         planTelemetryManager.publish(planTelemetry, true);
-        queryLog.onQueryPhase(x, request.query());
+        queryLog.onQueryPhase(x, request.queryDescription());
         listener.onResponse(x);
     }
 
@@ -133,7 +161,7 @@ public class PlanExecutor {
         // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
-        queryLog.onQueryFailure(request.query(), ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
         listener.onFailure(ex);
     }
 
@@ -143,5 +171,13 @@ public class PlanExecutor {
 
     public Metrics metrics() {
         return this.metrics;
+    }
+
+    public DataSourceModule dataSourceModule() {
+        return dataSourceModule;
+    }
+
+    public ExternalSourceCacheService cacheService() {
+        return cacheService;
     }
 }

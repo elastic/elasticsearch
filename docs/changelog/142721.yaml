@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 139296
+ - 141413
+pr: 142721
+summary: Add TS_INFO information retrieval command
+type: enhancement

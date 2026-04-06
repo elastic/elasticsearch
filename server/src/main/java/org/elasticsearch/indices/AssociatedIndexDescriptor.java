@@ -39,6 +39,8 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
     /** Used to determine whether an index name matches the {@link #indexPattern} */
     private final CharacterRunAutomaton indexPatternAutomaton;
 
+    private final Automaton automaton;
+
     /**
      * Create a descriptor for an index associated with a feature
      * @param indexPattern Pattern for associated indices, which can include wildcards
@@ -67,7 +69,7 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
 
         this.indexPattern = indexPattern;
 
-        final Automaton automaton = buildAutomaton(indexPattern);
+        this.automaton = buildAutomaton(indexPattern);
         this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
 
         this.description = description;
@@ -133,5 +135,9 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
             + ", indexPatternAutomaton="
             + indexPatternAutomaton
             + '}';
+    }
+
+    public Automaton getIndexPatternAutomaton() {
+        return this.automaton;
     }
 }

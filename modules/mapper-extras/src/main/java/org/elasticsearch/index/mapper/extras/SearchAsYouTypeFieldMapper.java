@@ -175,6 +175,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public SearchAsYouTypeFieldMapper build(MapperBuilderContext context) {
 
             FieldType fieldType = new FieldType();

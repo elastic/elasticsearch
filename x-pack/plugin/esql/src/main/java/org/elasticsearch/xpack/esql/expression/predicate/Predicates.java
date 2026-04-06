@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
@@ -48,6 +49,10 @@ public abstract class Predicates {
 
     public static Expression combineAnd(List<? extends Expression> exps) {
         return combine(exps, (l, r) -> new And(l.source(), l, r));
+    }
+
+    public static Expression combineAndNullable(List<? extends Expression> exps) {
+        return combineAnd(exps.stream().filter(Objects::nonNull).toList());
     }
 
     public static Expression combineAndWithSource(List<? extends Expression> exps, Source source) {

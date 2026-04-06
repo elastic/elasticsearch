@@ -35,10 +35,9 @@ public abstract class LocalSupplierTests extends AbstractWireTestCase<LocalSuppl
         "esql_local_relation_with_new_blocks"
     );
 
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop-esql-breaker"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static NavigableSet<TransportVersion> getAllBWCVersions() {
         return TransportVersionUtils.allReleasedVersions().tailSet(TransportVersion.minimumCompatible(), true);

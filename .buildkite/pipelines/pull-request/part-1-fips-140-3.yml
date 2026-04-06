@@ -1,5 +1,6 @@
 config:
   allow-labels:
+    - Team:Security
     - test-fips
 steps:
   - label: part-1-fips-140-3
@@ -8,5 +9,6 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: custom-32-98304
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk

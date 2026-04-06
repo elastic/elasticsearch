@@ -58,10 +58,11 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         parser.nextToken();
         assertTrue(parser.currentToken().isValue());
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, fieldname);
-        List<Mapper> dynamicMappers = ctx.getDynamicMappers();
+        List<Mapper.Builder> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        assertEquals(fieldname, dynamicMappers.get(0).fullPath());
-        assertEquals(expectedType, dynamicMappers.get(0).typeName());
+        Mapper built = dynamicMappers.get(0).build(MapperBuilderContext.root(false, false));
+        assertEquals(fieldname, built.fullPath());
+        assertEquals(expectedType, built.typeName());
     }
 
     public void testCreateDynamicStringFieldAsKeywordForDimension() throws IOException {
@@ -92,9 +93,10 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         parser.nextToken();
         assertTrue(parser.currentToken().isValue());
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, "f1");
-        List<Mapper> dynamicMappers = ctx.getDynamicMappers();
+        List<Mapper.Builder> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        assertEquals("labels.f1", dynamicMappers.get(0).fullPath());
-        assertEquals("keyword", dynamicMappers.get(0).typeName());
+        Mapper built = dynamicMappers.get(0).build(ctx.createDynamicMapperBuilderContext());
+        assertEquals("labels.f1", built.fullPath());
+        assertEquals("keyword", built.typeName());
     }
 }

@@ -23,15 +23,9 @@ Before diving into the dispatch process, here a brief definition of the main con
 * **Arity:** The number of parameters the method accepts. In `s.foo(a, b)` the arity is 2  
 * **Dispatch:** The process of determining which method implementation to execute based on the receiver, name, and arity
 
-:::{image} images/painless-method-dispatching.png
-:alt: Flowchart showing five steps: s.foo, receiver, name, arity, and execute method
-:width: 250px
-:::
-
-<!--
-:::{diagram} mermaid
+```mermaid
 flowchart TD
-    A[s.foo#40;a, b#41;] --> B[Receiver: type of 's']
+    A[s.foo(a, b)] --> B[Receiver: type of 's']
     B --> C[Name: method 'foo']
     C --> D[Arity: 2 parameters]
     D --> E[Execute method]
@@ -41,9 +35,7 @@ flowchart TD
     style C fill:#F5F7FA,stroke:#101C3F,color:#101C3F
     style D fill:#F5F7FA,stroke:#101C3F,color:#101C3F
     style E fill:#02BCB7,color:#fff
-:::
--->
-
+```
 
 ## Why method dispatch matters
 

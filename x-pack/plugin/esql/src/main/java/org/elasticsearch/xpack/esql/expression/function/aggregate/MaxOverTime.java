@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +35,12 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Max}, but it is used to calculate the maximum value over a time series of values from the given field.
  */
-public class MaxOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, AggregateMetricDoubleNativeSupport {
+public class MaxOverTime extends TimeSeriesAggregateFunction
+    implements
+        OptionalArgument,
+        AggregateMetricDoubleNativeSupport,
+        SurrogateExpression,
+        ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MaxOverTime",
@@ -114,6 +122,16 @@ public class MaxOverTime extends TimeSeriesAggregateFunction implements Optional
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
+    }
+
+    @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return perTimeSeriesAggregation().supplier();
     }
 
     @Override

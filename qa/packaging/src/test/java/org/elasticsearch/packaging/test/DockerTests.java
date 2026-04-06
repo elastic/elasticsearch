@@ -44,7 +44,9 @@ import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Distribution.Packaging;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
+import static org.elasticsearch.packaging.util.FileMatcher.p440;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
+import static org.elasticsearch.packaging.util.FileMatcher.p640;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p750;
@@ -630,6 +632,78 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that the elastic user's password can be configured via a file with group-readable (440) permissions.
+     */
+    public void test081ConfigurePasswordThroughEnvironmentVariableFileWith440Permissions() throws Exception {
+        final String xpackPassword = "hunter2";
+        final String passwordFilename = "password.txt";
+
+        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p440);
+        chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
+
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
+
+        try {
+            waitForElasticsearch(installation, "elastic", xpackPassword);
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
+
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            null,
+            null,
+            ServerUtils.getCaCert(installation)
+        );
+        assertThat("Expected server to require authentication", statusCode, equalTo(401));
+    }
+
+    /**
+     * Check that the elastic user's password can be configured via a file with owner-rw + group-readable (640) permissions.
+     */
+    public void test080cConfigurePasswordThroughEnvironmentVariableFileWith640Permissions() throws Exception {
+        final String xpackPassword = "hunter2";
+        final String passwordFilename = "password.txt";
+
+        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p640);
+        chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
+
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
+
+        try {
+            waitForElasticsearch(installation, "elastic", "hunter2");
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
+
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            null,
+            null,
+            ServerUtils.getCaCert(installation)
+        );
+        assertThat("Expected server to require authentication", statusCode, equalTo(401));
+    }
+
+    /**
      * Check that when verifying the file permissions of _FILE environment variables, symlinks
      * are followed.
      */
@@ -707,7 +781,9 @@ public class DockerTests extends PackagingTestCase {
         assertThat(
             dockerLogs.stderr(),
             containsString(
-                "ERROR: File /run/secrets/" + passwordFilename + " from ELASTIC_PASSWORD_FILE must have file permissions 400 or 600"
+                "ERROR: File /run/secrets/"
+                    + passwordFilename
+                    + " from ELASTIC_PASSWORD_FILE must have file permissions 400, 440, 600 or 640"
             )
         );
     }
@@ -747,7 +823,7 @@ public class DockerTests extends PackagingTestCase {
                     + passwordFilename
                     + " (target of symlink /run/secrets/"
                     + symlinkFilename
-                    + " from ELASTIC_PASSWORD_FILE) must have file permissions 400 or 600, but actually has: 775"
+                    + " from ELASTIC_PASSWORD_FILE) must have file permissions 400, 440, 600 or 640, but actually has: 775"
             )
         );
     }
@@ -978,7 +1054,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test130JavaHasCorrectOwnership() {
         final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "java");
-        assertThat(infos, hasSize(2));
+        assertThat(infos, hasSize(1));
 
         for (ProcessInfo info : infos) {
             assertThat("Incorrect UID", info.uid(), equalTo(1000));
@@ -1008,6 +1084,20 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that the native server-launcher is used instead of the Java fallback. When the native
+     * launcher is executable, the bin/elasticsearch script execs it directly and the launcher forks
+     * a single JVM for the ES server. The Java fallback path would instead produce two java
+     * processes (the launcher JVM and the server JVM).
+     */
+    public void test132NativeServerLauncherIsUsed() {
+        final List<ProcessInfo> launcherProcesses = ProcessInfo.getProcessInfo(sh, "server-launcher");
+        assertThat("Expected native server-launcher process to be running", launcherProcesses, hasSize(1));
+
+        final List<ProcessInfo> javaProcesses = ProcessInfo.getProcessInfo(sh, "java");
+        assertThat("Expected exactly one java process, indicating the native server-launcher is in use", javaProcesses, hasSize(1));
+    }
+
+    /**
      * Check that Elasticsearch reports per-node cgroup information.
      */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
@@ -1031,8 +1121,8 @@ public class DockerTests extends PackagingTestCase {
     public void test150MachineDependentHeap() throws Exception {
         final List<String> xArgs = machineDependentHeapTest("1536m", List.of());
 
-        // This is roughly 0.5 * (1536 - 100) where 100 MB is the server-cli overhead
-        assertThat(xArgs, hasItems("-Xms718m", "-Xmx718m"));
+        // This is roughly 0.5 * 1536
+        assertThat(xArgs, hasItems("-Xms768m", "-Xmx768m"));
     }
 
     /**
@@ -1043,12 +1133,12 @@ public class DockerTests extends PackagingTestCase {
     public void test151MachineDependentHeapWithSizeOverride() throws Exception {
         final List<String> xArgs = machineDependentHeapTest(
             "942m",
-            // 799014912 = 762m, 52428800 = 50m
-            List.of("-Des.total_memory_bytes=799014912", "-Des.total_memory_overhead_bytes=52428800")
+            // 799014912 = 762m
+            List.of("-Des.total_memory_bytes=799014912")
         );
 
-        // This is roughly 0.4 * (762 - 50)
-        assertThat(xArgs, hasItems("-Xms284m", "-Xmx284m"));
+        // This is roughly 0.4 * 762, in particular it's NOT 0.4 * 942
+        assertThat(xArgs, hasItems("-Xms304m", "-Xmx304m"));
     }
 
     private List<String> machineDependentHeapTest(final String containerMemory, final List<String> extraJvmOptions) throws Exception {

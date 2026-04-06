@@ -34,16 +34,10 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public SumDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SumDoubleAggregator.SumState state) {
+  SumDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SumDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new SumDoubleAggregatorFunction(driverContext, channels, SumDoubleAggregator.initSingle());
+    this.state = SumDoubleAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

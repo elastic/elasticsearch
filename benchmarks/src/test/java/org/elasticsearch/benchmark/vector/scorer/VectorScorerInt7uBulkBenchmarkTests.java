@@ -49,6 +49,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 bench.dims = dims;
                 bench.numVectors = 1000;
                 bench.numVectorsToScore = 200;
+                bench.bulkSize = 200;
                 bench.setup(vectorData);
 
                 try {
@@ -79,6 +80,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 bench.dims = dims;
                 bench.numVectors = 1000;
                 bench.numVectorsToScore = 200;
+                bench.bulkSize = 200;
                 bench.setup(vectorData);
 
                 try {
@@ -110,6 +112,7 @@ public class VectorScorerInt7uBulkBenchmarkTests extends ESTestCase {
                 bench.dims = dims;
                 bench.numVectors = 1000;
                 bench.numVectorsToScore = 200;
+                bench.bulkSize = 200;
                 bench.setup(vectorData);
 
                 try {

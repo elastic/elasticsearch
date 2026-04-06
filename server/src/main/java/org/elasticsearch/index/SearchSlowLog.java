@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
@@ -197,6 +198,15 @@ public final class SearchSlowLog implements SearchOperationListener {
             return new ESLogMessage().withFields(jsonFields);
         }
 
+        private static String inQuotes(String s) {
+            if (s == null) return inQuotes("");
+            return "\"" + s + "\"";
+        }
+
+        private static String asJsonArray(Stream<String> stream) {
+            return "[" + stream.map(SearchSlowLogMessage::inQuotes).collect(Collectors.joining(", ")) + "]";
+        }
+
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
             Map<String, Object> messageFields = new HashMap<>();
             messageFields.put("elasticsearch.slowlog.message", context.indexShard().shardId());
@@ -209,7 +219,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             }
             messageFields.put(
                 "elasticsearch.slowlog.stats",
-                escapeJson(ESLogMessage.asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
+                escapeJson(asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
             );
             messageFields.put("elasticsearch.slowlog.search_type", context.searchType());
             messageFields.put("elasticsearch.slowlog.total_shards", context.numberOfShards());

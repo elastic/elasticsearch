@@ -34,16 +34,10 @@ public final class MaxBytesRefAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MaxBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      MaxBytesRefAggregator.SingleState state) {
+  MaxBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MaxBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MaxBytesRefAggregatorFunction(driverContext, channels, MaxBytesRefAggregator.initSingle(driverContext));
+    this.state = MaxBytesRefAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

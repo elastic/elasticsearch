@@ -39,6 +39,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
+import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -113,7 +114,8 @@ public final class IndexPrivilege extends Privilege {
         "indices:data/write/index*",
         "indices:data/write/bulk*",
         "indices:data/write/simulate/bulk*",
-        "indices:data/write/otlp/*"
+        "indices:data/write/otlp/*",
+        "indices:data/write/prometheus/*"
     );
     private static final Automaton CREATE_DOC_AUTOMATON = patterns(
         "indices:data/write/index",
@@ -121,14 +123,16 @@ public final class IndexPrivilege extends Privilege {
         "indices:data/write/index:op_type/create",
         "indices:data/write/bulk*",
         "indices:data/write/simulate/bulk*",
-        "indices:data/write/otlp/*"
+        "indices:data/write/otlp/*",
+        "indices:data/write/prometheus/*"
     );
     private static final Automaton INDEX_AUTOMATON = patterns(
         "indices:data/write/index*",
         "indices:data/write/bulk*",
         "indices:data/write/update*",
         "indices:data/write/simulate/bulk*",
-        "indices:data/write/otlp/*"
+        "indices:data/write/otlp/*",
+        "indices:data/write/prometheus/*"
     );
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", TransportAutoPutMappingAction.TYPE.name());
@@ -198,6 +202,10 @@ public final class IndexPrivilege extends Privilege {
         "internal:transport/proxy/indices:internal/admin/ccr/restore/session/clear*",
         "internal:transport/proxy/indices:internal/admin/ccr/restore/file_chunk/get*"
     );
+    private static final Automaton CREATE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME);
+    private static final Automaton READ_VIEW_METADATA_AUTOMATON = patterns(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME);
+    private static final Automaton DELETE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME);
+    private static final Automaton MANAGE_VIEW_AUTOMATON = patterns("indices:admin/esql/view*");
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPredicate.ALL);
@@ -238,6 +246,10 @@ public final class IndexPrivilege extends Privilege {
         "cross_cluster_replication_internal",
         CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON
     );
+    public static final IndexPrivilege MANAGE_VIEW = new IndexPrivilege("manage_view", MANAGE_VIEW_AUTOMATON);
+    public static final IndexPrivilege CREATE_VIEW = new IndexPrivilege("create_view", CREATE_VIEW_AUTOMATON);
+    public static final IndexPrivilege DELETE_VIEW = new IndexPrivilege("delete_view", DELETE_VIEW_AUTOMATON);
+    public static final IndexPrivilege READ_VIEW_METADATA = new IndexPrivilege("read_view_metadata", READ_VIEW_METADATA_AUTOMATON);
 
     public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
         "read_failure_store",
@@ -282,7 +294,11 @@ public final class IndexPrivilege extends Privilege {
                 entry("maintenance", MAINTENANCE),
                 entry("auto_configure", AUTO_CONFIGURE),
                 entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
-                entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL)
+                entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
+                entry("manage_view", MANAGE_VIEW),
+                entry("create_view", CREATE_VIEW),
+                entry("delete_view", DELETE_VIEW),
+                entry("read_view_metadata", READ_VIEW_METADATA)
             ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
         )
     );

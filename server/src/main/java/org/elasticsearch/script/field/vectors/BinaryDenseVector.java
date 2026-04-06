@@ -43,7 +43,7 @@ public class BinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public int dotProduct(byte[] queryVector) {
+    public double dotProduct(byte[] queryVector) {
         throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector)] instead");
     }
 

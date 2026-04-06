@@ -10,6 +10,15 @@ package org.elasticsearch.xpack.inference.external.unified;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentObject;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.ContentObjectImageUrl.ImageUrlDetail;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolCall;
+import org.elasticsearch.inference.completion.ToolChoice;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
@@ -35,13 +45,8 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
     private static final String ROLE = "user";
 
     public void testBasicSerialization() throws IOException {
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString("Hello, world!"),
-            ROLE,
-            null,
-            null
-        );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(messageList, null, null, null, null, null, null, null);
 
@@ -74,29 +79,18 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testSerializationWithAllFields() throws IOException {
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString("Hello, world!"),
+        Message message = new Message(
+            new ContentString("Hello, world!"),
             ROLE,
             "tool_call_id",
-            Collections.singletonList(
-                new UnifiedCompletionRequest.ToolCall(
-                    "id",
-                    new UnifiedCompletionRequest.ToolCall.FunctionField("arguments", "function_name"),
-                    "type"
-                )
-            )
+            Collections.singletonList(new ToolCall("id", new ToolCall.FunctionField("arguments", "function_name"), "type"))
         );
 
-        UnifiedCompletionRequest.Tool tool = new UnifiedCompletionRequest.Tool(
+        Tool tool = new Tool(
             "type",
-            new UnifiedCompletionRequest.Tool.FunctionField(
-                "Fetches the weather in the given location",
-                "get_weather",
-                createParameters(),
-                true
-            )
+            new Tool.FunctionField("Fetches the weather in the given location", "get_weather", createParameters(), true)
         );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
@@ -104,7 +98,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             100L, // maxCompletionTokens
             Collections.singletonList("stop"),
             0.9f, // temperature
-            new UnifiedCompletionRequest.ToolChoiceString("tool_choice"),
+            new ToolChoice.ToolChoiceString("tool_choice"),
             Collections.singletonList(tool),
             0.8f // topP
         );
@@ -182,13 +176,8 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testSerializationWithNullOptionalFields() throws IOException {
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString("Hello, world!"),
-            ROLE,
-            null,
-            null
-        );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
 
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
@@ -232,13 +221,13 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testSerializationWithEmptyLists() throws IOException {
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString("Hello, world!"),
+        Message message = new Message(
+            new ContentString("Hello, world!"),
             ROLE,
             null,
             Collections.emptyList() // empty toolCalls list
         );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
@@ -294,29 +283,18 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         float randomTemperature = (float) ((float) Math.round(0.5d + (double) random.nextFloat() * 0.5d * 100000d) / 100000d);
         float randomTopP = (float) ((float) Math.round(0.5d + (double) random.nextFloat() * 0.5d * 100000d) / 100000d);
 
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(randomContent),
+        Message message = new Message(
+            new ContentString(randomContent),
             ROLE,
             randomToolCallId,
-            Collections.singletonList(
-                new UnifiedCompletionRequest.ToolCall(
-                    "id",
-                    new UnifiedCompletionRequest.ToolCall.FunctionField(randomArguments, randomFunctionName),
-                    randomType
-                )
-            )
+            Collections.singletonList(new ToolCall("id", new ToolCall.FunctionField(randomArguments, randomFunctionName), randomType))
         );
 
-        UnifiedCompletionRequest.Tool tool = new UnifiedCompletionRequest.Tool(
+        Tool tool = new Tool(
             randomType,
-            new UnifiedCompletionRequest.Tool.FunctionField(
-                "Fetches the weather in the given location",
-                "get_weather",
-                createParameters(),
-                true
-            )
+            new Tool.FunctionField("Fetches the weather in the given location", "get_weather", createParameters(), true)
         );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
@@ -324,10 +302,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             100L, // maxCompletionTokens
             Collections.singletonList(randomStop),
             randomTemperature, // temperature
-            new UnifiedCompletionRequest.ToolChoiceObject(
-                randomType,
-                new UnifiedCompletionRequest.ToolChoiceObject.FunctionField(randomFunctionName)
-            ),
+            new ToolChoiceObject(randomType, new ToolChoiceObject.FunctionField(randomFunctionName)),
             Collections.singletonList(tool),
             randomTopP // topP
         );
@@ -424,33 +399,32 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testSerializationWithDifferentContentTypes() throws IOException {
-        Random random = Randomness.get();
+        String text = randomAlphaOfLength(10);
+        ContentObject.ContentObjectText contentObjectText = new ContentObject.ContentObjectText(text);
 
-        String randomContentString = "Hello, world! " + random.nextInt(1000);
-
-        String randomText = "Random text " + random.nextInt(1000);
-        String randomType = "type" + random.nextInt(1000);
-        UnifiedCompletionRequest.ContentObject contentObject = new UnifiedCompletionRequest.ContentObject(randomText, randomType);
-
-        var contentObjectsList = new ArrayList<UnifiedCompletionRequest.ContentObject>();
-        contentObjectsList.add(contentObject);
-        UnifiedCompletionRequest.ContentObjects contentObjects = new UnifiedCompletionRequest.ContentObjects(contentObjectsList);
-
-        UnifiedCompletionRequest.Message messageWithString = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(randomContentString),
-            ROLE,
-            null,
-            null
+        String imageUri = randomAlphaOfLength(10);
+        ImageUrlDetail detail = randomFrom(ImageUrlDetail.values());
+        ContentObject.ContentObjectImage contentObjectImage = new ContentObject.ContentObjectImage(
+            new ContentObject.ContentObjectImage.ContentObjectImageUrl(imageUri, detail)
         );
 
-        UnifiedCompletionRequest.Message messageWithObjects = new UnifiedCompletionRequest.Message(contentObjects, ROLE, null, null);
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
-        messageList.add(messageWithString);
-        messageList.add(messageWithObjects);
+        String fileData = randomAlphaOfLength(10);
+        String filename = randomAlphaOfLength(10);
+        ContentObject.ContentObjectFile contentObjectFile = new ContentObject.ContentObjectFile(
+            new ContentObject.ContentObjectFile.ContentObjectFileFields(fileData, null, filename)
+        );
 
-        UnifiedCompletionRequest unifiedRequest = UnifiedCompletionRequest.of(messageList);
+        ContentObjects contentObjects = new ContentObjects(List.of(contentObjectText, contentObjectImage, contentObjectFile));
 
-        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
+        Message messageWithObjects = new Message(contentObjects, ROLE, null, null);
+
+        String contentString = randomAlphaOfLength(10);
+        Message messageWithString = new Message(new ContentString(contentString), ROLE, null, null);
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(
+            UnifiedCompletionRequest.of(List.of(messageWithString, messageWithObjects)),
+            true
+        );
 
         OpenAiChatCompletionModel model = createCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
@@ -471,7 +445,21 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
                         "content": [
                             {
                                 "text": "%s",
-                                "type": "%s"
+                                "type": "text"
+                            },
+                            {
+                                "image_url": {
+                                    "url": "%s",
+                                    "detail": "%s"
+                                },
+                                "type": "image_url"
+                            },
+                            {
+                                "file": {
+                                    "file_data": "%s",
+                                    "filename": "%s"
+                                },
+                                "type": "file"
                             }
                         ],
                         "role": "user"
@@ -484,24 +472,24 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
                     "include_usage": true
                 }
             }
-            """, randomContentString, randomText, randomType);
+            """, contentString, text, imageUri, detail, fileData, filename);
         assertJsonEquals(jsonString, expectedJson);
     }
 
     public void testSerializationWithSpecialCharacters() throws IOException {
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString("Hello, world! \n \"Special\" characters: \t \\ /"),
+        Message message = new Message(
+            new ContentString("Hello, world! \n \"Special\" characters: \t \\ /"),
             ROLE,
             "tool_call_id\twith\ttabs",
             Collections.singletonList(
-                new UnifiedCompletionRequest.ToolCall(
+                new ToolCall(
                     "id\\with\\backslashes",
-                    new UnifiedCompletionRequest.ToolCall.FunctionField("arguments\"with\"quotes", "function_name/with/slashes"),
+                    new ToolCall.FunctionField("arguments\"with\"quotes", "function_name/with/slashes"),
                     "type"
                 )
             )
         );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
@@ -555,13 +543,8 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testSerializationWithBooleanFields() throws IOException {
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString("Hello, world!"),
-            ROLE,
-            null,
-            null
-        );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        Message message = new Message(new ContentString("Hello, world!"), ROLE, null, null);
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(
             messageList,
@@ -625,19 +608,19 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testSerializationWithoutContentField() throws IOException {
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
+        Message message = new Message(
             null,
             "assistant",
             "tool_call_id\twith\ttabs",
             Collections.singletonList(
-                new UnifiedCompletionRequest.ToolCall(
+                new ToolCall(
                     "id\\with\\backslashes",
-                    new UnifiedCompletionRequest.ToolCall.FunctionField("arguments\"with\"quotes", "function_name/with/slashes"),
+                    new ToolCall.FunctionField("arguments\"with\"quotes", "function_name/with/slashes"),
                     "type"
                 )
             )
         );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(messageList, null, null, null, null, null, null, null);
 

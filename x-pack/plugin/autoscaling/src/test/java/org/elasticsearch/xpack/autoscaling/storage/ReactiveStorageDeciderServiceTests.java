@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -45,6 +47,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -219,22 +222,25 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testSizeOf() {
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 10))
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
-        metaBuilder.put(indexMetadata, true);
-        stateBuilder.metadata(metaBuilder);
-        stateBuilder.routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build());
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId).put(indexMetadata, true);
+        stateBuilder.metadata(Metadata.builder().put(projectBuilder).build());
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(indexMetadata);
+        stateBuilder.routingTable(GlobalRoutingTable.builder().put(projectId, routingTableBuilder).build());
         addNode(stateBuilder);
         addNode(stateBuilder);
         ClusterState initialClusterState = stateBuilder.build();
 
         int shardId = randomInt(indexMetadata.getNumberOfShards() - 1);
-        IndexShardRoutingTable subjectRoutings = initialClusterState.routingTable()
+        IndexShardRoutingTable subjectRoutings = initialClusterState.routingTable(projectId)
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId);
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
@@ -259,7 +265,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         Map<String, Long> shardSize = new HashMap<>();
         IntStream.range(0, randomInt(10))
-            .mapToObj(i -> randomFrom(clusterState.routingTable().allShards().toList()))
+            .mapToObj(i -> randomFrom(clusterState.routingTable(projectId).allShards().toList()))
             .filter(s -> s.shardId().getId() != shardId)
             .forEach(s -> shardSize.put(shardIdentifier(s), randomNonNegativeLong()));
 
@@ -278,8 +284,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testMaxNodeLockedSizeUsingAttributes() {
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        Metadata.Builder metaBuilder = Metadata.builder();
         int numberOfShards = randomIntBetween(1, 10);
         int numberOfReplicas = randomIntBetween(1, 10);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
@@ -287,14 +294,18 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .numberOfShards(numberOfShards)
             .numberOfReplicas(numberOfReplicas)
             .build();
-        metaBuilder.put(indexMetadata, true);
-        stateBuilder.metadata(metaBuilder);
-        stateBuilder.routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build());
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId).put(indexMetadata, true);
+        stateBuilder.metadata(Metadata.builder().put(projectBuilder).build());
+        stateBuilder.routingTable(
+            GlobalRoutingTable.builder()
+                .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
+                .build()
+        );
         ClusterState clusterState = stateBuilder.build();
 
         long baseSize = between(1, 10);
         Map<String, Long> shardSizes = IntStream.range(0, numberOfShards)
-            .mapToObj(s -> clusterState.getRoutingTable().index(indexMetadata.getIndex()).shard(s))
+            .mapToObj(s -> clusterState.routingTable(projectId).index(indexMetadata.getIndex()).shard(s))
             .flatMap(irt -> Stream.of(irt.primaryShard(), irt.replicaShards().get(0)))
             .collect(
                 Collectors.toMap(
@@ -311,11 +322,16 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .metadata(
                 Metadata.builder(clusterState.metadata())
                     .put(
-                        IndexMetadata.builder(indexMetadata)
-                            .settings(
-                                Settings.builder()
-                                    .put(indexMetadata.getSettings())
-                                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, randomAlphaOfLength(9))
+                        ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
+                            .put(
+                                IndexMetadata.builder(indexMetadata)
+                                    .settings(
+                                        Settings.builder()
+                                            .put(indexMetadata.getSettings())
+                                            .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, randomAlphaOfLength(9))
+                                    )
+                                    .build(),
+                                false
                             )
                     )
             )
@@ -325,8 +341,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testNodeLockSplitClone() {
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
@@ -342,13 +359,19 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .numberOfShards(numberOfShards)
             .numberOfReplicas(numberOfReplicas)
             .build();
-        metaBuilder.put(sourceIndexMetadata, true);
-        metaBuilder.put(indexMetadata, true);
-        stateBuilder.metadata(metaBuilder);
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId)
+            .put(sourceIndexMetadata, true)
+            .put(indexMetadata, true);
+        stateBuilder.metadata(Metadata.builder().put(projectBuilder).build());
         stateBuilder.routingTable(
-            RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                .addAsNew(sourceIndexMetadata)
-                .addAsNew(indexMetadata)
+            GlobalRoutingTable.builder()
+                .put(
+                    projectId,
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                        .addAsNew(sourceIndexMetadata)
+                        .addAsNew(indexMetadata)
+                        .build()
+                )
                 .build()
         );
         ClusterState clusterState = stateBuilder.build();
@@ -356,7 +379,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         long sourceSize = between(1, 10);
         Map<String, Long> shardSizes = Map.of(
             ClusterInfo.shardIdentifierFromRouting(
-                clusterState.getRoutingTable().index(sourceIndexMetadata.getIndex()).shard(0).primaryShard()
+                clusterState.routingTable(projectId).index(sourceIndexMetadata.getIndex()).shard(0).primaryShard()
             ),
             sourceSize
         );
@@ -413,8 +436,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testSizeOfSnapshot() {
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        Metadata.Builder metaBuilder = Metadata.builder();
         RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(),
             new Snapshot(randomAlphaOfLength(5), new SnapshotId(randomAlphaOfLength(5), UUIDs.randomBase64UUID())),
@@ -426,23 +450,26 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .numberOfShards(randomIntBetween(1, 10))
             .numberOfReplicas(randomIntBetween(0, 10))
             .build();
-        metaBuilder.put(indexMetadata, true);
-        stateBuilder.metadata(metaBuilder);
+        stateBuilder.metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, true)).build());
         stateBuilder.routingTable(
-            RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                .addAsNewRestore(indexMetadata, recoverySource, new HashSet<>())
+            GlobalRoutingTable.builder()
+                .put(
+                    projectId,
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                        .addAsNewRestore(indexMetadata, recoverySource, new HashSet<>())
+                        .build()
+                )
                 .build()
         );
         ClusterState clusterState = stateBuilder.build();
-
         int shardId = randomInt(indexMetadata.getNumberOfShards() - 1);
-        ShardRouting primaryShard = clusterState.routingTable()
+        ShardRouting primaryShard = clusterState.routingTable(projectId)
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId)
             .primaryShard();
 
         Map<InternalSnapshotsInfoService.SnapshotShard, Long> shardSizeBuilder = new HashMap<>();
         IntStream.range(0, randomInt(10))
-            .mapToObj(i -> randomFrom(clusterState.routingTable().allShards().toList()))
+            .mapToObj(i -> randomFrom(clusterState.routingTable(projectId).allShards().toList()))
             .filter(s -> s.shardId().getId() != shardId)
             .forEach(s -> shardSizeBuilder.put(snapshotShardSizeKey(recoverySource, s), randomNonNegativeLong()));
 
@@ -510,15 +537,15 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         String nodeId = randomAlphaOfLength(5);
 
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(10)
             .build();
-        metaBuilder.put(indexMetadata, true);
-        final Metadata metadata = metaBuilder.build();
+        final Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, true)).build();
         stateBuilder.metadata(metadata);
 
         stateBuilder.routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew));
@@ -576,16 +603,16 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testCanRemainOnlyHighestTierPreference() {
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         addNode(stateBuilder);
-        Metadata.Builder metaBuilder = Metadata.builder();
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(10)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, true);
-        var metadata = metaBuilder.build();
+        var metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, true)).build();
         stateBuilder.metadata(metadata);
 
         stateBuilder.routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew));
@@ -614,22 +641,25 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         assertTrue(canRemainWithNoNodes(clusterState, shardRouting));
         assertFalse(canRemainWithNoNodes(clusterState, shardRouting, no));
 
-        ClusterState clusterStateWithHotPreference = addPreference(indexMetadata, clusterState, "data_hot");
+        ClusterState clusterStateWithHotPreference = addPreference(projectId, indexMetadata, clusterState, "data_hot");
         assertTrue(canRemainWithNoNodes(clusterStateWithHotPreference, shardRouting));
         assertFalse(canRemainWithNoNodes(clusterStateWithHotPreference, shardRouting, no));
 
-        ClusterState clusterStateWithWarmHotPreference = addPreference(indexMetadata, clusterState, "data_warm,data_hot");
+        ClusterState clusterStateWithWarmHotPreference = addPreference(projectId, indexMetadata, clusterState, "data_warm,data_hot");
         assertFalse(canRemainWithNoNodes(clusterStateWithWarmHotPreference, shardRouting));
         assertFalse(canRemainWithNoNodes(clusterStateWithWarmHotPreference, shardRouting, no));
     }
 
-    public ClusterState addPreference(IndexMetadata indexMetadata, ClusterState clusterState, String preference) {
+    public ClusterState addPreference(ProjectId projectId, IndexMetadata indexMetadata, ClusterState clusterState, String preference) {
         IndexMetadata indexMetadataWithPreference = IndexMetadata.builder(indexMetadata)
             .settings(Settings.builder().put(indexMetadata.getSettings()).put(DataTier.TIER_PREFERENCE, preference))
             .build();
 
         return ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadataWithPreference, false))
+            .metadata(
+                Metadata.builder(clusterState.metadata())
+                    .put(ProjectMetadata.builder(clusterState.metadata().getProject(projectId)).put(indexMetadataWithPreference, false))
+            )
             .build();
     }
 
@@ -651,9 +681,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testNeedsThisTier() {
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         addNode(stateBuilder, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
-        Metadata.Builder metaBuilder = Metadata.builder();
         Settings.Builder settings = settings(IndexVersion.current());
         if (randomBoolean()) {
             settings.put(DataTier.TIER_PREFERENCE, randomBoolean() ? DataTier.DATA_HOT : "data_hot,data_warm");
@@ -663,8 +694,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .numberOfShards(10)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, true);
-        stateBuilder.metadata(metaBuilder);
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId).put(indexMetadata, true);
+        stateBuilder.metadata(Metadata.builder().put(projectBuilder).build());
         ClusterState clusterState = stateBuilder.build();
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
@@ -676,16 +707,17 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
 
         verifyNeedsWarmTier(clusterState, shardRouting, false);
-        verifyNeedsWarmTier(addPreference(indexMetadata, clusterState, DataTier.DATA_COLD), shardRouting, false);
-        verifyNeedsWarmTier(addPreference(indexMetadata, clusterState, DataTier.DATA_WARM), shardRouting, true);
-        verifyNeedsWarmTier(addPreference(indexMetadata, clusterState, "data_warm,data_hot"), shardRouting, true);
-        verifyNeedsWarmTier(addPreference(indexMetadata, clusterState, "data_warm,data_cold"), shardRouting, true);
+        verifyNeedsWarmTier(addPreference(projectId, indexMetadata, clusterState, DataTier.DATA_COLD), shardRouting, false);
+        verifyNeedsWarmTier(addPreference(projectId, indexMetadata, clusterState, DataTier.DATA_WARM), shardRouting, true);
+        verifyNeedsWarmTier(addPreference(projectId, indexMetadata, clusterState, "data_warm,data_hot"), shardRouting, true);
+        verifyNeedsWarmTier(addPreference(projectId, indexMetadata, clusterState, "data_warm,data_cold"), shardRouting, true);
     }
 
     public void testNeedsThisTierLegacy() {
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         addNode(stateBuilder);
-        Metadata.Builder metaBuilder = Metadata.builder();
         Settings.Builder settings = settings(IndexVersion.current());
         if (randomBoolean()) {
             settings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".data", DataTier.DATA_HOT);
@@ -695,8 +727,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .numberOfShards(10)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, true);
-        stateBuilder.metadata(metaBuilder);
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId).put(indexMetadata, true);
+        stateBuilder.metadata(Metadata.builder().put(projectBuilder).build());
         ClusterState clusterState = stateBuilder.build();
 
         boolean primary = randomBoolean();

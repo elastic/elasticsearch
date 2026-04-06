@@ -36,16 +36,10 @@ public final class LastDoubleByTimestampAggregatorFunction implements Aggregator
 
   private final List<Integer> channels;
 
-  public LastDoubleByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, LongDoubleState state) {
+  LastDoubleByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static LastDoubleByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new LastDoubleByTimestampAggregatorFunction(driverContext, channels, LastDoubleByTimestampAggregator.initSingle(driverContext));
+    this.state = LastDoubleByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

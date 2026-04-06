@@ -34,16 +34,10 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      MinBytesRefAggregator.SingleState state) {
+  MinBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MinBytesRefAggregatorFunction(driverContext, channels, MinBytesRefAggregator.initSingle(driverContext));
+    this.state = MinBytesRefAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

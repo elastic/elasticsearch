@@ -34,16 +34,11 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
 
   private final List<Integer> channels;
 
-  public MedianAbsoluteDeviationIntAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, QuantileStates.SingleState state) {
+  MedianAbsoluteDeviationIntAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MedianAbsoluteDeviationIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MedianAbsoluteDeviationIntAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationIntAggregator.initSingle(driverContext));
+    this.state = MedianAbsoluteDeviationIntAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

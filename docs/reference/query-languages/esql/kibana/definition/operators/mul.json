@@ -28,6 +28,78 @@
       "params" : [
         {
           "name" : "lhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        },
+        {
+          "name" : "rhs",
+          "type" : "double",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        },
+        {
+          "name" : "rhs",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        },
+        {
+          "name" : "rhs",
+          "type" : "long",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "double",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        },
+        {
+          "name" : "rhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
           "type" : "double",
           "optional" : false,
           "description" : "A numeric value or dense_vector"
@@ -77,6 +149,24 @@
       ],
       "variadic" : false,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        },
+        {
+          "name" : "rhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
     },
     {
       "params" : [
@@ -131,6 +221,24 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "long",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        },
+        {
+          "name" : "rhs",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "A numeric value or dense_vector"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
     },
     {
       "params" : [

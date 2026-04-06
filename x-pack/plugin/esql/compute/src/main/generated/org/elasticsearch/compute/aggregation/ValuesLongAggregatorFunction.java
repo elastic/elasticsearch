@@ -31,16 +31,10 @@ public final class ValuesLongAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public ValuesLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesLongAggregator.SingleState state) {
+  ValuesLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesLongAggregatorFunction(driverContext, channels, ValuesLongAggregator.initSingle(driverContext.bigArrays()));
+    this.state = ValuesLongAggregator.initSingle(driverContext.bigArrays());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

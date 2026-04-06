@@ -24,7 +24,7 @@ import java.util.Arrays;
  */
 class RoundToInt {
     static final RoundTo.Build BUILD = (source, field, points) -> {
-        int[] f = points.stream().mapToInt(p -> ((Number) p).intValue()).toArray();
+        int[] f = points.stream().mapToInt(p -> p.intValue()).toArray();
         return switch (f.length) {
             // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
             case 1 -> new RoundToInt1Evaluator.Factory(source, field, f[0]);
@@ -44,7 +44,14 @@ class RoundToInt {
              * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
              * on 2025-05-22.
              */
-            default -> new RoundToIntBinarySearchEvaluator.Factory(source, field, f);
+            default -> {
+                int interval = extractFixedInterval(f);
+                if (interval > 0) {
+                    yield new RoundToIntFixedIntervalEvaluator.Factory(source, field, f[0], f[f.length - 1], interval);
+                } else {
+                    yield new RoundToIntBinarySearchEvaluator.Factory(source, field, f);
+                }
+            }
         };
     };
 
@@ -52,6 +59,27 @@ class RoundToInt {
     static int process(int field, @Fixed(includeInToString = false) int[] points) {
         int idx = Arrays.binarySearch(points, field);
         return points[idx >= 0 ? idx : Math.max(0, -idx - 2)];
+    }
+
+    private static int extractFixedInterval(int[] points) {
+        int interval = (points[points.length - 1] - points[0]) / (points.length - 1);
+        for (int i = 1; i < points.length; i++) {
+            if (points[i] - points[i - 1] != interval) {
+                return -1;
+            }
+        }
+        return interval;
+    }
+
+    @Evaluator(extraName = "FixedInterval")
+    static int processFixed(int field, @Fixed int first, @Fixed int last, @Fixed int interval) {
+        if (field < first) {
+            return first; // almost never true in practice; predictor skips this
+        }
+        if (field > last) {
+            return last; // almost never true in practice; predictor skips this
+        }
+        return field - (field - first) % interval;
     }
 
     @Evaluator(extraName = "1")

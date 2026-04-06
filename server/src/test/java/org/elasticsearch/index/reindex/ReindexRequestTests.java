@@ -10,14 +10,18 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -28,6 +32,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -36,7 +41,9 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
@@ -521,6 +528,114 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
     }
 
+    /** Verifies that empty source indices are allowed when using PIT (point-in-time) search. */
+    public void testEmptyIndicesAllowedWhenUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray("pit-id".getBytes(StandardCharsets.UTF_8))).setKeepAlive(
+                        TimeValue.timeValueMinutes(5)
+                    )
+                )
+            );
+        ActionRequestValidationException validationException = request.validate();
+        assertNull("ReindexRequest with PIT and empty indices should pass validation", validationException);
+    }
+
+    /** Verifies that empty source indices are rejected when not using PIT; validation suggests using _all instead. */
+    public void testEmptyIndicesRejectedWhenNotUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().source(new SearchSourceBuilder());
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
+    }
+
+    /** Verifies that the {@code from} parameter is rejected when not using PIT. */
+    public void testFromParameterRejectedWhenNotUsingPit() {
+        ReindexRequest request = newRequest();
+        request.getSearchRequest().scroll(null);  // avoid SearchRequest's scroll+from error; we test AbstractBulkByScrollRequest only
+        request.getSearchRequest().source().from(1);
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("from is not supported in this context"), validationException.validationErrors());
+    }
+
+    /** Verifies that {@code from=0} is allowed when using PIT. */
+    public void testFromZeroAllowedWhenUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8))).setKeepAlive(
+                        TimeValue.timeValueMinutes(5)
+                    )
+                ).from(0)
+            );
+        ActionRequestValidationException validationException = request.validate();
+        assertNull("ReindexRequest with PIT and from=0 should pass validation", validationException);
+    }
+
+    /** Verifies that the task description uses sourceIndicesForDescription when indices are empty (e.g. PIT case). */
+    public void testDescriptionUsesSourceIndicesForDescriptionWhenIndicesEmpty() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.setSourceIndicesForDescription(new String[] { "reindex_src" });
+        String description = request.getDescription();
+        assertThat(description, containsString("reindex_src"));
+        assertThat(description, not(containsString("all indices")));
+    }
+
+    /** Verifies that the task description uses "all indices" when both indices and sourceIndicesForDescription are empty. */
+    public void testDescriptionUsesAllIndicesWhenBothIndicesAndSourceIndicesForDescriptionEmpty() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.setSourceIndicesForDescription(null);
+        String description = request.getDescription();
+        assertThat(description, containsString("all indices"));
+    }
+
+    /** Verifies that the task description uses the search request indices when set, even if sourceIndicesForDescription is also set. */
+    public void testDescriptionUsesIndicesWhenSet() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices("foo", "bar");
+        request.setSourceIndicesForDescription(new String[] { "reindex_src" });
+        String description = request.getDescription();
+        assertThat(description, containsString("foo"));
+        assertThat(description, containsString("bar"));
+    }
+
+    /** Verifies that a non-zero {@code from} parameter is rejected when using PIT. */
+    public void testFromNonZeroRejectedWhenUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8))).setKeepAlive(
+                        TimeValue.timeValueMinutes(5)
+                    )
+                ).from(5)
+            );
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("from is not supported in this context"), validationException.validationErrors());
+    }
+
     public void testValidateGivenRemoteIndex() throws IOException {
         ReindexRequest r = parseRequestWithSourceIndices("remote:index");
         assertArrayEquals(new String[] { "remote:index" }, r.getSearchRequest().indices());
@@ -530,15 +645,41 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     public void testCreateTask_notEligibleForRelocationOnShutdown() throws IOException {
         ReindexRequest request = parseRequestWithSourceIndices("source");
-        Task task = request.createTask(randomLong(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        Task task = request.createTask(randomTaskId(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(false));
     }
 
     public void testCreateTask_eligibleForRelocationOnShutdown() throws IOException {
         ReindexRequest request = parseRequestWithSourceIndices("source");
         request.setEligibleForRelocationOnShutdown(true);
-        Task task = request.createTask(randomLong(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        Task task = request.createTask(randomTaskId(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(true));
+    }
+
+    public void testProjectRoutingParsing() throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                    b.field("project_routing", "_alias:_origin");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            ReindexRequest r = ReindexRequest.fromXContent(p, Predicates.never());
+            assertEquals("_alias:_origin", r.getSearchRequest().getProjectRouting());
+        }
     }
 
     private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
@@ -563,5 +704,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             return ReindexRequest.fromXContent(p, Predicates.never());
         }
+    }
+
+    private static TaskId randomTaskId() {
+        return randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
     }
 }

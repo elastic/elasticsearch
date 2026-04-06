@@ -10,6 +10,10 @@ mapped_pages:
 
 The `index_options` parameter controls what information is added to the inverted index for search and highlighting purposes. Only term-based field types like [`text`](/reference/elasticsearch/mapping-reference/text.md) and [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) support this configuration.
 
+:::{note}
+The [`semantic_text`](../mapping-reference/semantic-text.md) field type also uses an `index_options` parameter. However, in that context, the parameter configures the underlying vector index settings (such as quantization or token pruning) rather than standard text indexing features. See the semantic text documentation to configure `index_options` for [sparse vectors](../mapping-reference/semantic-text-setup-configuration.md#index-options-sparse_vectors) or [dense vectors](../mapping-reference/semantic-text-setup-configuration.md#index-options-dense_vectors).
+:::
+
 The parameter accepts one of the following values. Each value retrieves information from the previous listed values. For example, `freqs` contains `docs`; `positions` contains both `freqs` and `docs`.
 
 `docs`

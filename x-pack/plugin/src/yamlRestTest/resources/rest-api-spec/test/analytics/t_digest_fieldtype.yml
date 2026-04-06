@@ -245,8 +245,8 @@ histogram with synthetic source and ignore_malformed:
           "centroids": [ 2.0 ],
           "counts": [ 2 ]
         },
-          { "centroids": [ 1.0 ], "counts": [ 1 ], "hello": "world" },
-          123, 456, "fox" ]
+          "fox", 123, 456,
+          { "centroids": [ 1.0 ], "counts": [ 1 ], "hello": "world" } ]
 ---
 TDigest with synthetic source and empty digest:
   - requires:

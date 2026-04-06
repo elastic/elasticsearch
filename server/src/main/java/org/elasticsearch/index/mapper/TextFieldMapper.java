@@ -113,7 +113,8 @@ public final class TextFieldMapper extends FieldMapper {
 
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         false,
-        DocValuesParameter.Values.Cardinality.HIGH
+        DocValuesParameter.Values.Cardinality.HIGH,
+        DocValuesParameter.Values.MultiValue.ARRAYS
     );
 
     public static class Defaults {
@@ -265,7 +266,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
 
-        final DocValuesParameter docValuesParameters = new DocValuesParameter(
+        final DocValuesParameter docValuesParameters = DocValuesParameter.arraysWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> ((TextFieldMapper) m).docValuesParameters
         );
@@ -330,6 +331,7 @@ public final class TextFieldMapper extends FieldMapper {
 
             this.indexMode = indexMode;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
+
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
@@ -564,6 +566,11 @@ public final class TextFieldMapper extends FieldMapper {
                 analyzers.positionIncrementGap.get()
             );
             return new SubFieldInfo(parent.name() + FAST_PHRASE_SUFFIX, phraseFieldType, a);
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -1277,7 +1284,7 @@ public final class TextFieldMapper extends FieldMapper {
                 if (usesBinaryDocValues()) {
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
                 } else {
-                    return new BytesRefsFromOrdsBlockLoader(name());
+                    return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                 }
             }
 
@@ -1369,7 +1376,7 @@ public final class TextFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader(
                 reader,
                 name(),
-                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {

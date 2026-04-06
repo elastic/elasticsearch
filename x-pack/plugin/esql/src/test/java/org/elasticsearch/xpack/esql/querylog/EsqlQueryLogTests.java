@@ -198,6 +198,7 @@ public class EsqlQueryLogTests extends ESTestCase {
                     randomTimeSpan(),
                     randomTimeSpan(),
                     randomTimeSpan(),
+                    randomTimeSpan(),
                     randomIntBetween(0, 100)
                 );
             }
@@ -211,4 +212,5 @@ public class EsqlQueryLogTests extends ESTestCase {
         long stopNanos = startNanos + randomLongBetween(1, 100_000);
         return new TimeSpan(startNanos / 1_000_000, startNanos, stopNanos / 1_000_000, stopNanos);
     }
+
 }

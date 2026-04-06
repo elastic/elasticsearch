@@ -46,9 +46,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         ValidationException validationException = new ValidationException();
         SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new DefaultSecretSettings(secureApiToken);
     }
@@ -111,6 +109,6 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(new HashMap<>(newSecrets));
+        return fromMap(newSecrets);
     }
 }

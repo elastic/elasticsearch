@@ -18,6 +18,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.mapper.blockloader.script.BooleanScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -128,7 +129,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         }
-        return new BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader(leafFactory(blContext.lookup()));
+        return new BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
     }
 
     private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {

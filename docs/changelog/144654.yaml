@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 144654
+summary: Fix up exception messages in `AzureBlobStore`
+type: bug

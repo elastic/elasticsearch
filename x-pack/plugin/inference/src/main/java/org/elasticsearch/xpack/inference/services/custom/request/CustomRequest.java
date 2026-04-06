@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xcontent.XContentType;
@@ -91,13 +92,13 @@ public class CustomRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpRequest = new HttpPost(uri);
 
         setHeaders(httpRequest);
         setRequestContent(httpRequest);
 
-        return new HttpRequest(httpRequest, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpRequest, getInferenceEntityId()));
     }
 
     private void setHeaders(HttpRequestBase httpRequest) {

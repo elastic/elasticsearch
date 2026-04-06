@@ -41,16 +41,11 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implement
 
   private final List<Integer> channels;
 
-  public SpatialExtentGeoShapeSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, SpatialExtentStateWrappedLongitudeState state) {
+  SpatialExtentGeoShapeSourceValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialExtentGeoShapeSourceValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialExtentGeoShapeSourceValuesAggregatorFunction(driverContext, channels, SpatialExtentGeoShapeSourceValuesAggregator.initSingle());
+    this.state = SpatialExtentGeoShapeSourceValuesAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -156,22 +156,20 @@ final class DynamicFieldsBuilder {
     }
 
     /**
-     * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
+     * Returns a builder for a dynamically created object mapper, eventually based on a matching dynamic template.
      */
-    static Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
-        Mapper mapper = createObjectMapperFromTemplate(context, name);
-        return mapper != null
-            ? mapper
-            : new ObjectMapper.Builder(name, context.parent().subobjects).enabled(ObjectMapper.Defaults.ENABLED)
-                .build(context.createDynamicMapperBuilderContext());
+    static Mapper.Builder createDynamicObjectMapperBuilder(DocumentParserContext context, String name) {
+        Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
+        return templateBuilder != null
+            ? templateBuilder
+            : new ObjectMapper.Builder(name, context.parent().subobjects).enabled(ObjectMapper.Defaults.ENABLED);
     }
 
     /**
-     * Returns a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
+     * Returns a builder for a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
      */
-    static Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
-        Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
-        return templateBuilder == null ? null : templateBuilder.build(context.createDynamicMapperBuilderContext());
+    static Mapper.Builder createObjectMapperBuilderFromTemplate(DocumentParserContext context, String name) {
+        return findTemplateBuilderForObject(context, name);
     }
 
     /**
@@ -209,7 +207,8 @@ final class DynamicFieldsBuilder {
         CheckedSupplier<Boolean, IOException> dynamicFieldStrategy
     ) throws IOException {
         if (applyMatchingTemplate(context, name, matchType, dateFormatter)) {
-            context.markFieldAsAppliedFromTemplate(name);
+            String fullFieldName = context.path().pathAsText(name);
+            context.markFieldAsAppliedFromTemplate(fullFieldName);
             return true;
         } else {
             return dynamicFieldStrategy.get();
@@ -310,8 +309,8 @@ final class DynamicFieldsBuilder {
 
         boolean createDynamicField(Mapper.Builder builder, DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
             throws IOException {
-            Mapper mapper = builder.build(mapperBuilderContext);
-            if (context.addDynamicMapper(mapper)) {
+            Mapper mapper = context.getDynamicMapper(builder, mapperBuilderContext);
+            if (mapper != null) {
                 parseField.accept(context, mapper);
                 return true;
             } else {

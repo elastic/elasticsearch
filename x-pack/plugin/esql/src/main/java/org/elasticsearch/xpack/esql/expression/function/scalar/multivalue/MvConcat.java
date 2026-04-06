@@ -15,8 +15,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -54,7 +54,11 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     )
     public MvConcat(
         Source source,
-        @Param(name = "string", type = { "text", "keyword" }, description = "Multivalue expression.") Expression field,
+        @Param(
+            name = "string",
+            type = { "text", "keyword" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression field,
         @Param(name = "delim", type = { "text", "keyword" }, description = "Delimiter.") Expression delim
     ) {
         super(source, field, delim);

@@ -38,18 +38,13 @@ public final class TopIntLongAggregatorFunction implements AggregatorFunction {
 
   private final boolean ascending;
 
-  public TopIntLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      TopIntLongAggregator.SingleState state, int limit, boolean ascending) {
-    this.driverContext = driverContext;
-    this.channels = channels;
-    this.state = state;
+  TopIntLongAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
+      boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopIntLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit, boolean ascending) {
-    return new TopIntLongAggregatorFunction(driverContext, channels, TopIntLongAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
+    this.driverContext = driverContext;
+    this.channels = channels;
+    this.state = TopIntLongAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

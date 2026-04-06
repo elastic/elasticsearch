@@ -199,7 +199,7 @@ This returns the following response based on the final rrf score for each result
 ::::
 
 
-### Using the expanded format with weights 
+### Using the expanded format with weights
 ```{applies_to}
 stack: ga 9.2
 ```
@@ -1403,6 +1403,109 @@ GET retrievers_example/_search
 % TESTRESPONSE[s/"took": 42/"took" : $body.took/]
 ::::
 
+
+
+## Example: Multi-level nested retrievers with min_score [retrievers-examples-nested-retrievers-min-score]
+
+This example demonstrates how `min_score` works with deeply nested compound retrievers. The retriever tree structure is:
+
+- **Outer RRF** (rank_window_size: 20)
+  - **Inner RRF** (rank_window_size: 50)
+    - **Linear** (rank_window_size: 100, minmax normalizer, min_score: 0.5)
+      - **Standard** (query_string query)
+
+Documents are first matched by the innermost `standard` retriever using a query_string query. The `linear` retriever then normalizes these scores using the minmax normalizer and filters based on the specified `min_score`. Then, the inner `rrf` retriever computes the scores for the subset of documents that pass `min_score`, and finally the outer `rrf` retriever produces the final ranking.
+
+The `total_hits` value in this scenario is constrained by the `rank_window_size` parameters, as parent retrievers only have access to the top documents from their children.
+
+**Pagination behavior**: When using `from` and `size` at the top level of the search request, pagination is limited to the documents available at the outermost retriever's `rank_window_size`. In this example, even though the inner retrievers process more documents (100 for `linear`, 50 for inner `rrf`), the outer `rrf` only receives 50 documents and produces a final set of 20 documents. Therefore, `from` and `size` can only paginate through these top 20 documents.
+
+```console
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "rrf": {
+                        "retrievers": [
+                            {
+                                "linear": {
+                                    "min_score": 0.5,
+                                    "retrievers": [
+                                        {
+                                            "retriever": {
+                                                "standard": {
+                                                    "query": {
+                                                        "query_string": {
+                                                            "query": "artificial intelligence",
+                                                            "default_field": "text"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "rank_window_size": 100,
+                                    "normalizer": "minmax"
+                                }
+                            }
+                        ],
+                        "rank_window_size": 50
+                    }
+                }
+            ],
+            "rank_window_size": 20
+        }
+    },
+    "size": 10
+}
+```
+% TEST[continued]
+
+In this example:
+1. The `standard` retriever matches documents containing "artificial intelligence" in the text field.
+2. The `linear` retriever normalizes these scores to a 0-1 range using minmax normalization and filters documents with score less than 0.5.
+3. The inner `rrf` computes RRF scores based on document ranks.
+4. The outer `rrf` produces the final RRF scores.
+5. The `total_hits` value reflects only the documents passing the inner `min_score` threshold.
+
+::::{dropdown} Example response
+```console-result
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 1,
+            "relation": "eq"
+        },
+        "max_score": 0.016393442,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.016393442,
+                "_source": {
+                    "vector": [0.12, 0.56, 0.78],
+                    "text": "Artificial intelligence is transforming medicine, from advancing diagnostics and tailoring treatment plans to empowering predictive patient care for improved health outcomes.",
+                    "year": 2023,
+                    "topic": ["ai", "medicine"],
+                    "timestamp": "2022-01-01T12:10:30"
+                }
+            }
+        ]
+    }
+}
+```
+% TESTRESPONSE[s/"took": 42/"took" : $body.took/]
+::::
 
 
 ## Example: Explainability with multiple retrievers [retrievers-examples-explain-multiple-rrf]

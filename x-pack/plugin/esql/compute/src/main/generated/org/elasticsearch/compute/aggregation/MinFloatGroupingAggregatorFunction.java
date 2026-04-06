@@ -36,16 +36,10 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
 
   private final DriverContext driverContext;
 
-  public MinFloatGroupingAggregatorFunction(List<Integer> channels, FloatArrayState state,
-      DriverContext driverContext) {
+  MinFloatGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = new FloatArrayState(driverContext.bigArrays(), MinFloatAggregator.init());
     this.driverContext = driverContext;
-  }
-
-  public static MinFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinFloatGroupingAggregatorFunction(channels, new FloatArrayState(driverContext.bigArrays(), MinFloatAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -308,14 +302,24 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = state.toValuesBlock(selected, ctx.driverContext());
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = state.toValuesBlock(selectedInPage, driverContext);
   }
 
   @Override

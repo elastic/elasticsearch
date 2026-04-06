@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -38,7 +39,7 @@ public record AzureOpenAiEmbeddingsRequestEntity(
         builder.startObject();
         builder.field(INPUT_FIELD, input);
 
-        if (user != null) {
+        if (Strings.isNullOrEmpty(user) == false) {
             builder.field(USER_FIELD, user);
         }
 

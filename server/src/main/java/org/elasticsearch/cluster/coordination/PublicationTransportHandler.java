@@ -249,7 +249,7 @@ public class PublicationTransportHandler {
     }
 
     private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node, TransportVersion version) {
-        try (RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream()) {
+        try (RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream(null)) {
             final long uncompressedBytes;
             try (StreamOutput stream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(bytesStream))) {
                 stream.setTransportVersion(version);
@@ -278,7 +278,7 @@ public class PublicationTransportHandler {
         TransportVersion version
     ) {
         final long clusterStateVersion = newState.version();
-        try (RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream()) {
+        try (RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream(null)) {
             final long uncompressedBytes;
             try (StreamOutput stream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(bytesStream))) {
                 stream.setTransportVersion(version);

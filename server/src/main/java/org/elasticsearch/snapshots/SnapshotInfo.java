@@ -11,6 +11,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -180,12 +182,17 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     public static SnapshotInfo inProgress(SnapshotsInProgress.Entry entry) {
         int successfulShards = 0;
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
+        final boolean isClone = entry.isClone();
         for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardSnapshotStatusByRepoShardId()
             .entrySet()) {
             if (c.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS) {
                 successfulShards++;
             } else if (c.getValue().state().failed() && c.getValue().state().completed()) {
-                shardFailures.add(new SnapshotShardFailure(c.getValue().nodeId(), entry.shardId(c.getKey()), c.getValue().reason()));
+                final RepositoryShardId repoShardId = c.getKey();
+                final ShardId shardId = isClone
+                    ? new ShardId(repoShardId.indexName(), IndexMetadata.INDEX_UUID_NA_VALUE, repoShardId.shardId())
+                    : entry.shardId(repoShardId);
+                shardFailures.add(new SnapshotShardFailure(c.getValue().nodeId(), shardId, c.getValue().reason()));
             }
         }
         int totalShards = entry.shardSnapshotStatusByRepoShardId().size();

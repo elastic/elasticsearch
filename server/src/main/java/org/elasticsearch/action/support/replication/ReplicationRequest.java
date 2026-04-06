@@ -278,11 +278,17 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         return toString();
     }
 
-    /**
-     * This method is called before this replication request is retried
-     * the first time.
-     */
     public void onRetry() {
+        onRetry(true);
+    }
+
+    /**
+     * Called before this replication request is retried.
+     * <p>
+     * {@code possiblyExecuted} controls whether request should be marked as retry or not. For some retry paths (for example
+     * relocation handoff), we know that the request is not executed and can be retried more efficiently (and safely).
+     */
+    public void onRetry(boolean possiblyExecuted) {
         // nothing by default
     }
 }

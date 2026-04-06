@@ -538,7 +538,7 @@ public class BigArrays {
                 }
             } else {
                 // even if we are not checking the breaker, we need to adjust
-                // its' totals, so add without breaking
+                // its totals, so add without breaking
                 breaker.addWithoutBreaking(delta);
             }
         }

@@ -12,13 +12,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-public class PercentileOverTimeTests extends AbstractFunctionTestCase {
+public class PercentileOverTimeTests extends AbstractAggregationTestCase {
     public PercentileOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -37,4 +37,5 @@ public class PercentileOverTimeTests extends AbstractFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         return new PercentileOverTime(source, args.get(0), args.get(1));
     }
+
 }

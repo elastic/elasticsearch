@@ -4,6 +4,10 @@ setup:
       cluster_features: "gte_v8.14.0"
       reason: _tsid hashing introduced in 8.13 and tsid routing changed in 8.14
 
+  - skip:
+      cluster_features: "index.time_series_synthetic_id"
+      reason: when cluster has synthetic_id feature use 26_id_generation_synthetic_id_false instead
+
   - do:
       indices.create:
           index: id_generation_test

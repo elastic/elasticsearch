@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,7 +31,7 @@ import java.util.List;
 /**
  * Similar to {@link CountDistinct}, but it is used to calculate the distinct count of values over a time series from the given field.
  */
-public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
+public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, SurrogateExpression, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DistinctOverTime",
@@ -103,6 +106,16 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
+    }
+
+    @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return perTimeSeriesAggregation().supplier();
     }
 
     @Override

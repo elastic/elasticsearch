@@ -319,7 +319,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         List<String> jobIds = new ArrayList<>();
         for (String datafeedId : datafeedIds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
-            if (datafeedTask != null && PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
+            if (datafeedTask != null
+                && PersistentTasksClusterService.isUnassignedOrMisassigned(datafeedTask.getAssignment(), nodes) == false) {
                 jobIds.add(((StartDatafeedAction.DatafeedParams) datafeedTask.getParams()).getJobId());
             }
         }
@@ -347,7 +348,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 String msg = "Requested datafeed [" + datafeedId + "] be stopped, but datafeed's task could not be found.";
                 assert datafeedTask != null : msg;
                 logger.error(msg);
-            } else if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes) == false) {
+            } else if (PersistentTasksClusterService.isUnassignedOrMisassigned(datafeedTask.getAssignment(), nodes) == false) {
                 resolvedStartedDatafeeds.add(datafeedId);
                 executorNodes.add(datafeedTask.getExecutorNode());
                 allDataFeedsToWaitFor.add(datafeedTask);
@@ -497,7 +498,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     ActionListener.wrap(persistentTask -> {
                         // For force stop, only audit here if the datafeed was unassigned at the time of the stop, hence inactive.
                         // If the datafeed was active then it audits itself on being cancelled.
-                        if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes)) {
+                        if (PersistentTasksClusterService.isUnassignedOrMisassigned(datafeedTask.getAssignment(), nodes)) {
                             auditDatafeedStopped(datafeedTask);
                         }
                         if (counter.incrementAndGet() == notStoppedDatafeeds.size()) {

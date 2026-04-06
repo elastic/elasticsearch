@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutputHelper;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class BreakingBytesRefBuilderTests extends ESTestCase {
     public void testBreakOnBuild() {
         String label = randomAlphaOfLength(4);
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(0));
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(0));
         Exception e = expectThrows(CircuitBreakingException.class, () -> new BreakingBytesRefBuilder(breaker, label));
         assertThat(e.getMessage(), equalTo("over test limit"));
     }
@@ -73,7 +73,7 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
     }
 
     public void testCopyBytes() {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(300));
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(300));
         try (BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, "test")) {
             String initialValue = randomAlphaOfLengthBetween(1, 50);
             builder.copyBytes(new BytesRef(initialValue));
@@ -250,7 +250,7 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
     private void testAgainstOracle(Supplier<TestIteration> iterations) {
         int limit = between(1_000, 10_000);
         String label = randomAlphaOfLength(4);
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofBytes(limit));
         assertThat(breaker.getUsed(), equalTo(0L));
         try (BreakingBytesRefBuilder builder = new BreakingBytesRefBuilder(breaker, label)) {
             assertThat(breaker.getUsed(), equalTo(builder.ramBytesUsed()));

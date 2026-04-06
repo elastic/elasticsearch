@@ -119,7 +119,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo.bar");
         assertThat(fields.size(), equalTo(1));

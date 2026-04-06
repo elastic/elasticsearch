@@ -48,9 +48,7 @@ public class ContextualAiRerankTaskSettings implements TaskSettings, TopNProvide
         Integer topN = extractOptionalPositiveInteger(map, TOP_N_DOCS_ONLY, ModelConfigurations.TASK_SETTINGS, validationException);
         String instruction = ServiceUtils.extractOptionalString(map, INSTRUCTION, ModelConfigurations.TASK_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new ContextualAiRerankTaskSettings(returnDocuments, topN, instruction);
     }

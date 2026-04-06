@@ -36,16 +36,11 @@ public final class MedianAbsoluteDeviationFloatGroupingAggregatorFunction implem
 
   private final DriverContext driverContext;
 
-  public MedianAbsoluteDeviationFloatGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext) {
+  MedianAbsoluteDeviationFloatGroupingAggregatorFunction(List<Integer> channels,
+      DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = MedianAbsoluteDeviationFloatAggregator.initGrouping(driverContext, driverContext.bigArrays());
     this.driverContext = driverContext;
-  }
-
-  public static MedianAbsoluteDeviationFloatGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext) {
-    return new MedianAbsoluteDeviationFloatGroupingAggregatorFunction(channels, MedianAbsoluteDeviationFloatAggregator.initGrouping(driverContext, driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -287,14 +282,24 @@ public final class MedianAbsoluteDeviationFloatGroupingAggregatorFunction implem
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = MedianAbsoluteDeviationFloatAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = MedianAbsoluteDeviationFloatAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

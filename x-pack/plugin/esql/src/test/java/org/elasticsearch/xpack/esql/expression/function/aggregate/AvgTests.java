@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -26,6 +28,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -38,16 +41,22 @@ public class AvgTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-            // Longs currently fail on overflow
-            // Restore after https://github.com/elastic/elasticsearch/issues/110437
-            // MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
 
             // No rows cases
             List.of(
@@ -107,13 +116,18 @@ public class AvgTests extends AbstractAggregationTestCase {
             var dataType = fieldTypedData.type().widenSmallNumeric();
 
             Double expected = null;
-            List<String> warnings = null;
+            String expectedWarning = null;
+            boolean divByZero = false;
 
             if (fieldData.size() == 1) {
                 // For single elements, we directly return them to avoid precision issues
                 expected = switch (dataType) {
                     case AGGREGATE_METRIC_DOUBLE -> {
                         var aggMetric = (AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) fieldData.get(0);
+                        if (aggMetric.count() == 0) {
+                            divByZero = true;
+                            yield null;
+                        }
                         yield aggMetric.sum() / (aggMetric.count().doubleValue());
                     }
                     case EXPONENTIAL_HISTOGRAM -> {
@@ -125,10 +139,10 @@ public class AvgTests extends AbstractAggregationTestCase {
                     }
                     case TDIGEST -> {
                         var tDigest = (TDigestHolder) fieldData.get(0);
-                        if (tDigest.getValueCount() == 0) {
+                        if (tDigest.size() == 0) {
                             yield null;
                         }
-                        yield tDigest.getSum() / tDigest.getValueCount();
+                        yield tDigest.getSum() / tDigest.size();
                     }
                     default -> {
                         double value = ((Number) fieldData.get(0)).doubleValue();
@@ -141,7 +155,15 @@ public class AvgTests extends AbstractAggregationTestCase {
                         .map(v -> (Integer) v)
                         .collect(Collectors.summarizingInt(Integer::intValue))
                         .getAverage();
-                    case LONG -> fieldData.stream().map(v -> (Long) v).collect(Collectors.summarizingLong(Long::longValue)).getAverage();
+                    case LONG -> {
+                        try {
+                            long sum = fieldData.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                            yield (double) sum / fieldData.size();
+                        } catch (ArithmeticException e) {
+                            expectedWarning = e.toString();
+                            yield null;
+                        }
+                    }
                     case DOUBLE -> fieldData.stream()
                         .map(v -> (Double) v)
                         .collect(Collectors.summarizingDouble(Double::doubleValue))
@@ -153,6 +175,10 @@ public class AvgTests extends AbstractAggregationTestCase {
                         long count = fieldData.stream()
                             .mapToLong(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).count())
                             .sum();
+                        if (count == 0) {
+                            divByZero = true;
+                            yield null;
+                        }
                         yield sum / count;
                     }
                     case EXPONENTIAL_HISTOGRAM -> {
@@ -165,7 +191,7 @@ public class AvgTests extends AbstractAggregationTestCase {
                     }
                     case TDIGEST -> {
                         double sum = fieldData.stream().mapToDouble(v -> ((TDigestHolder) v).getSum()).sum();
-                        double count = fieldData.stream().mapToLong(v -> ((TDigestHolder) v).getValueCount()).sum();
+                        double count = fieldData.stream().mapToLong(v -> ((TDigestHolder) v).size()).sum();
                         if (count == 0) {
                             yield null;
                         }
@@ -175,14 +201,11 @@ public class AvgTests extends AbstractAggregationTestCase {
                 };
             }
 
-            if (expected != null) {
-                if (Double.isFinite(expected) == false) {
-                    expected = null;
-                    warnings = List.of(
-                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line 1:1: java.lang.ArithmeticException: / by zero"
-                    );
-                }
+            if (divByZero) {
+                expectedWarning = "java.lang.ArithmeticException: / by zero";
+            } else if (expected != null && Double.isFinite(expected) == false) {
+                expectedWarning = "java.lang.ArithmeticException: not a finite double number: " + expected;
+                expected = null;
             }
 
             return new TestCaseSupplier.TestCase(
@@ -190,7 +213,14 @@ public class AvgTests extends AbstractAggregationTestCase {
                 "Avg[field=Attribute[channel=0]]",
                 DataType.DOUBLE,
                 expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
-            ).withWarnings(warnings);
+            ).withWarnings(
+                expectedWarning == null
+                    ? null
+                    : List.of(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: " + expectedWarning
+                    )
+            );
         });
     }
 

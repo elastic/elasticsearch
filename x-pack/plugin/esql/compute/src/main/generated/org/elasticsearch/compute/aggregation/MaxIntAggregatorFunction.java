@@ -33,16 +33,10 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MaxIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      IntState state) {
+  MaxIntAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MaxIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MaxIntAggregatorFunction(driverContext, channels, new IntState(MaxIntAggregator.init()));
+    this.state = new IntState(MaxIntAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

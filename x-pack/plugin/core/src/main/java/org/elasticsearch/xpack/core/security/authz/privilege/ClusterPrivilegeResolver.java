@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
@@ -94,6 +95,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> MANAGE_USER_PROFILE_PATTERN = Set.of("cluster:admin/xpack/security/profile/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
+    private static final Set<String> CLONE_API_KEY_PATTERN = Set.of(CloneApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Set.of(
         "cluster:monitor/*",
         GetIndexTemplatesAction.NAME,
@@ -326,6 +328,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_USER_PROFILE_PATTERN
     );
     public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
+    public static final NamedClusterPrivilege CLONE_API_KEY = new ActionClusterPrivilege("clone_api_key", CLONE_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege(
         "manage_pipeline",
         Set.of("cluster:admin" + "/ingest/pipeline/*")
@@ -472,6 +475,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_OIDC,
             MANAGE_API_KEY,
             GRANT_API_KEY,
+            CLONE_API_KEY,
             MANAGE_SERVICE_ACCOUNT,
             MANAGE_USER_PROFILE,
             MANAGE_PIPELINE,

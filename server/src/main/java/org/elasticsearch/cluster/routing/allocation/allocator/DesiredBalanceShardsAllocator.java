@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceComputer} and then takes
@@ -260,6 +261,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     @Override
     public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
         return delegateAllocator.explainShardAllocation(shard, allocation);
+    }
+
+    @Override
+    public Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction(RoutingAllocation allocation) {
+        return delegateAllocator.explainShardAllocationFunction(allocation);
     }
 
     @Override

@@ -374,7 +374,7 @@ The machine learning APIs enable you to retrieve information related to the {{st
 
 ### [Machine learning anomaly detection](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-ml-anomaly)
 
-The machine learning anomaly detection APIs enbale you to perform anomaly detection activities.
+The machine learning anomaly detection APIs enable you to perform anomaly detection activities.
 
 
 | API | Description |
@@ -392,8 +392,8 @@ The machine learning anomaly detection APIs enbale you to perform anomaly detect
 | [Create a calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar) | Create a calendar. |
 | [Delete a calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar) | Delete a calendar. |
 | [Delete events from a calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar) | Delete events from a calendar. |
-| [Add anomaly detection job to calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar-job) | Add an anomoly detection job to a calendar. |
-| [Delete anomaly detection jobs from calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar-job) | Deletes anomoly detection jobs from a calendar. |
+| [Add anomaly detection job to calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar-job) | Add an anomaly detection job to a calendar. |
+| [Delete anomaly detection jobs from calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar-job) | Deletes anomaly detection jobs from a calendar. |
 | [Get datafeeds configuration info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-datafeeds) | Get configuration information for a datafeed. |
 | [Create datafeed](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-datafeed) | Creates a datafeed. |
 | [Delete a datafeed](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-datafeed) | Deletes a datafeed. |
@@ -406,7 +406,7 @@ The machine learning anomaly detection APIs enbale you to perform anomaly detect
 
 ### [Machine learning data frame analytics](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-ml-data-frame)
 
-The machine learning data frame analytics APIs enbale you to perform data frame analytics activities.
+The machine learning data frame analytics APIs enable you to perform data frame analytics activities.
 
 | API | Description |
 | --- | ----------- |
@@ -452,7 +452,7 @@ Query rules enable you to configure per-query rules that are applied at query ti
 
 ### [Rollup](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-rollup)
 
-The rollup APIs enable you to create, manage, and retrieve infromation about rollup jobs.
+The rollup APIs enable you to create, manage, and retrieve information about rollup jobs.
 
 | API | Description |
 | --- | ----------- |
@@ -495,7 +495,7 @@ The search APIs enable you to search and aggregate data stored in {{es}} indices
 
 ### [Search application](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-search_application)
 
-The search applcation APIs enable you to manage tasks and resources related to Search Applications.
+The search application APIs enable you to manage tasks and resources related to Search Applications.
 
 | API | Description |
 | --- | ----------- |

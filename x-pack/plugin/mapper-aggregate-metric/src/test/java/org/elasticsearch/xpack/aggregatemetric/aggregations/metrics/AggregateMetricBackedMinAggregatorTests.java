@@ -128,7 +128,7 @@ public class AggregateMetricBackedMinAggregatorTests extends AggregatorTestCase 
             );
             metricFields.put(m, subfield);
         }
-        return new AggregateMetricDoubleFieldType(fieldName, null, Metric.min, metricFields, Map.of());
+        return new AggregateMetricDoubleFieldType(fieldName, null, metricFields, Map.of());
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Min> verify)

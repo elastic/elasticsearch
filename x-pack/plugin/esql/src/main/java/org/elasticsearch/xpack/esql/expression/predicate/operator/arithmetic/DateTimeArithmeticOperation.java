@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -58,7 +58,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
-        BinaryEvaluator denseVectors,
+        DenseVectorBinaryEvaluator denseVectors,
         DatetimeArithmeticEvaluator millisEvaluator,
         DatetimeArithmeticEvaluator nanosEvaluator
     ) {
@@ -74,7 +74,7 @@ public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticO
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
-        BinaryEvaluator denseVectors,
+        DenseVectorBinaryEvaluator denseVectors,
         DatetimeArithmeticEvaluator millisEvaluator,
         DatetimeArithmeticEvaluator nanosEvaluator
     ) throws IOException {

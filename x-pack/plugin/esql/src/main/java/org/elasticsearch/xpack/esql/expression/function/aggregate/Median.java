@@ -59,7 +59,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
         Source source,
         @Param(
             name = "number",
-            type = { "double", "integer", "long", "exponential_histogram" },
+            type = { "double", "integer", "long", "exponential_histogram", "tdigest" },
             description = "Expression that outputs values to calculate the median of."
         ) Expression field
     ) {
@@ -74,10 +74,11 @@ public class Median extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == DataType.EXPONENTIAL_HISTOGRAM,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == DataType.EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "exponential_histogram",
+            "tdigest",
             "numeric except unsigned_long or counter types"
         );
     }
@@ -116,7 +117,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
         var s = source();
         var field = field();
 
-        return field.foldable() && field.dataType() != DataType.EXPONENTIAL_HISTOGRAM
+        return field.foldable() && field.dataType() != DataType.EXPONENTIAL_HISTOGRAM && field.dataType() != DataType.TDIGEST
             ? new MvMedian(s, new ToDouble(s, field))
             : new Percentile(source(), field(), filter(), window(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER));
     }

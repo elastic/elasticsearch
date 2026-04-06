@@ -18,7 +18,6 @@ import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,9 +41,7 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings, TopNProvid
         final var returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS_FIELD, validationException);
         final var topN = extractOptionalPositiveInteger(map, TOP_N_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioRerankTaskSettings(returnDocuments, topN);
     }
@@ -151,7 +148,7 @@ public class AzureAiStudioRerankTaskSettings implements TaskSettings, TopNProvid
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AzureAiStudioRerankRequestTaskSettings requestSettings = AzureAiStudioRerankRequestTaskSettings.fromMap(new HashMap<>(newSettings));
+        AzureAiStudioRerankRequestTaskSettings requestSettings = AzureAiStudioRerankRequestTaskSettings.fromMap(newSettings);
         return of(this, requestSettings);
     }
 }

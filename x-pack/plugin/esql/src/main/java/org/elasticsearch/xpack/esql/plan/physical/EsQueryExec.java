@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class EsQueryExec extends LeafExec implements EstimatesRowSize {
+public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourceExec {
     public static final EsField DOC_ID_FIELD = new EsField(
         "_doc",
         DataType.DOC_DATA_TYPE,
@@ -382,14 +382,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public enum Missing {
         FIRST("_first"),
-        LAST("_last"),
-        /**
-         * Nulls position has not been specified by the user and an appropriate default will be used.
-         *
-         * The default values are chosen such that it stays compatible with previous behavior. Unfortunately, this results in
-         * inconsistencies across different types of queries (see https://github.com/elastic/elasticsearch/issues/77068).
-         */
-        ANY(null);
+        LAST("_last");
 
         private final String searchOrder;
 
@@ -401,7 +394,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             return switch (pos) {
                 case FIRST -> FIRST;
                 case LAST -> LAST;
-                default -> ANY;
             };
         }
 

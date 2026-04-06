@@ -2,6 +2,8 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-indexing-pressure.html
 navigation_title: Indexing pressure
+applies_to:
+  stack: all
 ---
 
 # Indexing pressure settings [index-modules-indexing-pressure]

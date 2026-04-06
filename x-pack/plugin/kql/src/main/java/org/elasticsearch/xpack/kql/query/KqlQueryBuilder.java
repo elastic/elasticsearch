@@ -13,7 +13,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -35,7 +35,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
+public class KqlQueryBuilder extends LeafQueryBuilder<KqlQueryBuilder> {
     public static final String NAME = "kql";
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");

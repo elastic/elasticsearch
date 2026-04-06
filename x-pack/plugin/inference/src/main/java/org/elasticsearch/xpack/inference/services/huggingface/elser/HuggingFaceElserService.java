@@ -74,7 +74,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     public HuggingFaceElserService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override

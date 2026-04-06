@@ -36,17 +36,12 @@ public final class SampleBytesRefGroupingAggregatorFunction implements GroupingA
 
   private final int limit;
 
-  public SampleBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      SampleBytesRefAggregator.GroupingState state, DriverContext driverContext, int limit) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  SampleBytesRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int limit) {
     this.limit = limit;
-  }
-
-  public static SampleBytesRefGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit) {
-    return new SampleBytesRefGroupingAggregatorFunction(channels, SampleBytesRefAggregator.initGrouping(driverContext.bigArrays(), limit), driverContext, limit);
+    this.channels = channels;
+    this.state = SampleBytesRefAggregator.initGrouping(driverContext.bigArrays(), limit);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -295,14 +290,24 @@ public final class SampleBytesRefGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = SampleBytesRefAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SampleBytesRefAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

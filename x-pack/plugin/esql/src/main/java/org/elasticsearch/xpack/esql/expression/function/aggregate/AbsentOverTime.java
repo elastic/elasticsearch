@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -29,7 +30,7 @@ import java.util.Objects;
 /**
  * Similar to {@link Absent}, but it is used to check the absence of values over a time series in the given field.
  */
-public class AbsentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport {
+public class AbsentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AbsentOverTime",
@@ -119,6 +120,11 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
+    }
+
+    @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
     }
 
     @Override

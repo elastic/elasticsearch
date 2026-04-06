@@ -67,9 +67,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
         );
         Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new MistralEmbeddingsServiceSettings(model, dims, maxInputTokens, similarity, rateLimitSettings);
     }
@@ -138,7 +136,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(model);
         out.writeOptionalVInt(dimensions);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
         rateLimitSettings.writeTo(out);
     }

@@ -13,6 +13,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -37,6 +43,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -51,12 +58,19 @@ import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotState;
 
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
@@ -71,6 +85,9 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     private static final Logger logger = LogManager.getLogger(DLMConvertToFrozen.class);
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
     private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
+    private static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
+    private static final TimeValue SNAPSHOT_POLL_INTERVAL = TimeValue.timeValueSeconds(30);
+    private static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
 
     private final String indexName;
     private final ProjectId projectId;
@@ -105,7 +122,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             maybeMarkIndexReadOnly();
             String forceMergeIndex = maybeCloneIndex();
             maybeForceMergeIndex(forceMergeIndex);
-            maybeTakeSnapshot();
+            maybeTakeSnapshot(forceMergeIndex);
             maybeMountSearchableSnapshot();
         } catch (IndexNotFoundException e) {
             if (e.getIndex().getName().equals(indexName)) {
@@ -118,6 +135,70 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    @Override
+    public String getIndexName() {
+        return indexName;
+    }
+
+    @Override
+    public ProjectId getProjectId() {
+        return projectId;
+    }
+
+    private ProjectState getProjectState() {
+        return clusterService.state().projectState(projectId);
+    }
+
+    /**
+     * Checks if the current thread has been interrupted and, if so, throws an {@link InterruptedException}.
+     * This allows long-running multi-step operations to detect interrupts quickly at the beginning
+     * of each step rather than waiting for a blocking call to fail.
+     */
+    private static void checkIfThreadInterrupted() throws InterruptedException {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException("DLM frozen conversion was interrupted");
+        }
+    }
+
+    /**
+     * Public for testing only.
+     * Checks whether the necessary conditions are met to proceed with the convert-to-frozen steps.
+     * @throws IndexNotFoundException if the index to be converted to frozen no longer exists in the project metadata
+     * @throws DLMUnrecoverableException if the snapshot repository is not configured or no longer registered
+     * @throws org.elasticsearch.ElasticsearchSecurityException if the license does not allow searchable snapshots
+     */
+    void checkIfEligibleForConvertToFrozen() {
+        ProjectMetadata projectMetadata = getProjectState().metadata();
+        if (projectMetadata.indices().containsKey(indexName) == false) {
+            throw new IndexNotFoundException(indexName);
+        }
+
+        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
+        if (Strings.hasText(repositoryName) == false) {
+            throw new DLMUnrecoverableException(
+                indexName,
+                "Default repository is required for convert-to-frozen steps but was not configured for index [{}]",
+                indexName
+            );
+        }
+        boolean repoIsRegistered = RepositoriesMetadata.get(getProjectState().metadata())
+            .repositories()
+            .stream()
+            .anyMatch(repositoryMetadata -> repositoryMetadata.name().equals(repositoryName));
+        if (repoIsRegistered == false) {
+            throw new DLMUnrecoverableException(
+                indexName,
+                "Repository [{}] required for convert-to-frozen steps is no longer registered in project [{}]",
+                repositoryName,
+                projectId
+            );
+        }
+
+        if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
+            throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
     }
 
@@ -259,9 +340,19 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         }
     }
 
-    public void maybeTakeSnapshot() throws InterruptedException {
+    /**
+     * Takes a snapshot of the index and waits for completion. If a snapshot with the expected name is already
+     * in progress, checks how long it has been running. If it has been running for longer than the configured
+     * timeout, cancels the snapshot and starts a new one; otherwise leaves it alone to complete. If no snapshot
+     * is currently in progress, checks whether a completed snapshot with the expected name already exists in
+     * the repository. If a valid completed snapshot exists, skips re-taking the snapshot. If an invalid completed snapshot
+     * exists (e.g. failed or partial), deletes it and starts a new one. If no completed snapshot exists, starts a new one.
+     */
+    void maybeTakeSnapshot(String indexName) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
+
+        // todo
     }
 
     public void maybeMountSearchableSnapshot() throws InterruptedException {
@@ -309,45 +400,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 Thread.currentThread().interrupt();
             }
             throw new ElasticsearchException("DLM unable to check segment count for index [{}]", e, indexName);
-        }
-    }
-
-    /**
-     * Public for testing only.
-     * Checks whether the necessary conditions are met to proceed with the convert-to-frozen steps.
-     * @throws IndexNotFoundException if the index to be converted to frozen no longer exists in the project metadata
-     * @throws DLMUnrecoverableException if the snapshot repository is not configured or no longer registered
-     * @throws org.elasticsearch.ElasticsearchSecurityException if the license does not allow searchable snapshots
-     */
-    void checkIfEligibleForConvertToFrozen() {
-        ProjectMetadata projectMetadata = getProjectState().metadata();
-        if (projectMetadata.indices().containsKey(indexName) == false) {
-            throw new IndexNotFoundException(indexName);
-        }
-
-        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
-        if (Strings.hasText(repositoryName) == false) {
-            throw new DLMUnrecoverableException(
-                indexName,
-                "Default repository is required for convert-to-frozen steps but was not configured for index [{}]",
-                indexName
-            );
-        }
-        boolean repoIsRegistered = RepositoriesMetadata.get(getProjectState().metadata())
-            .repositories()
-            .stream()
-            .anyMatch(repositoryMetadata -> repositoryMetadata.name().equals(repositoryName));
-        if (repoIsRegistered == false) {
-            throw new DLMUnrecoverableException(
-                indexName,
-                "Repository [{}] required for convert-to-frozen steps is no longer registered in project [{}]",
-                repositoryName,
-                projectId
-            );
-        }
-
-        if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
-            throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
     }
 
@@ -546,29 +598,163 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         }
     }
 
-    @Override
-    public String getIndexName() {
-        return indexName;
-    }
-
-    @Override
-    public ProjectId getProjectId() {
-        return projectId;
-    }
-
     /**
-     * Checks if the current thread has been interrupted and, if so, throws an {@link InterruptedException}.
-     * This allows long-running multi-step operations to detect interrupts quickly at the beginning
-     * of each step rather than waiting for a blocking call to fail.
+     * Attempts to delete a snapshot. If the snapshot is already missing, logs and returns.
+     * Throws on any other failure.
      */
-    private static void checkIfThreadInterrupted() throws InterruptedException {
-        if (Thread.currentThread().isInterrupted()) {
-            throw new InterruptedException("DLM frozen conversion was interrupted");
+    void deleteSnapshotIfExists(String repositoryName, String snapshotName, String indexName) {
+        DeleteSnapshotRequest deleteRequest = new DeleteSnapshotRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName, snapshotName);
+        try {
+            AcknowledgedResponse resp = client.projectClient(projectId).execute(TransportDeleteSnapshotAction.TYPE, deleteRequest).get();
+            if (resp.isAcknowledged() == false) {
+                throw new ElasticsearchException("Failed to acknowledge delete of snapshot [{}] for index [{}]", snapshotName, indexName);
+            }
+            logger.info("DLM successfully deleted stale snapshot [{}] for index [{}]", snapshotName, indexName);
+        } catch (Exception e) {
+            Exception cause = unwrapExecutionException(e);
+            if (cause instanceof SnapshotMissingException) {
+                logger.debug("DLM snapshot [{}] for index [{}] already missing, proceeding to create", snapshotName, indexName);
+            } else {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw ExceptionsHelper.convertToElastic(
+                    cause,
+                    "DLM failed to delete stale snapshot [{}] for index [{}]",
+                    snapshotName,
+                    indexName
+                );
+            }
         }
     }
 
-    private ProjectState getProjectState() {
-        return clusterService.state().projectState(projectId);
+    /**
+     * Fetches snapshot info for a single snapshot from the repository. Returns {@code null} if the snapshot does not exist.
+     */
+    @Nullable
+    SnapshotInfo getSnapshot(String repositoryName, String snapshotName, String indexName) {
+        GetSnapshotsRequest getRequest = new GetSnapshotsRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName);
+        getRequest.snapshots(new String[] { snapshotName });
+        getRequest.ignoreUnavailable(true);
+        try {
+            GetSnapshotsResponse response = client.projectClient(projectId).execute(TransportGetSnapshotsAction.TYPE, getRequest).get();
+            List<SnapshotInfo> snapshots = response.getSnapshots();
+            return snapshots.isEmpty() ? null : snapshots.getFirst();
+        } catch (Exception e) {
+            Exception cause = unwrapExecutionException(e);
+            if (cause instanceof SnapshotMissingException) {
+                return null;
+            }
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw ExceptionsHelper.convertToElastic(cause, "DLM failed while checking snapshots for index [{}]", indexName);
+        }
+    }
+
+    /**
+     * Unwraps an {@link ExecutionException} to its cause, since {@code Future.get()} wraps
+     * failures. Returns the original exception if it is not an {@code ExecutionException}.
+     */
+    private static Exception unwrapExecutionException(Exception e) {
+        return e instanceof ExecutionException && e.getCause() != null ? (Exception) ExceptionsHelper.unwrapCause(e.getCause()) : e;
+    }
+
+    /**
+     * Creates a snapshot for the given index and waits for completion.
+     * Throws an exception if the snapshot fails to complete successfully for any reason.
+     */
+    void createSnapshot(String indexName, String repositoryName, String snapshotName) {
+        CreateSnapshotRequest createRequest = buildCreateSnapshotRequest(repositoryName, indexName, snapshotName);
+        try {
+            var response = client.projectClient(projectId)
+                .admin()
+                .cluster()
+                .createSnapshot(createRequest)
+                .get(SNAPSHOT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+            checkSnapshotInfoSuccess(indexName, snapshotName, response.getSnapshotInfo());
+        } catch (TimeoutException e) {
+            throw new ElasticsearchException(
+                "DLM timed out after [{}] waiting for snapshot [{}] for index [{}]",
+                e,
+                SNAPSHOT_TIMEOUT,
+                snapshotName,
+                indexName
+            );
+        } catch (Exception e) {
+            final Exception unwrapped = unwrapExecutionException(e);
+            if (unwrapped instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw ExceptionsHelper.convertToElastic(unwrapped, "DLM failed to start snapshot [{}] for index [{}]", snapshotName, indexName);
+        }
+    }
+
+    /**
+     * Checks the snapshot info to determine whether the snapshot completed successfully. If so, logs and returns.
+     * If not, throws an exception with details about the failure.
+     */
+    static void checkSnapshotInfoSuccess(String indexName, String snapshotName, SnapshotInfo snapshotInfo) {
+        if (snapshotInfo == null) {
+            throw new ElasticsearchException("DLM snapshot [{}] for index [{}] did not return snapshot info", snapshotName, indexName);
+        }
+
+        if (snapshotInfo.state() == SnapshotState.SUCCESS && snapshotInfo.failedShards() == 0) {
+            logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);
+            return;
+        }
+
+        int failedShards = snapshotInfo.failedShards();
+        String state = snapshotInfo.state() == null ? "unknown" : snapshotInfo.state().name();
+        String reason = snapshotInfo.reason();
+        if (Strings.hasText(reason)) {
+            throw new ElasticsearchException(
+                "DLM snapshot [{}] for index [{}] finished with [{}] failed shards, state [{}], reason [{}]",
+                snapshotName,
+                indexName,
+                failedShards,
+                state,
+                reason
+            );
+        } else {
+            throw new ElasticsearchException(
+                "DLM snapshot [{}] for index [{}] finished with [{}] failed shards, state [{}]",
+                snapshotName,
+                indexName,
+                failedShards,
+                state
+            );
+        }
+    }
+
+    /**
+     * Finds the start time of a running snapshot with the given name. Returns {@code -1} if not found.
+     */
+    private static long findSnapshotStartTime(
+        SnapshotsInProgress snapshotsInProgress,
+        ProjectId projectId,
+        String repositoryName,
+        String snapshotName
+    ) {
+        return snapshotsInProgress.forRepo(projectId, repositoryName)
+            .stream()
+            .filter(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName))
+            .map(SnapshotsInProgress.Entry::startTime)
+            .findFirst()
+            .orElse(-1L);
+    }
+
+    private static CreateSnapshotRequest buildCreateSnapshotRequest(String repositoryName, String indexName, String snapshotName) {
+        CreateSnapshotRequest request = new CreateSnapshotRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName, snapshotName);
+        request.indices(indexName);
+        request.waitForCompletion(true);
+        request.includeGlobalState(false);
+        request.userMetadata(Map.of("dlm-managed", true));
+        return request;
+    }
+
+    static String snapshotName(String indexName) {
+        return SNAPSHOT_NAME_PREFIX + indexName;
     }
 
 }

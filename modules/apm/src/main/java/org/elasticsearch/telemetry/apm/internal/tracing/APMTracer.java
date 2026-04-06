@@ -36,8 +36,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
-import org.elasticsearch.telemetry.apm.internal.export.AgentExportMetricsInterval;
-import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportTraceFlush;
+import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 
@@ -45,6 +44,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.agentFlushWaitTimeMs;
 
 /**
  * {@link org.elasticsearch.telemetry.tracing.Tracer} implementation provided by the Elasticsearch {@code apm}
@@ -99,7 +100,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
-        this.agentFlushWaitMs = 2 * AgentExportMetricsInterval.agentMetricsInterval(settings).millis();
+        this.agentFlushWaitMs = agentFlushWaitTimeMs(settings);
     }
 
     /**
@@ -110,7 +111,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (enabled == false) {
             return;
         }
-        AgentExportTraceFlush.sleepForAgentExport(agentFlushWaitMs);
+        AgentExportHelpers.sleepForAgentExport(agentFlushWaitMs);
     }
 
     public void setEnabled(boolean enabled) {

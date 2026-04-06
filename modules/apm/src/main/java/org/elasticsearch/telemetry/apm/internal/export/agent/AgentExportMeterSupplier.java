@@ -12,29 +12,24 @@ package org.elasticsearch.telemetry.apm.internal.export.agent;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.apm.internal.export.AgentExportMetricsInterval;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
-import static org.elasticsearch.telemetry.apm.internal.AgentExportMetricsInterval.agentMetricsInterval;
+import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.agentFlushWaitTimeMs;
+import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.sleepForAgentExport;
 
 /**
- * Supplies a {@link Meter} from {@link GlobalOpenTelemetry} for metrics export via the
- * Elasticsearch APM Java agent. Application code still uses the OpenTelemetry API; the agent
- * intercepts {@link GlobalOpenTelemetry} and exports to the APM stack (as opposed to the
- * {@link org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier} path,
- * which uses the OpenTelemetry SDK to export).
+ * A {@link MeterSupplier} that supplies a {@link Meter} from {@link GlobalOpenTelemetry}
+ * for metrics export via the Elasticsearch APM Java agent.
+ * Application code still uses the OpenTelemetry API to report metrics.
+ *
+ * @see org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier
  */
 public final class AgentExportMeterSupplier implements MeterSupplier {
-
-    private static final Logger logger = LogManager.getLogger(AgentExportMeterSupplier.class);
-
-    private final long agentFlushWaitMs;
+    private final long agentFlushWaitTime;
 
     public AgentExportMeterSupplier(Settings settings) {
-        this.agentFlushWaitMs = 2 * agentMetricsInterval(settings).millis();
+        agentFlushWaitTime = agentFlushWaitTimeMs(settings);
     }
 
     @Override
@@ -44,15 +39,6 @@ public final class AgentExportMeterSupplier implements MeterSupplier {
 
     @Override
     public void attemptFlushMetrics() {
-        // The agent offers no flush API, so we do a best-effort pause that exceeds
-        // the agent reporting interval, making it extremely likely that all telemetry
-        // has been exported.
-        //
-        // Note that the first intake request to the APM server can still be delayed beyond this window:
-        // the Elasticsearch APM Java agent checks for configuration changes only periodically,
-        // so the setting changes we made during initialization don't take effect immediately.
-
-        logger.info("Waiting {} ms for Elasticsearch APM Java agent to flush metrics", agentFlushWaitMs);
-        AgentExportTraceFlush.sleepForAgentExport(agentFlushWaitMs);
+        sleepForAgentExport(agentFlushWaitTime);
     }
 }

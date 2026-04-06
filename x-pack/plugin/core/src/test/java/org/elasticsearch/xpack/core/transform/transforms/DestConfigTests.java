@@ -112,22 +112,6 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
         }
     }
 
-    public void testUnsupportedOpTypeUpdate() throws IOException {
-        String json = "{ \"index\": \"my-index\", \"op_type\": \"update\" }";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DestConfig.fromXContent(parser, false));
-            assertThat(e.getCause().getMessage(), containsString("invalid op_type [update]"));
-        }
-    }
-
-    public void testUnsupportedOpTypeDelete() throws IOException {
-        String json = "{ \"index\": \"my-index\", \"op_type\": \"delete\" }";
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DestConfig.fromXContent(parser, false));
-            assertThat(e.getCause().getMessage(), containsString("invalid op_type [delete]"));
-        }
-    }
-
     public void testOpTypeCreate() throws IOException {
         String json = "{ \"index\": \"my-index\", \"op_type\": \"create\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {

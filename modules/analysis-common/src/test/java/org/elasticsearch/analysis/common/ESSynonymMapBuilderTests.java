@@ -228,9 +228,7 @@ public class ESSynonymMapBuilderTests extends ESTokenStreamTestCase {
     public void testDedupRemovesDuplicateOutputs() throws IOException {
         assertBuildersMatch(
             true,
-            new SynonymRule[] {
-                new SynonymRule(word("fast"), word("quick"), false),
-                new SynonymRule(word("fast"), word("quick"), false) },
+            new SynonymRule[] { new SynonymRule(word("fast"), word("quick"), false), new SynonymRule(word("fast"), word("quick"), false) },
             "fast"
         );
     }

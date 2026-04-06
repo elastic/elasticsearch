@@ -172,11 +172,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     private Query postFilterRewrite(Weight filterWeight, float selectivity, float visitRatio, IndexReader reader) {
-        int baseK = Math.round(2f * k);
-        int scaledBaseK = (int) Math.ceil(baseK / selectivity);
+        int scaledK = (int) Math.ceil(k / selectivity);
         float visitOversampling = Math.max(1.1f, 1.2f / selectivity);
         float scaledVisitRatio = Math.min(1.0f, visitRatio * visitOversampling);
-        PostFilterableKnnQuery delegate = createPostFilterDelegate(scaledBaseK, Math.max(numCands, scaledBaseK), scaledVisitRatio);
+        PostFilterableKnnQuery delegate = createPostFilterDelegate(scaledK, Math.max(numCands, scaledK), scaledVisitRatio);
         return new PostFilterAwareKnnQuery(delegate, filterWeight, k, reader, ops -> this.vectorOpsCount = (int) ops, getParentsFilter());
     }
 

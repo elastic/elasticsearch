@@ -58,7 +58,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         float visitRatio,
         boolean doPrecondition
     ) {
-        this(field, query, k, numCands, filter, visitRatio, doPrecondition, false, null);
+        this(field, query, k, numCands, filter, visitRatio, doPrecondition, true, null);
     }
 
     IVFKnnFloatVectorQuery(
@@ -69,10 +69,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         Query filter,
         float visitRatio,
         boolean doPrecondition,
-        boolean skipPostFilter,
+        boolean shouldPostFilter,
         Map<Integer, FixedBitSet> skipCentroidsPerLeaf
     ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition, skipPostFilter);
+        super(field, visitRatio, k, numCands, filter, doPrecondition, shouldPostFilter);
         this.query = query;
         this.originalQuery = query.clone();
         this.skipCentroidsPerLeaf = skipCentroidsPerLeaf;
@@ -247,7 +247,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
             null,
             scaledVisitRatio,
             doPrecondition,
-            true,
+            false,
             null
         );
     }

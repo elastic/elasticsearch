@@ -68,16 +68,6 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
         Weight filterWeight,
         int k,
         IndexReader reader,
-        LongConsumer vectorOpsCallback
-    ) {
-        this(delegate, filterWeight, k, reader, vectorOpsCallback, null);
-    }
-
-    public PostFilterAwareKnnQuery(
-        PostFilterableKnnQuery delegate,
-        Weight filterWeight,
-        int k,
-        IndexReader reader,
         LongConsumer vectorOpsCallback,
         BitSetProducer parentsFilter
     ) {
@@ -106,11 +96,9 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
                 break;
             }
 
-            // Post-filter the raw results
             ScoreDoc[] filtered = applyFilter(raw.scoreDocs, filterWeight, searcher);
             accumulated = mergeResults(accumulated, filtered);
 
-            // For nested queries, deduplicate by parent to keep only the best child per parent
             if (parentsFilter != null) {
                 accumulated = deduplicateByParent(accumulated, searcher.getIndexReader(), parentsFilter);
             }
@@ -118,8 +106,6 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
             if (accumulated.length >= k) {
                 break;
             }
-
-            // Not enough results — retry with a delegate that avoids re-visiting
             current = current.createRetryQuery(searcher.getIndexReader());
         }
 

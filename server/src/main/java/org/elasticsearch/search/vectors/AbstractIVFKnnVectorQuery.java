@@ -55,11 +55,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int k;
     protected final int numCands;
     protected final Query filter;
-    protected final boolean skipPostFilter;
+    protected final boolean shouldPostFilter;
     protected int vectorOpsCount;
     protected boolean doPrecondition;
 
-    protected TopDocs pendingResults;
+    protected TopDocs capturedResults;
 
     protected AbstractIVFKnnVectorQuery(
         String field,
@@ -68,7 +68,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         int numCands,
         Query filter,
         boolean doPrecondition,
-        boolean skipPostFilter
+        boolean shouldPostFilter
     ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
@@ -85,7 +85,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.filter = filter;
         this.numCands = numCands;
         this.doPrecondition = doPrecondition;
-        this.skipPostFilter = skipPostFilter;
+        this.shouldPostFilter = shouldPostFilter;
     }
 
     @Override
@@ -101,7 +101,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (o == null || getClass() != o.getClass()) return false;
         AbstractIVFKnnVectorQuery that = (AbstractIVFKnnVectorQuery) o;
         return k == that.k
-            && skipPostFilter == that.skipPostFilter
+            && shouldPostFilter == that.shouldPostFilter
             && numCands == that.numCands
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
@@ -110,7 +110,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, numCands, filter, providedVisitRatio, skipPostFilter);
+        return Objects.hash(field, k, numCands, filter, providedVisitRatio, shouldPostFilter);
     }
 
     @Override
@@ -120,16 +120,17 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<LeafReaderContext> leaves = reader.leaves();
 
         final Weight filterWeight = createFilterWeight(indexSearcher);
-        if (filterWeight == null && filter != null) {
-            return new MatchNoDocsQuery();
+        if (filter != null && filterWeight == null) {
+            return MatchNoDocsQuery.INSTANCE;
         }
 
-        int totalVectors = countTotalVectors(leaves);
-        float visitRatio = computeVisitRatio(totalVectors);
+        // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
+        // per-segment using the Two-Signal model with segment-size awareness.
+        float visitRatio = providedVisitRatio;
 
-        // Post-filter check: only for standard collector, not for subclass overrides (e.g., diversifying)
         IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
-        if (skipPostFilter == false && filterWeight != null && collectorManager.supportsPostFiltering()) {
+        if (filterWeight != null && shouldPostFilter) {
+            int totalVectors = countTotalVectors(leaves);
             float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
             if (selectivity > POST_FILTERING_THRESHOLD) {
                 return postFilterRewrite(filterWeight, selectivity, visitRatio, reader);
@@ -139,10 +140,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return executeSearch(indexSearcher, leaves, filterWeight, collectorManager, visitRatio);
     }
 
-    /**
-     * Creates a filter Weight from the configured filter query, or returns null
-     * if there is no filter or the filter rewrites to MatchNoDocsQuery.
-     */
     private Weight createFilterWeight(IndexSearcher searcher) throws IOException {
         if (filter == null) {
             return null;
@@ -159,19 +156,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     protected abstract int countTotalVectors(List<LeafReaderContext> leaves) throws IOException;
 
-    private float computeVisitRatio(int totalVectors) {
-        if (providedVisitRatio != 0.0f) {
-            return providedVisitRatio;
-        }
-        if (totalVectors == 0) {
-            return 1.0f;
-        }
-        float expected = (float) Math.round(
-            Math.log10(totalVectors) * Math.log10(totalVectors) * (Math.min(10_000, Math.max(numCands, 5 * k)))
-        );
-        return expected / totalVectors;
-    }
-
     private static float computeSelectivity(Weight filterWeight, List<LeafReaderContext> leaves, int totalVectors) throws IOException {
         long filterCost = 0;
         for (LeafReaderContext leafCtx : leaves) {
@@ -183,10 +167,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return totalVectors > 0 ? Math.min(1f, (float) filterCost / totalVectors) : 0f;
     }
 
-    /**
-     * Returns the parent filter for nested queries, or null for non-nested queries.
-     * Subclasses that support nested documents should override this.
-     */
     protected BitSetProducer getParentsFilter() {
         return null;
     }
@@ -225,7 +205,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
-        this.pendingResults = topK;
+        this.capturedResults = topK;
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
@@ -316,10 +296,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         public AbstractMaxScoreKnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context)
             throws IOException {
             return new MaxScoreTopKnnCollector(k, visitedLimit, searchStrategy);
-        }
-
-        public boolean supportsPostFiltering() {
-            return true;
         }
     }
 }

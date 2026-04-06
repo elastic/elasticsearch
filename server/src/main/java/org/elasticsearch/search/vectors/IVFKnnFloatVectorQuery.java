@@ -256,7 +256,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
 
     @Override
     public TopDocs capturedResults() {
-        return pendingResults;
+        return capturedResults;
     }
 
     @Override

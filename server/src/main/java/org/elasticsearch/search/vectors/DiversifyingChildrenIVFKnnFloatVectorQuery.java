@@ -109,7 +109,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
 
     @Override
     public TopDocs capturedResults() {
-        return pendingResults;
+        return capturedResults;
     }
 
     @Override

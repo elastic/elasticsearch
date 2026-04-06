@@ -152,6 +152,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
 
         CentroidIterator centroidIterator;
         if (numParents > 0) {
+            // equivalent to (float) centroidsPerParentCluster / 2
             float centroidOversampling = (float) fieldEntry.numCentroids() / (2 * numParents);
             centroidIterator = getCentroidIteratorWithParents(
                 fieldInfo,

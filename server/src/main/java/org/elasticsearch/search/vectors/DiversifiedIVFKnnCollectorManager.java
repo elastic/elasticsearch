@@ -36,9 +36,4 @@ public class DiversifiedIVFKnnCollectorManager extends AbstractIVFKnnVectorQuery
         }
         return new DiversifyingNearestChildrenKnnCollector(k, visitedLimit, searchStrategy, parentBitSet);
     }
-
-    @Override
-    public boolean supportsPostFiltering() {
-        return true;
-    }
 }

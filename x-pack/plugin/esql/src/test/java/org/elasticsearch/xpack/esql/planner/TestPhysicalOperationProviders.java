@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -81,6 +82,13 @@ import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPrefere
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
+
+    public static final LazyInitializable<Environment, RuntimeException> TEST_ENV = new LazyInitializable<>(
+        () -> TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        )
+    );
+
     private final List<IndexPage> indexPages;
     private final UnmappedResolution unmappedResolution;
 
@@ -112,9 +120,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private static AnalysisRegistry createAnalysisRegistry() throws IOException {
         return new AnalysisModule(
-            TestEnvironment.newEnvironment(
-                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
-            ),
+            TEST_ENV.getOrCompute(),
             List.of(new MachineLearning(Settings.EMPTY), new CommonAnalysisPlugin()),
             new StablePluginsRegistry()
         ).getAnalysisRegistry();

@@ -7,6 +7,6 @@ highlight:
   title: "Add Prometheus instant query REST endpoint"
   notable: true
   body: |-
-    We're introducing a Prometheus-compatible GET /_prometheus/api/v1/query REST endpoint that evaluates a PromQL
+    We're introducing a Prometheus-compatible `GET /_prometheus/api/v1/query` REST endpoint that evaluates a PromQL
     expression at a single point in time and returns vector results. The instant query endpoint currently runs a
     short range query under the hood and returns the last sample.

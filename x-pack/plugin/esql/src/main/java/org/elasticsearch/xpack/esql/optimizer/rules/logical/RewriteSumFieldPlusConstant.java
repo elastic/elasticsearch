@@ -87,7 +87,14 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
                 SvPair pair = fieldToSvPair.computeIfAbsent(de.canonical(), k -> {
                     var sv = new MvSingleValueOrNull(source, de);
                     var svSumName = TemporaryNameGenerator.temporaryName(sv, fs, counter[0]++);
-                    var svSumExpr = new Sum(source, sv, Literal.TRUE, AggregateFunction.NO_WINDOW, fs.summationMode(), fs.longOverflowMode());
+                    var svSumExpr = new Sum(
+                        source,
+                        sv,
+                        Literal.TRUE,
+                        AggregateFunction.NO_WINDOW,
+                        fs.summationMode(),
+                        fs.longOverflowMode()
+                    );
                     var svSumAlias = new Alias(source, svSumName, svSumExpr, null, true);
                     newAggs.add(svSumAlias);
                     var svCountName = TemporaryNameGenerator.temporaryName(sv, fs, counter[0]++);

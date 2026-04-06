@@ -29,6 +29,7 @@ import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
@@ -182,13 +183,21 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return totalVectors > 0 ? Math.min(1f, (float) filterCost / totalVectors) : 0f;
     }
 
+    /**
+     * Returns the parent filter for nested queries, or null for non-nested queries.
+     * Subclasses that support nested documents should override this.
+     */
+    protected BitSetProducer getParentsFilter() {
+        return null;
+    }
+
     private Query postFilterRewrite(Weight filterWeight, float selectivity, float visitRatio, IndexReader reader) {
         int baseK = Math.round(2f * k);
         int scaledBaseK = (int) Math.ceil(baseK / selectivity);
         float visitOversampling = Math.max(1.1f, 1.2f / selectivity);
         float scaledVisitRatio = Math.min(1.0f, visitRatio * visitOversampling);
         PostFilterableKnnQuery delegate = createPostFilterDelegate(scaledBaseK, Math.max(numCands, scaledBaseK), scaledVisitRatio);
-        return new PostFilterAwareKnnQuery(delegate, filterWeight, k, reader, ops -> this.vectorOpsCount = (int) ops);
+        return new PostFilterAwareKnnQuery(delegate, filterWeight, k, reader, ops -> this.vectorOpsCount = (int) ops, getParentsFilter());
     }
 
     /**

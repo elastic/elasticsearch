@@ -15,7 +15,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -23,6 +22,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.FixedBitSet;
@@ -53,7 +53,8 @@ final class KnnPostFilterHelper {
         int kParam,
         KnnSearchStrategy searchStrategy,
         boolean earlyTermination,
-        LongConsumer vectorOpsCallback
+        LongConsumer vectorOpsCallback,
+        BitSetProducer parentsFilter
     ) throws IOException {
         if (skipPostFilter || filter == null) {
             return null;
@@ -78,7 +79,8 @@ final class KnnPostFilterHelper {
             searchStrategy,
             earlyTermination,
             delegateFactory,
-            vectorOpsCallback
+            vectorOpsCallback,
+            parentsFilter
         );
     }
 
@@ -108,13 +110,14 @@ final class KnnPostFilterHelper {
         KnnSearchStrategy searchStrategy,
         boolean earlyTermination,
         PostFilterDelegateFactory delegateFactory,
-        LongConsumer vectorOpsCallback
+        LongConsumer vectorOpsCallback,
+        BitSetProducer parentsFilter
     ) throws IOException {
         int scaledNumCands = (int) Math.ceil(kParam / selectivity);
         KnnSearchStrategy seeded = new KnnSearchStrategy.Seeded(null, 0, searchStrategy);
         PostFilterableKnnQuery delegate = delegateFactory.create(scaledNumCands, seeded, earlyTermination);
         IndexReader reader = searcher.getIndexReader();
-        return new PostFilterAwareKnnQuery(delegate, filterWeight, kParam, reader, vectorOpsCallback);
+        return new PostFilterAwareKnnQuery(delegate, filterWeight, kParam, reader, vectorOpsCallback, parentsFilter);
     }
 
     /**
@@ -140,12 +143,7 @@ final class KnnPostFilterHelper {
     /**
      * Wraps the base collector manager with seeded retry and patience if appropriate.
      */
-    static KnnCollectorManager wrapCollectorManager(
-        KnnCollectorManager base,
-        TopDocs seedResults,
-        String field,
-        boolean earlyTermination
-    ) {
+    static KnnCollectorManager wrapCollectorManager(KnnCollectorManager base, TopDocs seedResults, String field, boolean earlyTermination) {
         if (seedResults != null && seedResults.scoreDocs.length > 0) {
             base = new SeededRetryCollectorManager(base, seedResults, field);
         }

@@ -9,16 +9,34 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
+import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChildrenFloatKnnVectorQuery implements QueryProfilerProvider {
+import java.io.IOException;
+
+public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChildrenFloatKnnVectorQuery
+    implements
+        QueryProfilerProvider,
+        PostFilterableKnnQuery {
+
     private final int kParam;
+    private final int numCands;
     private long vectorOpsCount;
+    private final BitSetProducer parentsFilter;
+    private final boolean skipPostFilter;
+    private final FixedBitSet seenDocs;
+    private final TopDocs seedResults;
+
+    private TopDocs capturedMergedResults;
 
     public ESDiversifyingChildrenFloatKnnVectorQuery(
         String field,
@@ -29,13 +47,61 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy
     ) {
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false, null, null);
+    }
+
+    ESDiversifyingChildrenFloatKnnVectorQuery(
+        String field,
+        float[] query,
+        Query childFilter,
+        int k,
+        int numCands,
+        BitSetProducer parentsFilter,
+        KnnSearchStrategy strategy,
+        boolean skipPostFilter,
+        FixedBitSet seenDocs,
+        TopDocs seedResults
+    ) {
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
+        this.numCands = numCands;
+        this.parentsFilter = parentsFilter;
+        this.skipPostFilter = skipPostFilter;
+        this.seenDocs = seenDocs;
+        this.seedResults = seedResults;
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        Query postFiltered = KnnPostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, skipPostFilter, ctx -> {
+            FloatVectorValues fvv = ctx.reader().getFloatVectorValues(field);
+            return fvv != null ? fvv.size() : 0;
+        },
+            (scaledNumCands, strategy, et) -> new ESDiversifyingChildrenFloatKnnVectorQuery(
+                field,
+                getTargetCopy(),
+                null,
+                scaledNumCands,
+                scaledNumCands,
+                parentsFilter,
+                strategy,
+                true,
+                null,
+                null
+            ),
+            kParam,
+            searchStrategy,
+            false,
+            ops -> this.vectorOpsCount = ops,
+            parentsFilter
+        );
+        return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
+        this.capturedMergedResults = topK;
         vectorOpsCount = topK.totalHits.value();
         return topK;
     }
@@ -45,7 +111,43 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
+    // --- PostFilterableKnnQuery ---
+
+    @Override
+    public TopDocs capturedResults() {
+        return capturedMergedResults;
+    }
+
+    @Override
+    public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
+        FixedBitSet newSeenDocs = KnnPostFilterHelper.buildRetrySeenDocs(seenDocs, capturedMergedResults, reader);
+        return new ESDiversifyingChildrenFloatKnnVectorQuery(
+            field,
+            getTargetCopy(),
+            new ExcludeDocsQuery(newSeenDocs, reader),
+            kParam,
+            numCands,
+            parentsFilter,
+            searchStrategy,
+            true,
+            newSeenDocs,
+            capturedMergedResults
+        );
+    }
+
+    @Override
+    public long vectorOpsCount() {
+        return vectorOpsCount;
+    }
+
+    // --- Accessors ---
+
     public KnnSearchStrategy getStrategy() {
         return searchStrategy;
+    }
+
+    @Override
+    protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+        return KnnPostFilterHelper.wrapCollectorManager(super.getKnnCollectorManager(k, searcher), seedResults, field, false);
     }
 }

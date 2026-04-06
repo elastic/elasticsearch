@@ -9,10 +9,14 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.FixedBitSet;
 
+import java.util.Map;
 import java.util.Objects;
 
 public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVectorQuery {
@@ -44,9 +48,73 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         this.parentsFilter = parentsFilter;
     }
 
+    DiversifyingChildrenIVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query childFilter,
+        BitSetProducer parentsFilter,
+        float visitRatio,
+        boolean doPrecondition,
+        boolean skipPostFilter,
+        Map<Integer, FixedBitSet> skipCentroidsPerLeaf
+    ) {
+        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, skipPostFilter, skipCentroidsPerLeaf);
+        this.parentsFilter = parentsFilter;
+    }
+
     @Override
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         return new DiversifiedIVFKnnCollectorManager(k, searcher, parentsFilter);
+    }
+
+    @Override
+    protected BitSetProducer getParentsFilter() {
+        return parentsFilter;
+    }
+
+    @Override
+    PostFilterableKnnQuery createPostFilterDelegate(int scaledK, int scaledNumCands, float scaledVisitRatio) {
+        return new DiversifyingChildrenIVFKnnFloatVectorQuery(
+            field,
+            getOriginalQuery().clone(),
+            scaledK,
+            scaledNumCands,
+            null,
+            parentsFilter,
+            scaledVisitRatio,
+            doPrecondition,
+            true,
+            null
+        );
+    }
+
+    @Override
+    public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
+        Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
+        return new DiversifyingChildrenIVFKnnFloatVectorQuery(
+            field,
+            getOriginalQuery().clone(),
+            k,
+            numCands,
+            null,
+            parentsFilter,
+            providedVisitRatio,
+            doPrecondition,
+            true,
+            mergedSkip
+        );
+    }
+
+    @Override
+    public TopDocs capturedResults() {
+        return pendingResults;
+    }
+
+    @Override
+    public long vectorOpsCount() {
+        return vectorOpsCount;
     }
 
     @Override

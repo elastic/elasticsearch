@@ -211,6 +211,32 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         return results != null ? results : NO_RESULTS;
     }
 
+    /**
+     * Returns the original (non-preconditioned) query vector.
+     */
+    float[] getOriginalQuery() {
+        return originalQuery;
+    }
+
+    /**
+     * Merges previously skipped centroids with centroids visited in the current round.
+     */
+    Map<Integer, FixedBitSet> mergeSkipCentroids() {
+        Map<Integer, FixedBitSet> mergedSkip = new HashMap<>();
+        if (skipCentroidsPerLeaf != null) {
+            for (var entry : skipCentroidsPerLeaf.entrySet()) {
+                mergedSkip.put(entry.getKey(), entry.getValue().clone());
+            }
+        }
+        for (var entry : visitedCentroidsPerLeaf.entrySet()) {
+            mergedSkip.merge(entry.getKey(), entry.getValue().clone(), (existing, visited) -> {
+                existing.or(visited);
+                return existing;
+            });
+        }
+        return mergedSkip;
+    }
+
     @Override
     PostFilterableKnnQuery createPostFilterDelegate(int scaledK, int scaledNumCands, float scaledVisitRatio) {
         return new IVFKnnFloatVectorQuery(
@@ -235,19 +261,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
 
     @Override
     public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
-        // Merge skip centroids (from previous rounds) with visited centroids (from this round)
-        Map<Integer, FixedBitSet> mergedSkip = new HashMap<>();
-        if (skipCentroidsPerLeaf != null) {
-            for (var entry : skipCentroidsPerLeaf.entrySet()) {
-                mergedSkip.put(entry.getKey(), entry.getValue().clone());
-            }
-        }
-        for (var entry : visitedCentroidsPerLeaf.entrySet()) {
-            mergedSkip.merge(entry.getKey(), entry.getValue().clone(), (existing, visited) -> {
-                existing.or(visited);
-                return existing;
-            });
-        }
+        Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
         return new IVFKnnFloatVectorQuery(
             field,
             originalQuery.clone(),

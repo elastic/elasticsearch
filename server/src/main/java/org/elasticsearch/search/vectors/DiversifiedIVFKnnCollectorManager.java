@@ -39,6 +39,6 @@ public class DiversifiedIVFKnnCollectorManager extends AbstractIVFKnnVectorQuery
 
     @Override
     public boolean supportsPostFiltering() {
-        return false;
+        return true;
     }
 }

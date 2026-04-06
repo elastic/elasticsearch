@@ -23,6 +23,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -58,6 +60,7 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
     private final int k;
     private final IndexReader reader;
     private final LongConsumer vectorOpsCallback;
+    private final BitSetProducer parentsFilter;
     private long totalVectorOps;
 
     public PostFilterAwareKnnQuery(
@@ -67,11 +70,23 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
         IndexReader reader,
         LongConsumer vectorOpsCallback
     ) {
+        this(delegate, filterWeight, k, reader, vectorOpsCallback, null);
+    }
+
+    public PostFilterAwareKnnQuery(
+        PostFilterableKnnQuery delegate,
+        Weight filterWeight,
+        int k,
+        IndexReader reader,
+        LongConsumer vectorOpsCallback,
+        BitSetProducer parentsFilter
+    ) {
         this.delegate = delegate;
         this.filterWeight = filterWeight;
         this.k = k;
         this.reader = reader;
         this.vectorOpsCallback = vectorOpsCallback;
+        this.parentsFilter = parentsFilter;
     }
 
     @Override
@@ -94,6 +109,11 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
             // Post-filter the raw results
             ScoreDoc[] filtered = applyFilter(raw.scoreDocs, filterWeight, searcher);
             accumulated = mergeResults(accumulated, filtered);
+
+            // For nested queries, deduplicate by parent to keep only the best child per parent
+            if (parentsFilter != null) {
+                accumulated = deduplicateByParent(accumulated, searcher.getIndexReader(), parentsFilter);
+            }
 
             if (accumulated.length >= k) {
                 break;
@@ -164,6 +184,30 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
         return passing.toArray(new ScoreDoc[0]);
     }
 
+    /**
+     * Deduplicates results by parent document, keeping only the highest-scoring child per parent.
+     * Input must be sorted by score descending (first child seen per parent wins).
+     */
+    static ScoreDoc[] deduplicateByParent(ScoreDoc[] docs, IndexReader reader, BitSetProducer parentsFilter) throws IOException {
+        List<LeafReaderContext> leaves = reader.leaves();
+        IntHashSet seenParents = new IntHashSet();
+        List<ScoreDoc> deduped = new ArrayList<>();
+        for (ScoreDoc sd : docs) {
+            int leafOrd = ReaderUtil.subIndex(sd.doc, leaves);
+            LeafReaderContext ctx = leaves.get(leafOrd);
+            BitSet parentBitSet = parentsFilter.getBitSet(ctx);
+            if (parentBitSet == null) continue;
+            int localDoc = sd.doc - ctx.docBase;
+            int parentDoc = parentBitSet.nextSetBit(localDoc);
+            if (parentDoc == DocIdSetIterator.NO_MORE_DOCS) continue;
+            int globalParent = parentDoc + ctx.docBase;
+            if (seenParents.add(globalParent)) {
+                deduped.add(sd);
+            }
+        }
+        return deduped.toArray(new ScoreDoc[0]);
+    }
+
     static ScoreDoc[] mergeResults(ScoreDoc[] existing, ScoreDoc[] newResults) {
         if (existing.length == 0) return newResults;
         if (newResults.length == 0) return existing;
@@ -222,12 +266,15 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PostFilterAwareKnnQuery that = (PostFilterAwareKnnQuery) o;
-        return k == that.k && delegate.equals(that.delegate) && filterWeight == that.filterWeight;
+        return k == that.k
+            && delegate.equals(that.delegate)
+            && filterWeight == that.filterWeight
+            && Objects.equals(parentsFilter, that.parentsFilter);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), delegate, k, System.identityHashCode(filterWeight));
+        return Objects.hash(classHash(), delegate, k, System.identityHashCode(filterWeight), parentsFilter);
     }
 
 }

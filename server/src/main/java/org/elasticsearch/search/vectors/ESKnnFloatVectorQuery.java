@@ -84,15 +84,10 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        Query postFiltered = KnnPostFilterHelper.maybePostFilterRewrite(
-            indexSearcher,
-            filter,
-            field,
-            skipPostFilter,
-            ctx -> {
-                FloatVectorValues fvv = ctx.reader().getFloatVectorValues(field);
-                return fvv != null ? fvv.size() : 0;
-            },
+        Query postFiltered = KnnPostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, skipPostFilter, ctx -> {
+            FloatVectorValues fvv = ctx.reader().getFloatVectorValues(field);
+            return fvv != null ? fvv.size() : 0;
+        },
             (scaledNumCands, strategy, et) -> new ESKnnFloatVectorQuery(
                 field,
                 getTargetCopy(),
@@ -107,7 +102,8 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
             kParam,
             searchStrategy,
             earlyTermination,
-            ops -> this.vectorOpsCount = ops
+            ops -> this.vectorOpsCount = ops,
+            null
         );
         return postFiltered != null ? postFiltered : super.rewrite(indexSearcher);
     }
@@ -166,11 +162,6 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return KnnPostFilterHelper.wrapCollectorManager(
-            super.getKnnCollectorManager(k, searcher),
-            seedResults,
-            field,
-            earlyTermination
-        );
+        return KnnPostFilterHelper.wrapCollectorManager(super.getKnnCollectorManager(k, searcher), seedResults, field, earlyTermination);
     }
 }

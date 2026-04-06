@@ -30,10 +30,10 @@ The repository is organized into several key directories:
 
 In **Windows PowerShell**, do not paste bash/CI `gradlew` lines unchanged.
 
-- Always chain with `;`, not `&&` (PowerShell 5.x rejects `&&`). Example: `Set-Location C:\elasticsearch; ./gradlew …`
-- Quote every JVM flag for Gradle: `"-Dtests.seed=DEADBEEF"`, not bare `-Dtests.seed=…`.
+- Always chain with `;`, not `&&` (PowerShell 5.x rejects `&&`). Example: `Set-Location C:/repo/path; ./gradlew …`
+- Quote every JVM flag for Gradle: `"-Dtests.seed=DEADBEEF"`, not bare `-Dtests.seed=DEADBEEF`.
 
-Full line example: `Set-Location C:\elasticsearch; ./gradlew ":x-pack:plugin:esql:test" --tests "org.example.SomeIT" "-Dtests.seed=B511942F98271C64" "-Druntime.java=25"`
+Full line example: `Set-Location C:/repo/path; ./gradlew ":x-pack:plugin:esql:test" --tests "org.example.SomeIT" "-Dtests.seed=B511942F98271C64" "-Druntime.java=25"`
 
 ## Testing Cheatsheet
 - Standard suite: `./gradlew test` (respects cached results; add `-Dtests.timestamp=$(date +%s)` to bypass caches when reusing seeds).

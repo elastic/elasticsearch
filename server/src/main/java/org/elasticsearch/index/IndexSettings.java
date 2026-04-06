@@ -1058,15 +1058,6 @@ public final class IndexSettings {
         new Setting.Validator<>() {
             @Override
             public void validate(Boolean enabled) {
-                if (enabled && DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "The setting [%s] is only permitted when the feature flag is enabled.",
-                            DISABLE_SEQUENCE_NUMBERS.getKey()
-                        )
-                    );
-                }
             }
 
             @Override

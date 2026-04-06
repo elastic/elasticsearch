@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction.Response;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction.Response.RunningState;
-import org.elasticsearch.xpack.core.ml.datafeed.CrossProjectSearchStatsSnapshot;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchIntervalTests;
 
@@ -27,15 +27,15 @@ public class GetDatafeedRunningStateActionResponseTests extends AbstractWireSeri
             randomBoolean(),
             randomBoolean(),
             randomBoolean() ? null : SearchIntervalTests.createRandom(),
-            randomBoolean() ? null : randomCrossProjectStats()
+            randomBoolean() ? null : randomCrossClusterStats()
         );
     }
 
-    static CrossProjectSearchStatsSnapshot randomCrossProjectStats() {
+    static CrossClusterSearchStatsSnapshot randomCrossClusterStats() {
         int total = randomIntBetween(1, 10);
         int available = randomIntBetween(0, total);
         int skipped = total - available;
-        return new CrossProjectSearchStatsSnapshot(
+        return new CrossClusterSearchStatsSnapshot(
             total,
             available,
             skipped,

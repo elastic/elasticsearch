@@ -20,7 +20,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.datafeed.CrossProjectSearchStatsSnapshot;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 
 import java.io.IOException;
@@ -83,7 +83,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
 
         public static class RunningState implements Writeable, ToXContentObject {
 
-            private static final TransportVersion CROSS_PROJECT_STATS_ADDED = TransportVersion.fromName("ml_datafeed_cross_project_stats");
+            private static final TransportVersion CROSS_CLUSTER_STATS_ADDED = TransportVersion.fromName("ml_datafeed_cross_cluster_stats");
 
             private final boolean realTimeConfigured;
             private final boolean realTimeRunning;
@@ -92,7 +92,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             private final SearchInterval searchInterval;
 
             @Nullable
-            private final CrossProjectSearchStatsSnapshot crossProjectStats;
+            private final CrossClusterSearchStatsSnapshot crossClusterStats;
 
             public RunningState(boolean realTimeConfigured, boolean realTimeRunning, @Nullable SearchInterval searchInterval) {
                 this(realTimeConfigured, realTimeRunning, searchInterval, null);
@@ -102,28 +102,28 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 boolean realTimeConfigured,
                 boolean realTimeRunning,
                 @Nullable SearchInterval searchInterval,
-                @Nullable CrossProjectSearchStatsSnapshot crossProjectStats
+                @Nullable CrossClusterSearchStatsSnapshot crossClusterStats
             ) {
                 this.realTimeConfigured = realTimeConfigured;
                 this.realTimeRunning = realTimeRunning;
                 this.searchInterval = searchInterval;
-                this.crossProjectStats = crossProjectStats;
+                this.crossClusterStats = crossClusterStats;
             }
 
             public RunningState(StreamInput in) throws IOException {
                 this.realTimeConfigured = in.readBoolean();
                 this.realTimeRunning = in.readBoolean();
                 this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
-                if (in.getTransportVersion().supports(CROSS_PROJECT_STATS_ADDED)) {
-                    this.crossProjectStats = in.readOptionalWriteable(CrossProjectSearchStatsSnapshot::new);
+                if (in.getTransportVersion().supports(CROSS_CLUSTER_STATS_ADDED)) {
+                    this.crossClusterStats = in.readOptionalWriteable(CrossClusterSearchStatsSnapshot::new);
                 } else {
-                    this.crossProjectStats = null;
+                    this.crossClusterStats = null;
                 }
             }
 
             @Nullable
-            public CrossProjectSearchStatsSnapshot getCrossProjectStats() {
-                return crossProjectStats;
+            public CrossClusterSearchStatsSnapshot getCrossClusterStats() {
+                return crossClusterStats;
             }
 
             @Override
@@ -134,12 +134,12 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 return realTimeConfigured == that.realTimeConfigured
                     && realTimeRunning == that.realTimeRunning
                     && Objects.equals(searchInterval, that.searchInterval)
-                    && Objects.equals(crossProjectStats, that.crossProjectStats);
+                    && Objects.equals(crossClusterStats, that.crossClusterStats);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(realTimeConfigured, realTimeRunning, searchInterval, crossProjectStats);
+                return Objects.hash(realTimeConfigured, realTimeRunning, searchInterval, crossClusterStats);
             }
 
             @Override
@@ -147,8 +147,8 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 out.writeBoolean(realTimeConfigured);
                 out.writeBoolean(realTimeRunning);
                 out.writeOptionalWriteable(searchInterval);
-                if (out.getTransportVersion().supports(CROSS_PROJECT_STATS_ADDED)) {
-                    out.writeOptionalWriteable(crossProjectStats);
+                if (out.getTransportVersion().supports(CROSS_CLUSTER_STATS_ADDED)) {
+                    out.writeOptionalWriteable(crossClusterStats);
                 }
             }
 
@@ -160,8 +160,8 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 if (searchInterval != null) {
                     builder.field("search_interval", searchInterval);
                 }
-                if (crossProjectStats != null) {
-                    builder.field("cross_project_stats", crossProjectStats);
+                if (crossClusterStats != null) {
+                    builder.field("cross_cluster_stats", crossClusterStats);
                 }
                 builder.endObject();
                 return builder;

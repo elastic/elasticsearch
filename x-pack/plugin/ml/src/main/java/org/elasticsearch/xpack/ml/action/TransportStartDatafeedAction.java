@@ -717,7 +717,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 endTime == null,
                 datafeedRunner.finishedLookBack(this),
                 datafeedRunner.getSearchInterval(this),
-                datafeedRunner.getCrossProjectStats(this)
+                datafeedRunner.getCrossClusterStats(this)
             );
         }
     }

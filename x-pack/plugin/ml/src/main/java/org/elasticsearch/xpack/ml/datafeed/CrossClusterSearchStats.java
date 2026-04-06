@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.core.ml.datafeed.CrossProjectSearchStatsSnapshot;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.time.Duration;
@@ -227,11 +227,11 @@ public class CrossClusterSearchStats {
      * Returns an immutable snapshot of the current stats for serialization in the datafeed stats API.
      * Returns {@code null} if the baseline has not yet been established (no cycles processed).
      */
-    public CrossProjectSearchStatsSnapshot snapshot() {
+    public CrossClusterSearchStatsSnapshot snapshot() {
         if (baselineEstablished == false) {
             return null;
         }
-        return new CrossProjectSearchStatsSnapshot(
+        return new CrossClusterSearchStatsSnapshot(
             totalClusters,
             availableClusters,
             skippedClusters,

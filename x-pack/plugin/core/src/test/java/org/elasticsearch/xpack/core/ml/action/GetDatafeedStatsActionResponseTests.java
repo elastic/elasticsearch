@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
-import org.elasticsearch.xpack.core.ml.datafeed.CrossProjectSearchStatsSnapshot;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateActionResponseTests.randomCrossProjectStats;
+import static org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateActionResponseTests.randomCrossClusterStats;
 import static org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateActionResponseTests.randomRunningState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -112,7 +112,7 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
 
         Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();
 
-        int expectedFields = runningState.getCrossProjectStats() != null ? 6 : 5;
+        int expectedFields = runningState.getCrossClusterStats() != null ? 6 : 5;
         assertThat(dfStatsMap.size(), is(equalTo(expectedFields)));
         assertThat(dfStatsMap, hasEntry("datafeed_id", "df-id"));
         assertThat(dfStatsMap, hasEntry("state", "started"));
@@ -147,8 +147,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
     }
 
     @SuppressWarnings("unchecked")
-    public void testCrossProjectStatsRenderedAtTopLevel() throws IOException {
-        CrossProjectSearchStatsSnapshot cpsStats = randomCrossProjectStats();
+    public void testCrossClusterStatsRenderedAtTopLevel() throws IOException {
+        CrossClusterSearchStatsSnapshot cpsStats = randomCrossClusterStats();
         Response.DatafeedStats stats = new Response.DatafeedStats(
             "df-id",
             DatafeedState.STARTED,
@@ -166,19 +166,19 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         }
 
         Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();
-        assertThat(dfStatsMap, hasKey("cross_project_stats"));
+        assertThat(dfStatsMap, hasKey("cross_cluster_stats"));
 
-        Map<String, Object> cpsMap = (Map<String, Object>) dfStatsMap.get("cross_project_stats");
-        assertThat(cpsMap, hasKey("total_projects"));
-        assertThat(cpsMap, hasKey("available_projects"));
-        assertThat(cpsMap, hasKey("skipped_projects"));
+        Map<String, Object> cpsMap = (Map<String, Object>) dfStatsMap.get("cross_cluster_stats");
+        assertThat(cpsMap, hasKey("total_clusters"));
+        assertThat(cpsMap, hasKey("available_clusters"));
+        assertThat(cpsMap, hasKey("skipped_clusters"));
         assertThat(cpsMap, hasKey("availability_ratio"));
-        assertThat(cpsMap, hasKey("stabilized_project_aliases"));
-        assertThat(cpsMap, hasKey("per_project_consecutive_skips"));
+        assertThat(cpsMap, hasKey("stabilized_cluster_aliases"));
+        assertThat(cpsMap, hasKey("per_cluster_consecutive_skips"));
     }
 
     @SuppressWarnings("unchecked")
-    public void testCrossProjectStatsAbsentWhenNull() throws IOException {
+    public void testCrossClusterStatsAbsentWhenNull() throws IOException {
         Response.DatafeedStats stats = new Response.DatafeedStats(
             "df-id",
             DatafeedState.STARTED,
@@ -196,6 +196,6 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         }
 
         Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();
-        assertFalse(dfStatsMap.containsKey("cross_project_stats"));
+        assertFalse(dfStatsMap.containsKey("cross_cluster_stats"));
     }
 }

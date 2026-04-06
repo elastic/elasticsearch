@@ -21,19 +21,19 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * Immutable snapshot of cross-project search statistics for a running CPS-enabled datafeed.
+ * Immutable snapshot of cross-cluster search statistics for a running CPS-enabled datafeed.
  * Serialized as part of the datafeed stats API response.
  */
-public record CrossProjectSearchStatsSnapshot(
-    int totalProjects,
-    int availableProjects,
-    int skippedProjects,
+public record CrossClusterSearchStatsSnapshot(
+    int totalClusters,
+    int availableClusters,
+    int skippedClusters,
     double availabilityRatio,
-    Set<String> stabilizedProjectAliases,
-    Map<String, Integer> perProjectConsecutiveSkips
+    Set<String> stabilizedClusterAliases,
+    Map<String, Integer> perClusterConsecutiveSkips
 ) implements Writeable, ToXContentObject {
 
-    public CrossProjectSearchStatsSnapshot(StreamInput in) throws IOException {
+    public CrossClusterSearchStatsSnapshot(StreamInput in) throws IOException {
         this(
             in.readVInt(),
             in.readVInt(),
@@ -46,23 +46,23 @@ public record CrossProjectSearchStatsSnapshot(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(totalProjects);
-        out.writeVInt(availableProjects);
-        out.writeVInt(skippedProjects);
+        out.writeVInt(totalClusters);
+        out.writeVInt(availableClusters);
+        out.writeVInt(skippedClusters);
         out.writeDouble(availabilityRatio);
-        out.writeStringCollection(stabilizedProjectAliases);
-        out.writeMap(perProjectConsecutiveSkips, StreamOutput::writeVInt);
+        out.writeStringCollection(stabilizedClusterAliases);
+        out.writeMap(perClusterConsecutiveSkips, StreamOutput::writeVInt);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("total_projects", totalProjects);
-        builder.field("available_projects", availableProjects);
-        builder.field("skipped_projects", skippedProjects);
+        builder.field("total_clusters", totalClusters);
+        builder.field("available_clusters", availableClusters);
+        builder.field("skipped_clusters", skippedClusters);
         builder.field("availability_ratio", availabilityRatio);
-        builder.field("stabilized_project_aliases", new TreeSet<>(stabilizedProjectAliases));
-        builder.field("per_project_consecutive_skips", new TreeMap<>(perProjectConsecutiveSkips));
+        builder.field("stabilized_cluster_aliases", new TreeSet<>(stabilizedClusterAliases));
+        builder.field("per_cluster_consecutive_skips", new TreeMap<>(perClusterConsecutiveSkips));
         builder.endObject();
         return builder;
     }
@@ -71,24 +71,24 @@ public record CrossProjectSearchStatsSnapshot(
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        CrossProjectSearchStatsSnapshot that = (CrossProjectSearchStatsSnapshot) o;
-        return totalProjects == that.totalProjects
-            && availableProjects == that.availableProjects
-            && skippedProjects == that.skippedProjects
+        CrossClusterSearchStatsSnapshot that = (CrossClusterSearchStatsSnapshot) o;
+        return totalClusters == that.totalClusters
+            && availableClusters == that.availableClusters
+            && skippedClusters == that.skippedClusters
             && Double.compare(availabilityRatio, that.availabilityRatio) == 0
-            && Objects.equals(stabilizedProjectAliases, that.stabilizedProjectAliases)
-            && Objects.equals(perProjectConsecutiveSkips, that.perProjectConsecutiveSkips);
+            && Objects.equals(stabilizedClusterAliases, that.stabilizedClusterAliases)
+            && Objects.equals(perClusterConsecutiveSkips, that.perClusterConsecutiveSkips);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-            totalProjects,
-            availableProjects,
-            skippedProjects,
+            totalClusters,
+            availableClusters,
+            skippedClusters,
             availabilityRatio,
-            stabilizedProjectAliases,
-            perProjectConsecutiveSkips
+            stabilizedClusterAliases,
+            perClusterConsecutiveSkips
         );
     }
 }

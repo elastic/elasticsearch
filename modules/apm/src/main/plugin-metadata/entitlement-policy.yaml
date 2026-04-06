@@ -90,10 +90,7 @@ io.opentelemetry.sdk.metrics:
 io.opentelemetry.exporter.sender.jdk.internal:
   - outbound_network
 
-io.opentelemetry.instrumentation.runtime_telemetry_java17:
-  - manage_threads
-
-io.opentelemetry.instrumentation.runtime_telemetry_java8:
+io.opentelemetry.instrumentation.runtime_telemetry:
   - manage_threads
 
 io.opentelemetry.sdk.common:

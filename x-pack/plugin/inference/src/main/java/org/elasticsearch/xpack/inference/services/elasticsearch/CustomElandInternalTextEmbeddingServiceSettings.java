@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -230,7 +229,6 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
 
     @Override
     public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        serviceSettings = new HashMap<>(serviceSettings);
         ServiceSettings updated = super.updateServiceSettings(serviceSettings);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new CustomElandInternalTextEmbeddingServiceSettings(esSettings, dimensions, similarityMeasure, elementType);

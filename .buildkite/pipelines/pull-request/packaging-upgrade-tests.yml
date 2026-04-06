@@ -15,9 +15,9 @@ steps:
               - ubuntu-2404
         agents:
           provider: gcp
-          zones: us-east1-b,us-east1-c,us-east1-d,us-west1-a,us-west1-b,us-west1-c
           image: family/elasticsearch-{{matrix.image}}
-          machineType: custom-16-32768
+          machineType: e2-custom-16-32768
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: $BWC_VERSION

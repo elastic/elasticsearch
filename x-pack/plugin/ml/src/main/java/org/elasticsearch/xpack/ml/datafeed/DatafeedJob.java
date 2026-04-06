@@ -72,7 +72,7 @@ class DatafeedJob {
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
     private final long delayedDataCheckFreq;
-    private final CrossClusterSearchStats crossProjectSearchStats;
+    private final CrossClusterSearchStats crossClusterSearchStats;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
@@ -102,7 +102,7 @@ class DatafeedJob {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataCheckFreq,
-        CrossClusterSearchStats crossProjectSearchStats
+        CrossClusterSearchStats crossClusterSearchStats
     ) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
@@ -123,7 +123,7 @@ class DatafeedJob {
         }
         this.haveEverSeenData = haveSeenDataPreviously;
         this.delayedDataCheckFreq = delayedDataCheckFreq;
-        this.crossProjectSearchStats = Objects.requireNonNull(crossProjectSearchStats);
+        this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
     }
 
     void isolate() {
@@ -494,14 +494,14 @@ class DatafeedJob {
     }
 
     /**
-     * Updates cross-project search stats with linked cluster states from this cycle.
+     * Updates cross-cluster search stats with linked cluster states from this cycle.
      * If a scope change is confirmed, persists an annotation and emits a warning.
      *
      * @return the scope change result if one was confirmed this cycle, or {@code null}
      */
     @Nullable
     private CrossClusterSearchStats.ScopeChangeResult updateCrossClusterSearchStats(List<LinkedClusterState> linkedClusterStates) {
-        CrossClusterSearchStats.ScopeChangeResult scopeChangeResult = crossProjectSearchStats.update(linkedClusterStates);
+        CrossClusterSearchStats.ScopeChangeResult scopeChangeResult = crossClusterSearchStats.update(linkedClusterStates);
         if (scopeChangeResult.scopeChanged()) {
             String message = CrossClusterSearchStats.buildScopeChangeMessage(scopeChangeResult);
             LOGGER.info("[{}] {}", jobId, message);
@@ -651,7 +651,7 @@ class DatafeedJob {
     }
 
     CrossClusterSearchStats getCrossClusterSearchStats() {
-        return crossProjectSearchStats;
+        return crossClusterSearchStats;
     }
 
     static class AnalysisProblemException extends ElasticsearchException implements ElasticsearchWrapperException {

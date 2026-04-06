@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 

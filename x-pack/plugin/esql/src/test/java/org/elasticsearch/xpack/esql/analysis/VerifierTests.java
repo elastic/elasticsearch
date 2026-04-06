@@ -2719,7 +2719,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
+            equalTo("Found ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
         );
     }
 
@@ -2812,7 +2812,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]")
+            equalTo("Found ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]")
         );
     }
 
@@ -2829,7 +2829,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
+            equalTo("Found ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
         );
     }
 
@@ -3878,10 +3878,14 @@ public class VerifierTests extends ESTestCase {
 
     public void testMMRLimitIsValid() {
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
-
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5",
-            equalTo("1:58: MMR limit must be a positive integer")
+            equalTo("1:58: MMR limit must be a positive integer, got [-5]")
+        );
+
+        defaultAnalyzer().error(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 0",
+            equalTo("1:58: MMR limit must be a positive integer, got [0]")
         );
     }
 
@@ -3900,6 +3904,11 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"7e7e\" on dense_embedding limit 10");
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [15, 16, 20] on dense_embedding limit 10");
+
+        fullText().error(
+            "FROM test | LIMIT 100 | MMR published_date ON vector LIMIT 10",
+            equalTo("1:25: MMR query vector must be a DENSE_VECTOR, found [published_date] of type [DATETIME]")
+        );
     }
 
     public void testMMRLambdaValueIsValid() {
@@ -3909,23 +3918,28 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"unknown\": true }",
-            equalTo("1:58: Invalid option [unknown] in <MMR>, expected one of [[lambda]]")
+            equalTo("1:58: Invalid option [unknown] in [mmr on dense_embedding limit 10 with { \"unknown\": true }]")
         );
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with "
                 + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
-            equalTo("1:58: Invalid option [unknown_extra] in <MMR>, expected one of [[lambda]]")
+            containsString("1:58: Invalid option [unknown_extra]")
         );
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 2.5 }",
-            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0, got [2.5]")
         );
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": -2.5 }",
-            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0, got [-2.5]")
         );
+
+        defaultAnalyzer().error("""
+            row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
+            | mmr on dense_embedding limit 10 with { "lambda": "hello" }
+            """, equalTo("2:3: expected lambda to be numeric, got [\"hello\"]"));
     }
 
     public void testMMRLimitedInput() {
@@ -3950,6 +3964,19 @@ public class VerifierTests extends ESTestCase {
 
     public void testTopSnippetsQueryFoldableConcatConstants() {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
+    }
+
+    /**
+     * A second {@code STATS} on a time-series pipeline becomes a regular {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate};
+     * {@code WITHOUT} is only valid on {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate} until non-TS support exists.
+     */
+    public void testWithoutOnlyInTimeSeriesStats() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        k8s().error("""
+            FROM k8s
+            | STATS mc = max(network.cost) BY cluster, pod, region
+            | STATS d = sum(mc) BY WITHOUT(region)
+            """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
     }
 
     private static TestAnalyzer defaultAnalyzer() {

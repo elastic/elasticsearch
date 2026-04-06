@@ -449,6 +449,45 @@ public class IpFieldMapperTests extends MapperTestCase {
         };
     }
 
+    public void testMultiValueSortedSet() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "sorted_set").endObject())
+        );
+        IpFieldMapper mapper = (IpFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(
+            mapper.docValuesParameters(),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                )
+            )
+        );
+    }
+
+    public void testMultiValueDefaultIsSortedSet() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "ip")));
+        IpFieldMapper mapper = (IpFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET));
+    }
+
+    public void testMultiValueSortedNotAllowed() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "sorted").endObject())
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
+        );
+    }
+
     @Override
     protected String randomSyntheticSourceKeep() {
         return "all";

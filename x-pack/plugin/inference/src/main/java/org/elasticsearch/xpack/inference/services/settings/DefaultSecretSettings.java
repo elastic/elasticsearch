@@ -109,6 +109,6 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(new HashMap<>(newSecrets));
+        return fromMap(newSecrets);
     }
 }

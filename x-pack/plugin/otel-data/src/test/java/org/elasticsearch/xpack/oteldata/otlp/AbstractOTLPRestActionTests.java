@@ -169,7 +169,7 @@ public abstract class AbstractOTLPRestActionTests extends ESTestCase {
             stream
         );
         var request = RestRequest.request(parserConfig(), httpRequest, new FakeRestRequest.FakeHttpChannel(null));
-        var channel = new FakeRestChannel(request, true, 1);
+        var channel = new FakeRestChannel(request, true);
         try {
             var consumer = (BaseRestHandler.RequestBodyChunkConsumer) action.prepareRequest(request, client);
             stream.setHandler(new HttpBody.ChunkHandler() {

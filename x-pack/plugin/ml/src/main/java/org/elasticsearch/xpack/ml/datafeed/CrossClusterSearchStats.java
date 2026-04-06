@@ -24,12 +24,12 @@ import java.util.function.Supplier;
 
 /**
  * Per-datafeed mutable runtime state that tracks which linked clusters participate
- * in a cross-cluster / cross-project search (CCS/CPS) datafeed across search cycles.
+ * in a cross-cluster search (CCS) datafeed across search cycles.
  * <p>
  * Detects cluster linking (new clusters appearing) and unlinking (existing clusters
  * disappearing) using a symmetric dual stabilization condition: a cluster must be
  * consecutively present (or absent) for {@link #DEFAULT_STABILIZATION_CYCLES} search
- * cycles <em>and</em> at least {@link #DEFAULT_MIN_STABILIZATION_DURATION} wall-clock
+ * cycles <em>and</em> at least {@link #DEFAULT_MIN_STABILIZATION_DURATION_JAVA} wall-clock
  * time must have elapsed since the state change was first observed.
  * <p>
  * Created when the datafeed starts and discarded when it stops. On the first search
@@ -38,8 +38,8 @@ import java.util.function.Supplier;
 public class CrossClusterSearchStats {
 
     public static final int DEFAULT_STABILIZATION_CYCLES = 12;
-    static final Duration DEFAULT_MIN_STABILIZATION_DURATION = Duration.ofMinutes(5);
-    public static final TimeValue DEFAULT_MIN_STABILIZATION_DURATION_TIMEVALUE = TimeValue.timeValueMinutes(5);
+    public static final TimeValue DEFAULT_MIN_STABILIZATION_DURATION = TimeValue.timeValueMinutes(5);
+    private static final Duration DEFAULT_MIN_STABILIZATION_DURATION_JAVA = Duration.ofMillis(DEFAULT_MIN_STABILIZATION_DURATION.millis());
 
     private final Supplier<Instant> clock;
     private final int stabilizationCycles;
@@ -60,7 +60,7 @@ public class CrossClusterSearchStats {
      * Creates stats with production-default stabilization thresholds.
      */
     public CrossClusterSearchStats(Supplier<Instant> clock) {
-        this(clock, DEFAULT_STABILIZATION_CYCLES, DEFAULT_MIN_STABILIZATION_DURATION);
+        this(clock, DEFAULT_STABILIZATION_CYCLES, DEFAULT_MIN_STABILIZATION_DURATION_JAVA);
     }
 
     /**
@@ -84,7 +84,7 @@ public class CrossClusterSearchStats {
      * a {@link ScopeChangeResult} describing any confirmed scope changes.
      *
      * @param linkedClusterStates per-cluster states extracted from the latest {@code SearchResponse};
-     *                            empty for non-CPS datafeeds (in which case this is a no-op)
+     *                            empty for local-only datafeeds (in which case this is a no-op)
      */
     public ScopeChangeResult update(List<LinkedClusterState> linkedClusterStates) {
         if (linkedClusterStates.isEmpty()) {

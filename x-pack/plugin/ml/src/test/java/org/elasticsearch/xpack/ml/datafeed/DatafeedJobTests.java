@@ -1019,7 +1019,7 @@ public class DatafeedJobTests extends ESTestCase {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataFreq,
-        CrossClusterSearchStats crossProjectSearchStats
+        CrossClusterSearchStats crossClusterSearchStats
     ) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
@@ -1039,7 +1039,7 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
-            crossProjectSearchStats
+            crossClusterSearchStats
         );
     }
 

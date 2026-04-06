@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
@@ -37,7 +36,6 @@ public class ReorderLimitProjectAndOrderByGoldenTests extends GoldenTestCase {
      * referenced by LimitBy, so the only way to fix the query is to swap LimitBy and OrderBy
      */
     public void testProjectAndOrderBySwapped() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         runGoldenTest("""
             FROM employees
             | RENAME languages AS language_code

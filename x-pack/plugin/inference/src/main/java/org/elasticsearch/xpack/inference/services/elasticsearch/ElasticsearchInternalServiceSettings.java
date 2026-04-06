@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsS
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -228,20 +227,19 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     @Override
     public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-        var mutableServiceSettings = new HashMap<>(serviceSettings);
 
         if (serviceSettings.containsKey(NUM_THREADS)) {
             validationException.addValidationError(Strings.format("[%s] cannot be updated", NUM_THREADS));
         }
 
         var numAllocations = extractOptionalPositiveInteger(
-            mutableServiceSettings,
+            serviceSettings,
             NUM_ALLOCATIONS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
         var adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
-            mutableServiceSettings,
+            serviceSettings,
             ADAPTIVE_ALLOCATIONS,
             validationException
         );

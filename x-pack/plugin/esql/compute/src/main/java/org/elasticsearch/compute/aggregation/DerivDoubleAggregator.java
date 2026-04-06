@@ -137,7 +137,6 @@ class DerivDoubleAggregator {
             Releasables.close(states, super::close);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 LongBlock.Builder countBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());

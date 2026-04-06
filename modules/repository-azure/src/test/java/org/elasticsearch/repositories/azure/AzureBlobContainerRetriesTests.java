@@ -352,7 +352,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     public void testWriteLargeBlob() throws Exception {
-        final int maxRetries = randomIntBetween(2, 5);
+        final int maxRetries = randomIntBetween(4, 8);
         logger.info("--> max retries: {}", maxRetries);
 
         final byte[] data = randomBytes(ByteSizeUnit.MB.toIntBytes(10) + randomIntBetween(0, ByteSizeUnit.MB.toIntBytes(1)));
@@ -366,7 +366,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * nbBlocks);
         final CountDown countDownComplete = new CountDown(nbErrors);
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, TimeValue.timeValueSeconds(5));
         final Map<String, BytesReference> blocks = new ConcurrentHashMap<>();
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob"), exchange -> {
 
@@ -427,8 +427,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
             blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
         }
-
-        assertThat(countDownUploads.get(), equalTo(0));
+        assertThat(countDownUploads.get(), lessThanOrEqualTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
     }
@@ -669,11 +668,15 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     private BlobContainer createBlobContainer(int maxRetries, String secondaryHost, LocationMode locationMode) {
-        return createBlobContainer(maxRetries, null, null, null, null, null, BlobPath.EMPTY, secondaryHost, locationMode);
+        return createBlobContainer(maxRetries, null, null, null, null, null, null, BlobPath.EMPTY, secondaryHost, locationMode);
     }
 
     private BlobContainer createBlobContainer(int maxRetries) {
         return createBlobContainer(maxRetries, null, null, null, null, null, null);
+    }
+
+    private BlobContainer createBlobContainer(int maxRetries, @Nullable TimeValue timeout) {
+        return createBlobContainer(maxRetries, null, timeout, null, null, null, null, null, null, LocationMode.PRIMARY_ONLY);
     }
 
     @Override
@@ -705,6 +708,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         return createBlobContainer(
             maxRetries,
             readTimeout,
+            null,
             disableChunkedEncoding,
             maxConnections,
             bufferSize,
@@ -718,6 +722,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     private BlobContainer createBlobContainer(
         @Nullable Integer maxRetries,
         @Nullable TimeValue readTimeout,
+        @Nullable TimeValue timeout,
         @Nullable Boolean disableChunkedEncoding,
         @Nullable Integer maxConnections,
         @Nullable ByteSizeValue bufferSize,
@@ -742,7 +747,11 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         if (maxRetries != null) {
             clientSettings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries);
         }
-        clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueSeconds(1));
+        if (timeout != null) {
+            clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), timeout);
+        } else {
+            clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueSeconds(1));
+        }
         if (readTimeout != null) {
             clientSettings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeout);
         }

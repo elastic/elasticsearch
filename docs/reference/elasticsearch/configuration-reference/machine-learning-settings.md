@@ -116,7 +116,7 @@ These settings are for advanced use cases; the default values are generally suff
 
 $$$xpack.ml.model_graph_validation_enabled$$$
 
-`xpack.ml.model_graph_validation_enabled`
+`xpack.ml.model_graph_validation_enabled` {applies_to}`stack: ga 9.4`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls whether TorchScript graph validation runs when the `pytorch_inference` native process starts for trained model deployments. When `true` (the default), the process checks the model graph against an allowed operation list before running inference. When `false`, that validation is skipped. Use `false` only as an operational escape hatch—for example, if a supported model fails validation unexpectedly. When the {{operator-feature}} is enabled, this setting can be updated only by operator users.
 
     ::::{warning}

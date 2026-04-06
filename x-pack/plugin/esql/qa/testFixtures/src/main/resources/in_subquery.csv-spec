@@ -70,7 +70,7 @@ FROM employees
 | SORT emp_no
 ;
 
-emp_no:integer | cnt:integer
+emp_no:integer | salary:integer
 10007          | 74572
 10019          | 73717
 10029          | 74999
@@ -88,7 +88,7 @@ FROM employees
 | STATS cnt = COUNT(*)
 ;
 
-cnt:integer
+cnt:long
 2
 ;
 
@@ -100,7 +100,7 @@ FROM employees
 | STATS cnt = COUNT(*)
 ;
 
-cnt:integer
+cnt:long
 90
 ;
 
@@ -113,7 +113,7 @@ FROM employees
 | SORT emp_no
 ;
 
-emp_no:integer | cnt:integer
+emp_no:integer | salary:integer
 10007          | 74572
 10019          | 73717
 10029          | 74999
@@ -153,7 +153,7 @@ FROM employees
 | LIMIT 1
 ;
 
-cnt:integer
+cnt:long
 90
 ;
 
@@ -1415,10 +1415,10 @@ FROM employees_incompatible
 | LIMIT 3
 ;
 
-emp_no:integer | first_name:keyword | gender:text
-10002          | Bezalel            | F
-10006          | Anneke             | F
-10007          | Tzvetan            | F
+emp_no:long | first_name:text | gender:text
+10002       | Bezalel         | F
+10006       | Anneke          | F
+10007       | Tzvetan         | F
 ;
 
 textNotInKeyword
@@ -1431,10 +1431,10 @@ FROM employees_incompatible
 | LIMIT 3
 ;
 
-emp_no:integer | first_name:keyword | gender:text
-10002          | Bezalel            | F
-10006          | Anneke             | F
-10007          | Tzvetan            | F
+emp_no:long | first_name:text | gender:text
+10002       | Bezalel         | F
+10006       | Anneke          | F
+10007       | Tzvetan         | F
 ;
 
 keywordNotInText
@@ -1630,10 +1630,10 @@ FROM
 | KEEP salary, cnt
 ;
 
-salary:integer | cnt:long
-74999          | 2
-74970          | 2
-74572          | 2
+salary:long | cnt:long
+74999       | 2
+74970       | 2
+74572       | 2
 ;
 
 unionTypeFromSubqueryCastToLongOutsideNotInSubquery
@@ -1666,7 +1666,7 @@ FROM employees_incompatible
 | LIMIT 3
 ;
 
-emp_no:long | first_name:keyword
+emp_no:long | first_name:text
 10007       | Tzvetan
 10019       | Lillian
 10027       | Divier
@@ -1687,7 +1687,7 @@ FROM employees_incompatible
 | LIMIT 3
 ;
 
-emp_no:long | first_name:keyword
+emp_no:long | first_name:text
 10001       | Georgi
 10002       | Bezalel
 10003       | Parto
@@ -1729,8 +1729,8 @@ FROM employees_incompatible
 | KEEP emp_no, first_name, salary
 ;
 
-emp_no:integer | first_name:keyword | salary:long
-10029          | Otmar              | 74999
+emp_no:long | first_name:text | salary:long
+10029       | Otmar           | 74999
 ;
 
 unionTypeFromSubqueryCastToLongInsideNotInSubquery
@@ -1749,8 +1749,8 @@ FROM employees_incompatible
 | LIMIT 3
 ;
 
-emp_no:integer | first_name:keyword | salary:long
-10001          | Georgi             | 57305
-10002          | Bezalel            | 56371
-10003          | Parto              | 61805
+emp_no:long | first_name:text | salary:long
+10001       | Georgi          | 57305
+10002       | Bezalel         | 56371
+10003       | Parto           | 61805
 ;

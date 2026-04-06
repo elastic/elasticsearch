@@ -5,6 +5,7 @@ summary: Support of a window that is not an exact multiple of the bucket
 type: enhancement
 highlight:
   title: "Time series aggregations support windows that are not an exact multiple of the bucket"
+  notable: true
   body: |-
     Time series aggregations in ES|QL are enhanced to support any window value.
     Previously, only window values that were exact multiples of the time bucket were supported.

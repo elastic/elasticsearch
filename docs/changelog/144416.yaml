@@ -5,6 +5,7 @@ summary: Add Prometheus query_range endpoint
 type: enhancement
 highlight:
   title: "Add Prometheus query_range endpoint"
+  notable: true
   body: |-
     We're introducing a Prometheus-compatible /_prometheus/api/v1/query_range REST endpoint that:
 

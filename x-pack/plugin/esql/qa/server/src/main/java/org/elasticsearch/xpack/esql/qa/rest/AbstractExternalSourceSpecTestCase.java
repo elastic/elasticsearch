@@ -184,24 +184,27 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static void generateCompressedFixtures() {
         try {
             int[] generated = { 0 };
-            FixtureUtils.forEachFixtureEntry(AbstractExternalSourceSpecTestCase.class, (relativePath, content) -> {
-                String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
-                if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false) {
-                    return;
-                }
-                String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";
+            FixtureUtils.forEachFixtureEntryMergingAllClasspathRoots(
+                AbstractExternalSourceSpecTestCase.class.getClassLoader(),
+                (relativePath, content) -> {
+                    String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
+                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false) {
+                        return;
+                    }
+                    String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";
 
-                for (String suffix : COMPRESSED_EXTENSIONS) {
-                    byte[] compressed = FixtureUtils.compress(content, suffix);
-                    String compressedName = fileName + suffix;
-                    String key = WAREHOUSE + "/" + (relativeDir.isEmpty() ? compressedName : relativeDir + "/" + compressedName);
+                    for (String suffix : COMPRESSED_EXTENSIONS) {
+                        byte[] compressed = FixtureUtils.compress(content, suffix);
+                        String compressedName = fileName + suffix;
+                        String key = WAREHOUSE + "/" + (relativeDir.isEmpty() ? compressedName : relativeDir + "/" + compressedName);
 
-                    S3FixtureUtils.addBlobToFixture(s3Fixture.getHandler(), key, compressed);
-                    GcsFixtureUtils.addBlobToFixture(gcsFixture.getHandler(), key, compressed);
-                    AzureFixtureUtils.addBlobToFixture(azureFixture.getAddress(), key, compressed);
-                    generated[0]++;
+                        S3FixtureUtils.addBlobToFixture(s3Fixture.getHandler(), key, compressed);
+                        GcsFixtureUtils.addBlobToFixture(gcsFixture.getHandler(), key, compressed);
+                        AzureFixtureUtils.addBlobToFixture(azureFixture.getAddress(), key, compressed);
+                        generated[0]++;
+                    }
                 }
-            });
+            );
             logger.info("Generated {} compressed fixture variants", generated[0]);
         } catch (Exception e) {
             logger.error("Failed to generate compressed fixtures", e);

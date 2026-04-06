@@ -10,7 +10,6 @@ apply plugin: 'elasticsearch.publish'
 
 versions << [
   'hadoop' : '3.4.3',
-  'orc'    : '2.3.0',
 ]
 
 esplugin {
@@ -53,10 +52,10 @@ dependencies {
 
   // Hadoop dependencies - required because ORC's Reader API uses Hadoop Configuration,
   // Path, and FileSystem in its public interfaces.
-  implementation('org.apache.hadoop:hadoop-client-api:3.4.3') {
+  implementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") {
     exclude group: 'org.slf4j', module: 'slf4j-api'
   }
-  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.3') {
+  implementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}") {
     exclude group: 'org.slf4j', module: 'slf4j-api'
   }
 

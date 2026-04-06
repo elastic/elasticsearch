@@ -34,7 +34,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.index.IndexSettings.ALLOW_LARGE_BINARY_BLOCK_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -70,7 +69,7 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_tsid", "_ts_routing_hash");
         assertDocValuesFormat(
             indexName,
-            ES819TSDBDocValuesFormatFactory.ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
+            ES819TSDBDocValuesFormatFactory.ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_AND_BINARY_BLOCK,
             expectedFields
         );
         var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
@@ -113,7 +112,7 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_tsid", "_ts_routing_hash");
         assertDocValuesFormat(
             indexName,
-            ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
+            ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_AND_BINARY_BLOCK,
             expectedFields
         );
         var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
@@ -132,11 +131,14 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
         indexDocuments(indexName);
 
         Set<String> expectedFields = Set.of("@timestamp", "hostname", "gauge", "_seq_no");
-        assertDocValuesFormat(indexName, ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT, expectedFields);
+        assertDocValuesFormat(
+            indexName,
+            ES819TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK,
+            expectedFields
+        );
     }
 
     public void testTimeSeriesDocValuesFormatLargeBinaryBlockSize() throws Exception {
-        assumeTrue("requires feature flag enabled", ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled());
         String indexName = "standard-larger-binary-db-block-size-dv-test";
         Settings settings = Settings.builder()
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)

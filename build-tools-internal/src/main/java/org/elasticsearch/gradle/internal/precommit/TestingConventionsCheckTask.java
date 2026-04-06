@@ -10,12 +10,17 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.EmptyFileVisitor;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.FileVisitDetails;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.ProblemReporter;
+import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
@@ -101,6 +106,9 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         @Inject
         public TestingConventionsCheckWorkAction() {}
 
+        @Inject
+        public abstract Problems getProblems();
+
         @Override
         public void execute() {
             ClassLoadingFileVisitor fileVisitor = new ClassLoadingFileVisitor();
@@ -132,6 +140,19 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 .filter(TestingConventionsCheckWorkAction::seemsLikeATest)
                 .toList();
             if (mismatchingBaseClasses.isEmpty() == false) {
+                ProblemReporter reporter = getProblems().getReporter();
+                for (Class<?> clazz : mismatchingBaseClasses) {
+                    reporter.report(
+                        ProblemId.create(
+                            "missing-base-class",
+                            "Testing convention violation",
+                            ElasticsearchBuildProblems.TESTING_CONVENTIONS
+                        ),
+                        spec -> spec.contextualLabel(clazz.getName())
+                            .severity(Severity.ERROR)
+                            .solution("Make the test class extend a supported base class")
+                    );
+                }
                 throw new GradleException(
                     "Following test classes do not extend any supported base class:\n\t"
                         + mismatchingBaseClasses.stream().map(c -> c.getName()).collect(Collectors.joining("\n\t"))
@@ -140,11 +161,19 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         }
 
         private void assertMatchesSuffix(List<String> suffixes, List<Class> matchingBaseClass) {
-            // ensure base class matching do match suffix
             var matchingBaseClassNotMatchingSuffix = matchingBaseClass.stream()
                 .filter(c -> suffixes.stream().allMatch(s -> c.getName().endsWith(s) == false))
                 .toList();
             if (matchingBaseClassNotMatchingSuffix.isEmpty() == false) {
+                ProblemReporter reporter = getProblems().getReporter();
+                for (Class<?> clazz : matchingBaseClassNotMatchingSuffix) {
+                    reporter.report(
+                        ProblemId.create("invalid-suffix", "Testing convention violation", ElasticsearchBuildProblems.TESTING_CONVENTIONS),
+                        spec -> spec.contextualLabel(clazz.getName())
+                            .severity(Severity.ERROR)
+                            .solution("Rename the test class to use the correct suffix")
+                    );
+                }
                 throw new GradleException(
                     "Following test classes do not match naming convention to use suffix "
                         + suffixes.stream().map(s -> "'" + s + "'").collect(Collectors.joining(" or "))

@@ -2431,6 +2431,10 @@ public class EsqlCapabilities {
          */
         USER_AGENT_COMMAND,
 
+        /**
+         * Fix full-text functions being rejected after SAMPLE.
+         */
+        FIX_SAMPLE_AFTER_KQL_OR_QSTR,
         KEYWORDS_MV_COUNT_AS_SINGLE_VALUE_FIX,
 
         /**

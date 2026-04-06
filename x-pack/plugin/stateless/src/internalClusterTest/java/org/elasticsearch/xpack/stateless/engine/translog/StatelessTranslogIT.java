@@ -17,6 +17,7 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -694,7 +695,15 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
             }
             case LOCAL_FAIL_SHARD -> {
                 IndexShard indexShard = findIndexShard(resolveIndex(indexName), randomFrom(0, 1, 2, 3));
-                indexShard.failShard("broken", new Exception("boom local"));
+                logger.info("inducing local fail for shard: {}", indexShard);
+                try {
+                    indexShard.failShard("broken", new Exception("boom local"));
+                    logger.info("successfully induced shard {} to fail locally", indexShard);
+                } catch (AlreadyClosedException e) {
+                    // shards might sometimes be in the process of relocating due to rebalancing caused by other induced failures,
+                    // such as {@link ISOLATED_INDEXING_NODE}
+                    logger.info(() -> Strings.format("shard engine {} already closed, ignoring", indexShard), e);
+                }
             }
             case REMOTE_FAIL_SHARD -> {
                 IndexShard indexShard = findIndexShard(resolveIndex(indexName), randomFrom(0, 1, 2, 3));

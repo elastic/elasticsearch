@@ -8,4 +8,4 @@ highlight:
   notable: true
   body: |-
     We're introducing a Prometheus-compatible `GET /_prometheus/api/v1/series` REST entrypoint that accepts Prometheus
-    series selectors and returns matching label sets. This is typically used for auto-completion in web UIs.
+    series selectors and returns matching label sets (Tech Preview). This is typically used for auto-completion in web UIs.

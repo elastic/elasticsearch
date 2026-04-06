@@ -1,0 +1,5 @@
+area: Compute Engine
+issues: []
+pr: 145510
+summary: Rewrite SUM(X+c) to SUM(X) + c*COUNT(X)
+type: enhancement

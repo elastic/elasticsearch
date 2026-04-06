@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.memory.HeapMemoryUsage;
 import org.elasticsearch.xpack.stateless.memory.PublishHeapMemoryMetricsRequest;
 import org.elasticsearch.xpack.stateless.memory.ShardMappingSize;
+import org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 import org.elasticsearch.xpack.stateless.memory.TransportPublishHeapMemoryMetrics;
 
@@ -74,7 +75,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(
             // Set up fast publishing of new memory metrics, so the tests can run fast.
-            "serverless.autoscaling.memory_metrics.indices_mapping_size.publication.frequency",
+            ShardsMappingSizeCollector.PUBLISHING_FREQUENCY_SETTING.getKey(),
             TimeValue.timeValueMillis(10)
         )
             .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)

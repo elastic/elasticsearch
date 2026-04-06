@@ -1683,7 +1683,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final DataType dataType = resolved.dataType();
                     String matchType = enrich.policy().getType();
                     DataType[] allowed = allowedEnrichTypes(matchType);
-                    if (Arrays.asList(allowed).contains(dataType) == false) {
+                    if (dataType != DataType.NULL && Arrays.asList(allowed).contains(dataType) == false) {
                         String suffix = "only ["
                             + Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", "))
                             + "] allowed for type ["

@@ -2438,6 +2438,12 @@ public class EsqlCapabilities {
          */
         PARQUET_ORC_STARTS_WITH_PUSHDOWN,
 
+        /**
+         * Fix for LOOKUP JOIN and ENRICH failing when the match field has NULL type from unmapped field nullification.
+         * See https://github.com/elastic/elasticsearch/issues/141827
+         */
+        FIX_NULL_MATCH_FIELD_IN_JOIN_AND_ENRICH,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

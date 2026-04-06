@@ -225,10 +225,10 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var indexRoutingWith4Shards = IndexRouting.fromIndexMetadata(indexMetadataWith4Shards);
 
         // Find 4 document IDs that would route to each of the 4 shards if the index had 4 shards
-        final var doc0Id = makeRoutingValueForShard(indexRoutingWith4Shards, 0);
-        final var doc1Id = makeRoutingValueForShard(indexRoutingWith4Shards, 1);
-        final var doc2Id = makeRoutingValueForShard(indexRoutingWith4Shards, 2);
-        final var doc3Id = makeRoutingValueForShard(indexRoutingWith4Shards, 3);
+        final var doc0Id = makeIdThatRoutesToShard(indexRoutingWith4Shards, 0);
+        final var doc1Id = makeIdThatRoutesToShard(indexRoutingWith4Shards, 1);
+        final var doc2Id = makeIdThatRoutesToShard(indexRoutingWith4Shards, 2);
+        final var doc3Id = makeIdThatRoutesToShard(indexRoutingWith4Shards, 3);
 
         // Index the four documents with initial values
         indexDoc(indexName, doc0Id, "field", "value0");
@@ -1492,10 +1492,10 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         // We'll set up two gets before resharding, so that they route as if there is only 1 shard.
         // this document should be found by get after resharding, on the original shard
-        final var shard0docId = makeRoutingValueForShard(indexRoutingPostSplit, 0);
+        final var shard0docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 0);
         // this document should be found by get after resharding, on the original shard until delete-unowned runs,
         // after which it should raise an error because the get is stale
-        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        final var shard1docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 1);
         indexDoc(indexName, shard0docId, "field", "shard0");
         indexDoc(indexName, shard1docId, "field", "shard1");
 
@@ -1576,9 +1576,9 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
 
         // this document should be found by multiget after resharding, on the original shard
-        final var shard0docId = makeRoutingValueForShard(indexRoutingPostSplit, 0);
+        final var shard0docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 0);
         // this document should fail in multiget after resharding because the request is stale
-        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        final var shard1docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 1);
         indexDoc(indexName, shard0docId, "field", "shard0");
         indexDoc(indexName, shard1docId, "field", "shard1");
 
@@ -1639,13 +1639,14 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         response = mgetResponse.get();
         assertThat(response.getResponses().length, equalTo(2));
 
-        // Document on shard 0 should succeed
+        // This mget request is too stale to be served since its summary is not current
+        // and there is no ongoing split.
+        // This is the best result we can get now since we don't resplit/retry mgets.
+        // This should be updated once that is implemented similar to `testGet()` above.
         MultiGetItemResponse item0 = response.getResponses()[0];
-        assertThat("Document on source shard should succeed", item0.isFailed(), is(false));
-        assertThat(item0.getResponse().isExists(), is(true));
-        assertThat(item0.getResponse().getSource().get("field"), equalTo("shard0"));
+        assertThat("Document on source shard should fail", item0.isFailed(), is(true));
+        assertThat(item0.getFailure().getFailure(), instanceOf(StaleRequestException.class));
 
-        // Document on shard 1 should still be returned since this is a non-realtime get
         MultiGetItemResponse item1 = response.getResponses()[1];
         assertThat("Document on target shard should fail", item1.isFailed(), is(true));
         assertThat(item1.getFailure().getFailure(), instanceOf(StaleRequestException.class));
@@ -1673,7 +1674,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // prep realtime get but block until after resharding reaches split so that
         // it routes to the old shard
         // update doc and verify get returns the latest version
-        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        final var shard1docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 1);
         indexDoc(indexName, shard1docId, "field", "shard1_v0");
 
         var response = client().prepareGet(indexName, shard1docId).setRealtime(true).execute().actionGet();
@@ -1759,8 +1760,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         // prep realtime multiget but block until after resharding reaches split so that
         // it routes to the old shard
-        final var shard0docId = makeRoutingValueForShard(indexRoutingPostSplit, 0);
-        final var shard1docId = makeRoutingValueForShard(indexRoutingPostSplit, 1);
+        final var shard0docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 0);
+        final var shard1docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 1);
         indexDoc(indexName, shard0docId, "field", "shard0_v0");
         indexDoc(indexName, shard1docId, "field", "shard1_v0");
 
@@ -3719,7 +3720,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     /**
-     * Generate a string that if used as id or routing value will route to the given shardId of indexRouting.
+     * Generate a string that if used as a routing value will route to the given shardId of indexRouting.
      */
     private String makeRoutingValueForShard(IndexRouting indexRouting, int shardId) {
         while (true) {
@@ -3727,6 +3728,16 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             int routedShard = indexRouting.indexShard(new IndexRequest().id("dummy").routing(routingValue));
             if (routedShard == shardId) {
                 return routingValue;
+            }
+        }
+    }
+
+    private String makeIdThatRoutesToShard(IndexRouting indexRouting, int shardId) {
+        while (true) {
+            String documentId = randomAlphaOfLength(5);
+            int routedShard = indexRouting.indexShard(new IndexRequest().id(documentId).routing(null));
+            if (routedShard == shardId) {
+                return documentId;
             }
         }
     }

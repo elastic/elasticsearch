@@ -1,8 +1,8 @@
 dateRange
 required_capability: range_within
-FROM decades;
+FROM decades
+| SORT decade;
 
-ignoreOrder:true
 date_range:date_range  | decade:integer | description:keyword
 1900-01-01..1910-01-01 | 1900           | Edwardian Era
 1910-01-01..1920-01-01 | 1910           | Ragtime Era

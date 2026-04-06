@@ -88,7 +88,7 @@ for which it behaves as a `double` by delegating its behavior:
 ### ES|QL [aggregate-metric-double-esql]
 
 In [ES|QL](/reference/query-languages/esql.md), we designed `aggregate_metric_double` fields
-for use with the [time series aggregations](reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
+for use with the [time series aggregations](reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-time-series-aggregation-functions)
 either natively using one of the sub-fields or by delegating to the average using the `sum` and `value_count` metrics.
 
 ## Examples [aggregate-metric-double-example]

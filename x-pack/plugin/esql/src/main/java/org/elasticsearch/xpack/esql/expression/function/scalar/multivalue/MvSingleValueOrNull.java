@@ -31,8 +31,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * Internal optimizer function that returns a field's value if it is single-valued, or null if it is multi-valued.
  * <p>
  * This is not a user-visible function; it is injected by the query planner to enable rewrites such as:
- * {@code SUM(field + c) → SUM(SINGLE_VALUE_OR_NULL(field)) + c * COUNT(SINGLE_VALUE_OR_NULL(field))}
- * which allows multiple {@code SUM(field + c_i)} expressions to share a single SUM and COUNT computation.
+ * {@code SUM(field + c) → SUM(SINGLE_VALUE_OR_NULL(field)) + c * COUNT(SINGLE_VALUE_OR_NULL(field))}.
  * </p>
  */
 public class MvSingleValueOrNull extends AbstractMultivalueFunction {

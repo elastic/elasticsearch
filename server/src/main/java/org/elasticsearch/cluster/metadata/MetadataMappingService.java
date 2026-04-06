@@ -314,7 +314,11 @@ public class MetadataMappingService {
                     new ActionListener<>() {
                         @Override
                         public void onResponse(AwaitClusterStateVersionAppliedResponse awaitResponse) {
-                            logger.info("--> mapping update completed apply of state {}, failures={}", clusterState.version(), awaitResponse.hasFailures());
+                            logger.info(
+                                "--> mapping update completed apply of state {}, failures={}",
+                                clusterState.version(),
+                                awaitResponse.hasFailures()
+                            );
                             l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.failures().isEmpty()));
                         }
 

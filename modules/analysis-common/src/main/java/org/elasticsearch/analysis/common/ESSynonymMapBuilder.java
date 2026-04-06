@@ -79,7 +79,8 @@ class ESSynonymMapBuilder {
             circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
         }
 
-        // Lucene asserts no holes here. We're skipping that.
+        assert !hasHoles(input) : "input has holes: " + input;
+        assert !hasHoles(output) : "output has holes: " + output;
 
         utf8Scratch.copyChars(output.chars, output.offset, output.length);
         int ord = words.add(utf8Scratch.get());
@@ -170,6 +171,22 @@ class ESSynonymMapBuilder {
 
         FST<BytesRef> fst = FST.fromFSTReader(fstCompiler.compile(), fstCompiler.getFSTReader());
         return new SynonymMap(fst, words, maxHorizontalContext);
+    }
+
+    private static boolean hasHoles(CharsRef chars) {
+        final int end = chars.offset + chars.length;
+        for (int idx = chars.offset + 1; idx < end; idx++) {
+            if (chars.chars[idx] == SynonymMap.WORD_SEPARATOR && chars.chars[idx - 1] == SynonymMap.WORD_SEPARATOR) {
+                return true;
+            }
+        }
+        if (chars.chars[chars.offset] == SynonymMap.WORD_SEPARATOR) {
+            return true;
+        }
+        if (chars.chars[chars.offset + chars.length - 1] == SynonymMap.WORD_SEPARATOR) {
+            return true;
+        }
+        return false;
     }
 
     private static int countWords(CharsRef chars) {

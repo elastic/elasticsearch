@@ -217,7 +217,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     // If the "close_job" parameter was set to "true" on the stop datafeed request we attempt to first close the
                     // jobs associated with the datafeeds. This will in turn attempt to stop the jobs' datafeeds (this time with the
                     // "close_job" flag set to false, to avoid recursion)
-                    if (request.closeJob()) {
+                    if (Boolean.TRUE.equals(request.closeJob())) {
                         List<String> jobIds = getJobIdsFromDatafeedIds(
                             request.isForce() ? notStoppedDatafeeds : startedDatafeeds,
                             tasks,

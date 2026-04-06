@@ -152,7 +152,9 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
         for (String index : List.of("index-1", "index-2", "index-1,index-2")) {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.query("TS " + index + " | METRICS_INFO");
-            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+            if (canUseQueryPragmas()) {
+                request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+            }
             try (var resp = run(request)) {
                 List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
                 assertThat(rows, not(empty()));
@@ -164,7 +166,9 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
         for (String index : List.of("index-1", "index-2", "index-1,index-2")) {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.query("TS " + index + " | TS_INFO");
-            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+            if (canUseQueryPragmas()) {
+                request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+            }
             try (var resp = run(request)) {
                 List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
                 assertThat(rows, not(empty()));

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;

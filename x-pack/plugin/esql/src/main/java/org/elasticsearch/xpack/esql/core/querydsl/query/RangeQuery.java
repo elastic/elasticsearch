@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,10 +23,9 @@ public class RangeQuery extends Query {
     private final boolean includeLower, includeUpper;
     private final String format;
     private final ZoneId zoneId;
-    private final ShapeRelation relation;
 
     public RangeQuery(Source source, String field, Object lower, boolean includeLower, Object upper, boolean includeUpper, ZoneId zoneId) {
-        this(source, field, lower, includeLower, upper, includeUpper, null, zoneId, null);
+        this(source, field, lower, includeLower, upper, includeUpper, null, zoneId);
     }
 
     public RangeQuery(
@@ -40,20 +38,6 @@ public class RangeQuery extends Query {
         String format,
         ZoneId zoneId
     ) {
-        this(source, field, lower, includeLower, upper, includeUpper, format, zoneId, null);
-    }
-
-    public RangeQuery(
-        Source source,
-        String field,
-        Object lower,
-        boolean includeLower,
-        Object upper,
-        boolean includeUpper,
-        String format,
-        ZoneId zoneId,
-        ShapeRelation relation
-    ) {
         super(source);
         this.field = field;
         this.lower = lower;
@@ -62,7 +46,6 @@ public class RangeQuery extends Query {
         this.includeUpper = includeUpper;
         this.format = format;
         this.zoneId = zoneId;
-        this.relation = relation;
     }
 
     public String field() {
@@ -93,10 +76,6 @@ public class RangeQuery extends Query {
         return zoneId;
     }
 
-    public ShapeRelation relation() {
-        return relation;
-    }
-
     @Override
     protected QueryBuilder asBuilder() {
         RangeQueryBuilder queryBuilder = rangeQuery(field).from(lower, includeLower).to(upper, includeUpper);
@@ -106,16 +85,13 @@ public class RangeQuery extends Query {
         if (zoneId != null) {
             queryBuilder.timeZone(zoneId.getId());
         }
-        if (relation != null) {
-            queryBuilder.relation(relation.getRelationName());
-        }
 
         return queryBuilder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, lower, upper, includeLower, includeUpper, format, zoneId, relation);
+        return Objects.hash(field, lower, upper, includeLower, includeUpper, format, zoneId);
     }
 
     @Override
@@ -135,15 +111,12 @@ public class RangeQuery extends Query {
             && Objects.equals(lower, other.lower)
             && Objects.equals(upper, other.upper)
             && Objects.equals(format, other.format)
-            && Objects.equals(zoneId, other.zoneId)
-            && Objects.equals(relation, other.relation);
+            && Objects.equals(zoneId, other.zoneId);
     }
 
     @Override
     protected String innerToString() {
-        String zoneStr = zoneId != null ? "@" + zoneId.getId() : "";
-        String relationStr = relation != null ? ", relation=" + relation.getRelationName() : "";
-        return field + ":" + (includeLower ? "[" : "(") + lower + ", " + upper + (includeUpper ? "]" : ")") + zoneStr + relationStr;
+        return field + ":" + (includeLower ? "[" : "(") + lower + ", " + upper + (includeUpper ? "]" : ")") + "@" + zoneId.getId();
     }
 
     @Override

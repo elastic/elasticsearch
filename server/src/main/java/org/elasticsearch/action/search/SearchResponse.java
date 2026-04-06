@@ -42,6 +42,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
@@ -90,6 +91,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // only used for telemetry purposes on the coordinating node, where the search response gets created
     private transient Long timeRangeFilterFromMillis;
 
+    // SearchHits from top_hits aggs to release when this response is released.
+    private final List<SearchHits> topHitsToRelease;
+
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public SearchResponse(StreamInput in) throws IOException {
@@ -100,8 +104,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.aggregations = InternalAggregations.readFrom(
                 DelayableWriteable.wrapWithDeduplicatorStreamInput(in, in.getTransportVersion(), in.namedWriteableRegistry())
             );
+            this.topHitsToRelease = collectTopHitsFromAggregations(this.aggregations, false);
         } else {
             this.aggregations = null;
+            this.topHitsToRelease = List.of();
         }
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
         this.timedOut = in.readBoolean();
@@ -157,6 +163,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillis,
             shardFailures,
             clusters,
+            null,
             null
         );
     }
@@ -187,7 +194,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillis,
             shardFailures,
             clusters,
-            pointInTimeId
+            pointInTimeId,
+            searchResponseSections.transferTopHitsToRelease()
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
     }
@@ -207,11 +215,19 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
-        BytesReference pointInTimeId
+        BytesReference pointInTimeId,
+        @Nullable List<SearchHits> topHitsToRelease
     ) {
         this.hits = hits;
         hits.incRef();
         this.aggregations = aggregations;
+        if (topHitsToRelease != null) {
+            this.topHitsToRelease = topHitsToRelease;
+        } else if (aggregations != null) {
+            this.topHitsToRelease = collectTopHitsFromAggregations(aggregations, true);
+        } else {
+            this.topHitsToRelease = List.of();
+        }
         this.suggest = suggest;
         this.profileResults = profileResults;
         this.timedOut = timedOut;
@@ -230,6 +246,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
+    private static List<SearchHits> collectTopHitsFromAggregations(InternalAggregations aggs, boolean incRef) {
+        if (aggs == null) {
+            return Collections.emptyList();
+        }
+        List<SearchHits> out = new ArrayList<>();
+        InternalAggregations.addTopHitsToReleaseList(aggs, out, incRef);
+        return out;
+    }
+
     @Override
     public void incRef() {
         refCounted.incRef();
@@ -243,6 +268,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public boolean decRef() {
         if (refCounted.decRef()) {
+            for (SearchHits h : topHitsToRelease) {
+                h.decRef();
+            }
             hits.decRef();
             return true;
         }
@@ -1227,6 +1255,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillisSupplier.get(),
             ShardSearchFailure.EMPTY_ARRAY,
             clusters,
+            null,
             null
         );
     }

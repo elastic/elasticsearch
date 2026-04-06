@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
 
 /**
@@ -149,6 +148,14 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Returns the aggregate pushdown support for this format.
+     * Only format readers with column statistics in their metadata (Parquet, ORC) override this.
+     */
+    default AggregatePushdownSupport aggregatePushdownSupport() {
+        return AggregatePushdownSupport.UNSUPPORTED;
+    }
+
+    /**
      * Returns a format reader configured with the schema attributes.
      * <p>
      * The schema is determined during the planning phase (via {@link #metadata(StorageObject)})
@@ -183,65 +190,4 @@ public interface FormatReader extends Closeable {
         return false;
     }
 
-    /**
-     * Iterator wrapper that stops yielding pages once a cumulative row budget is exhausted.
-     * Closes the delegate iterator when the budget is met or when explicitly closed.
-     * When the last page would overshoot the budget, it is trimmed to the exact remaining count.
-     */
-    class LimitingIterator implements CloseableIterator<Page> {
-        private final CloseableIterator<Page> delegate;
-        private int remaining;
-
-        public LimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
-            if (rowLimit <= 0) {
-                throw new IllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
-            }
-            this.delegate = delegate;
-            this.remaining = rowLimit;
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (remaining <= 0) {
-                return false;
-            }
-            return delegate.hasNext();
-        }
-
-        @Override
-        public Page next() {
-            if (hasNext() == false) {
-                throw new NoSuchElementException();
-            }
-            Page page = delegate.next();
-            int rows = page.getPositionCount();
-            if (rows > remaining) {
-                page = truncate(page, remaining);
-                remaining = 0;
-            } else {
-                remaining -= rows;
-            }
-            if (remaining <= 0) {
-                try {
-                    delegate.close();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            return page;
-        }
-
-        @Override
-        public void close() throws IOException {
-            delegate.close();
-        }
-
-        private static Page truncate(Page page, int upTo) {
-            int[] positions = new int[upTo];
-            for (int i = 0; i < upTo; i++) {
-                positions[i] = i;
-            }
-            return page.filter(false, positions);
-        }
-    }
 }

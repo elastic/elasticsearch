@@ -46,7 +46,7 @@ public class CrossProjectIndexExpressionsRewriter {
      * @param allProjectAliases the list of all project aliases (linked and origin) consider for a request
      * @param projectRouting the project routing that was applied to determine the origin and linked projects.
      *                       {@code null} if no project routing was applied.
-     * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
+     * @throws InvalidIndexNameException if exclusions are applied to both the project and the index expression
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
     public static IndexRewriteResult rewriteIndexExpression(
@@ -148,7 +148,7 @@ public class CrossProjectIndexExpressionsRewriter {
             throw new InvalidIndexNameException(resource, "index expression cannot contain project qualifiers (no cross-project chaining)");
         }
         if (isExclusion && isExclusionExpression(indexExpression)) {
-            throw new IllegalArgumentException("Cannot apply exclusion for both the project and the index expression [" + resource + "]");
+            throw new InvalidIndexNameException(resource, "cannot apply exclusion for both the project and the index expression");
         }
 
         List<String> allProjectsMatchingAlias = resolveProjectAliases(

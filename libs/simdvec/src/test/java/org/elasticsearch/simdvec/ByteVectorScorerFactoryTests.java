@@ -19,6 +19,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -199,6 +200,14 @@ public class ByteVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    public void testScorerWithSNAP() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        try (var dir = SearchableSnapshotDirectoryFactory.newDirectory(createTempDir("testScorerWithSNAP"))) {
+            testScorerImpl(dir);
+        }
+    }
+
     private void testScorerImpl(Directory dir) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
         final int dims = randomIntBetween(1, 4096);
@@ -247,6 +256,14 @@ public class ByteVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    public void testScorerBulkWithSNAP() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        try (var dir = SearchableSnapshotDirectoryFactory.newDirectory(createTempDir("testScorerBulkWithSNAP"))) {
+            testScorerBulkImpl(dir);
+        }
+    }
+
     private void testScorerBulkImpl(Directory dir) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
         final int dims = randomIntBetween(64, 4096);
@@ -282,6 +299,36 @@ public class ByteVectorScorerFactoryTests extends AbstractVectorTestCase {
                         // assert single scoring returns the same expected score as bulk
                         assertThat(sim.toString(), (double) scorer.score(nodes[i]), closeTo(expected[i], expectedDelta));
                     }
+                }
+            }
+        }
+    }
+
+    // Verifies that bulkScore with zero nodes returns NEGATIVE_INFINITY without throwing,
+    // as Lucene's exactSearch path can call bulkScore with an empty batch when filters exclude all docs.
+    public void testScorerBulkWithZeroNodes() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        var factory = AbstractVectorTestCase.factory.get();
+        final int dims = randomIntBetween(64, 4096);
+        final int size = randomIntBetween(2, 100);
+        final byte[] queryVector = randomByteArrayOfLength(dims);
+
+        try (var dir = new MMapDirectory(createTempDir("testScorerBulkWithZeroNodes"))) {
+            String fileName = "testScorerBulkWithZeroNodes-" + dims;
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                for (int i = 0; i < size; i++) {
+                    byte[] vec = randomByteArrayOfLength(dims);
+                    out.writeBytes(vec, vec.length);
+                }
+                CodecUtil.writeFooter(out);
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, COSINE, MAXIMUM_INNER_PRODUCT)) {
+                    var values = vectorValues(dims, size, in, sim.function());
+                    var scorer = factory.getByteVectorScorer(sim.function(), values, queryVector).get();
+                    float result = scorer.bulkScore(new int[0], new float[0], 0);
+                    assertEquals(Float.NEGATIVE_INFINITY, result, 0f);
                 }
             }
         }

@@ -21,7 +21,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -89,7 +88,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("view_dls_nested_view_user", "x-pack-test-password", "view_dls_nested_view_user", false)
         .user("view_fls_user", "x-pack-test-password", "view_fls_user", false)
         .user("view_dls_fls_user", "x-pack-test-password", "view_dls_fls_user", false)
-        .feature(FeatureFlag.ESQL_VIEWS)
         .build();
 
     @Override

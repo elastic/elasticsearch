@@ -11,6 +11,8 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -24,6 +26,8 @@ import java.util.Optional;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -226,6 +230,50 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         final BulkByScrollResponse response = future.actionGet();
         // should be a normal merged response, no ResumeInfo
         assertFalse(response.getTaskResumeInfo().isPresent());
+    }
+
+    /**
+     * When slices complete with different PIT IDs, the merged response uses the PIT ID from the last-completing slice.
+     */
+    public void testMergedResponseUsesLatestPitIdFromLastCompletingSlice() {
+        final int sliceCount = 3;
+        final var leaderTask = createLeaderTask(sliceCount);
+        final var leaderState = leaderTask.getLeaderState();
+
+        final BytesReference pitIdSlice0 = new BytesArray("pit-slice-0");
+        final BytesReference pitIdSlice1 = new BytesArray("pit-slice-1");
+        final BytesReference pitIdSlice2 = new BytesArray("pit-slice-2");
+
+        // Complete slices in reverse order so slice 2 completes last — its pitId should be used
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        leaderState.onSliceResponse(neverCalled(), 0, completedSliceResponseWithPitId(0, pitIdSlice0));
+        leaderState.onSliceResponse(neverCalled(), 1, completedSliceResponseWithPitId(1, pitIdSlice1));
+        leaderState.onSliceResponse(future, 2, completedSliceResponseWithPitId(2, pitIdSlice2));
+
+        assertTrue(future.isDone());
+        final BulkByScrollResponse response = future.actionGet();
+        assertTrue(response.getPitId().isPresent());
+        assertThat(response.getPitId().get(), equalTo(pitIdSlice2));
+    }
+
+    private static BulkByScrollTask createLeaderTask(final int sliceCount) {
+        final BulkByScrollTask task = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            false,
+            randomBoolean() ? null : randomOrigin()
+        );
+        task.setWorkerCount(sliceCount);
+        return task;
+    }
+
+    private static BulkByScrollResponse completedSliceResponseWithPitId(final int sliceId, BytesReference pitId) {
+        final var sliceStatus = statusForSlice(sliceId);
+        return new BulkByScrollResponse(randomTimeValue(), sliceStatus, List.of(), List.of(), false, null, pitId);
     }
 
     public void testRelocationMixedFailuresAndResumeInfo() {

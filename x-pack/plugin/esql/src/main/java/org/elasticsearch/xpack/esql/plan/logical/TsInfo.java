@@ -101,7 +101,7 @@ public class TsInfo extends UnaryPlan implements TelemetryAware, PostAnalysisVer
 
     @Override
     protected AttributeSet computeReferences() {
-        return AttributeSet.EMPTY;
+        return child().outputSet();
     }
 
     @Override

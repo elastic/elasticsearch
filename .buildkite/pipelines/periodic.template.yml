@@ -274,8 +274,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
 
       - label: third-party / azure
@@ -290,8 +290,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
 
       - label: third-party / gcs
@@ -306,8 +306,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
 
       - label: third-party / geoip
@@ -317,8 +317,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
 
       - label: third-party / s3
@@ -333,8 +333,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
 
       - label: third-party / ms-graph
@@ -346,8 +346,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
+          machineType: e2-standard-8
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
 
   - group: lucene-compat
@@ -380,8 +380,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n4-standard-8
-      diskType: hyperdisk-balanced
+      machineType: e2-standard-8
+      diskType: pd-ssd
       buildDirectory: /dev/shm/bk
     if: build.branch =~ /^(main|\d+\.\d+|\d+\.x)$$/
 
@@ -391,8 +391,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n4-standard-2
-      diskType: hyperdisk-balanced
+      machineType: e2-standard-2
+      diskType: pd-ssd
 
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh

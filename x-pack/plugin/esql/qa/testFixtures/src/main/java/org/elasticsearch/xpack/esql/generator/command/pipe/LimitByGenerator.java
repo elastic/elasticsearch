@@ -103,7 +103,15 @@ public class LimitByGenerator implements CommandGenerator {
                 }
             }
             if (idx == -1) {
-                return VALIDATION_OK;
+                return new ValidationResult(
+                    false,
+                    "LIMIT "
+                        + limit
+                        + " BY: grouping column ["
+                        + rawName
+                        + "] was not found in the output schema. Available columns: "
+                        + columns.stream().map(Column::name).toList()
+                );
             }
             groupingIndices.add(idx);
         }

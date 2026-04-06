@@ -35,6 +35,18 @@ public final class FullTextFunctionGenerator {
 
     private static final Set<String> QSTR_KQL_SAFE_COMMANDS = Set.of("from", "where", "sort");
 
+    /**
+     * Commands after which full-text expressions (match, qstr, kql, etc.) are not allowed.
+     */
+    private static final Set<String> FULL_TEXT_FORBIDDEN_AFTER_COMMANDS = Set.of(
+        LimitGenerator.LIMIT,
+        LimitByGenerator.LIMIT_BY,
+        StatsGenerator.STATS,
+        InlineStatsGenerator.INLINE_STATS,
+        ChangePointGenerator.CHANGE_POINT,
+        MvExpandGenerator.MV_EXPAND
+    );
+
     private static boolean isFullTextAllowed(List<CommandGenerator.CommandDescription> previousCommands) {
         if (previousCommands == null || previousCommands.isEmpty()) {
             return false;
@@ -43,14 +55,7 @@ public final class FullTextFunctionGenerator {
             return false;
         }
         for (CommandGenerator.CommandDescription cmd : previousCommands) {
-            if (Set.of(
-                LimitGenerator.LIMIT,
-                LimitByGenerator.LIMIT_BY,
-                StatsGenerator.STATS,
-                InlineStatsGenerator.INLINE_STATS,
-                ChangePointGenerator.CHANGE_POINT,
-                MvExpandGenerator.MV_EXPAND
-            ).contains(cmd.commandName())) {
+            if (FULL_TEXT_FORBIDDEN_AFTER_COMMANDS.contains(cmd.commandName())) {
                 return false;
             }
         }

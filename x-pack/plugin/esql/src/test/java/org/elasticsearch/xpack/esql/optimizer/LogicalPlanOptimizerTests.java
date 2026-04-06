@@ -5017,6 +5017,66 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(mul2.left().fold(FoldContext.small()), equalTo(2));
     }
 
+    /**
+     * Verifies that even a single {@code SUM(field + c)} is rewritten into SUM/COUNT on
+     * the raw field, enabling downstream pushdowns (e.g. COUNT via Weight.count()).
+     */
+    public void testSingleSumOfFieldPlusConstant() {
+        var plan = plan("""
+            from test
+            | stats s = sum(emp_no + 1)
+            """, new TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+
+        assertThat(agg.aggregates(), hasSize(2));
+        as(as(agg.aggregates().get(0), Alias.class).child(), Sum.class);
+        as(as(agg.aggregates().get(1), Alias.class).child(), Count.class);
+
+        assertThat(eval.fields(), hasSize(1));
+        var s = as(eval.fields().get(0), Alias.class);
+        assertThat(s.name(), equalTo("s"));
+        as(s.child(), Add.class);
+    }
+
+    /**
+     * Verifies that {@code SUM(field + c)} and {@code SUM(field - c)} over the same field
+     * are rewritten into a shared SUM/COUNT pair with the subtraction preserved in the eval.
+     */
+    public void testSumOfFieldPlusAndMinusConstant() {
+        var plan = plan("""
+            from test
+            | stats s1 = sum(emp_no + 1), s2 = sum(emp_no - 2)
+            """, new TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var project = as(limit.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+
+        assertThat(agg.aggregates(), hasSize(2));
+        var svSumAlias = as(agg.aggregates().get(0), Alias.class);
+        as(svSumAlias.child(), Sum.class);
+        var svCountAlias = as(agg.aggregates().get(1), Alias.class);
+        as(svCountAlias.child(), Count.class);
+
+        var fields = eval.fields();
+        assertThat(fields, hasSize(2));
+
+        // s1 = sv_sum + 1 * sv_count (Add)
+        var s1 = as(fields.get(0), Alias.class);
+        assertThat(s1.name(), equalTo("s1"));
+        as(s1.child(), Add.class);
+
+        // s2 = sv_sum - 2 * sv_count (Sub)
+        var s2 = as(fields.get(1), Alias.class);
+        assertThat(s2.name(), equalTo("s2"));
+        as(s2.child(), Sub.class);
+    }
+
     private record AggOfLiteralTestCase(
         String aggFunctionTemplate,
         Function<Expression, Expression> replacementForConstant,

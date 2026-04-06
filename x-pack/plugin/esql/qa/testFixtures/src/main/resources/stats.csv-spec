@@ -4216,8 +4216,36 @@ s1:double | s2:double
 -1.47     | 22.53
 ;
 
+sumExpressionMultipleClausesDoubleUnfiltered
+// salary_change has 24 single-valued, 55 multi-valued, and 21 null rows.
+// Multi-valued and null rows are excluded because scalar arithmetic produces null
+// for multi-valued inputs. Result matches the filtered version.
+FROM employees
+| STATS s1 = round(SUM(salary_change + 1.0), 2), s2 = round(SUM(salary_change + 2.0), 2)
+;
+warning:Line 2:24: evaluation of [salary_change + 1.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:65: evaluation of [salary_change + 2.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:65: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+s1:double | s2:double
+-1.47     | 22.53
+;
+
+sumExpressionWithSubtraction
+// SUM(salary + 1) = 4824855 + 100 = 4824955
+// SUM(salary - 1) = 4824855 - 100 = 4824755
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary - 1)
+;
+
+s1:long  | s2:long
+4824955  | 4824755
+;
+
 sumExpressionNullField
 // When the field is null for all rows, SUM(null + c) = null.
+// This has only one SUM expression so the rewrite does not apply.
 FROM employees
 | WHERE salary_change IS NULL
 | STATS s = SUM(salary_change + 1.0)

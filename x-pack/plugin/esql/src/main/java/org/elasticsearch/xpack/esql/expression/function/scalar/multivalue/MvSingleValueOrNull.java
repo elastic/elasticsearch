@@ -11,6 +11,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -81,9 +82,11 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
     /**
      * Evaluator for {@link MvSingleValueOrNull}.
      * <p>
-     * For single-valued blocks the default pass-through in {@link AbstractEvaluator} is used.
-     * For multi-valued blocks, each position is emitted as its value if it has exactly one value,
-     * or as null if it has zero (already null) or more than one value.
+     * For single-valued blocks the default pass-through in {@link AbstractEvaluator} is used
+     * ({@link AbstractEvaluator#evalSingleValuedNotNullable} returns the block as-is).
+     * For blocks that may contain multi-valued positions, a boolean mask is built where only
+     * single-valued positions are kept, then {@link Block#keepMask} applies it using
+     * type-specialized logic.
      * </p>
      */
     static class Evaluator extends AbstractEvaluator {
@@ -105,24 +108,24 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
 
         @Override
         protected Block evalNotNullable(Block block) {
-            return filterToSingleValue(block);
+            return nullifyMultiValued(block);
         }
 
         @Override
         protected Block evalNullable(Block block) {
-            return filterToSingleValue(block);
+            return nullifyMultiValued(block);
         }
 
-        private Block filterToSingleValue(Block block) {
-            try (Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), driverContext.blockFactory())) {
+        private Block nullifyMultiValued(Block block) {
+            try (
+                BooleanVector.FixedBuilder maskBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(block.getPositionCount())
+            ) {
                 for (int p = 0; p < block.getPositionCount(); p++) {
-                    if (block.getValueCount(p) == 1) {
-                        builder.copyFrom(block, p, p + 1);
-                    } else {
-                        builder.appendNull();
-                    }
+                    maskBuilder.appendBoolean(block.getValueCount(p) == 1);
                 }
-                return builder.build();
+                try (BooleanVector mask = maskBuilder.build()) {
+                    return block.keepMask(mask);
+                }
             }
         }
     }

@@ -90,7 +90,7 @@ null            | delta
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-lastest long by timestamp
+latest long by timestamp
 required_capability: earliest_latest_aggs
 
 ROW row = [

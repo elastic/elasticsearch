@@ -22,12 +22,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class EarliestErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(LatestTests.parameters());
+        return paramsToSuppliers(EarliestTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Latest(source, args.get(0), args.get(1));
+        return new Earliest(source, args.get(0), args.get(1));
     }
 
     @Override

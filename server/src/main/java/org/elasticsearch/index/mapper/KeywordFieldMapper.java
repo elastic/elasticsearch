@@ -30,8 +30,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -1025,7 +1023,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
                     return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
-                 
+
                 return new StringScriptFieldWildcardQuery(
                     new Script(""),
                     ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),

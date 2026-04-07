@@ -58,13 +58,17 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         float upperInterval,
         float additionalCorrection,
         int quantizedComponentSum
-    ) {
+    ) throws IOException {
         IndexInput input = values.getSlice();
         if (input == null) {
             return Optional.empty();
         }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
+        // TODO: remove when we switch to dotProductI4BulkSparse
+        if (IndexInputUtils.canGetSingleSegment(input) == false) {
+            return Optional.empty();
+        }
         return Optional.of(
             new Int4VectorScorer(
                 input,

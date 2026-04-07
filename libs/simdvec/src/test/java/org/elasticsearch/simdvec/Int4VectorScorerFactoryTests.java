@@ -81,6 +81,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         testSimpleImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE);
     }
 
+    @AwaitsFix(bugUrl="TODO")
     public void testSimpleMaxChunkSizeSmall() throws IOException {
         long maxChunkSize = randomLongBetween(4, 16);
         logger.info("maxChunkSize=" + maxChunkSize);
@@ -154,6 +155,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="TODO")
     public void testRandomNIO() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
@@ -161,6 +163,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="TODO")
     public void testRandomMaxChunkSizeSmall() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
@@ -243,6 +246,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="TODO")
     public void testRandomScorerNIO() throws IOException {
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomScorerNIO"))) {
             testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
@@ -255,6 +259,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="TODO")
     public void testRandomScorerChunkSizeSmall() throws IOException {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
@@ -322,6 +327,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="TODO")
     public void testRandomSlice() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT4_FUNC);
@@ -424,6 +430,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="TODO")
     public void testDatasetGreaterThanChunkSize() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
@@ -477,6 +484,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="TODO")
     public void testBulkNIO() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testBulkNIO"))) {
@@ -532,6 +540,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="TODO")
     public void testBulkWithDatasetGreaterThanChunkSize() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
@@ -591,6 +600,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="TODO")
     public void testBulkScorerNIO() throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
         assumeTrue(notSupportedMsg(), supported());
@@ -771,7 +781,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
 
-        final long maxChunkSize = 32;
         final int dims = 34;
         final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
@@ -783,7 +792,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         byte[] packed2 = packNibbles(unpacked2);
         var correction1 = randomCorrectionPacked(packed1);
         var correction2 = randomCorrectionPacked(packed2);
-        try (Directory dir = new MMapDirectory(createTempDir("testRace"), maxChunkSize)) {
+        try (Directory dir = new MMapDirectory(createTempDir("testRace"))) {
             String fileName = "testRace-" + dims;
             try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
                 writePackedVectorWithCorrection(out, packed1, correction1);

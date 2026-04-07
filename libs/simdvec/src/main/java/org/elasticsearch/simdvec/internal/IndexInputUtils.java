@@ -42,8 +42,17 @@ public final class IndexInputUtils {
     /**
      * Returns {@code true} if {@code MemorySegment} slices can be obtained from the specified {@link IndexInput}.
      */
+    @Deprecated
     public static boolean canUseSegmentSlices(IndexInput input) {
         return input instanceof MemorySegmentAccessInput || input instanceof DirectAccessInput;
+    }
+
+    /**
+     * Returns {@code true} if it is possible to obtain a single {@code MemorySegment} slice over the whole specified {@link IndexInput}.
+     */
+    @Deprecated
+    public static boolean canGetSingleSegment(IndexInput input) throws IOException {
+        return input instanceof MemorySegmentAccessInput msai && msai.segmentSliceOrNull(0L, input.length()) != null;
     }
 
     /**

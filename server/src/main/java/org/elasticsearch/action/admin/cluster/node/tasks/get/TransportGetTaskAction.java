@@ -323,16 +323,13 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof ResourceNotFoundException) {
-                    logger.warn(
-                        "relocated task [{}] not found, returning original response for [{}]",
-                        relocatedTaskId,
-                        originalRequest.getTaskId()
-                    );
-                    listener.onResponse(response);
-                } else {
-                    listener.onFailure(e);
-                }
+                logger.warn(
+                    "failed to follow task [{}] to its relocated task [{}], returning original response",
+                    originalRequest.getTaskId(),
+                    relocatedTaskId,
+                    e
+                );
+                listener.onResponse(response);
             }
         });
     }

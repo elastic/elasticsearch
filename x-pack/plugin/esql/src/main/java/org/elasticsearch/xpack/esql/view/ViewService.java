@@ -44,9 +44,9 @@ public class ViewService {
     // 2. Add ServerlessPublic (makes them visible to non-operator users on Serverless)
     public static final Setting<Integer> MAX_VIEWS_COUNT_SETTING = Setting.intSetting(
         "esql.views.max_count",
-        100,
+        500,
         0,
-        1_000_000,
+        10_000,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
@@ -54,7 +54,7 @@ public class ViewService {
         "esql.views.max_view_length",
         10_000,
         1,
-        1_000_000,
+        100_000,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );

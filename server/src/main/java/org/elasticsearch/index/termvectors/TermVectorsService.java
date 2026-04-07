@@ -21,6 +21,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.Lucene;
@@ -82,8 +83,10 @@ public class TermVectorsService {
         }
 
         try (
+            // TODO remove SplitShardCountSummary.UNSET
             Engine.GetResult get = indexShard.get(
-                new Engine.Get(request.realtime(), false, request.id()).version(request.version()).versionType(request.versionType())
+                new Engine.Get(request.realtime(), false, request.id()).version(request.version()).versionType(request.versionType()),
+                SplitShardCountSummary.UNSET
             );
             Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")
         ) {

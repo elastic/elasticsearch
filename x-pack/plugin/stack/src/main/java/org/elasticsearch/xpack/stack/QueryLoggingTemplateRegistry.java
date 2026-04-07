@@ -75,13 +75,13 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
         new IndexTemplateConfig(
             QUERY_LOGGING_MAPPINGS_NAME,
-            "/logging/querylog-mappings.json",
+            "/activitylog/logs-elasticsearch.querylog@mappings.json",
             INDEX_TEMPLATE_VERSION,
             QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE
         ),
         new IndexTemplateConfig(
             QUERY_LOGGING_SETTINGS_NAME,
-            "/logging/querylog-settings.json",
+            "/activitylog/logs-elasticsearch.querylog@settings.json",
             INDEX_TEMPLATE_VERSION,
             QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE
         )
@@ -98,7 +98,7 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     private final Map<String, ComposableIndexTemplate> composableIndexTemplateConfigs = parseComposableTemplates(
         new IndexTemplateConfig(
             QUERY_LOGGING_TEMPLATE_NAME,
-            "/logging/querylog-template.json",
+            "/activitylog/logs-elasticsearch.querylog@template.json",
             INDEX_TEMPLATE_VERSION,
             QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE,
             Map.of(

@@ -5,10 +5,10 @@ FROM employees,
      (FROM sample_data metadata _index
       | WHERE client_ip == "172.21.3.15")
      metadata _index
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT emp_no
-| KEEP _index,  emp_no, languages, client_ip
+| KEEP _index, emp_no, languages, client_ip
 ```
 
 | _index:keyword | emp_no:integer | languages:integer | client_ip:ip |

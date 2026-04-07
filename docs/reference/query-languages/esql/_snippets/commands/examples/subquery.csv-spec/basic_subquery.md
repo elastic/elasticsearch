@@ -3,9 +3,9 @@
 ```esql
 FROM employees,
      (FROM sample_data)
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| WHERE (emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
 | SORT emp_no, client_ip
-| KEEP  emp_no, languages, client_ip
+| KEEP emp_no, languages, client_ip
 ```
 
 | emp_no:integer | languages:integer | client_ip:ip |

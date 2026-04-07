@@ -5,7 +5,7 @@ FROM employees,
      (FROM sample_data
       | EVAL client_ip = client_ip::keyword
       | LOOKUP JOIN clientips_lookup ON client_ip)
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | SORT emp_no, client_ip
 | KEEP emp_no, languages, client_ip, env
 ```

@@ -6,7 +6,7 @@ FROM employees,
       | STATS cnt = count(*) by client_ip
       | SORT cnt DESC
       | LIMIT 1)
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | SORT emp_no, client_ip
 | KEEP emp_no, languages, cnt, client_ip
 ```

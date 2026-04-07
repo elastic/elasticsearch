@@ -2,10 +2,10 @@
 
 ```esql
 FROM employees,
-     (FROM sample_data  metadata _index
-      | STATS cnt = count(*) by _index, client_ip ),
-     (FROM sample_data_str  metadata _index
-      | STATS cnt = count(*) by _index, client_ip )
+     (FROM sample_data metadata _index
+      | STATS cnt = count(*) by _index, client_ip),
+     (FROM sample_data_str metadata _index
+      | STATS cnt = count(*) by _index, client_ip)
      metadata _index
 | EVAL client_ip = client_ip::ip, _index = MV_LAST(SPLIT(_index, ":"))
 | WHERE client_ip == "172.21.3.15" AND cnt >0

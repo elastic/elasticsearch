@@ -8,9 +8,9 @@ required_capability: subquery_in_from_command
 // tag::basic_subquery[]
 FROM employees,
      (FROM sample_data)
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| WHERE (emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
 | SORT emp_no, client_ip
-| KEEP  emp_no, languages, client_ip
+| KEEP emp_no, languages, client_ip
 // end::basic_subquery[]
 ;
 
@@ -36,7 +36,7 @@ required_capability: subquery_in_from_command
 FROM (FROM employees)
 | WHERE emp_no >= 10091 AND emp_no < 10094
 | SORT emp_no
-| KEEP  emp_no, languages
+| KEEP emp_no, languages
 // end::subquery_only[]
 ;
 
@@ -203,10 +203,10 @@ FROM employees,
      (FROM sample_data metadata _index
       | WHERE client_ip == "172.21.3.15")
      metadata _index
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT emp_no
-| KEEP _index,  emp_no, languages, client_ip
+| KEEP _index, emp_no, languages, client_ip
 // end::subquery_with_filter[]
 ;
 
@@ -230,7 +230,7 @@ FROM employees,
      (FROM sample_data metadata _index
       | STATS cnt = count(*) by _index, client_ip)
      metadata _index
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | EVAL _index = MV_LAST(SPLIT(_index, ":"))
 | SORT _index, emp_no, client_ip
 | KEEP _index, emp_no, languages, cnt, client_ip
@@ -254,10 +254,10 @@ required_capability: subquery_in_from_command
 
 // tag::multiple_subqueries[]
 FROM employees,
-     (FROM sample_data  metadata _index
-      | STATS cnt = count(*) by _index, client_ip ),
-     (FROM sample_data_str  metadata _index
-      | STATS cnt = count(*) by _index, client_ip )
+     (FROM sample_data metadata _index
+      | STATS cnt = count(*) by _index, client_ip),
+     (FROM sample_data_str metadata _index
+      | STATS cnt = count(*) by _index, client_ip)
      metadata _index
 | EVAL client_ip = client_ip::ip, _index = MV_LAST(SPLIT(_index, ":"))
 | WHERE client_ip == "172.21.3.15" AND cnt >0
@@ -324,7 +324,7 @@ FROM employees,
      (FROM sample_data
       | EVAL client_ip = client_ip::keyword
       | LOOKUP JOIN clientips_lookup ON client_ip)
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | SORT emp_no, client_ip
 | KEEP emp_no, languages, client_ip, env
 // end::subquery_with_lookup_join[]
@@ -421,7 +421,7 @@ FROM employees,
       | STATS cnt = count(*) by client_ip
       | SORT cnt DESC
       | LIMIT 1)
-| WHERE ( emp_no >= 10091 AND emp_no < 10094)  OR emp_no IS NULL
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no IS NULL
 | SORT emp_no, client_ip
 | KEEP emp_no, languages, cnt, client_ip
 // end::subquery_with_sort[]

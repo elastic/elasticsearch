@@ -4,7 +4,7 @@
 FROM (FROM employees)
 | WHERE emp_no >= 10091 AND emp_no < 10094
 | SORT emp_no
-| KEEP  emp_no, languages
+| KEEP emp_no, languages
 ```
 
 | emp_no:integer | languages:integer |

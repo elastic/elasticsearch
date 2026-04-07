@@ -2322,6 +2322,9 @@ public class NumberFieldMapper extends FieldMapper {
 
     private final IndexSettings indexSettings;
 
+    // cached to avoid lookup overhead
+    private final NumberFieldType fieldType;
+
     private NumberFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -2347,6 +2350,9 @@ public class NumberFieldMapper extends FieldMapper {
         this.isSyntheticSource = isSyntheticSource;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSettings = builder.indexSettings;
+
+        // this is basically just an inlined version of `(NumberFieldType) super.fieldType()`
+        this.fieldType = (NumberFieldType) mappedFieldType;
     }
 
     boolean coerce() {
@@ -2364,7 +2370,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public NumberFieldType fieldType() {
-        return (NumberFieldType) super.fieldType();
+        return fieldType;
     }
 
     @Override

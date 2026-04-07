@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 145794
-summary: Fix handling of values on the time bucket boundaries for rate and increase
+summary: Fix handling of values on the time bucket boundaries for ES|QL rate and increase
 type: bug

@@ -70,7 +70,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
     public void testWithoutGroupingProducesTimeSeriesOutput() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
-            planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))")
+            planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))", false)
         );
 
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
@@ -94,7 +94,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
         String query = "PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))";
-        var logical = logicalOptimizerWithLatestVersion.optimize(planPromql(query));
+        var logical = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false));
         var physical = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, TransportVersion.current())).optimize(
             new Mapper().map(new Versioned<>(logical, TransportVersion.current()))
         );
@@ -192,9 +192,10 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
     }
 
-    public void testNestedWithoutOverByPacksTimeSeriesOnlyOnce() {
+    public void testNestedWithoutOverByInnerByHasTimeSeriesWithout() {
         LogicalPlan analyzed = planPromql(
-            "PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))"
+            "PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))",
+            false
         );
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
 
@@ -208,7 +209,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     }
 
     public void testParentBySynthesizesConsumedBindingFromWithoutCarrier() {
-        LogicalPlan analyzed = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))");
+        LogicalPlan analyzed = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))", false);
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
 
         LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
@@ -264,7 +265,8 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
     public void testWithoutAbsentLabelIsNoOp() {
         LogicalPlan analyzed = planPromql(
-            "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (does_not_exist) (network.cost)))"
+            "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (does_not_exist) (network.cost)))",
+            false
         );
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
         LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
@@ -287,7 +289,8 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
     public void testWithoutEmptyLabelListPlans() {
         LogicalPlan analyzed = planPromql(
-            "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without () (avg_over_time(network.cost[1h]))))"
+            "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without () (avg_over_time(network.cost[1h]))))",
+            false
         );
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
         LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);

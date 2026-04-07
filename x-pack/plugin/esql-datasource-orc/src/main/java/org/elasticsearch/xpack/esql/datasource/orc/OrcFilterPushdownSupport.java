@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.orc;
 
-import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 
@@ -15,7 +16,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Filter pushdown support for ORC files using the SearchArgument API.
+ * Filter pushdown support for ORC files using a deferred {@link OrcPushedExpressions} wrapper.
+ * <p>
+ * At optimization time, validated expressions are collected but not translated. At read time,
+ * {@link OrcPushedExpressions#toSearchArgument} builds the SearchArgument using the actual
+ * file schema, enabling correct type mapping for DATE and DECIMAL columns.
  * <p>
  * ORC's SearchArgument performs block-level skipping (stripes and 10K-row groups)
  * based on column statistics and bloom filters. It does NOT filter individual rows.
@@ -24,9 +29,10 @@ import java.util.List;
  */
 public class OrcFilterPushdownSupport implements FilterPushdownSupport {
 
+    private static final Logger logger = LogManager.getLogger(OrcFilterPushdownSupport.class);
+
     @Override
     public PushdownResult pushFilters(List<Expression> filters) {
-        // All filters stay in remainder for RECHECK — FilterExec must always evaluate them
         List<Expression> remainder = new ArrayList<>(filters);
 
         List<Expression> pushed = new ArrayList<>();
@@ -40,19 +46,12 @@ public class OrcFilterPushdownSupport implements FilterPushdownSupport {
             return PushdownResult.none(filters);
         }
 
-        SearchArgument sarg = OrcPushdownFilters.buildSearchArgument(pushed);
-        if (sarg == null) {
-            return PushdownResult.none(filters);
-        }
-
-        // remainder contains ALL original filters — this guarantees FilterExec stays in the plan
-        return new PushdownResult(sarg, remainder);
+        logger.debug("ORC filter pushdown: validated {} of {} expressions for pushdown", pushed.size(), filters.size());
+        return new PushdownResult(new OrcPushedExpressions(pushed), remainder);
     }
 
     @Override
     public Pushability canPush(Expression expr) {
-        // RECHECK: ORC SearchArgument only skips blocks (stripes/row-groups),
-        // it does NOT filter individual rows. The filter must remain in FilterExec.
         return OrcPushdownFilters.canConvert(expr) ? Pushability.RECHECK : Pushability.NO;
     }
 }

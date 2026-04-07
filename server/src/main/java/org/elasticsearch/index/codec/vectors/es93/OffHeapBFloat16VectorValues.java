@@ -23,7 +23,6 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -36,14 +35,15 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.IOException;
 
-abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
+public abstract class OffHeapBFloat16VectorValues extends BFloat16VectorValues implements HasIndexSlice {
 
     protected final int dimension;
     protected final int size;
     protected final IndexInput slice;
     protected final int byteSize;
-    protected int lastOrd = -1;
+    protected int lastBFloat16Ord = -1;
     protected final byte[] bfloatBytes;
+    protected int lastFloatOrd = -1;
     protected final float[] value;
     protected final VectorSimilarityFunction similarityFunction;
     protected final FlatVectorsScorer flatVectorsScorer;
@@ -64,10 +64,6 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
         this.flatVectorsScorer = flatVectorsScorer;
         bfloatBytes = new byte[dimension * BFloat16.BYTES];
         value = new float[dimension];
-
-        assert (this instanceof HasIndexSlice) == false
-            : "BFloat16 should not implement HasIndexSlice until a bfloat16 scorer is created,"
-                + " else Lucene99MemorySegmentFlatVectorsScorer will try to access 4-byte floats here";
     }
 
     @Override
@@ -81,16 +77,35 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
     }
 
     @Override
+    public IndexInput getSlice() {
+        return slice;
+    }
+
+    @Override
+    public int getVectorByteLength() {
+        return dimension * BFloat16.BYTES;
+    }
+
+    @Override
     public float[] vectorValue(int targetOrd) throws IOException {
-        if (lastOrd == targetOrd) {
+        if (lastFloatOrd == targetOrd) {
             return value;
         }
-        slice.seek((long) targetOrd * byteSize);
-        // no readShorts() method
-        slice.readBytes(bfloatBytes, 0, bfloatBytes.length);
-        BFloat16.bFloat16ToFloat(bfloatBytes, value);
-        lastOrd = targetOrd;
+        byte[] bytes = bfloat16VectorBytes(targetOrd);
+        BFloat16.bFloat16ToFloat(bytes, value);
+        lastFloatOrd = targetOrd;
         return value;
+    }
+
+    @Override
+    public byte[] bfloat16VectorBytes(int targetOrd) throws IOException {
+        if (lastBFloat16Ord == targetOrd) {
+            return bfloatBytes;
+        }
+        slice.seek((long) targetOrd * byteSize);
+        slice.readBytes(bfloatBytes, 0, bfloatBytes.length);
+        lastBFloat16Ord = targetOrd;
+        return bfloatBytes;
     }
 
     static OffHeapBFloat16VectorValues load(
@@ -129,9 +144,9 @@ abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
      * Dense vector values that are stored off-heap. This is the most common case when every doc has a
      * vector.
      */
-    static class DenseOffHeapVectorValues extends OffHeapBFloat16VectorValues {
+    public static class DenseOffHeapVectorValues extends OffHeapBFloat16VectorValues {
 
-        DenseOffHeapVectorValues(
+        public DenseOffHeapVectorValues(
             int dimension,
             int size,
             IndexInput slice,

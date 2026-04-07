@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 144146
+pr: 144563
+summary: Record stats for "adaptive replica selection" in batched queries
+type: bug

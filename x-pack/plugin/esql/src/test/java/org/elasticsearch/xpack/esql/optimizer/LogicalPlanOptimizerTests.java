@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -86,8 +87,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -3062,6 +3063,313 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
     }
 
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#4],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     */
+    public void testPropagateEmptyRelationWithUngroupedStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[s{r}#5],Page{blocks=[LongArrayBlock[positions=1, mvOrdering=UNORDERED, vector=LongArrayVector[positions=1, val
+     * ues=[0]]]]}]
+     * }</pre>
+     *
+     * sum() on empty input produces null (not 0), unlike count().
+     */
+    public void testPropagateEmptyRelationWithUngroupedNonCountStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | stats s = sum(salary)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Project[[c{r}#4, s{r}#7]]
+     * \_Eval[[$$SUM$s$0{r$}#19 / $$COUNT$s$1{r$}#20 AS s#7]]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_LocalRelation[[c{r}#4, $$SUM$s$0{r$}#19, $$COUNT$s$1{r$}#20],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions
+     * =1, value=0]], LongArrayBlock[positions=1, mvOrdering=UNORDERED, vector=LongArrayVector[positions=1, values=[0]]],
+     * LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * avg(salary) is decomposed into sum(salary)/count(salary) during the substitutions phase, producing the
+     * Eval + Project above the Limit. PropagateEmptyRelation then folds only the raw sub-aggregates (count, sum)
+     * into the LocalRelation; the division is computed by the Eval.
+     */
+    public void testPropagateEmptyRelationWithUngroupedMixedStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | stats c = count(*), s = avg(salary)
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[c{r}#5, languages{f}#9],EMPTY]
+     * }</pre>
+     *
+     * Grouped aggregates on empty input produce zero groups, so the entire plan collapses to an empty LocalRelation.
+     * This differs from ungrouped aggregates, which always produce exactly one row (e.g., count=0).
+     */
+    public void testPropagateEmptyRelationWithGroupedStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | stats c = count(*) by languages
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#14],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * Same result as testPropagateEmptyRelationWithUngroupedStats but the empty relation is produced by
+     * PropagateEvalFoldables + ConstantFolding (a=1, b=2, c=2, c > 10 folds to false) rather than a literal
+     * WHERE false.
+     */
+    public void testPropagateEmptyRelationWithImpossibleFilterAndStats() {
+        var plan = optimizedPlan("""
+            from test
+            | eval a = 1, b = a + 1, c = b + a
+            | where c > 10
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#7],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * Same final plan as testPropagateEmptyRelationWithUngroupedStats but requires two fixed-point iterations:
+     * first the Eval over empty LocalRelation is collapsed, then the Aggregate over empty LocalRelation is folded.
+     */
+    public void testPropagateEmptyRelationWithInterveningEvalAndStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | eval x = salary + 1
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27, l
+     * anguages{f}#21, last_name{f}#22, long_noidx{f}#28, salary{f}#23, a{r}#4, b{r}#7, c{r}#11, language_code{r}#15, language_name{f}#30],
+     * EMPTY]
+     * }</pre>
+     */
+    public void testPropagateEmptyRelationThroughLookupJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | eval a = 1, b = a + 1, c = b + a
+            | where c > 10
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | where emp_no > 100
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[emp_no{f}#9, language_name{f}#21],EMPTY]
+     * }</pre>
+     */
+    public void testPropagateEmptyRelationThroughLookupJoinWithWhereAfterJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | keep emp_no, language_name
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#8],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     */
+    public void testPropagateEmptyRelationThroughLookupJoinWithStatsAfterJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | where false
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[emp_no{f}#5, language_code{r}#14, language_name{f}#17],EMPTY]
+     * }</pre>
+     *
+     * WHERE null is folded to WHERE false, then PropagateEmptyRelation collapses the entire plan.
+     */
+    public void testPropagateEmptyRelationWithWhereNullThroughLookupJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | where null
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | keep emp_no, language_code, language_name
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[emp_no{f}#5, language_code{r}#17, language_name{f}#20],EMPTY]
+     * }</pre>
+     *
+     * EVAL x = null | WHERE x::int > 0 folds to an empty relation via FoldNull + constant folding,
+     * then PropagateEmptyRelation collapses the join.
+     */
+    public void testPropagateEmptyRelationWithEvalNullFilterThroughLookupJoin() {
+        var plan = optimizedPlan("""
+            from test
+            | eval x = null
+            | where x::int > 0
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | keep emp_no, language_code, language_name
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#6],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * WHERE null collapses the driving side; ungrouped COUNT(*) on empty input returns 0.
+     */
+    public void testPropagateEmptyRelationWithWhereNullThroughLookupJoinAndStats() {
+        var plan = optimizedPlan("""
+            from test
+            | where null
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[count{r}#4],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
+     * }</pre>
+     *
+     * WHERE null folds to WHERE false, producing an empty relation that is folded into
+     * an ungrouped COUNT(*) returning 0.
+     */
+    public void testPropagateEmptyRelationWithWhereNull() {
+        var plan = optimizedPlan("""
+            from test
+            | where null
+            | stats count = count(*)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+    }
+
+    /**
+     * Expected:
+     * <pre>{@code
+     * LocalRelation[[{e}#2],EMPTY]
+     * }</pre>
+     *
+     * WHERE 1 + null > 0 folds the null arithmetic to null, then the comparison to null (false),
+     * producing an empty relation.
+     */
+    public void testPropagateEmptyRelationWithNullArithmeticFilter() {
+        var plan = optimizedPlan("""
+            from test
+            | where 1 + null > 0
+            """);
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
     public void testFoldFromRow() {
         var plan = optimizedPlan("""
               row a = 1, b = 2, c = 3
@@ -4590,7 +4898,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *     \_Eval[[MVSUM([1, 2][INTEGER]) * $$COUNT$s$0{r}#25 AS s, MVSUM(314.0[DOUBLE] / 100[INTEGER]) * $$COUNT$s$0{r}#25 AS s
-     * _expr, MVSUM(null[NULL]) * $$COUNT$s$0{r}#25 AS s_null]]
+     * _expr, null[NULL] AS s_null]]
      *       \_Aggregate[[w{r}#10],[COUNT(*[KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
      *         \_Eval[[emp_no{f}#15 % 2[INTEGER] AS w]]
      *           \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
@@ -4631,14 +4939,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var count_expr = as(mul_expr.right(), ReferenceAttribute.class);
         assertThat(count_expr.name(), equalTo("$$COUNT$s$0"));
 
-        // s_null == mv_sum(null) * count(*)
+        // s_null == null (literal) — SUM(null) short-circuits to a null literal of NULL type
         var s_null = as(exprs.get(2), Alias.class);
         assertThat(s_null.name(), equalTo("s_null"));
-        var mul_null = as(s_null.child(), Mul.class);
-        var mvSum_null = as(mul_null.left(), MvSum.class);
-        assertThat(mvSum_null.field(), equalTo(NULL));
-        var count_null = as(mul_null.right(), ReferenceAttribute.class);
-        assertThat(count_null.name(), equalTo("$$COUNT$s$0"));
+        var nullLiteral = as(s_null.child(), Literal.class);
+        assertNull(nullLiteral.value());
+        assertThat(nullLiteral.dataType(), equalTo(DataType.NULL));
 
         var countAgg = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
         assertThat(countAgg.children().get(0), instanceOf(Literal.class));
@@ -4945,11 +5251,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Limit[1000[INTEGER],false]
-     * \_Filter[LIKE(language_name{f}#18, "French*", false)]
+     * \_Filter[StartsWith(language_name{f}#18, "French")]
      *   \_Join[LEFT,[languages{f}#9],[language_code{f}#17],languages{f}#9 == language_code{f}#17 AND MATCH(language_name{f}#18,
      * English[KEYWORD])]
      *     |_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     *     \_Filter[LIKE(language_name{f}#18, "French*", false)]
+     *     \_Filter[StartsWith(language_name{f}#18, "French")]
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
      */
     public void testLookupJoinRightFilterMatchWithWhereClause() {
@@ -4966,12 +5272,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var join = as(topFilter.child(), Join.class);
         assertEquals("ON languages == language_code and MATCH(language_name,\"English\")", join.config().joinOnConditions().toString());
 
-        // Check that the LIKE condition is pushed down as a right pre-join filter
+        // LIKE "French*" is decomposed to StartsWith by ReplaceRegexMatch
         var rightFilter = as(join.right(), Filter.class);
-        var likeCondition = as(rightFilter.condition(), WildcardLike.class);
-        var field = as(likeCondition.field(), FieldAttribute.class);
+        var startsWithCondition = as(rightFilter.condition(), StartsWith.class);
+        var field = as(startsWithCondition.children().get(0), FieldAttribute.class);
         assertEquals("language_name", field.name());
-        assertEquals("French*", likeCondition.pattern().pattern());
 
         as(rightFilter.child(), EsRelation.class);
     }
@@ -7629,16 +7934,20 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             WindowFilter windowFilter = (WindowFilter) holder.get().filter();
             assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
         }
-        // not supported
+        // non-multiple window (>= bucket) - now supported via GCD sub-bucketing
         {
-            int window = randomValueOtherThanMany(n -> n % 5 == 0, () -> between(6, 30));
+            int window = randomValueOtherThanMany(n -> n % 5 == 0 || n < 5, () -> between(6, 30));
             var query = String.format(Locale.ROOT, """
                 TS k8s
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """, window);
-            var error = expectThrows(IllegalArgumentException.class, () -> { planMetrics(query); });
-            assertThat(error.getMessage(), containsString("the window must be an exact multiple of the time bucket [tbucket(5 minute)]"));
+            var plan = planMetrics(query);
+            Holder<LastOverTime> holder = new Holder<>();
+            plan.forEachExpressionDown(LastOverTime.class, holder::set);
+            assertNotNull(holder.get());
+            assertTrue(holder.get().hasWindow());
+            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
         }
         // no time bucket
         {
@@ -7687,18 +7996,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertNotNull(holder.get());
             assertTrue(holder.get().hasWindow());
             assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
-        }
-        // 7m is not a multiple of 5m (the resolved bucket size), so this must be rejected
-        {
-            var query = """
-                TS k8s
-                | STATS sum(rate(network.total_bytes_in, 7m)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
-                | LIMIT 10
-                """;
-            var error = expectThrows(IllegalArgumentException.class, () -> {
-                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
-            });
-            assertThat(error.getMessage(), containsString("the window must be an exact multiple of the time bucket"));
         }
     }
 
@@ -7795,6 +8092,118 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 assertThat(((Duration) maxHolder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window1));
             }
         }
+    }
+
+    public void testTranslateOverTimeWithNonMultipleWindow() {
+        // 7m window with 5m bucket -> GCD=1m internal bucket, 5m output bucket
+        {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 7 minute)) BY tbucket(5 minute)
+                | LIMIT 10
+                """;
+            var plan = planMetrics(query);
+            Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+            plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+            assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+            TimeSeriesAggregate tsAgg = tsHolder.get();
+            // Internal bucket should be GCD(7m, 5m) = 1m
+            assertNotNull(tsAgg.timeBucket());
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+            // Output bucket should be the user-specified 5m
+            assertNotNull(tsAgg.outputTimeBucket());
+            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+            // The 7m window must be preserved on the first-pass aggregate function
+            Holder<AggregateFunction> afHolder = new Holder<>();
+            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
+                if (af.hasWindow()) {
+                    afHolder.set(af);
+                }
+            });
+            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
+            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
+        }
+        // 12m window with 8m bucket -> GCD=4m internal bucket, 8m output bucket
+        {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 12 minute)) BY tbucket(8 minute)
+                | LIMIT 10
+                """;
+            var plan = planMetrics(query);
+            Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+            plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+            assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+            TimeSeriesAggregate tsAgg = tsHolder.get();
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(4)));
+            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(8)));
+            // The 12m window must be preserved on the first-pass aggregate function
+            Holder<AggregateFunction> afHolder = new Holder<>();
+            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
+                if (af.hasWindow()) {
+                    afHolder.set(af);
+                }
+            });
+            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
+            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(12)));
+        }
+        // Exact multiple: 10m window with 5m bucket -> GCD=5m, internal == output (no sub-bucketing)
+        {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 10 minute)) BY tbucket(5 minute)
+                | LIMIT 10
+                """;
+            var plan = planMetrics(query);
+            Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+            plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+            assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+            TimeSeriesAggregate tsAgg = tsHolder.get();
+            // When window is an exact multiple, internal and output buckets should both be the user bucket
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+            // The 10m window must be preserved on the first-pass aggregate function
+            Holder<AggregateFunction> afHolder = new Holder<>();
+            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
+                if (af.hasWindow()) {
+                    afHolder.set(af);
+                }
+            });
+            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
+            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+        }
+    }
+
+    public void testTranslateOverTimeWithCombinedSmallAndNonMultipleWindows() {
+        var e = expectThrows(IllegalArgumentException.class, () -> {
+            var query = """
+                TS k8s
+                | STATS min(max_over_time(network.bytes_in, 2 minute)), sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)
+                | LIMIT 10
+                """;
+            planMetrics(query);
+        });
+        assertThat(e.getMessage(), containsString("Combining windows smaller than the time bucket with non-multiple windows"));
+    }
+
+    public void testTranslateOverTimeWithTooManySubBuckets() {
+        // 301s window with 300s (5m) bucket -> GCD=1s -> 300 sub-buckets, exceeds limit of 128
+        var e = expectThrows(IllegalArgumentException.class, () -> {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 301 second)) BY tbucket(5 minute)
+                | LIMIT 10
+                """;
+            planMetrics(query);
+        });
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "The window [301 second] and bucket [5 minute] combination requires [300] internal sub-buckets of size [1s]"
+                    + " per output bucket, which exceeds the limit of [128];"
+                    + " use a larger time bucket or adjust the window to be an exact multiple of the time bucket"
+            )
+        );
     }
 
     public void testMvSortInvalidOrder() {
@@ -8948,6 +9357,76 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var eval = as(project.child(), Eval.class);
         var local = as(eval.child(), LocalRelation.class);
         assertThat(local.supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    public void testWithoutGroupingWithRegularAggregates() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var query = "TS k8s | STATS avg(network.cost) BY WITHOUT(pod)";
+        var plan = planMetrics(query);
+        // Verify plan contains a TimeSeriesAggregate
+        var tsAggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat(tsAggregates, hasSize(1));
+        var tsAgg = tsAggregates.get(0);
+        // After TranslateTimeSeriesAggregate, the TS aggregate groups by _tsid.
+        // The WITHOUT exclusion is encoded in the EsRelation's _timeseries attribute.
+        var esRelations = tsAgg.collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0)
+            .output()
+            .stream()
+            .filter(a -> a instanceof TimeSeriesMetadataAttribute)
+            .map(a -> (TimeSeriesMetadataAttribute) a)
+            .toList();
+        assertThat(timeSeriesAttrs, hasSize(1));
+        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod")));
+    }
+
+    public void testWithoutGroupingExcludesMultipleDimensions() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var query = "TS k8s | STATS avg(network.cost) BY WITHOUT(pod, region)";
+        var plan = planMetrics(query);
+        var tsAggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat(tsAggregates, hasSize(1));
+        var esRelations = tsAggregates.get(0).collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0)
+            .output()
+            .stream()
+            .filter(a -> a instanceof TimeSeriesMetadataAttribute)
+            .map(a -> (TimeSeriesMetadataAttribute) a)
+            .toList();
+        assertThat(timeSeriesAttrs, hasSize(1));
+        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of("pod", "region")));
+    }
+
+    public void testWithoutGroupingNoDuplicateWithTsAggFunction() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        assumeTrue("requires metrics group by all", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+        var query = "TS k8s | STATS avg_over_time(network.cost) BY WITHOUT(pod)";
+        var plan = planMetrics(query);
+        // Should have exactly one TimeSeriesMetadataAttribute in the EsRelation (no duplicates)
+        var esRelations = plan.collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0).output().stream().filter(a -> a instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat("Expected exactly one _timeseries attribute", timeSeriesAttrs, hasSize(1));
+    }
+
+    public void testWithoutGroupingEmptyExcludesNothing() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var query = "TS k8s | STATS avg(network.cost) BY WITHOUT()";
+        var plan = planMetrics(query);
+        var tsAggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat(tsAggregates, hasSize(1));
+        var esRelations = tsAggregates.get(0).collect(EsRelation.class);
+        assertThat(esRelations, hasSize(1));
+        var timeSeriesAttrs = esRelations.get(0)
+            .output()
+            .stream()
+            .filter(a -> a instanceof TimeSeriesMetadataAttribute)
+            .map(a -> (TimeSeriesMetadataAttribute) a)
+            .toList();
+        assertThat(timeSeriesAttrs, hasSize(1));
+        assertThat(timeSeriesAttrs.get(0).withoutFields(), equalTo(Set.of()));
     }
 
     public void testTimeSeriesBareFieldWithBucketAndLimitZeroDoesNotFailVerifier() {
@@ -10443,7 +10922,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLimitByZero() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plan("""
             FROM test
             | LIMIT 0 BY emp_no
@@ -10476,7 +10954,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }
      */
     public void testOnlyLastSortPreservedTopNBy() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var query = """
             FROM employees
             | SORT emp_no DESC
@@ -10518,7 +10995,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }
      */
     public void testOnlyLastNonContiguousSortPreservedTopNBy() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var query = """
             FROM employees
             | SORT emp_no DESC
@@ -10567,7 +11043,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }
      */
     public void testOnlyLastNonContiguousSortPreservedTopNByWithExprs() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
         var query = """
             FROM employees
             | SORT emp_no DESC
@@ -10616,7 +11091,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTopNByWorksWithQualifiedNames() {
-        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
         var query = """
             FROM employees
             | SORT salary DESC
@@ -10679,7 +11154,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of()
+            Map.of()
         );
         var testAnalyzer = EsqlTestUtils.analyzer().addIndex(IndexResolution.valid(mixedIndex));
         var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));

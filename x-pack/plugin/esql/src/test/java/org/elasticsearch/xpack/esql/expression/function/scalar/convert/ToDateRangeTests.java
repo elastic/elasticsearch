@@ -64,10 +64,10 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
 
         // Helper-based cases: easy to add timezone/locale later when TO_DATE_RANGE supports them
         suppliers.addAll(
-            casesForKeyword("2020-01-01T00:00:00.000Z..2020-12-31T23:59:59.999Z", "2020-01-01T00:00:00.000Z", "2020-12-31T23:59:59.999Z")
+            casesForKeyword("2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z", "2020-01-01T00:00:00.000Z", "2021-01-01T00:00:00.000Z")
         );
         suppliers.addAll(
-            casesForKeyword("2024-06-15T00:00:00.000Z..2024-06-15T23:59:59.999Z", "2024-06-15T00:00:00.000Z", "2024-06-15T23:59:59.999Z")
+            casesForKeyword("2024-06-15T00:00:00.000Z..2024-06-16T00:00:00.000Z", "2024-06-15T00:00:00.000Z", "2024-06-16T00:00:00.000Z")
         );
 
         // Edge cases (review): from > to, from == to, invalid from, invalid to; boundary dates to avoid overflow
@@ -102,10 +102,10 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
             )
         );
         suppliers.addAll(
-            casesForKeyword("0001-01-01T00:00:00.000Z..0001-12-31T23:59:59.999Z", "0001-01-01T00:00:00.000Z", "0001-12-31T23:59:59.999Z")
+            casesForKeyword("0001-01-01T00:00:00.000Z..0002-01-01T00:00:00.000Z", "0001-01-01T00:00:00.000Z", "0002-01-01T00:00:00.000Z")
         );
         suppliers.addAll(
-            casesForKeyword("9999-01-01T00:00:00.000Z..9999-12-31T23:59:59.999Z", "9999-01-01T00:00:00.000Z", "9999-12-31T23:59:59.999Z")
+            casesForKeyword("9999-01-01T00:00:00.000Z..9999-12-31T00:00:00.000Z", "9999-01-01T00:00:00.000Z", "9999-12-31T00:00:00.000Z")
         );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);

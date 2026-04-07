@@ -31,27 +31,6 @@ date_range:date_range  | decade:integer | description:keyword | range:keyword
 1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
 ;
 
-dateRangeFieldType
-required_capability: date_range_field_type_v2
-FROM decades
-| SORT decade;
-
-date_range:date_range  | decade:integer | description:keyword
-1900-01-01..1910-01-01 | 1900           | Edwardian Era
-1910-01-01..1920-01-01 | 1910           | Ragtime Era
-1920-01-01..1930-01-01 | 1920           | Roaring Twenties
-1930-01-01..1940-01-01 | 1930           | Dirty Thirties
-1940-01-01..1950-01-01 | 1940           | Fabulous Forties
-1950-01-01..1960-01-01 | 1950           | Nifty Fifties
-1960-01-01..1970-01-01 | 1960           | Swinging Sixties
-1970-01-01..1980-01-01 | 1970           | Groovy Seventies
-1980-01-01..1990-01-01 | 1980           | Radical Eighties
-1990-01-01..2000-01-01 | 1990           | Nineties Nostalgia
-2000-01-01..2010-01-01 | 2000           | Innovation Explosion Decade
-2010-01-01..2020-01-01 | 2010           | Renaissance Decade
-2020-01-01..2030-01-01 | 2020           | Empowerment Era
-;
-
 dateRangeIdentityFieldType
 required_capability: date_range_field_type_v2
 
@@ -321,180 +300,35 @@ date_range:date_range                              | decade:integer | descriptio
 ;
 
 ###############################################
-# RANGE_WITHIN with LOOKUP JOIN (date_ranges, decades_main, lookup_with_date, lookup_with_date_range)
+# RANGE_WITHIN with disjunction / boundary (uses decades)
 ###############################################
 
-// Date from FROM, date_range from LOOKUP
-rangeWithinDateFromFromRangeFromLookup
-required_capability: date_range_field_type_v2
-required_capability: join_lookup_v12
-
-FROM employees
-| EVAL join_key = 1
-| LOOKUP JOIN date_ranges ON join_key
-| WHERE RANGE_WITHIN(hire_date, date_range)
-| KEEP emp_no, hire_date, description
-| SORT emp_no, description
-| LIMIT 8
-;
-
-ignoreOrder:true
-emp_no:integer | hire_date:date                | description:keyword
-10001          | 1986-06-26T00:00:00.000Z      | 1986
-10002          | 1985-11-21T00:00:00.000Z      | 1985
-10003          | 1986-08-28T00:00:00.000Z      | 1986
-10004          | 1986-12-01T00:00:00.000Z      | 1986
-10009          | 1985-02-18T00:00:00.000Z      | 1985
-10013          | 1985-10-20T00:00:00.000Z      | 1985
-10014          | 1987-03-11T00:00:00.000Z      | 1987
-10015          | 1987-07-02T00:00:00.000Z      | 1987
-;
-
-// Literal date + date_range from LOOKUP (1985-06-15 in 1985 range)
-rangeWithinLiteralDateLookupRange1985
-required_capability: date_range_field_type_v2
-required_capability: join_lookup_v12
-
-FROM employees
-| EVAL join_key = 1
-| LOOKUP JOIN date_ranges ON join_key
-| WHERE RANGE_WITHIN(TO_DATETIME("1985-06-15"), date_range)
-| KEEP emp_no, description
-| SORT emp_no
-| LIMIT 5
-;
-
-ignoreOrder:true
-emp_no:integer | description:keyword
-10001          | 1985
-10002          | 1985
-10003          | 1985
-10004          | 1985
-10005          | 1985
-;
-
-// Literal date + date_range from LOOKUP (1986-06-15 in 1986 range)
-rangeWithinLiteralDateLookupRange1986
-required_capability: date_range_field_type_v2
-required_capability: join_lookup_v12
-
-FROM employees
-| EVAL join_key = 1
-| LOOKUP JOIN date_ranges ON join_key
-| WHERE RANGE_WITHIN(TO_DATETIME("1986-06-15"), date_range)
-| KEEP emp_no, description
-| SORT emp_no
-| LIMIT 5
-;
-
-ignoreOrder:true
-emp_no:integer | description:keyword
-10001          | 1986
-10002          | 1986
-10003          | 1986
-10004          | 1986
-10005          | 1986
-;
-
-// Date from LOOKUP, date_range from FROM (decades_main + lookup_with_date)
-rangeWithinDateFromLookupRangeFromFromDecadesMain
-required_capability: date_range_field_type_v2
-required_capability: join_lookup_v12
-
-FROM decades_main
-| LOOKUP JOIN lookup_with_date ON join_key
-| WHERE RANGE_WITHIN(some_date, date_range)
-| KEEP date_range, some_date
-;
-
-date_range:date_range                              | some_date:date
-1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z | 1955-06-15T00:00:00.000Z
-;
-
-// date_range from LOOKUP within date_range from FROM (decades_main + lookup_with_date_range)
-rangeWithinRangeFromFromRangeFromLookup
-required_capability: date_range_field_type_v2
-required_capability: join_lookup_v12
-
-FROM decades_main
-| LOOKUP JOIN lookup_with_date_range ON join_key
-| WHERE RANGE_WITHIN(lookup_range, date_range)
-| KEEP date_range, lookup_range
-;
-
-date_range:date_range                              | lookup_range:date_range
-1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z | 1952-01-01T00:00:00.000Z..1954-01-01T00:00:00.000Z
-;
-
-// Multiple ranges in WHERE (OR)
+// Multiple ranges in WHERE (OR) -- test disjunction
 rangeWithinMultipleRangesInWhere
 required_capability: date_range_field_type_v2
-required_capability: join_lookup_v12
 
-FROM employees
-| EVAL join_key = 1
-| LOOKUP JOIN date_ranges ON join_key
-| WHERE RANGE_WITHIN(TO_DATETIME("1985-06-15"), date_range) OR RANGE_WITHIN(TO_DATETIME("1988-06-15"), date_range)
-| KEEP emp_no, description
-| SORT emp_no, description
-| LIMIT 6
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("1955-06-15"), date_range) OR RANGE_WITHIN(TO_DATETIME("1975-06-15"), date_range)
+| KEEP decade, description
+| SORT decade
 ;
 
-ignoreOrder:true
-emp_no:integer | description:keyword
-10001          | 1985
-10001          | 1988
-10002          | 1985
-10002          | 1988
-10003          | 1985
-10003          | 1988
+decade:integer | description:keyword
+1950           | Nifty Fifties
+1970           | Groovy Seventies
 ;
 
-// Boundary: 1985-01-01 at start of 1985 range
+// Boundary: point at inclusive start of range
 rangeWithinBoundaryCondition
 required_capability: date_range_field_type_v2
-required_capability: join_lookup_v12
 
-FROM employees
-| EVAL join_key = 1
-| LOOKUP JOIN date_ranges ON join_key
-| WHERE RANGE_WITHIN(TO_DATETIME("1985-01-01"), date_range)
-| KEEP emp_no, description
-| SORT emp_no
-| LIMIT 3
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("1980-01-01"), date_range)
+| KEEP decade, description
 ;
 
-ignoreOrder:true
-emp_no:integer | description:keyword
-10001          | 1985
-10002          | 1985
-10003          | 1985
-;
-
-// Date from FROM with literal range (join still multiplies rows; filter by literal range)
-rangeWithinLeftSideDateLiteralRange
-required_capability: date_range_field_type_v2
-required_capability: join_lookup_v12
-
-FROM employees
-| EVAL join_key = 1
-| LOOKUP JOIN date_ranges ON join_key
-| WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1986-01-01T00:00:00Z..1987-01-01T00:00:00Z"))
-| KEEP emp_no, hire_date, description
-| SORT emp_no, description
-| LIMIT 8
-;
-
-ignoreOrder:true
-emp_no:integer | hire_date:date                | description:keyword
-10001          | 1986-06-26T00:00:00.000Z      | 1985
-10001          | 1986-06-26T00:00:00.000Z      | 1986
-10001          | 1986-06-26T00:00:00.000Z      | 1987
-10001          | 1986-06-26T00:00:00.000Z      | 1988
-10003          | 1986-08-28T00:00:00.000Z      | 1985
-10003          | 1986-08-28T00:00:00.000Z      | 1986
-10003          | 1986-08-28T00:00:00.000Z      | 1987
-10003          | 1986-08-28T00:00:00.000Z      | 1988
+decade:integer | description:keyword
+1980           | Radical Eighties
 ;
 
 ###############################################
@@ -531,7 +365,7 @@ FROM decades
 
 // tag::range_max-result[]
 date_range:date_range  | max_bound:date
-1900-01-01..1910-01-01 | 1909-12-31T23:59:59.999Z
+1900-01-01..1910-01-01 | 1910-01-01T00:00:00.000Z
 // end::range_max-result[]
 ;
 

@@ -38,7 +38,7 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         if (DataType.DATE_RANGE.supportedVersion().supportedLocally()) {
-            // Block stores [from, to); RANGE_MAX returns inclusive end (to - 1)
+            // Block stores [from, to); RANGE_MAX returns the exclusive upper bound directly
             suppliers.add(new TestCaseSupplier("basic range", List.of(DataType.DATE_RANGE), () -> {
                 long from = 1000L;
                 long to = 2000L;
@@ -48,7 +48,7 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
                     "RangeMaxEvaluator[range=" + read + "]",
                     DataType.DATETIME,
-                    equalTo(to - 1)
+                    equalTo(to)
                 );
             }));
 
@@ -61,7 +61,7 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
                     "RangeMaxEvaluator[range=" + read + "]",
                     DataType.DATETIME,
-                    equalTo(to - 1)
+                    equalTo(to)
                 );
             }));
 
@@ -74,7 +74,7 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
                     List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
                     "RangeMaxEvaluator[range=" + read + "]",
                     DataType.DATETIME,
-                    equalTo(to - 1)
+                    equalTo(to)
                 );
             }));
         }

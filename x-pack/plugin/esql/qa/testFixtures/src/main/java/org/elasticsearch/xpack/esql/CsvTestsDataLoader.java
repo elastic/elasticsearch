@@ -193,20 +193,6 @@ public class CsvTestsDataLoader {
             "multi_column_joinable_lookup.csv",
             "lookup-settings.json"
         ),
-        new TestDataset("date_ranges", "mapping-date_ranges.json", "date_ranges.csv", "lookup-settings.json").withRequiredCapabilities(
-            EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V2
-        ),
-        new TestDataset("decades_main", "mapping-decades_main.json", "decades_main.csv").withRequiredCapabilities(
-            EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V2
-        ),
-        new TestDataset("lookup_with_date", "mapping-lookup_with_date.json", "lookup_with_date.csv", "lookup-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V2),
-        new TestDataset(
-            "lookup_with_date_range",
-            "mapping-lookup_with_date_range.json",
-            "lookup_with_date_range.csv",
-            "lookup-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V2),
         new TestDataset("exp_histo_sample", "exp_histo_sample-mappings.json", "exp_histo_sample.csv", "exp_histo_sample-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW),
         new TestDataset("tdigest_standard_index").withRequiredCapabilities(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW),

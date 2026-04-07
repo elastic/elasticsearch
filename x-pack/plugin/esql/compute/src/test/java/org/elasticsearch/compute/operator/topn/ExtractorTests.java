@@ -72,12 +72,7 @@ public class ExtractorTests extends ESTestCase {
                     );
                 }
                 case LONG_RANGE -> {
-                    cases.add(
-                        valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, false, ExtractorTests::randomDateRange)
-                    );
-                    cases.add(
-                        valueTestCase("date_range with nulls", e, TopNEncoder.DEFAULT_UNSORTABLE, false, ExtractorTests::randomDateRange)
-                    );
+                    cases.add(valueTestCase("date_range", e, TopNEncoder.DEFAULT_UNSORTABLE, false, ExtractorTests::randomDateRange));
                 }
                 case FLOAT -> {
                     supportsNull = false;

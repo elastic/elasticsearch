@@ -8,5 +8,5 @@
     "FROM decades\n| WHERE decade == 1900\n| EVAL max_bound = RANGE_MAX(date_range)\n| KEEP date_range, max_bound"
   ],
   "preview" : true,
-  "snapshot_only" : false
+  "snapshot_only" : true
 }

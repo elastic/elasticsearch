@@ -95,7 +95,7 @@ public class RangeMax extends UnaryScalarFunction {
             return null;
         }
         LongRangeBlockBuilder.LongRange range = (LongRangeBlockBuilder.LongRange) rangeValue;
-        return range.to() - 1;  // block stores exclusive end; return inclusive for display
+        return range.to();
     }
 
     @Override

@@ -1283,7 +1283,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .allocationDeciders(deciders)
             .clusterInfo(clusterInfo)
             .shardSizeInfo(snapshotShardSizeInfo)
-            .build();
+            .mutable();
     }
 
     private static class SnapshotShardSizeInfoTestBuilder {

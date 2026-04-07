@@ -736,7 +736,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
         }
         var e = expectThrows(VerificationException.class, () -> ta.statement(setUnmappedLoad("FROM foo, bar, baz | SORT message")));
-        assertThat(e.getMessage(), allOf(containsString("Cannot use field [message]"), containsString("[long] in [bar, foo]")));
+        assertThat(e.getMessage(), partiallyUnmappedNonKeywordError("message"));
     }
 
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;
@@ -892,9 +892,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 not(instanceOf(PotentiallyUnmappedKeywordEsField.class))
             );
             assertThat(
-                "Partially-mapped " + dataType + " field should be marked as unsupported due to type conflict",
-                fieldAttr.field(),
-                instanceOf(UnsupportedEsField.class)
+                "Partially-mapped " + dataType + " field should be reverted to a regular field with its original type",
+                fieldAttr.dataType(),
+                is(dataType.widenSmallNumeric())
             );
         }
     }
@@ -1109,13 +1109,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
             "FROM idx* | WHERE partial_long > 0",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:47: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
-                )
-            )
+            partiallyUnmappedNonKeywordError("partial_long")
         );
     }
 
@@ -1131,14 +1125,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             "FROM idx* | SORT partial_long, partial_double",
             allOf(
                 containsString("Found 2 problems"),
-                containsString(
-                    "line 1:46: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
-                ),
-                containsString(
-                    "line 1:60: Cannot use field [partial_double] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [double] in [idx_mapped]"
-                )
+                partiallyUnmappedNonKeywordError("partial_long"),
+                partiallyUnmappedNonKeywordError("partial_double")
             )
         );
     }
@@ -1193,13 +1181,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(pattern, IndexResolution.valid(merged)),
             "FROM idx_a, idx_b | WHERE partial_long > 0",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:55: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_a]"
-                )
-            )
+            partiallyUnmappedNonKeywordError("partial_long")
         );
     }
 
@@ -1220,28 +1202,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
         var analyzer = analyzer().addIndex(esIndex);
 
-        assertUnmappedLoadError(
-            analyzer,
-            "FROM idx* | RENAME partial_long AS pl",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:48: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
-                )
-            )
-        );
+        assertUnmappedLoadError(analyzer, "FROM idx* | RENAME partial_long AS pl", partiallyUnmappedNonKeywordError("partial_long"));
 
         assertUnmappedLoadError(
             analyzer,
             "FROM idx* | RENAME common as c, partial_long AS pl",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:61: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
-                )
-            )
+            partiallyUnmappedNonKeywordError("partial_long")
         );
     }
 
@@ -1252,13 +1218,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
             "FROM idx* | SORT partial_long",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:46: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
-                )
-            )
+            partiallyUnmappedNonKeywordError("partial_long")
         );
     }
 
@@ -1283,13 +1243,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
             "FROM idx* | CHANGE_POINT partial_long ON @timestamp AS type, pvalue",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:54: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
-                )
-            )
+            partiallyUnmappedNonKeywordError("partial_long")
         );
     }
 
@@ -1301,13 +1255,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer().addIndex(esIndex),
             "FROM idx* | MV_EXPAND partial_long",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:51: Cannot use field [partial_long] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
-                )
-            )
+            partiallyUnmappedNonKeywordError("partial_long")
         );
     }
 
@@ -1317,17 +1265,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var sub = longField("sub");
         var obj = new EsField("obj", DataType.OBJECT, Map.of("sub", sub), true, EsField.TimeSeriesFieldType.NONE);
         var esIndex = partialIndex(Map.of("obj", obj), Set.of("obj.sub"));
-        assertUnmappedLoadError(
-            analyzer().addIndex(esIndex),
-            "FROM idx* | SORT `obj.sub`",
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:46: Cannot use field [obj.sub] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[keyword] due to loading from _source, [long] in [idx_mapped]"
-                )
-            )
-        );
+        assertUnmappedLoadError(analyzer().addIndex(esIndex), "FROM idx* | SORT `obj.sub`", partiallyUnmappedNonKeywordError("obj.sub"));
     }
 
     /**
@@ -1464,7 +1402,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
         }
         var e = expectThrows(VerificationException.class, () -> ta.statement(statement));
-        assertThat(e.getMessage(), containsString("Cannot use field [message]"));
+        // Single-type partially unmapped fields are caught explicitly by the Verifier; multi-type conflicts are caught by
+        // being marked with UnsupportedAttributes, whose error message mentions the type conflicts.
+        assertThat(
+            e.getMessage(),
+            Matchers.anyOf(partiallyUnmappedNonKeywordError("message"), containsString("Cannot use field [message]"))
+        );
     }
 
     private static EsIndex partialIndex(Map<String, EsField> mapping, Set<String> partialFieldNames) {
@@ -1571,6 +1514,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 )
 
             );
+    }
+
+    private static Matcher<String> partiallyUnmappedNonKeywordError(String fieldName) {
+        return containsString("Using partially unmapped non-KEYWORD field [FieldName[string=" + fieldName + "]]");
     }
 
     @Override

@@ -17,7 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
@@ -99,7 +99,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         return channel -> client.execute(
             MustachePlugin.SEARCH_TEMPLATE_ACTION,
             searchTemplateRequest,
-            new RestChunkedToXContentListener<>(channel) {
+            new RestRefCountedChunkedToXContentListener<>(channel) {
                 @Override
                 protected RestStatus getRestStatus(SearchTemplateResponse searchTemplateResponse) {
                     return searchTemplateResponse.status();

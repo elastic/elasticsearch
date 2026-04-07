@@ -185,24 +185,24 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
 
             // The CCS search targets "project_a:<index>" so the response should include at least
             // the remote cluster ("project_a") and the local/coordinating cluster.
-            int totalProjects = (int) cpsStats.get("total_projects");
+            int totalProjects = (int) cpsStats.get("total_clusters");
             assertThat(totalProjects, greaterThanOrEqualTo(1));
 
-            int availableProjects = (int) cpsStats.get("available_projects");
+            int availableProjects = (int) cpsStats.get("available_clusters");
             assertThat(availableProjects, greaterThanOrEqualTo(1));
             assertThat("available should be <= total", availableProjects, greaterThanOrEqualTo(1));
 
-            int skippedProjects = (int) cpsStats.get("skipped_projects");
+            int skippedProjects = (int) cpsStats.get("skipped_clusters");
             assertThat("no clusters should be skipped when both are up", skippedProjects, equalTo(0));
 
             double availabilityRatio = (double) cpsStats.get("availability_ratio");
             assertThat("all projects available → ratio should be 1.0", availabilityRatio, closeTo(1.0, 0.001));
 
-            List<String> stabilizedAliases = (List<String>) cpsStats.get("stabilized_project_aliases");
+            List<String> stabilizedAliases = (List<String>) cpsStats.get("stabilized_cluster_aliases");
             assertThat(stabilizedAliases, notNullValue());
             assertThat("stabilized aliases should include at least one project", stabilizedAliases.size(), greaterThanOrEqualTo(1));
 
-            Map<String, Object> consecutiveSkips = (Map<String, Object>) cpsStats.get("per_project_consecutive_skips");
+            Map<String, Object> consecutiveSkips = (Map<String, Object>) cpsStats.get("per_cluster_consecutive_skips");
             assertThat(consecutiveSkips, notNullValue());
             for (var entry : consecutiveSkips.entrySet()) {
                 assertThat("consecutive skips for " + entry.getKey() + " should be 0", (int) entry.getValue(), equalTo(0));
@@ -283,21 +283,21 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
             assertThat(stats, hasKey("cross_project_stats"));
             Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
 
-            int totalProjects = (int) cps.get("total_projects");
+            int totalProjects = (int) cps.get("total_clusters");
             assertThat("should include at least project_a and project_b", totalProjects, greaterThanOrEqualTo(2));
 
-            int availableProjects = (int) cps.get("available_projects");
+            int availableProjects = (int) cps.get("available_clusters");
             assertThat(availableProjects, greaterThanOrEqualTo(2));
 
-            assertThat((int) cps.get("skipped_projects"), equalTo(0));
+            assertThat((int) cps.get("skipped_clusters"), equalTo(0));
             assertThat((double) cps.get("availability_ratio"), closeTo(1.0, 0.001));
 
-            List<String> stabilizedAliases = (List<String>) cps.get("stabilized_project_aliases");
+            List<String> stabilizedAliases = (List<String>) cps.get("stabilized_cluster_aliases");
             assertThat("stabilized aliases should include both", stabilizedAliases.size(), greaterThanOrEqualTo(2));
             assertThat(stabilizedAliases, hasItem("project_a"));
             assertThat(stabilizedAliases, hasItem("project_b"));
 
-            Map<String, Object> consecutiveSkips = (Map<String, Object>) cps.get("per_project_consecutive_skips");
+            Map<String, Object> consecutiveSkips = (Map<String, Object>) cps.get("per_cluster_consecutive_skips");
             assertThat(consecutiveSkips, notNullValue());
             assertThat((int) consecutiveSkips.getOrDefault("project_a", 0), equalTo(0));
             assertThat((int) consecutiveSkips.getOrDefault("project_b", 0), equalTo(0));
@@ -344,7 +344,7 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
             assertThat(stats.get("state"), equalTo("started"));
             assertThat(stats, hasKey("cross_project_stats"));
             Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
             assertThat(aliases, hasItem("project_a"));
             assertThat(aliases, not(hasItem("project_b")));
         }, 60, TimeUnit.SECONDS);
@@ -360,9 +360,9 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
             assertThat(stats.get("state"), equalTo("started"));
             assertThat(stats, hasKey("cross_project_stats"));
             Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            int total = (int) cps.get("total_projects");
+            int total = (int) cps.get("total_clusters");
             assertThat("should now include both clusters", total, greaterThanOrEqualTo(2));
-            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
             assertThat(aliases, hasItem("project_a"));
             assertThat(aliases, hasItem("project_b"));
         }, 60, TimeUnit.SECONDS);
@@ -408,18 +408,18 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
             assertThat(stats, hasKey("cross_project_stats"));
             Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
 
-            int totalProjects = (int) cps.get("total_projects");
+            int totalProjects = (int) cps.get("total_clusters");
             assertThat("should include both clusters", totalProjects, greaterThanOrEqualTo(2));
 
-            assertThat((int) cps.get("available_projects"), greaterThanOrEqualTo(2));
-            assertThat((int) cps.get("skipped_projects"), equalTo(0));
+            assertThat((int) cps.get("available_clusters"), greaterThanOrEqualTo(2));
+            assertThat((int) cps.get("skipped_clusters"), equalTo(0));
             assertThat((double) cps.get("availability_ratio"), closeTo(1.0, 0.001));
 
-            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
             assertThat(aliases, hasItem("project_a"));
             assertThat(aliases, hasItem("project_b"));
 
-            Map<String, Object> consecutiveSkips = (Map<String, Object>) cps.get("per_project_consecutive_skips");
+            Map<String, Object> consecutiveSkips = (Map<String, Object>) cps.get("per_cluster_consecutive_skips");
             assertThat((int) consecutiveSkips.getOrDefault("project_a", 0), equalTo(0));
             assertThat((int) consecutiveSkips.getOrDefault("project_b", 0), equalTo(0));
         }, 60, TimeUnit.SECONDS);
@@ -469,7 +469,7 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
             assertThat(stats.get("state"), equalTo("started"));
             assertThat(stats, hasKey("cross_project_stats"));
             Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
             assertThat(aliases, hasItem("project_a"));
             assertThat("project_b should not be present yet", aliases, not(hasItem("project_b")));
         }, 60, TimeUnit.SECONDS);
@@ -491,9 +491,9 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
             assertThat(stats.get("state"), equalTo("started"));
             assertThat(stats, hasKey("cross_project_stats"));
             Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            int total = (int) cps.get("total_projects");
+            int total = (int) cps.get("total_clusters");
             assertThat("*: should now resolve to both clusters", total, greaterThanOrEqualTo(2));
-            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
             assertThat(aliases, hasItem("project_a"));
             assertThat(aliases, hasItem("project_b"));
         }, 60, TimeUnit.SECONDS);
@@ -544,7 +544,7 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
             assertThat(stats.get("state"), equalTo("started"));
             assertThat(stats, hasKey("cross_project_stats"));
             Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
             assertThat(aliases, hasItem("project_a"));
             assertThat(aliases, hasItem("project_b"));
         }, 60, TimeUnit.SECONDS);
@@ -568,9 +568,9 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
             assertThat(stats.get("state"), equalTo("started"));
             assertThat(stats, hasKey("cross_project_stats"));
             Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
-            int total = (int) cps.get("total_projects");
+            int total = (int) cps.get("total_clusters");
             assertThat("should now track only one project", total, equalTo(1));
-            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            List<String> aliases = (List<String>) cps.get("stabilized_cluster_aliases");
             assertThat(aliases, hasItem("project_a"));
             assertThat("project_b should no longer appear", aliases, not(hasItem("project_b")));
         }, 60, TimeUnit.SECONDS);

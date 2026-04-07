@@ -9,13 +9,15 @@ plugins {
 }
 
 subprojects {
-    if (project.path != ":modules-self-managed:stateless-test-framework") {
+    if (project.path != ":modules-self-managed:stateless-test-framework"
+        && project.path != ":modules-self-managed:vector") {
         apply(plugin = "elasticsearch.internal-es-plugin")
     }
 
     // Add standard dependencies to all modules
     dependencies {
-        if (project.path != ":modules-self-managed:stateless-test-framework") {
+        if (project.path != ":modules-self-managed:stateless-test-framework"
+            && project.path != ":modules-self-managed:vector") {
             add("compileOnly", "org.elasticsearch:server")
             add("testImplementation", "org.elasticsearch.test:framework")
         }

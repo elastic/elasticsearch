@@ -69,20 +69,20 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 
 /**
- * Factory for creating a serverless directory for use by the KnnIndexTester
+ * Factory for creating a stateless directory for use by the KnnIndexTester
  * benchmark tool. This class is loaded via reflection from the elasticsearch repo's
- * {@code qa/vector} module, so the method signatures form a stable public API.
+ * {@code modules-self-managed/vector} module, so the method signatures form a stable public API.
  *
  * <p>The returned directory supports both reads and writes: writes go to a local
- * NIOFSDirectory, and reads flow through the serverless blob cache
- * (StatelessSharedBlobCacheService). This faithfully reproduces the serverless
+ * NIOFSDirectory, and reads flow through the stateless blob cache
+ * (StatelessSharedBlobCacheService). This faithfully reproduces the stateless
  * SearchDirectory read path for benchmarking purposes.
  */
-public final class ServerlessDirectoryFactory {
+public final class StatelessDirectoryFactory {
 
-    private static final Logger logger = LogManager.getLogger(ServerlessDirectoryFactory.class);
+    private static final Logger logger = LogManager.getLogger(StatelessDirectoryFactory.class);
 
-    private ServerlessDirectoryFactory() {}
+    private StatelessDirectoryFactory() {}
 
     /**
      * Creates a directory with data and cache co-located in {@code dataPath}.
@@ -99,23 +99,23 @@ public final class ServerlessDirectoryFactory {
      *
      * @param indexPath path where index files are stored (and written to by IndexWriter)
      * @param workPath  scratch directory for cache and node environment files
-     * @return a read-write directory backed by the serverless blob cache
+     * @return a read-write directory backed by the stateless blob cache
      */
     public static Directory create(Path indexPath, Path workPath) throws IOException {
-        return ServerlessDirectory.create(indexPath, workPath);
+        return StatelessDirectory.create(indexPath, workPath);
     }
 
     /**
-     * A read-write directory backed by the serverless blob cache. Writes go to a local
+     * A read-write directory backed by the stateless blob cache. Writes go to a local
      * NIOFSDirectory; reads for committed files flow through the SearchDirectory /
-     * StatelessSharedBlobCacheService, faithfully reproducing the serverless read path.
+     * StatelessSharedBlobCacheService, faithfully reproducing the stateless read path.
      * Uncommitted files (temp files, lock files) are read directly from disk.
      *
      * <p> This is a test utility intended for benchmarking (e.g. KnnIndexTester).
      */
-    private static class ServerlessDirectory extends FilterDirectory {
+    private static class StatelessDirectory extends FilterDirectory {
 
-        static ServerlessDirectory create(Path dataPath, Path workPath) throws IOException {
+        static StatelessDirectory create(Path dataPath, Path workPath) throws IOException {
             var cacheSize = ByteSizeValue.ofBytes(computeRegionAlignedCacheSize(dataPath));
             var nodeSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), workPath)
@@ -126,7 +126,7 @@ public final class ServerlessDirectoryFactory {
                 .build();
             var nodeEnvironment = new NodeEnvironment(nodeSettings, new Environment(nodeSettings, null));
             var threadPool = new ThreadPool(
-                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "serverless-directory").build(),
+                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "stateless-directory").build(),
                 MeterRegistry.NOOP,
                 new DefaultBuiltInExecutorBuilders(),
                 StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, false)
@@ -175,7 +175,7 @@ public final class ServerlessDirectoryFactory {
             };
             searchDirectory.setBlobContainer(primaryTerm -> fakeBlobContainer);
 
-            return new ServerlessDirectory(
+            return new StatelessDirectory(
                 searchDirectory,
                 fakeBlobStoreDirectory,
                 blobNameToFileName,
@@ -194,7 +194,7 @@ public final class ServerlessDirectoryFactory {
         private final Map<String, BlobFileRanges> metadata = new ConcurrentHashMap<>();
         private final AtomicInteger blobFileGenerationGenerator = new AtomicInteger();
 
-        private ServerlessDirectory(
+        private StatelessDirectory(
             SearchDirectory searchDirectory,
             Directory fakeBlobStoreDirectory,
             Map<String, String> blobNameToFileName,
@@ -356,13 +356,13 @@ public final class ServerlessDirectoryFactory {
 
     /**
      * Logs cache stats (regions, evictions, writes, reads) for a directory
-     * created by this factory. No-op if the directory is not a ServerlessDirectory.
+     * created by this factory. No-op if the directory is not a StatelessDirectory.
      *
      * @param dir   the directory to inspect
      * @param label a label to identify the logging context (e.g. "Before prewarm")
      */
     public static void logCacheStats(Directory dir, String label) {
-        if (dir instanceof ServerlessDirectory sd) {
+        if (dir instanceof StatelessDirectory sd) {
             var stats = sd.cacheService.getStats();
             logger.info(
                 "[{}] Cache stats: regions={}, evictions={}, writes={}, readBytes={}",

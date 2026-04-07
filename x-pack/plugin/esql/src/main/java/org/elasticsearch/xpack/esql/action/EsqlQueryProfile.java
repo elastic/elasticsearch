@@ -143,10 +143,16 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
                 out.writeOptionalWriteable(viewResolutionMarker.timeSpan());
             }
             out.writeOptionalWriteable(preAnalysisMarker.timeSpan());
-            out.writeOptionalWriteable(indicesResolutionMarker.timeSpan());
             if (out.getTransportVersion().supports(ESQL_SEPARATE_DEPENDENCY_RESOLUTION)) {
+                out.writeOptionalWriteable(indicesResolutionMarker.timeSpan());
                 out.writeOptionalWriteable(enrichResolutionMarker.timeSpan());
                 out.writeOptionalWriteable(inferenceResolutionMarker.timeSpan());
+            } else {
+                out.writeOptionalWriteable(TimeSpan.combine(
+                    indicesResolutionMarker.timeSpan(),
+                    enrichResolutionMarker.timeSpan(),
+                    inferenceResolutionMarker.timeSpan()
+                ));
             }
             out.writeOptionalWriteable(analysisMarker.timeSpan());
         }

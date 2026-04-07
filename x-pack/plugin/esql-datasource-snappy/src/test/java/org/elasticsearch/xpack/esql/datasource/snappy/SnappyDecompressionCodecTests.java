@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.snappy;
 
-import io.airlift.compress.snappy.SnappyFramedOutputStream;
-
 import org.elasticsearch.test.ESTestCase;
+import org.xerial.snappy.SnappyFramedOutputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

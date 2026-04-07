@@ -218,7 +218,8 @@ public class CsvTestsDataLoader {
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        )
+        ),
+        new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
@@ -256,7 +257,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("country_languages"),
         new ViewConfig("airports_mp_filtered"),
         new ViewConfig("employees_rehired"),
-        new ViewConfig("employees_not_rehired")
+        new ViewConfig("employees_not_rehired"),
+        new ViewConfig("employees_all"),
+        new ViewConfig("employees_extra")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

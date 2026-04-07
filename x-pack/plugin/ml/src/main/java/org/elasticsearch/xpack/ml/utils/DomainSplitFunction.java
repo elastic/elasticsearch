@@ -12,8 +12,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -82,21 +80,19 @@ public final class DomainSplitFunction {
         );
 
         static {
-            exact = AccessController.doPrivileged((PrivilegedAction<Map<String, String>>) () -> {
-                try (
-                    var stream = DomainSplitFunction.class.getClassLoader()
-                        .getResourceAsStream("org/elasticsearch/xpack/ml/utils/exact.properties")
-                ) {
-                    return Streams.readAllLines(stream)
-                        .stream()
-                        .map(line -> line.split("="))
-                        .collect(
-                            Collectors.<String[], String, String>toUnmodifiableMap(split -> split[0].intern(), split -> split[1].intern())
-                        );
-                } catch (final IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
+            try (
+                var stream = DomainSplitFunction.class.getClassLoader()
+                    .getResourceAsStream("org/elasticsearch/xpack/ml/utils/exact.properties")
+            ) {
+                exact = Streams.readAllLines(stream)
+                    .stream()
+                    .map(line -> line.split("="))
+                    .collect(
+                        Collectors.<String[], String, String>toUnmodifiableMap(split -> split[0].intern(), split -> split[1].intern())
+                    );
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 
@@ -171,15 +167,11 @@ public final class DomainSplitFunction {
     }
 
     public static List<String> domainSplit(String host, Map<String, Object> params) {
-        // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            deprecationLogger.warn(
-                DeprecationCategory.API,
-                "domainSplit",
-                "Method [domainSplit] taking params is deprecated. Remove the params argument."
-            );
-            return null;
-        });
+        deprecationLogger.warn(
+            DeprecationCategory.API,
+            "domainSplit",
+            "Method [domainSplit] taking params is deprecated. Remove the params argument."
+        );
         return domainSplit(host);
     }
 

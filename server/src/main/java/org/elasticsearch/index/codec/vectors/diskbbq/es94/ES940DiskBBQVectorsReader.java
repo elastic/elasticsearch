@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
@@ -36,7 +37,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata.NO_ORDINAL;
-import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
+import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 /**
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
@@ -66,7 +67,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             ES940DiskBBQVectorsFormat.IVF_META_EXTENSION,
             ES940DiskBBQVectorsFormat.VERSION_START,
             ES940DiskBBQVectorsFormat.VERSION_CURRENT,
-            ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+            ES940DiskBBQVectorsFormat.VERSION_DIRECT_IO,
             ES940DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
     }
@@ -77,21 +78,22 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
     }
 
-    static long directWriterSizeOnDisk(long numValues, int bitsPerValue) {
-        // TODO: use method in https://github.com/apache/lucene/pull/15422 when/if merged.
-        long bytes = (numValues * bitsPerValue + Byte.SIZE - 1) / 8;
-        int paddingBitsNeeded;
-        if (bitsPerValue > Integer.SIZE) {
-            paddingBitsNeeded = Long.SIZE - bitsPerValue;
-        } else if (bitsPerValue > Short.SIZE) {
-            paddingBitsNeeded = Integer.SIZE - bitsPerValue;
-        } else if (bitsPerValue > Byte.SIZE) {
-            paddingBitsNeeded = Short.SIZE - bitsPerValue;
-        } else {
-            paddingBitsNeeded = 0;
+    private void ensureCompatibleEncoding(IndexInput metaInput, ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding)
+        throws CorruptIndexException {
+        if (versionMeta < ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
+            && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED) {
+            throw new CorruptIndexException(
+                "Packed 4-bit encoding requires version " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4,
+                metaInput
+            );
         }
-        final int paddingBytesNeeded = (paddingBitsNeeded + Byte.SIZE - 1) / Byte.SIZE;
-        return bytes + paddingBytesNeeded;
+        if (versionMeta >= ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
+            && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED) {
+            throw new CorruptIndexException(
+                "Striped 4-bit encoding requires version before " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4,
+                metaInput
+            );
+        }
     }
 
     @Override
@@ -114,7 +116,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             approximateDocsPerCentroid = (float) acceptDocs.cost() / numCentroids;
         }
         final int bitsRequired = DirectWriter.bitsRequired(numCentroids);
-        final long sizeLookup = directWriterSizeOnDisk(values.size(), bitsRequired);
+        final long sizeLookup = DirectWriter.bytesRequired(values.size(), bitsRequired);
         final long fp = centroids.getFilePointer();
         final FixedBitSet acceptCentroids;
         if (approximateDocsPerCentroid > 1.25 || numCentroids == 1) {
@@ -198,6 +200,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     ) throws IOException {
         int bulkSize = input.readInt();
         ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = ES940DiskBBQVectorsFormat.QuantEncoding.fromId(input.readInt());
+        ensureCompatibleEncoding(input, quantEncoding);
         long preconditionerLength = input.readLong();
         long preconditionerOffset = -1;
         if (preconditionerLength > 0) {
@@ -593,6 +596,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
+        int numVectors,
         IndexInput indexInput,
         float[] target,
         Bits acceptDocs,
@@ -600,10 +604,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     ) throws IOException {
         NextFieldEntry entry = fields.get(fieldInfo.number);
         final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());
-        final long sizeLookup = directWriterSizeOnDisk(
-            getReaderForField(fieldInfo.name).getFloatVectorValues(fieldInfo.name).size(),
-            bitsRequired
-        );
+        final long sizeLookup = DirectWriter.bytesRequired(numVectors, bitsRequired);
         centroidSlice.skipBytes(sizeLookup);
         ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding = entry.quantEncoding();
         int numParents = centroidSlice.readVInt();
@@ -638,6 +639,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         private final IndexInput parentsSlice;
         private final float[] globalCentroid;
         private final float[] centroidScratch;
+        private final int queryPackedLength;
         private int currentCentroidOrdinal = -2;
         private int nextCentroidOrdinal = -1;
         private byte[] evictedQuantizedQuery = null;
@@ -658,6 +660,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             this.quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction(), DEFAULT_LAMBDA, 1);
             this.parentsSlice = parentsSlice;
             this.globalCentroid = globalCentroid;
+            this.queryPackedLength = quantEncoding.getQueryPackedLength(fieldInfo.getVectorDimension());
             this.cache = new LinkedHashMap<>(QUERY_CACHE_SIZE, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<Integer, QueryQuantizerResult> eldest) {
@@ -683,10 +686,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                     return;
                 }
                 // reuse the evicted byte array to reduce allocations
-                final byte[] quantizedQuery = Objects.requireNonNullElseGet(
-                    evictedQuantizedQuery,
-                    () -> new byte[quantEncoding.getQueryPackedLength(target.length)]
-                );
+                final byte[] quantizedQuery = Objects.requireNonNullElseGet(evictedQuantizedQuery, () -> new byte[queryPackedLength]);
                 final float[] queryCentroid;
                 if (parentsSlice != null) {
                     assert nextCentroidOrdinal >= 0;
@@ -732,7 +732,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         final FieldEntry entry;
         final FieldInfo fieldInfo;
         final Bits acceptDocs;
-        private final ESNextOSQVectorsScorer osqVectorsScorer;
+        private final ES940OSQVectorsScorer osqVectorsScorer;
         final float[] scores = new float[BULK_SIZE];
         final float[] correctionsLower = new float[BULK_SIZE];
         final float[] correctionsUpper = new float[BULK_SIZE];
@@ -770,13 +770,18 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             this.acceptDocs = acceptDocs;
             quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
             quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Integer.BYTES;
-            osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
+            ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding =
+                quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED
+                    ? ES940OSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
+                    : ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED;
+            osqVectorsScorer = ESVectorUtil.getES940OSQVectorsScorer(
                 indexInput,
                 quantEncoding.queryBits(),
                 quantEncoding.bits(),
                 fieldInfo.getVectorDimension(),
                 (int) quantizedVectorByteSize,
-                BULK_SIZE
+                BULK_SIZE,
+                int4Encoding
             );
         }
 

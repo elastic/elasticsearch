@@ -36,6 +36,10 @@ import java.util.Map;
 
 /**
  * ES|QL Operator for performing MMR result diversification
+ * MMR performs result diversification on incoming results using maximum marginal relevance.
+ * The input is a set of limited rows, where at least one field is a dense vector to use for vector comparison.
+ * The output is a reduced set of results, in the same order as the input, but "diversified" to be results that are semantically
+ * diverse from each other within the input set.
  */
 public class MMROperator extends CompleteInputCollectorOperator {
 

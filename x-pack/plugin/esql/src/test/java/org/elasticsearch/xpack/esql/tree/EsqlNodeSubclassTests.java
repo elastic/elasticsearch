@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
@@ -146,7 +146,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static final Predicate<String> CLASSNAME_FILTER = className -> {
         boolean esqlCore = className.startsWith(ESQL_CORE_CLASS_PREFIX) != false;
         boolean esqlProper = className.startsWith(ESQL_CLASS_PREFIX) != false;
-        return (esqlCore || esqlProper);
+        if ((esqlCore || esqlProper) == false) {
+            return false;
+        }
+        int dollarIdx = className.indexOf('$');
+        return dollarIdx < 0 || false == className.substring(0, dollarIdx).endsWith("Tests");
     };
 
     /**
@@ -214,6 +218,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         T node = ctor.newInstance(nodeCtorArgs);
 
         Type[] argTypes = ctor.getGenericParameterTypes();
+
         // start at 1 because we can't change Location.
         for (int changedArgOffset = 1; changedArgOffset < ctor.getParameterCount(); changedArgOffset++) {
             Object originalArgValue = nodeCtorArgs[changedArgOffset];
@@ -257,6 +262,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         T node = ctor.newInstance(nodeCtorArgs);
 
         Type[] argTypes = ctor.getGenericParameterTypes();
+
         // start at 1 because we can't change Location.
         for (int changedArgOffset = 1; changedArgOffset < ctor.getParameterCount(); changedArgOffset++) {
             Object originalArgValue = nodeCtorArgs[changedArgOffset];
@@ -456,9 +462,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Grok.Parser.class) {
             // Grok.Parser is a record / final, cannot be mocked
             return Grok.pattern(Source.EMPTY, randomGrokPattern());
-        } else if (argClass == FileSet.class) {
-            // FileSet is final, cannot be mocked
-            return FileSet.UNRESOLVED;
+        } else if (argClass == FileList.class) {
+            // FileList implementations are package-private; use coordinator sentinel.
+            return FileList.UNRESOLVED;
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));
@@ -853,9 +859,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             int rootLength = root.toString().length() + 1;
 
             // load classes from jar files
-            // NIO FileSystem API is not used since it trips the SecurityManager
-            // https://bugs.openjdk.java.net/browse/JDK-8160798
-            // so iterate the jar "by hand"
+            // iterate the jar "by hand"
             if (path.endsWith(".jar") && path.contains(ESQL_CORE_JAR_LOCATION_SUBSTRING)) {
                 try (JarInputStream jar = jarStream(root)) {
                     JarEntry je = null;

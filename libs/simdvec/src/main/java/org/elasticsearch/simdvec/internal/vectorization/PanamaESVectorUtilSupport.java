@@ -1224,6 +1224,51 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        // Scalar logic is faster for short values (below approximately 24 bytes)
+        if (valueLength < 24) {
+            return ByteArrayUtils.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+        }
+
+        byte first = term[termOffset];
+        byte last = term[termOffset + termLength - 1];
+        int maxPos = valueOffset + valueLength - termLength;
+
+        ByteVector firstVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, first);
+        ByteVector lastVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, last);
+        int vectorSize = PREFERRED_BYTE_SPECIES.length();
+        int i = valueOffset;
+        int loopBound = maxPos - vectorSize + 1;
+        for (; i <= loopBound; i += vectorSize) {
+            ByteVector blockFirst = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, value, i);
+            ByteVector blockLast = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, value, i + termLength - 1);
+            long mask = blockFirst.eq(firstVec).and(blockLast.eq(lastVec)).toLong();
+            while (mask != 0) {
+                int pos = Long.numberOfTrailingZeros(mask);
+                int absPos = i + pos;
+                if (absPos > maxPos) {
+                    break;
+                }
+                if (middleBytesMatch(value, absPos, term, termOffset, termLength)) {
+                    return true;
+                }
+                mask &= mask - 1;
+            }
+        }
+        return ByteArrayUtils.contains(value, i, valueOffset + valueLength - i, term, termOffset, termLength);
+    }
+
+    /** Checks bytes between first and last (exclusive) since those were already verified by the SIMD masks. */
+    private static boolean middleBytesMatch(byte[] value, int valuePos, byte[] term, int termOffset, int termLength) {
+        for (int k = 1; k < termLength - 1; k++) {
+            if (value[valuePos + k] != term[termOffset + k]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public int codePointCount(final BytesRef bytesRef) {
         // SWAR logic is faster for lengths below approximately 54
         if (bytesRef.length < 54) {

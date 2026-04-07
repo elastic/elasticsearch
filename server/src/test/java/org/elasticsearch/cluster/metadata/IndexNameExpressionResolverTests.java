@@ -3350,6 +3350,63 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(names, containsInAnyOrder(dataStream1, dataStream2));
     }
 
+    public void testViewNames() {
+        final String view1Name = "my-view-1";
+        final String view2Name = "other-view-2";
+        View view1 = new View(view1Name, "FROM logs");
+        View view2 = new View(view2Name, "FROM metrics");
+
+        final IndicesOptions defaultViewOptions = IndicesOptions.builder()
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveViews(true).build())
+            .build();
+
+        IndexMetadata justAnIndex = IndexMetadata.builder("my-view-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        ProjectMetadata project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
+            .put(justAnIndex, false)
+            .views(Map.of(view1Name, view1, view2Name, view2))
+            .build();
+
+        // Concrete view name resolves to a single view
+        List<String> views = indexNameExpressionResolver.views(project, defaultViewOptions, viewRequest(defaultViewOptions, view1Name));
+        assertThat(views, contains(view1Name));
+
+        // Both concrete view names
+        views = indexNameExpressionResolver.views(project, defaultViewOptions, viewRequest(defaultViewOptions, view1Name, view2Name));
+        assertThat(views, containsInAnyOrder(view1Name, view2Name));
+
+        // Wildcard matching all views
+        views = indexNameExpressionResolver.views(project, defaultViewOptions, viewRequest(defaultViewOptions, "*view*"));
+        assertThat(views, containsInAnyOrder(view1Name, view2Name));
+
+        // Wildcard matching one view
+        views = indexNameExpressionResolver.views(project, defaultViewOptions, viewRequest(defaultViewOptions, "my-*"));
+        assertThat(views, contains(view1Name));
+
+        // Index name does not appear in views()
+        views = indexNameExpressionResolver.views(project, defaultViewOptions, viewRequest(defaultViewOptions, "my-view-index"));
+        assertThat(views, empty());
+    }
+
+    private static IndicesRequest viewRequest(IndicesOptions options, String... indices) {
+        return new IndicesRequest() {
+            @Override
+            public String[] indices() {
+                return indices;
+            }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return options;
+            }
+        };
+    }
+
     public void testDateMathMixedArray() {
         long now = System.currentTimeMillis();
         String dataMathIndex1 = ".marvel-" + formatDate("uuuu.MM.dd", dateFromMillis(now));

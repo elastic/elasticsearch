@@ -1,0 +1,59 @@
+[[release-notes-8.19.14]]
+== {es} version 8.19.14
+
+coming[8.19.14]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.14]]
+[float]
+=== Bug fixes
+
+CAT APIs::
+* Fix `ArrayIndexOutOfBoundsException` in cat nodes for partial load average arrays {es-pull}144859[#144859]
+
+CCR::
+* CCR follower index needs to copy transport version from CCR leader index {es-pull}145035[#145035]
+
+Downsampling::
+* Support multi-value dimensions in downsampling (bug fix) {es-pull}145458[#145458]
+
+ES|QL::
+* Cancel async query on expiry {es-pull}143016[#143016] (issue: {es-issue}142662[#142662])
+
+FIPS::
+* Fix createLDAPCertStore failing in FIPS mode {es-pull}144453[#144453] (issues: {es-issue}144376[#144376], {es-issue}144377[#144377])
+
+Geo::
+* Fix `geo_centroid` over `geo_shape` merging multiple shards {es-pull}144637[#144637] (issue: {es-issue}144504[#144504])
+
+Infra/Core::
+* Fix system index mapping update for reindexed indices after migration {es-pull}144782[#144782] (issue: {es-issue}144764[#144764])
+
+Machine Learning::
+* Fix anomaly detection jobs stuck in opening by continously retrying to set the state to opened. {es-pull}139668[#139668]
+* [Inference API] Support chunking settings for sparse embeddings in custom service {es-pull}138776[#138776]
+
+Search::
+* Fix `ArrayIndexOutOfBoundsException` in fetch phase with partial results {es-pull}144385[#144385] (issue: {es-issue}140495[#140495])
+* Fix circuit breaker leak in percolator query construction {es-pull}144827[#144827]
+* Fix request cache invalidation to use ES cache helper consistently {es-pull}144581[#144581]
+* Fix wrong return value in `ContextIndexSearcher.totalTermFreq` {es-pull}144333[#144333]
+
+Watcher::
+* Validate Watcher Proxy Allowlist {es-pull}144759[#144759]
+
+[[enhancement-8.19.14]]
+[float]
+=== Enhancements
+
+Authentication::
+* Improve SAML error handling by adding metadata {es-pull}137598[#137598] (issue: {es-issue}128179[#128179])
+
+Monitoring::
+* Apm-server: update monitor mappings to include new TBS metrics {es-pull}140700[#140700]
+
+Security::
+* Skip automaton construction for literal resource strings in application privilege checks {es-pull}144685[#144685]
+
+

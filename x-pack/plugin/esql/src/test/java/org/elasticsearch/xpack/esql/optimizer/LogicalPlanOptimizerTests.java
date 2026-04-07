@@ -87,8 +87,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -5251,11 +5251,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Limit[1000[INTEGER],false]
-     * \_Filter[LIKE(language_name{f}#18, "French*", false)]
+     * \_Filter[StartsWith(language_name{f}#18, "French")]
      *   \_Join[LEFT,[languages{f}#9],[language_code{f}#17],languages{f}#9 == language_code{f}#17 AND MATCH(language_name{f}#18,
      * English[KEYWORD])]
      *     |_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     *     \_Filter[LIKE(language_name{f}#18, "French*", false)]
+     *     \_Filter[StartsWith(language_name{f}#18, "French")]
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
      */
     public void testLookupJoinRightFilterMatchWithWhereClause() {
@@ -5272,12 +5272,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var join = as(topFilter.child(), Join.class);
         assertEquals("ON languages == language_code and MATCH(language_name,\"English\")", join.config().joinOnConditions().toString());
 
-        // Check that the LIKE condition is pushed down as a right pre-join filter
+        // LIKE "French*" is decomposed to StartsWith by ReplaceRegexMatch
         var rightFilter = as(join.right(), Filter.class);
-        var likeCondition = as(rightFilter.condition(), WildcardLike.class);
-        var field = as(likeCondition.field(), FieldAttribute.class);
+        var startsWithCondition = as(rightFilter.condition(), StartsWith.class);
+        var field = as(startsWithCondition.children().get(0), FieldAttribute.class);
         assertEquals("language_name", field.name());
-        assertEquals("French*", likeCondition.pattern().pattern());
 
         as(rightFilter.child(), EsRelation.class);
     }

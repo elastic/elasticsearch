@@ -21,7 +21,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -56,13 +55,17 @@ public class ViewResolver {
     private final CrossProjectModeDecider crossProjectModeDecider;
     private volatile int maxViewDepth;
     private final Client client;
+    // This setting is registered as OperatorDynamic so it is not exposed to end users yet.
+    // To fully expose it later:
+    // 1. Change OperatorDynamic to Dynamic (makes it user-settable on self-managed)
+    // 2. Add ServerlessPublic (makes it visible to non-operator users on Serverless)
     public static final Setting<Integer> MAX_VIEW_DEPTH_SETTING = Setting.intSetting(
         "esql.views.max_view_depth",
         10,
         0,
         100,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.OperatorDynamic
     );
 
     /**
@@ -93,8 +96,9 @@ public class ViewResolver {
         return clusterService.state().metadata().getProject(projectResolver.getProjectId()).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
     }
 
+    // TODO: Remove this function entirely if we no longer need to do micro-benchmarks on views enabled/disabled
     protected boolean viewsFeatureEnabled() {
-        return EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
+        return true;
     }
 
     /**

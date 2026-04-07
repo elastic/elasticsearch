@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
@@ -23,7 +22,6 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
 
     @Before
     public void setupClustersAndViews() throws IOException {
-        assumeTrue("views only enabled when feature flag is set", EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled());
         setupClusters(3);
         createViewOnCluster(REMOTE_CLUSTER_1, "logs-web", "FROM logs-2 | LIMIT 10");
         createViewOnCluster(REMOTE_CLUSTER_1, "logs-mobile", "FROM logs-2 | LIMIT 10");

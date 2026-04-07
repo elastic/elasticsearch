@@ -395,11 +395,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(AbstractJoin join) {
             List<Constraint> constraints = new ArrayList<>();
 
-            // collect constraints for each filter
-            join.queries().forEach(k -> k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))));
+            // collect constraints for each non-negated filter only; negated (missing event) filters use different semantics
+            join.queries()
+                .stream()
+                .filter(k -> k.isMissingEventFilter() == false)
+                .forEach(k -> k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))));
 
             if (constraints.isEmpty() == false) {
-                List<KeyedFilter> queries = join.queries().stream().map(k -> addConstraint(k, constraints)).collect(toList());
+                // propagate constraints only to non-negated filters; applying key constraints to missing event filters is incorrect
+                List<KeyedFilter> queries = join.queries()
+                    .stream()
+                    .map(k -> k.isMissingEventFilter() ? k : addConstraint(k, constraints))
+                    .collect(toList());
 
                 if (join instanceof Join j) {
                     join = j.with(queries, j.until(), j.direction());

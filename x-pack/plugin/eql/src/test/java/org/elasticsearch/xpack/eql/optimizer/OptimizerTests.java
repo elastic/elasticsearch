@@ -627,6 +627,62 @@ public class OptimizerTests extends ESTestCase {
     }
 
     /**
+     * Key conditions in a negated (missing event) rule must NOT be propagated to positive rules.
+     * <p>
+     * sequence by a
+     * ![ filter a gt 1 by a ]
+     * [ filter X by a ]
+     * ==
+     * same (no propagation)
+     */
+    public void testKeyConstraintNotPropagatedFromMissingEventFilter() {
+        Attribute a = key("a");
+
+        Expression keyCondition = gtExpression(a);
+        Expression filter = equalsExpression();
+
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter positiveRule = keyedFilter(basicFilter(filter), a);
+
+        Sequence seq = sequence(negatedRule, positiveRule);
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(seq);
+        Sequence resultSeq = (Sequence) result;
+
+        List<KeyedFilter> queries = resultSeq.queries();
+        assertEquals(negatedRule, queries.get(0));
+        assertEquals(positiveRule, queries.get(1));
+    }
+
+    /**
+     * Key conditions in a positive rule must NOT be propagated into a negated (missing event) rule.
+     * <p>
+     * sequence by a
+     * [ filter a gt 1 by a ]
+     * ![ filter X by a ]
+     * ==
+     * same (missing event filter unchanged)
+     */
+    public void testKeyConstraintNotPropagatedToMissingEventFilter() {
+        Attribute a = key("a");
+
+        Expression keyCondition = gtExpression(a);
+        Expression filter = equalsExpression();
+
+        KeyedFilter positiveRule = keyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(filter), a);
+
+        Sequence seq = sequence(positiveRule, negatedRule);
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(seq);
+        Sequence resultSeq = (Sequence) result;
+
+        List<KeyedFilter> queries = resultSeq.queries();
+        // positive rule is unchanged (no other positive rules to propagate to)
+        assertEquals(positiveRule, queries.get(0));
+        // negated rule must not receive the key constraint
+        assertEquals(negatedRule, queries.get(1));
+    }
+
+    /**
      * sequence
      * 1. filter startsWith(a, b) and c > 10 by a, c
      * 2. filter X by a, c
@@ -870,6 +926,10 @@ public class OptimizerTests extends ESTestCase {
 
     private static KeyedFilter keyedFilter(LogicalPlan child, NamedExpression... keys) {
         return new KeyedFilter(EMPTY, child, asList(keys), timestamp(), tiebreaker(), false);
+    }
+
+    private static KeyedFilter missingEventKeyedFilter(LogicalPlan child, NamedExpression... keys) {
+        return new KeyedFilter(EMPTY, child, asList(keys), timestamp(), tiebreaker(), true);
     }
 
     private static Attribute key(String name) {

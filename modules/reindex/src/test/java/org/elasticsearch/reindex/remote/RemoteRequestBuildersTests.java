@@ -642,6 +642,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
         assertThat(body, containsString("\"project_routing\":\"" + projectRouting + "\""));
     }
+
     public void testOpenPitBodyIncludesIndexFilterWhenQuerySet() throws IOException {
         String index = randomAlphaOfLength(between(1, 20));
         TimeValue keepAlive = randomPositiveTimeValue();

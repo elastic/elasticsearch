@@ -36,7 +36,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata.NO_ORDINAL;
-import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
+import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
 /**
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
@@ -734,7 +734,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         final FieldEntry entry;
         final FieldInfo fieldInfo;
         final Bits acceptDocs;
-        private final ESNextOSQVectorsScorer osqVectorsScorer;
+        private final ES940OSQVectorsScorer osqVectorsScorer;
         final float[] scores = new float[BULK_SIZE];
         final float[] correctionsLower = new float[BULK_SIZE];
         final float[] correctionsUpper = new float[BULK_SIZE];
@@ -772,7 +772,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             this.acceptDocs = acceptDocs;
             quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
             quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Integer.BYTES;
-            osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
+            osqVectorsScorer = ESVectorUtil.getES940OSQVectorsScorer(
                 indexInput,
                 quantEncoding.queryBits(),
                 quantEncoding.bits(),
@@ -780,8 +780,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 (int) quantizedVectorByteSize,
                 BULK_SIZE,
                 quantEncoding.bits() == 4
-                    ? ESNextOSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
-                    : ESNextOSQVectorsScorer.SymmetricInt4Encoding.STRIPED
+                    ? ES940OSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
+                    : ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED
             );
         }
 

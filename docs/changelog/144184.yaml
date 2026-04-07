@@ -10,4 +10,5 @@ highlight:
     duplicate detection at ingest time. Lookups and operations that previously relied on `_id` are delegated to other
     indexed fields on the document, such as timestamps, or dimension fields, preserving the same query and
     retrieval functionality.
+  notable: true
 type: "enhancement"

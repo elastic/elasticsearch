@@ -191,7 +191,18 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             assertThat(lastValueRow.timeseries, equalTo(baselineRow.timeseries));
             assertThat(lastValueRow.timestamp, equalTo(baselineRow.timestamp));
             // Aggregate counter downsampling should be closer to the baseline than the last value
-            assertThat(Math.abs(aggregatedRow.rate - baselineRow.rate), lessThanOrEqualTo(Math.abs(lastValueRow.rate - baselineRow.rate)));
+            if (lastValueRow.rate != null) {
+                assertThat(
+                    Math.abs(aggregatedRow.rate - baselineRow.rate),
+                    lessThanOrEqualTo(Math.abs(lastValueRow.rate - baselineRow.rate))
+                );
+            } else {
+                assertThat(
+                    "Expected rate on last value to only be null for the last timebucket",
+                    (i + 1) == baselineRows.size() || baselineRow.timeseries.equals(baselineRows.get(i + 1).timeseries) == false,
+                    equalTo(true)
+                );
+            }
         }
     }
 
@@ -202,7 +213,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         for (Iterable<Object> objects : result.rows()) {
             var row = objects.iterator();
             while (row.hasNext()) {
-                var rate = (double) row.next();
+                Double rate = (Double) row.next();
                 var timeseries = (String) row.next();
                 var timestamp = (String) row.next();
                 rows.add(new RateResult(timeseries, timestamp, rate));
@@ -317,5 +328,5 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         }
     }
 
-    record RateResult(String timeseries, String timestamp, double rate) {}
+    record RateResult(String timeseries, String timestamp, Double rate) {}
 }

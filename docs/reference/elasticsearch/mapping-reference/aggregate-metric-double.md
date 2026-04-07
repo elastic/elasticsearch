@@ -72,18 +72,18 @@ for use with the following aggregations:
 
 Running any other aggregation on an `aggregate_metric_double` field will fail with an "unsupported aggregation" error.
 
-Finally, an `aggregate_metric_double` field supports the following queries:
+Finally, an `aggregate_metric_double` field supports the following queries, for which it behaves as a `double`:
 
 * [`exists`](/reference/query-languages/query-dsl/query-dsl-exists-query.md)
 * [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md)
 * [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md)
 * [`terms`](/reference/query-languages/query-dsl/query-dsl-terms-query.md)
 
-for which it behaves as a `double` by delegating its behavior:
+The field delegates its behavior as follows:
 
-* to the average using the `sum` and `value_count` metrics, if they exist (since `9.4`),
-* to a sub-field, if this `aggregate_metric_double` has a single sub-field configured,
-* otherwise, it behaves as a query that did not match any documents.
+* If `sum` and `value_count` metrics exist, the average is used. {applies_to}`stack: ga 9.4`
+* If only one sub-field is configured, that sub-field is used.
+* Otherwise, the query matches no documents.
 
 ### ES|QL [aggregate-metric-double-esql]
 

@@ -18,8 +18,6 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
@@ -51,7 +49,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.EntitledFileWatcher;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
@@ -84,10 +82,7 @@ import org.opensaml.xmlsec.keyinfo.impl.provider.InlineX509DataProvider;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.GeneralSecurityException;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.security.PublicKey;
 import java.time.Clock;
 import java.time.Duration;
@@ -683,7 +678,7 @@ public final class SamlRealm extends Realm implements Releasable {
         RealmConfig config,
         SSLService sslService,
         ResourceWatcherService watcherService
-    ) throws ResolverException, ComponentInitializationException, PrivilegedActionException, IOException {
+    ) throws ResolverException, ComponentInitializationException, IOException {
         final String metadataUrl = require(config, IDP_METADATA_PATH);
         if (metadataUrl.startsWith("http://")) {
             throw new IllegalArgumentException("The [http] protocol is not supported as it is insecure. Use [https] instead");
@@ -698,7 +693,7 @@ public final class SamlRealm extends Realm implements Releasable {
         String metadataUrl,
         RealmConfig config,
         SSLService sslService
-    ) throws ResolverException, ComponentInitializationException, PrivilegedActionException {
+    ) throws ResolverException, ComponentInitializationException {
         final String entityId = require(config, IDP_ENTITY_ID);
 
         HttpClientBuilder builder = HttpClientBuilder.create();
@@ -742,23 +737,9 @@ public final class SamlRealm extends Realm implements Releasable {
 
         initialiseResolver(resolver, config);
 
-        return new Tuple<>(resolver, () -> {
-            // for some reason the resolver supports its own trust engine and custom socket factories.
-            // we do not use these as we'd rather rely on the JDK versions for TLS security!
-            SpecialPermission.check();
-            try {
-                return AccessController.doPrivileged(
-                    (PrivilegedExceptionAction<EntityDescriptor>) () -> resolveEntityDescriptor(
-                        resolver,
-                        entityId,
-                        metadataUrl,
-                        failOnError
-                    )
-                );
-            } catch (PrivilegedActionException e) {
-                throw ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(e));
-            }
-        });
+        // for some reason the resolver supports its own trust engine and custom socket factories.
+        // we do not use these as we'd rather rely on the JDK versions for TLS security!
+        return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, metadataUrl, failOnError));
     }
 
     private static final class PrivilegedHTTPMetadataResolver extends HTTPMetadataResolver {
@@ -770,13 +751,7 @@ public final class SamlRealm extends Realm implements Releasable {
         @Override
         protected byte[] fetchMetadata() throws ResolverException {
             assert assertNotTransportThread("fetching SAML metadata from a URL");
-            try {
-                return AccessController.doPrivileged(
-                    (PrivilegedExceptionAction<byte[]>) () -> PrivilegedHTTPMetadataResolver.super.fetchMetadata()
-                );
-            } catch (final PrivilegedActionException e) {
-                throw (ResolverException) e.getCause();
-            }
+            return super.fetchMetadata();
         }
 
     }
@@ -791,11 +766,7 @@ public final class SamlRealm extends Realm implements Releasable {
         @Override
         protected byte[] fetchMetadata() throws ResolverException {
             assert assertNotTransportThread("fetching SAML metadata from a file");
-            try {
-                return AccessController.doPrivileged((PrivilegedExceptionAction<byte[]>) () -> super.fetchMetadata());
-            } catch (PrivilegedActionException e) {
-                throw (ResolverException) e.getException();
-            }
+            return super.fetchMetadata();
         }
     }
 
@@ -805,7 +776,7 @@ public final class SamlRealm extends Realm implements Releasable {
         String metadataPath,
         RealmConfig config,
         ResourceWatcherService watcherService
-    ) throws ResolverException, ComponentInitializationException, IOException, PrivilegedActionException {
+    ) throws ResolverException, ComponentInitializationException, IOException {
 
         final String entityId = require(config, IDP_ENTITY_ID);
         final Path path = config.env().configDir().resolve(metadataPath);
@@ -833,7 +804,7 @@ public final class SamlRealm extends Realm implements Releasable {
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);
 
-        FileWatcher watcher = new PrivilegedFileWatcher(path);
+        FileWatcher watcher = new EntitledFileWatcher(path);
         watcher.addListener(new FileListener(logger, resolver::refresh));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
         return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString(), true));
@@ -908,22 +879,18 @@ public final class SamlRealm extends Realm implements Releasable {
     }
 
     private static void initialiseResolver(AbstractReloadingMetadataResolver resolver, RealmConfig config)
-        throws ComponentInitializationException, PrivilegedActionException {
+        throws ComponentInitializationException {
         resolver.setRequireValidMetadata(true);
         BasicParserPool pool = new BasicParserPool();
         pool.initialize();
         resolver.setParserPool(pool);
         resolver.setId(config.name());
-        SpecialPermission.check();
-        AccessController.doPrivileged((PrivilegedExceptionAction<Object>) () -> {
-            try {
-                resolver.initialize();
-            } catch (ComponentInitializationException e) {
-                resolver.destroy();
-                throw SamlUtils.samlException("cannot load SAML metadata from [{}]", e, config.getSetting(IDP_METADATA_PATH));
-            }
-            return null;
-        });
+        try {
+            resolver.initialize();
+        } catch (ComponentInitializationException e) {
+            resolver.destroy();
+            throw SamlUtils.samlException("cannot load SAML metadata from [{}]", e, config.getSetting(IDP_METADATA_PATH));
+        }
     }
 
     public String serviceProviderEntityId() {

@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 145779
+summary: Fix BBQ and INT4 bulk scorers to use sparse vector resolution
+type: bug

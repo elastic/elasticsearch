@@ -13,7 +13,7 @@ jobs:
     uses: elastic/docs-actions/.github/workflows/docs-build.yml@v1
     with:
       enable-vale-linting: true
-      include-paths: |
+      vale-paths: |
         docs/reference/**
         docs/extend/**
         !docs/reference/query-languages/esql/**

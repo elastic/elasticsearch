@@ -34,7 +34,7 @@ import java.util.List;
  */
 public class TsidBuilder {
 
-    public static final boolean SINGLE_PREFIX_BYTE_ENABLED = new FeatureFlag("tsid_layout_single_prefix_byte").isEnabled();
+    private static final boolean SINGLE_PREFIX_BYTE_ENABLED = new FeatureFlag("tsid_layout_single_prefix_byte").isEnabled();
 
     /**
      * The maximum number of fields to use for the value similarity part of the TSID.
@@ -232,7 +232,8 @@ public class TsidBuilder {
     }
 
     public static boolean useSingleBytePrefixLayout(IndexVersion indexVersion) {
-        return SINGLE_PREFIX_BYTE_ENABLED && indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
+        return indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE)
+            || (SINGLE_PREFIX_BYTE_ENABLED && indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG));
     }
 
     /**

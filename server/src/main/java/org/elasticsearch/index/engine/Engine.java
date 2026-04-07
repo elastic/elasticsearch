@@ -712,6 +712,14 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
+    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+        ArrayList<IndexResult> results = new ArrayList<>(operations.size());
+        for (Index index : operations) {
+            results.add(index(index));
+        }
+        return results;
+    }
+
     /**
      * Perform document delete operation on the engine
      * @param delete operation to perform
@@ -989,6 +997,7 @@ public abstract class Engine implements Closeable {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     );
 

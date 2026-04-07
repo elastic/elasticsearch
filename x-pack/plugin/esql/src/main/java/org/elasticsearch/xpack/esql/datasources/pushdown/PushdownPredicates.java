@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.pushdown;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -104,5 +105,13 @@ public final class PushdownPredicates {
             && typeSupported.test(ne.dataType())
             && range.lower().foldable()
             && range.upper().foldable();
+    }
+
+    /**
+     * Checks if a StartsWith expression can be pushed down: field is a single-value
+     * named expression with a supported data type, and the prefix is foldable.
+     */
+    public static boolean isStartsWith(StartsWith sw, Predicate<DataType> typeSupported) {
+        return sw.singleValueField() instanceof NamedExpression ne && typeSupported.test(ne.dataType()) && sw.prefix().foldable();
     }
 }

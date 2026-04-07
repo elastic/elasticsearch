@@ -20,7 +20,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.ExecutorNames;
@@ -167,8 +166,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             if (in == null) {
                 throw new IllegalStateException("missing workflows template resource [" + resourceFileName + "]");
             }
-            byte[] bytes = Streams.readFully(in);
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, bytes)) {
+            byte[] data = in.readAllBytes();
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, data)) {
                 return ComposableIndexTemplate.parse(parser);
             }
         }

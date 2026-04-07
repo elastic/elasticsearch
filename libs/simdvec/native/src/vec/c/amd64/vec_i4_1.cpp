@@ -75,9 +75,9 @@ EXPORT int32_t vec_doti4(const int8_t* query, const int8_t* doc, int32_t packed_
     return doti4_inner(query, doc, packed_len);
 }
 
-template <const int8_t*(*mapper)(const int8_t*, const int32_t, const int32_t*, const int32_t), int batches = 2>
+template <typename TData, const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t), int batches = 2>
 static inline void doti4_bulk_impl(
-    const int8_t* docs,
+    const TData* docs,
     const int8_t* query,
     int32_t packed_len,
     int32_t pitch,
@@ -95,14 +95,17 @@ static inline void doti4_bulk_impl(
     int c = 0;
 
     const int8_t* current_doc_ptrs[batches];
-    init_pointers<batches, int8_t, int8_t, mapper>(current_doc_ptrs, docs, pitch, offsets, 0, count);
+    init_pointers<batches, TData, int8_t, mapper>(current_doc_ptrs, docs, pitch, offsets, 0, count);
 
-    for (; c + 2 * batches - 1 < count; c += batches) {
+    for (; c + batches - 1 < count; c += batches) {
         const int8_t* next_doc_ptrs[batches];
-        apply_indexed<batches>([&](auto I) {
-            next_doc_ptrs[I] = mapper(docs, c + batches + I, offsets, pitch);
-            prefetch(next_doc_ptrs[I], lines_to_fetch);
-        });
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_doc_ptrs[I] = mapper(docs, c + batches + I, offsets, pitch);
+                prefetch(next_doc_ptrs[I], lines_to_fetch);
+            });
+        }
 
         __m256i acc32[batches];
         apply_indexed<batches>([&](auto I) {
@@ -158,7 +161,9 @@ static inline void doti4_bulk_impl(
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)res[I];
         });
-        std::copy_n(next_doc_ptrs, batches, current_doc_ptrs);
+        if (has_next) {
+            std::copy_n(next_doc_ptrs, batches, current_doc_ptrs);
+        }
     }
 
     for (; c < count; c++) {
@@ -168,7 +173,7 @@ static inline void doti4_bulk_impl(
 }
 
 EXPORT void vec_doti4_bulk(const int8_t* docs, const int8_t* query, int32_t packed_len, int32_t count, f32_t* results) {
-    doti4_bulk_impl<sequential_mapper>(docs, query, packed_len, packed_len, NULL, count, results);
+    doti4_bulk_impl<int8_t, sequential_mapper>(docs, query, packed_len, packed_len, NULL, count, results);
 }
 
 EXPORT void vec_doti4_bulk_offsets(
@@ -180,5 +185,15 @@ EXPORT void vec_doti4_bulk_offsets(
     int32_t count,
     f32_t* results
 ) {
-    doti4_bulk_impl<offsets_mapper>(docs, query, packed_len, pitch, offsets, count, results);
+    doti4_bulk_impl<int8_t, offsets_mapper>(docs, query, packed_len, pitch, offsets, count, results);
+}
+
+EXPORT void vec_doti4_bulk_sparse(
+    const void* const* addresses,
+    const int8_t* query,
+    int32_t packed_len,
+    int32_t count,
+    f32_t* results
+) {
+    doti4_bulk_impl<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, packed_len, 0, NULL, count, results);
 }

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -118,6 +119,49 @@ public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResu
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(scrollId);
+            out.writeLong(startTimeEpochMillis);
+            status.writeTo(out);
+            out.writeOptional((output, version) -> Version.writeVersion(version, output), remoteVersion);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+    }
+
+    /**
+     * Resume information for a PIT-based BulkByScrollTask worker.
+     */
+    public record PitWorkerResumeInfo(
+        BytesReference pitId,
+        Object[] searchAfterValues,
+        long startTimeEpochMillis,
+        BulkByScrollTask.Status status,
+        @Nullable Version remoteVersion
+    ) implements WorkerResumeInfo {
+        public static final String NAME = "PitWorkerResumeInfo";
+
+        public PitWorkerResumeInfo {
+            Objects.requireNonNull(pitId, "pitId cannot be null");
+            Objects.requireNonNull(searchAfterValues, "searchAfterValues cannot be null");
+            Objects.requireNonNull(status, "status cannot be null");
+        }
+
+        public PitWorkerResumeInfo(StreamInput in) throws IOException {
+            this(
+                in.readBytesReference(),
+                in.readArray(StreamInput::readGenericValue, Object[]::new),
+                in.readLong(),
+                new BulkByScrollTask.Status(in),
+                in.readOptional(Version::readVersion)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBytesReference(pitId);
+            out.writeArray(StreamOutput::writeGenericValue, searchAfterValues);
             out.writeLong(startTimeEpochMillis);
             status.writeTo(out);
             out.writeOptional((output, version) -> Version.writeVersion(version, output), remoteVersion);

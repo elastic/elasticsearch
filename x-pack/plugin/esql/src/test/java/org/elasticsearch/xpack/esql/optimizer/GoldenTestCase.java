@@ -16,24 +16,40 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
-import org.elasticsearch.xpack.esql.CsvTests;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.enrich.MatchConfig;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -55,15 +71,19 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.CsvTests.loadIndexResolution;
+import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
@@ -225,11 +245,12 @@ public abstract class GoldenTestCase extends ESTestCase {
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
+                .addTestLookup()
                 .addAnalysisTestsEnrichResolution()
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
                 .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
-            loadIndexResolution(CsvTests.testDatasets(parsedPlan)).forEach(
+            loadIndexResolution(testDatasets(parsedPlan)).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
@@ -248,6 +269,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
             if (stages.contains(Stage.PHYSICAL_OPTIMIZATION)
                 || stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)
+                || stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)
+                || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)
                 || stages.contains(Stage.NODE_REDUCE)
                 || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                 var physicalPlanOptimizer = new PhysicalPlanOptimizer(
@@ -260,9 +283,32 @@ public abstract class GoldenTestCase extends ESTestCase {
                     result.add(Tuple.tuple(Stage.PHYSICAL_OPTIMIZATION, verifyOrWrite(physicalPlan, Stage.PHYSICAL_OPTIMIZATION)));
                 }
                 Configuration conf = analyzer.context().configuration();
+                PhysicalPlan localPhysicalPlan = null;
+                boolean needsLocalPlan = stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)
+                    || stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)
+                    || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION);
+                if (needsLocalPlan) {
+                    localPhysicalPlan = localOptimize(physicalPlan, conf);
+                }
                 if (stages.contains(Stage.LOCAL_PHYSICAL_OPTIMIZATION)) {
-                    TestResult localPhysicalResult = verifyOrWrite(localOptimize(physicalPlan, conf), Stage.LOCAL_PHYSICAL_OPTIMIZATION);
+                    TestResult localPhysicalResult = verifyOrWrite(localPhysicalPlan, Stage.LOCAL_PHYSICAL_OPTIMIZATION);
                     result.add(Tuple.tuple(Stage.LOCAL_PHYSICAL_OPTIMIZATION, localPhysicalResult));
+                }
+                if (stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION) || stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)) {
+                    List<LookupJoinExec> joins = findLookupJoins(localPhysicalPlan);
+                    for (int i = 0; i < joins.size(); i++) {
+                        String suffix = joins.size() > 1 ? "_" + i : "";
+                        LogicalPlan lookupLogical = buildLookupLogicalPlan(joins.get(i), conf, searchStats);
+                        if (stages.contains(Stage.LOOKUP_LOGICAL_OPTIMIZATION)) {
+                            TestResult r = verifyOrWrite(lookupLogical, outputPath("lookup_logical_optimization" + suffix));
+                            result.add(Tuple.tuple(Stage.LOOKUP_LOGICAL_OPTIMIZATION, r));
+                        }
+                        if (stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)) {
+                            PhysicalPlan lookupPhysical = optimizeLookupPhysicalPlan(lookupLogical, conf, searchStats);
+                            TestResult r = verifyOrWrite(lookupPhysical, outputPath("lookup_physical_optimization" + suffix));
+                            result.add(Tuple.tuple(Stage.LOOKUP_PHYSICAL_OPTIMIZATION, r));
+                        }
+                    }
                 }
                 if (stages.contains(Stage.NODE_REDUCE) || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                     ExchangeExec exec = EsqlTestUtils.singleValue(physicalPlan.collect(ExchangeExec.class));
@@ -397,6 +443,44 @@ public abstract class GoldenTestCase extends ESTestCase {
                 searchStats,
                 new PlanTimeProfile()
             );
+        }
+
+        private static List<LookupJoinExec> findLookupJoins(PhysicalPlan plan) {
+            List<LookupJoinExec> joins = new ArrayList<>();
+            plan.forEachDown(p -> {
+                if (p instanceof LookupJoinExec join) {
+                    joins.add(join);
+                }
+            });
+            return joins;
+        }
+
+        private static LogicalPlan buildLookupLogicalPlan(LookupJoinExec join, Configuration conf, SearchStats stats) {
+            List<MatchConfig> matchFields = new ArrayList<>(join.leftFields().size());
+            for (int i = 0; i < join.leftFields().size(); i++) {
+                FieldAttribute right = (FieldAttribute) join.rightFields().get(i);
+                String fieldName = right.exactAttribute().fieldName().string();
+                if (join.isOnJoinExpression()) {
+                    fieldName = join.leftFields().get(i).name();
+                }
+                matchFields.add(new MatchConfig(fieldName, i, join.leftFields().get(i).dataType()));
+            }
+            LogicalPlan logicalPlan = LookupFromIndexService.buildLocalLogicalPlan(
+                join.source(),
+                matchFields,
+                join.joinOnConditions(),
+                join.right(),
+                join.addedFields().stream().map(f -> (NamedExpression) f).toList()
+            );
+            FoldContext foldCtx = conf.newFoldContext();
+            return new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(conf, foldCtx, stats)).localOptimize(logicalPlan);
+        }
+
+        private static PhysicalPlan optimizeLookupPhysicalPlan(LogicalPlan logicalPlan, Configuration conf, SearchStats stats) {
+            FoldContext foldCtx = conf.newFoldContext();
+            PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(logicalPlan);
+            var context = new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), conf, foldCtx, stats);
+            return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
         }
     }
 
@@ -547,6 +631,16 @@ public abstract class GoldenTestCase extends ESTestCase {
          */
         LOCAL_PHYSICAL_OPTIMIZATION(new SingleFileOutput("local_physical_optimization")),
         /**
+         * Lookup-node logical optimization: builds a logical plan from each {@link LookupJoinExec} and runs
+         * {@link LookupLogicalOptimizer}. When a query contains multiple LOOKUP JOINs, each produces a separate output file.
+         */
+        LOOKUP_LOGICAL_OPTIMIZATION(new SingleFileOutput("lookup_logical_optimization")),
+        /**
+         * Lookup-node physical optimization: runs {@link LookupPhysicalPlanOptimizer} on each lookup plan.
+         * When a query contains multiple LOOKUP JOINs, each produces a separate output file.
+         */
+        LOOKUP_PHYSICAL_OPTIMIZATION(new SingleFileOutput("lookup_physical_optimization")),
+        /**
          * See {@link ComputeService#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
          * data nodes.
          */
@@ -620,6 +714,158 @@ public abstract class GoldenTestCase extends ESTestCase {
         @SuppressForbidden(reason = "printing repro info")
         private static void printToErr(String s) {
             System.err.println(s);
+        }
+    }
+
+    private static Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> testDatasets(LogicalPlan parsed) {
+        var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
+        if (preAnalysis.indexes().isEmpty()) {
+            // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
+            return Map.of(
+                new IndexPattern(Source.EMPTY, "employees"),
+                CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET.get("employees"))
+            );
+        }
+
+        List<String> missing = new ArrayList<>();
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> all = new HashMap<>();
+        for (IndexPattern indexPattern : preAnalysis.indexes().keySet()) {
+            List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
+            String indexName = indexPattern.indexPattern();
+            if (indexName.endsWith("*")) {
+                String indexPrefix = indexName.substring(0, indexName.length() - 1);
+                for (var entry : CSV_DATASET.entrySet()) {
+                    if (entry.getKey().startsWith(indexPrefix)) {
+                        datasets.add(entry.getValue());
+                    }
+                }
+            } else {
+                for (String index : indexName.split(",")) {
+                    var dataset = CSV_DATASET.get(index);
+                    if (dataset == null) {
+                        throw new IllegalArgumentException("unknown CSV dataset for table [" + index + "]");
+                    }
+                    datasets.add(dataset);
+                }
+            }
+            if (datasets.isEmpty() == false) {
+                all.put(indexPattern, new CsvTestsDataLoader.MultiIndexTestDataset(indexName, datasets));
+            } else {
+                missing.add(indexName);
+            }
+        }
+        if (all.isEmpty()) {
+            throw new IllegalArgumentException("Found no CSV datasets for table [" + preAnalysis.indexes() + "]");
+        }
+        if (missing.isEmpty() == false) {
+            throw new IllegalArgumentException("Did not find datasets for tables: " + missing);
+        }
+        return all;
+    }
+
+    public static Map<IndexPattern, IndexResolution> loadIndexResolution(
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
+    ) {
+        Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
+        for (var entry : datasets.entrySet()) {
+            indexResolutions.put(entry.getKey(), loadIndexResolution(entry.getValue()));
+        }
+        return indexResolutions;
+    }
+
+    public static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+        var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
+        Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
+        List<MappingPerIndex> mappings = datasets.datasets()
+            .stream()
+            .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))
+            .toList();
+        var mergedMappings = mergeMappings(mappings);
+        return IndexResolution.valid(
+            new EsIndex(
+                datasets.indexPattern(),
+                mergedMappings.mapping,
+                indexModes,
+                Map.of(),
+                Map.of(),
+                mergedMappings.fieldToUnmappedIndices
+            )
+        );
+    }
+
+    private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
+        var mapping = new TreeMap<>(LoadMapping.loadMapping(dataset.streamMapping()));
+        if (dataset.typeMapping() != null) {
+            for (var entry : dataset.typeMapping().entrySet()) {
+                if (mapping.containsKey(entry.getKey())) {
+                    DataType dataType = DataType.fromTypeName(entry.getValue());
+                    EsField field = mapping.get(entry.getKey());
+                    EsField editedField = new EsField(
+                        field.getName(),
+                        dataType,
+                        field.getProperties(),
+                        field.isAggregatable(),
+                        field.getTimeSeriesFieldType()
+                    );
+                    mapping.put(entry.getKey(), editedField);
+                }
+            }
+        }
+        // Add dynamic mappings, but only if they are not already mapped
+        if (dataset.dynamicTypeMapping() != null) {
+            for (var entry : dataset.dynamicTypeMapping().entrySet()) {
+                if (mapping.containsKey(entry.getKey()) == false) {
+                    DataType dataType = DataType.fromTypeName(entry.getValue());
+                    EsField editedField = new EsField(entry.getKey(), dataType, Map.of(), false, EsField.TimeSeriesFieldType.NONE);
+                    mapping.put(entry.getKey(), editedField);
+                }
+            }
+        }
+        return mapping;
+    }
+
+    record MappingPerIndex(String index, Map<String, EsField> mapping) {}
+
+    record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
+
+    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
+        int numberOfIndices = mappingsPerIndex.size();
+        Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());
+        Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
+        for (var mappingPerIndex : mappingsPerIndex) {
+            for (var entry : mappingPerIndex.mapping().entrySet()) {
+                String columnName = entry.getKey();
+                EsField field = entry.getValue();
+                columnNamesToFieldByIndices.computeIfAbsent(columnName, k -> new HashMap<>()).put(mappingPerIndex.index(), field);
+            }
+        }
+
+        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
+        for (var e : columnNamesToFieldByIndices.entrySet()) {
+            if (e.getValue().size() < numberOfIndices) {
+                Set<String> unmappedIndices = allIndices.stream().filter(i -> e.getValue().containsKey(i) == false).collect(toSet());
+                if (unmappedIndices.isEmpty() == false) {
+                    fieldToUnmappedIndices.put(e.getKey(), unmappedIndices);
+                }
+            }
+        }
+        var mappings = columnNamesToFieldByIndices.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
+        return new MergedResult(mappings, fieldToUnmappedIndices);
+    }
+
+    private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
+        var indexFields = columnNameToField.values();
+        if (indexFields.stream().distinct().count() > 1) {
+            var typesToIndices = new HashMap<String, Set<String>>();
+            for (var typeToIndex : columnNameToField.entrySet()) {
+                typesToIndices.computeIfAbsent(typeToIndex.getValue().getDataType().typeName(), k -> new HashSet<>())
+                    .add(typeToIndex.getKey());
+            }
+            return new InvalidMappedField(index, typesToIndices);
+        } else {
+            return indexFields.iterator().next();
         }
     }
 }

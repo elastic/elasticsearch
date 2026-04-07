@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -342,7 +343,7 @@ public abstract class ViewResolutionBenchmarkBase {
             boolean enabled,
             ViewResolutionService viewResolutionService
         ) {
-            super(clusterService, projectResolver, null);
+            super(clusterService, projectResolver, null, CrossProjectModeDecider.NOOP);
             this.enabled = enabled;
             this.viewResolutionService = viewResolutionService;
             this.benchmarkClusterService = clusterService;

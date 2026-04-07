@@ -21,7 +21,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
@@ -45,6 +47,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -69,6 +72,7 @@ class DatafeedJob {
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
     private final long delayedDataCheckFreq;
+    private final CrossClusterSearchStats crossClusterSearchStats;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
@@ -97,7 +101,8 @@ class DatafeedJob {
         long latestFinalBucketEndTimeMs,
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
-        long delayedDataCheckFreq
+        long delayedDataCheckFreq,
+        CrossClusterSearchStats crossClusterSearchStats
     ) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
@@ -118,6 +123,7 @@ class DatafeedJob {
         }
         this.haveEverSeenData = haveSeenDataPreviously;
         this.delayedDataCheckFreq = delayedDataCheckFreq;
+        this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
     }
 
     void isolate() {
@@ -362,6 +368,7 @@ class DatafeedJob {
         RuntimeException error = null;
 
         long recordCount = 0;
+        List<LinkedClusterState> linkedClusterStates = List.of();
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         try {
             while (dataExtractor.hasNext()) {
@@ -377,6 +384,9 @@ class DatafeedJob {
                     DataExtractor.Result result = dataExtractor.next();
                     extractedData = result.data();
                     searchInterval = result.searchInterval();
+                    if (result.linkedClusterStates().isEmpty() == false) {
+                        linkedClusterStates = result.linkedClusterStates();
+                    }
                 } catch (Exception e) {
                     LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
                     // When extraction problems are encountered, we do not want to advance time.
@@ -453,6 +463,8 @@ class DatafeedJob {
                 dataExtractor.isCancelled()
             );
 
+            CrossClusterSearchStats.ScopeChangeResult scopeChange = updateCrossClusterSearchStats(linkedClusterStates);
+
             // We can now throw any stored error as we have updated time.
             if (error != null) {
                 throw error;
@@ -466,6 +478,10 @@ class DatafeedJob {
                 if (lastFinalizedBucketEnd != null) {
                     this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
                 }
+
+                if (scopeChange != null) {
+                    checkForAnomaliesAfterScopeChange(scopeChange);
+                }
             }
 
             if (recordCount == 0) {
@@ -474,6 +490,91 @@ class DatafeedJob {
         } finally {
             // Ensure the extractor is always destroyed to clean up scroll contexts
             dataExtractor.destroy();
+        }
+    }
+
+    /**
+     * Updates cross-cluster search stats with linked cluster states from this cycle.
+     * If a scope change is confirmed, persists an annotation and emits a warning.
+     *
+     * @return the scope change result if one was confirmed this cycle, or {@code null}
+     */
+    @Nullable
+    private CrossClusterSearchStats.ScopeChangeResult updateCrossClusterSearchStats(List<LinkedClusterState> linkedClusterStates) {
+        CrossClusterSearchStats.ScopeChangeResult scopeChangeResult = crossClusterSearchStats.update(linkedClusterStates);
+        if (scopeChangeResult.scopeChanged()) {
+            String message = CrossClusterSearchStats.buildScopeChangeMessage(scopeChangeResult);
+            LOGGER.info("[{}] {}", jobId, message);
+            auditor.warning(jobId, message);
+            persistScopeChangeAnnotation(scopeChangeResult, message);
+            return scopeChangeResult;
+        }
+        return null;
+    }
+
+    private void persistScopeChangeAnnotation(CrossClusterSearchStats.ScopeChangeResult scopeChangeResult, String message) {
+        Date changeTime = Date.from(scopeChangeResult.changeTimestamp());
+        Date now = new Date(currentTimeSupplier.get());
+        Annotation annotation = new Annotation.Builder().setAnnotation(message)
+            .setCreateTime(now)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
+            .setTimestamp(changeTime)
+            .setEndTimestamp(changeTime)
+            .setJobId(jobId)
+            .setModifiedTime(now)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
+            .setType(Annotation.Type.ANNOTATION)
+            .setEvent(Annotation.Event.SEARCH_SCOPE_CHANGED)
+            .build();
+        annotationPersister.persistAnnotation(null, annotation);
+    }
+
+    /**
+     * One-shot backward anomaly lookback after a scope change has been confirmed and the job
+     * has been flushed. Queries finalized buckets from the scope change timestamp to now for
+     * elevated anomaly scores (>= 75). If found, emits a warning correlating the anomalies
+     * with the scope change.
+     */
+    private void checkForAnomaliesAfterScopeChange(CrossClusterSearchStats.ScopeChangeResult scopeChange) {
+        try {
+            GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
+            request.setStart(String.valueOf(scopeChange.changeTimestamp().toEpochMilli()));
+            request.setEnd(String.valueOf(currentTimeSupplier.get()));
+            request.setAnomalyScore(75.0);
+            request.setExcludeInterim(true);
+            request.setPageParams(new PageParams(0, 0));
+
+            GetBucketsAction.Response response;
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+                response = client.execute(GetBucketsAction.INSTANCE, request).actionGet();
+            }
+
+            long elevatedBucketCount = response.getBuckets().count();
+            if (elevatedBucketCount > 0) {
+                String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(scopeChange.changeTimestamp().toEpochMilli());
+                String changeSummary = buildScopeChangeSummary(scopeChange);
+                String anomalyMessage = Messages.getMessage(
+                    Messages.JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ANOMALIES,
+                    timestamp,
+                    changeSummary,
+                    elevatedBucketCount
+                );
+                auditor.warning(jobId, anomalyMessage);
+            }
+        } catch (Exception e) {
+            LOGGER.warn(() -> "[" + jobId + "] error checking for anomalies after scope change", e);
+        }
+    }
+
+    private static String buildScopeChangeSummary(CrossClusterSearchStats.ScopeChangeResult result) {
+        String linked = String.join(", ", new TreeSet<>(result.confirmedLinks()));
+        String unlinked = String.join(", ", new TreeSet<>(result.confirmedUnlinks()));
+        if (linked.isEmpty() == false && unlinked.isEmpty() == false) {
+            return linked + " linked; " + unlinked + " unlinked";
+        } else if (linked.isEmpty() == false) {
+            return linked + " linked";
+        } else {
+            return unlinked + " unlinked";
         }
     }
 
@@ -547,6 +648,10 @@ class DatafeedJob {
      */
     Long lastEndTimeMs() {
         return lastEndTimeMs;
+    }
+
+    CrossClusterSearchStats getCrossClusterSearchStats() {
+        return crossClusterSearchStats;
     }
 
     static class AnalysisProblemException extends ElasticsearchException implements ElasticsearchWrapperException {

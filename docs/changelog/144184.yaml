@@ -1,6 +1,6 @@
 area: TSDB
 title: Synthetic IDs for indices in time-series mode
-pr: XXXXX
+pr: 144184
 summary: >-
   The `_id` field has a significant storage footprint in metrics applications, as it requires both storing and indexing
   unique document identifiers that are rarely used for direct lookups. To alleviate this, we are introducing synthetic

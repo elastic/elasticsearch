@@ -61,8 +61,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
      * a {@link SystemDataStreamDescriptor} (see {@code checkForOverlappingPatterns}). Uses the same complement style as Fleet's
      * {@code .fleet-actions~(-results*)}; see {@link SystemIndexDescriptor} for pattern syntax.
      */
-    public static final String WORKFLOWS_SYSTEM_INDEX_PATTERN =
-        ".workflows~(-events*|-execution-data-stream-logs*)";
+    public static final String WORKFLOWS_SYSTEM_INDEX_PATTERN = ".workflows~(-events*|-execution-data-stream-logs*)";
 
     public static final SystemIndexDescriptor KIBANA_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(".kibana_*")

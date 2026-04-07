@@ -76,6 +76,9 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         float[] scores,
         int bulkSize
     ) throws IOException {
+        if (bulkSize == 0) {
+            return Float.NEGATIVE_INFINITY;
+        }
         long[] vectorOffsets = new long[bulkSize];
         for (int i = 0; i < bulkSize; i++) {
             vectorOffsets[i] = (long) nodes[i] * byteSize;

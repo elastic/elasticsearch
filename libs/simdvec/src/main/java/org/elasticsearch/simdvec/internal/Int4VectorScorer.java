@@ -212,6 +212,9 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         }
 
         float bulkScoreWithQuery(QueryContext query, int[] ordinals, float[] scores, int numNodes) throws IOException {
+            if (numNodes == 0) {
+                return Float.NEGATIVE_INFINITY;
+            }
             if (SUPPORTS_HEAP_SEGMENTS) {
                 long[] offsets = new long[numNodes];
                 for (int i = 0; i < numNodes; i++) {

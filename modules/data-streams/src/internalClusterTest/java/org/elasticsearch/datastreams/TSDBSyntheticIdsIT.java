@@ -50,6 +50,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.ES94TSDBBestCompressionLucene104Codec;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
@@ -123,6 +125,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -1436,6 +1439,154 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var indices = new HashSet<String>();
         indices.add(indexName);
         assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+    }
+
+    public void testBloomFilterSettings() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        final var maxSize = ByteSizeValue.ofKb(64);
+        // small_segment_max_docs must be strictly less than large_segment_min_docs; high >= low bits/doc
+        final int smallMaxDocs = randomIntBetween(1, 99);
+        final int largeMinDocs = randomIntBetween(100, 200);
+        final double lowBitsPerDoc = randomDoubleBetween(8.0, 32.0, true);
+        final double highBitsPerDoc = randomDoubleBetween(lowBitsPerDoc, 256.0, true);
+        final Settings extraSettings = Settings.builder()
+            .put(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(), randomIntBetween(1, 11))
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), smallMaxDocs)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), largeMinDocs)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), lowBitsPerDoc)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), highBitsPerDoc)
+            .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), maxSize.getStringRep())
+            .put(SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE.getKey(), randomBoolean())
+            .build();
+        putDataStreamTemplate(dataStreamName, 1, 0, extraSettings, false);
+
+        var timestamp = Instant.now();
+
+        // Index documents in several batches, flushing between each to create multiple segments
+        for (int batch = 0; batch < 3; batch++) {
+            var bulkRequest = client().prepareBulk();
+            for (int i = 0; i < 100; i++) {
+                bulkRequest.add(
+                    client().prepareIndex(dataStreamName)
+                        .setOpType(DocWriteRequest.OpType.CREATE)
+                        .setSource(document(timestamp, "vm-test-" + (i % 5), "cpu-load", i))
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+            assertNoFailures(bulkRequest.get());
+            flush(dataStreamName);
+        }
+
+        final String firstBackingIndex = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(dataStreamName).get().indices()[0];
+
+        if (randomBoolean()) {
+            assertThat(
+                indicesAdmin().prepareStats(firstBackingIndex).clear().setSegments(true).get().getPrimaries().getSegments().getCount(),
+                greaterThan(1L)
+            );
+            assertThat(indicesAdmin().prepareForceMerge(firstBackingIndex).setMaxNumSegments(1).get().getFailedShards(), equalTo(0));
+            flushAndRefresh(firstBackingIndex);
+            assertThat(
+                indicesAdmin().prepareStats(firstBackingIndex).clear().setSegments(true).get().getPrimaries().getSegments().getCount(),
+                equalTo(1L)
+            );
+        }
+
+        var idFieldUsage = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage(firstBackingIndex), IdFieldMapper.NAME);
+        assertThat("_id field should not have inverted index on disk", idFieldUsage.getInvertedIndexBytes(), equalTo(0L));
+        assertThat("_id field should have a bloom filter", idFieldUsage.getBloomFilterBytes(), greaterThan(0L));
+        assertThat(
+            "_id bloom filter must be capped at the configured max_size",
+            idFieldUsage.getBloomFilterBytes(),
+            lessThanOrEqualTo(maxSize.getBytes())
+        );
+        final long initialBloomFilterBytes = idFieldUsage.getBloomFilterBytes();
+
+        // Update the template with different bloom filter settings, rollover, and verify the new
+        // backing index picks up the new settings and its bloom filter respects the new max_size.
+        final var newMaxSize = ByteSizeValue.ofKb(128);
+        final int newSmallMaxDocs = randomIntBetween(1, 49);
+        final int newLargeMinDocs = randomIntBetween(50, 99);
+        // Use maximum bits-per-doc in the rolled-over index so the bloom filter is measurably
+        // larger than the initial index (which used a lower random bits-per-doc value).
+        // With 300 docs at 256 bits/doc the bloom filter is ~9,600 bytes, vs at most ~1,200 bytes
+        // at the initial max of 32 bits/doc — always strictly greater.
+        putDataStreamTemplate(
+            dataStreamName,
+            1,
+            0,
+            Settings.builder()
+                .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), newMaxSize.getStringRep())
+                .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), newSmallMaxDocs)
+                .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), newLargeMinDocs)
+                .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC)
+                .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC)
+                .build(),
+            false
+        );
+
+        RolloverResponse rolloverResponse = indicesAdmin().prepareRolloverIndex(dataStreamName).get();
+        assertThat(rolloverResponse.isRolledOver(), equalTo(true));
+        final String newBackingIndex = rolloverResponse.getNewIndex();
+
+        GetSettingsResponse newIndexSettings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, newBackingIndex).get();
+        assertThat(
+            newIndexSettings.getSetting(newBackingIndex, SyntheticIdBloomFilterSettings.MAX_SIZE.getKey()),
+            equalTo(newMaxSize.getStringRep())
+        );
+        assertThat(
+            newIndexSettings.getSetting(newBackingIndex, SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey()),
+            equalTo(Integer.toString(newSmallMaxDocs))
+        );
+        assertThat(
+            newIndexSettings.getSetting(newBackingIndex, SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey()),
+            equalTo(Integer.toString(newLargeMinDocs))
+        );
+
+        // The new backing index's start_time = old backing index's end_time (≈ T_start + 30 min
+        // look-ahead). Documents must have @timestamp >= start_time to route to the new index.
+        // Read it directly from the index settings to get the exact boundary.
+        Settings newIdxRawSettings = newIndexSettings.getIndexToSettings().get(newBackingIndex);
+        timestamp = IndexSettings.TIME_SERIES_START_TIME.get(newIdxRawSettings);
+
+        // Index into the new backing index across multiple batches with flushes between them so that
+        // the force merge has multiple segments to merge.
+        for (int batch = 0; batch < 3; batch++) {
+            var bulkRequest = client().prepareBulk();
+            for (int i = 0; i < 1000; i++) {
+                bulkRequest.add(
+                    client().prepareIndex(dataStreamName)
+                        .setOpType(DocWriteRequest.OpType.CREATE)
+                        .setSource(document(timestamp, "vm-rollover-" + (i % 5), "cpu-load", i))
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+            assertNoFailures(bulkRequest.get());
+            flush(dataStreamName);
+        }
+
+        if (randomBoolean()) {
+            assertThat(indicesAdmin().prepareForceMerge(newBackingIndex).setMaxNumSegments(1).get().getFailedShards(), equalTo(0));
+            flushAndRefresh(newBackingIndex);
+        }
+
+        var newIdFieldUsage = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage(newBackingIndex), IdFieldMapper.NAME);
+        assertThat("_id field should have a bloom filter on new backing index", newIdFieldUsage.getBloomFilterBytes(), greaterThan(0L));
+        assertThat(
+            "_id bloom filter on new backing index must be capped at the new max_size",
+            newIdFieldUsage.getBloomFilterBytes(),
+            lessThanOrEqualTo(newMaxSize.getBytes())
+        );
+        // The new index uses MAX_BITS_PER_DOC (256) vs the initial index's random low bits/doc (8–32),
+        // so the bloom filter must be strictly larger, proving the new settings took effect.
+        assertThat(
+            "_id bloom filter on new backing index must be larger than the initial index's bloom filter",
+            newIdFieldUsage.getBloomFilterBytes(),
+            greaterThan(initialBloomFilterBytes)
+        );
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(Set.of(firstBackingIndex, newBackingIndex));
     }
 
     /**

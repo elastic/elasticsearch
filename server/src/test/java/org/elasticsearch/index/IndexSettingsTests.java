@@ -1244,12 +1244,30 @@ public class IndexSettingsTests extends ESTestCase {
             () -> newIndexSettings(
                 newIndexMeta(
                     "test",
-                    Settings.builder().put(IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(), false).build()
+                    Settings.builder().put(IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(), true).build()
                 ),
                 Settings.EMPTY
             )
         );
         assertThat(ex.getMessage(), containsString("is only permitted when [index.mapping.synthetic_id] is set to [true]"));
+    }
+
+    public void testBloomFilterOptimizedMergeSettingFalseAcceptedWithoutSyntheticId() {
+        assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        IndexSettings settings = newIndexSettings(
+            newIndexMeta(
+                "test",
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+                    .put(IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(), false)
+                    .build()
+            ),
+            Settings.EMPTY
+        );
+        assertThat(settings.isBloomFilterDocValuesOptimizedMergeEnabled(), is(false));
     }
 
     public void testBloomFilterOptimizedMergeSettingAcceptedWithSyntheticId() {

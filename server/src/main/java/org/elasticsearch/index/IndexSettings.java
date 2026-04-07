@@ -891,7 +891,7 @@ public final class IndexSettings {
             @Override
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
                 boolean syntheticIdEnabled = (boolean) settings.get(SYNTHETIC_ID);
-                if (syntheticIdEnabled == false) {
+                if (enabled && syntheticIdEnabled == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,

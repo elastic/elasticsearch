@@ -123,8 +123,7 @@ public class PartitionDataGenerator implements DataGenerator {
             partitionAssignments.docPartitionIds(),
             partitionAssignments.docOrdinals()
         );
-        Sort indexSort = new Sort(new SortField(KnnIndexer.PARTITION_ID_FIELD, SortField.Type.STRING, false));
-        return new KnnIndexTester.IndexingSetup(vectorReader, documentFactory, totalDocs, indexSort);
+        return new KnnIndexTester.IndexingSetup(vectorReader, documentFactory, totalDocs);
     }
 
     @Override
@@ -172,6 +171,11 @@ public class PartitionDataGenerator implements DataGenerator {
     @Override
     public boolean hasQueries() {
         return true;
+    }
+
+    @Override
+    public Sort getIndexSort() {
+        return new Sort(new SortField(KnnIndexer.PARTITION_ID_FIELD, SortField.Type.STRING, false));
     }
 
     private PartitionAssignmentInfo computePartitionAssignments() {

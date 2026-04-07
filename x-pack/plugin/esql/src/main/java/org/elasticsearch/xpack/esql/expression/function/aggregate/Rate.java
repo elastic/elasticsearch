@@ -51,8 +51,9 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
             + "values within each bucketed time interval. Rate is the most appropriate aggregate function for counters. It is only allowed "
             + "in a [STATS](/reference/query-languages/esql/commands/stats-by.md) command under a "
             + "[`TS`](/reference/query-languages/esql/commands/ts.md) source command, to be properly applied per time series.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
 

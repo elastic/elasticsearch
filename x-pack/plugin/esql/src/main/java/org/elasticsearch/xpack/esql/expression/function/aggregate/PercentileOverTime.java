@@ -32,8 +32,9 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements O
         returnType = "double",
         description = "Calculates the percentile over time of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "percentile_over_time") }
     )
     public PercentileOverTime(

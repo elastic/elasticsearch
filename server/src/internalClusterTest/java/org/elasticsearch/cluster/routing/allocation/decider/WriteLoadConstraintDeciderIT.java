@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
@@ -69,7 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.IntStream.range;
@@ -659,7 +660,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         // Refresh cluster info (should trigger polling)
         refreshClusterInfo();
 
-        Map<String, Double> mostRecentAverageWriteLoadMetrics = getMostRecentAverageWriteLoadMetrics(dataNodes);
+        Map<String, Double> mostRecentAverageWriteLoadMetrics = getMostRecentAverageWriteLoadMetrics();
         assertThat(mostRecentAverageWriteLoadMetrics.keySet(), hasSize(dataNodes.size()));
         assertThat(mostRecentAverageWriteLoadMetrics.values(), everyItem(equalTo(0d)));
 
@@ -669,7 +670,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         indexRandom(true, indexName, randomIntBetween(1000, 5000));
 
         refreshClusterInfo();
-        mostRecentAverageWriteLoadMetrics = getMostRecentAverageWriteLoadMetrics(dataNodes);
+        mostRecentAverageWriteLoadMetrics = getMostRecentAverageWriteLoadMetrics();
 
         final ThreadPool dataNodeThreadPool = internalCluster().getInstance(ThreadPool.class, randomFrom(dataNodes));
         final int writePoolMaximumSize = asInstanceOf(ThreadPoolExecutor.class, dataNodeThreadPool.executor(ThreadPool.Names.WRITE))
@@ -682,37 +683,37 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     }
 
     private static Map<String, Long> getMostRecentQueueLatencyMetrics(List<String> dataNodes) {
-        return getMostRecentMetricForDataNodes(
-            dataNodes,
-            tp -> tp.getLongGaugeMeasurement(DesiredBalanceMetrics.WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE),
-            Measurement::getLong
-        );
-    }
-
-    private static Map<String, Double> getMostRecentAverageWriteLoadMetrics(List<String> dataNodes) {
-        return getMostRecentMetricForDataNodes(
-            dataNodes,
-            tp -> tp.getDoubleGaugeMeasurement(DesiredBalanceMetrics.WRITE_LOAD_DECIDER_AVERAGE_WRITE_LOAD_VALUE),
-            Measurement::getDouble
-        );
-    }
-
-    private static <T> Map<String, T> getMostRecentMetricForDataNodes(
-        List<String> dataNodes,
-        Function<TestTelemetryPlugin, List<Measurement>> measurementGetter,
-        Function<Measurement, T> valueGetter
-    ) {
-        final Map<String, T> measurements = new HashMap<>();
+        final Map<String, Long> measurements = new HashMap<>();
         for (String nodeName : dataNodes) {
-            PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, nodeName);
-            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
+            final TestTelemetryPlugin telemetryPlugin = getTelemetryPluginForNode(nodeName);
             telemetryPlugin.collect();
-            final var measurementValues = measurementGetter.apply(telemetryPlugin);
-            if (measurementValues.isEmpty() == false) {
-                measurements.put(nodeName, valueGetter.apply(measurementValues.getLast()));
+            final var maxLatencyValues = telemetryPlugin.getLongGaugeMeasurement(
+                DesiredBalanceMetrics.WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE
+            );
+            if (maxLatencyValues.isEmpty() == false) {
+                measurements.put(nodeName, maxLatencyValues.getLast().getLong());
             }
         }
         return measurements;
+    }
+
+    private Map<String, Double> getMostRecentAverageWriteLoadMetrics() {
+        final var telemetryPlugin = getTelemetryPluginForNode(internalCluster().getMasterName());
+        telemetryPlugin.collect();
+        final var measurements = telemetryPlugin.getDoubleGaugeMeasurement(WriteLoadMetrics.NODE_AVERAGE_WRITE_LOAD_METRIC_NAME);
+        return measurements.stream()
+            .collect(
+                Collectors.toMap(
+                    measurement -> (String) measurement.attributes().get("es_node_name"),
+                    Measurement::getDouble,
+                    (existingValue, newValue) -> newValue
+                )
+            );
+    }
+
+    private static TestTelemetryPlugin getTelemetryPluginForNode(String nodeName) {
+        final var pluginsService = internalCluster().getInstance(PluginsService.class, nodeName);
+        return pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
     }
 
     private void setUpMockTransportNodeUsageStatsResponse(DiscoveryNode node, NodeUsageStatsForThreadPools nodeUsageStats) {

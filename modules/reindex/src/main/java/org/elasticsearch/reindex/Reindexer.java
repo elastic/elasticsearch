@@ -525,8 +525,9 @@ public class Reindexer {
 
     /**
      * Closes the RestClient on the generic thread pool (to avoid closing from the client's own thread), then runs the given action.
+     * Package-private for unit tests.
      */
-    private void closeRestClientAndRun(RestClient restClient, Runnable onCompletion) {
+    void closeRestClientAndRun(RestClient restClient, Runnable onCompletion) {
         threadPool.generic().submit(() -> {
             try {
                 restClient.close();

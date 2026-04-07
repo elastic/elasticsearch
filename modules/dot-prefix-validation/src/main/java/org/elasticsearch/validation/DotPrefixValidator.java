@@ -142,13 +142,13 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
                     if (c == '.') {
                         final String strippedName = stripDateMath(index);
                         if (IGNORED_INDEX_NAMES.contains(strippedName)) {
-                            return;
+                            continue;
                         }
                         if (systemIndices.isSystemName(strippedName)) {
-                            return;
+                            continue;
                         }
                         if (this.ignoredIndexPatterns.stream().anyMatch(p -> p.matcher(strippedName).matches())) {
-                            return;
+                            continue;
                         }
                         if (isStateless) {
                             throw new IllegalArgumentException("Index [" + index + "] name beginning with a dot (.) is not allowed");

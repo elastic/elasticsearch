@@ -221,7 +221,8 @@ class StatelessIndexEventListener implements IndexEventListener {
 
     private static boolean hasNoExistingBlobContainer(RecoverySource recoverySource) {
         return recoverySource == RecoverySource.EmptyStoreRecoverySource.INSTANCE
-            || recoverySource instanceof RecoverySource.SnapshotRecoverySource;
+            || recoverySource instanceof RecoverySource.SnapshotRecoverySource
+            || recoverySource == RecoverySource.LocalShardsRecoverySource.INSTANCE;
     }
 
     private static void logBootstrapping(IndexShard indexShard, BatchedCompoundCommit latestCommit) {

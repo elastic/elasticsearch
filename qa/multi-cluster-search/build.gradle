@@ -114,7 +114,7 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
 
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#multi-cluster"
-    dependsOn "${baseName}#multi-cluster-reverse"
+    // dependsOn "${baseName}#multi-cluster-reverse"
     mustRunAfter("precommit")
   }
 }

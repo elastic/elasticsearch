@@ -62,6 +62,6 @@
   "examples" : [
     "TS k8s\n| STATS events = SUM(IDELTA(events_received)) by pod, time_bucket = TBUCKET(10minute)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

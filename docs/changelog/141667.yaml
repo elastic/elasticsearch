@@ -10,7 +10,7 @@ highlight:
   body: |-
     ES|QL adds the `METRICS_INFO` command for queries that start with a time series (`TS`) source. It returns one row per
     distinct metric, with columns such as `metric_name`, `data_stream`, `unit`, `metric_type`, `field_type`, and
-    `dimension_fields`, derived from time series metadata in the index. Use it to inspect which metrics exist and how they
+    `dimension_fields`, derived from time series metadata in the index. It unlocks inspecting which metrics exist and how they
     are typed before you aggregate with `STATS`.
 
     For example, list metrics sorted by name:

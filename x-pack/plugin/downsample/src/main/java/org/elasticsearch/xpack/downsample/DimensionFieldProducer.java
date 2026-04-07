@@ -60,12 +60,9 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
             for (int i = 0; i < buffer.size(); i++) {
                 int docId = buffer.get(i);
                 if (docValues.advanceExact(docId)) {
-                    int docValueCount = docValues.docValueCount();
-                    for (int j = 0; j < docValueCount; j++) {
-                        var value = docValues.nextValue();
-                        if (value.equals(this.value) == false) {
-                            assert false : "Dimension value changed without tsid change [" + value + "] != [" + this.value + "]";
-                        }
+                    var value = retrieveDimensionValues(docValues);
+                    if (value.equals(this.value) == false) {
+                        assert false : "Dimension value changed without tsid change [" + value + "] != [" + this.value + "]";
                     }
                 }
             }
@@ -96,10 +93,7 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
             if (docValues.advanceExact(docId) == false) {
                 continue;
             }
-            int docValueCount = docValues.docValueCount();
-            for (int j = 0; j < docValueCount; j++) {
-                this.dimension.collectOnce(docValues.nextValue());
-            }
+            this.dimension.collectOnce(retrieveDimensionValues(docValues));
             // Only need to record one dimension value from one document, within in the same tsid-and-time-interval bucket values are the
             // same.
             return;
@@ -111,5 +105,25 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
         if (isEmpty() == false) {
             builder.field(this.dimension.name, this.dimension.value());
         }
+    }
+
+    public Object dimensionValues() {
+        return isEmpty() ? null : dimension.value();
+    }
+
+    private static Object retrieveDimensionValues(FormattedDocValues docValues) throws IOException {
+        int docValueCount = docValues.docValueCount();
+        assert docValueCount > 0;
+        Object value;
+        if (docValueCount == 1) {
+            value = docValues.nextValue();
+        } else {
+            var values = new Object[docValueCount];
+            for (int j = 0; j < docValueCount; j++) {
+                values[j] = docValues.nextValue();
+            }
+            value = values;
+        }
+        return value;
     }
 }

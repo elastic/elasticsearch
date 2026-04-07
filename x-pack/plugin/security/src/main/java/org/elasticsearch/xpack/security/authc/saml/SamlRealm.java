@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
@@ -159,6 +160,7 @@ public final class SamlRealm extends Realm implements Releasable {
     public static final String TOKEN_METADATA_NAMEID_SP_QUALIFIER = "saml_nameid_sp_qual";
     public static final String TOKEN_METADATA_NAMEID_SP_PROVIDED_ID = "saml_nameid_sp_id";
     public static final String TOKEN_METADATA_SESSION = "saml_session";
+    public static final String TOKEN_METADATA_IN_RESPONSE_TO = "saml_in_response_to";
     public static final String TOKEN_METADATA_REALM = "saml_realm";
 
     public static final String PRIVATE_ATTRIBUTES_METADATA = "saml_private_attributes";
@@ -528,11 +530,7 @@ public final class SamlRealm extends Realm implements Releasable {
     }
 
     private boolean isTokenForRealm(SamlToken samlToken) {
-        if (samlToken.getAuthenticatingRealm() == null) {
-            return true;
-        } else {
-            return samlToken.getAuthenticatingRealm().equals(this.name());
-        }
+        return samlToken.getAuthenticatingRealm() != null && samlToken.getAuthenticatingRealm().equals(this.name());
     }
 
     /**
@@ -547,7 +545,8 @@ public final class SamlRealm extends Realm implements Releasable {
 
     @Override
     public void authenticate(AuthenticationToken authenticationToken, ActionListener<AuthenticationResult<User>> listener) {
-        if (authenticationToken instanceof SamlToken && isTokenForRealm((SamlToken) authenticationToken)) {
+        if (authenticationToken instanceof SamlToken samlToken
+            && (samlToken.getAuthenticatingRealm() == null || isTokenForRealm(samlToken))) {
             if (this.idpDescriptor.get() instanceof UnresolvedEntity) {
                 // This isn't an ideal check, but we don't have a better option right now
                 listener.onResponse(
@@ -564,10 +563,13 @@ public final class SamlRealm extends Realm implements Releasable {
                 logger.debug("Parsed token [{}] to attributes [{}]", token, attributes);
                 buildUser(attributes, ActionListener.releaseAfter(listener, attributes));
             } catch (ElasticsearchSecurityException e) {
-                if (SamlUtils.isSamlException(e)) {
-                    listener.onResponse(AuthenticationResult.unsuccessful("Provided SAML response is not valid for realm " + this, e));
-                } else {
+                if (isTokenForRealm(samlToken)) {
+                    // If this token is explicitly for this realm, then there is no need to try other realms.
                     listener.onFailure(e);
+                } else {
+                    // If this token's realm in not specified (null), then continue to try other realms.
+                    // Note that we can't make any assumptions about other realms, because then can be provided from a custom plugin.
+                    listener.onResponse(AuthenticationResult.unsuccessful("Provided SAML response is not valid for realm " + this, e));
                 }
             }
         } else {
@@ -588,7 +590,7 @@ public final class SamlRealm extends Realm implements Releasable {
             return;
         }
 
-        final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
+        final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session(), attributes.inResponseTo());
         final Map<String, List<SecureString>> privateAttributesMetadata = attributes.privateAttributes()
             .stream()
             .collect(Collectors.toMap(SamlPrivateAttribute::name, SamlPrivateAttribute::values));
@@ -639,7 +641,7 @@ public final class SamlRealm extends Realm implements Releasable {
         }));
     }
 
-    public Map<String, Object> createTokenMetadata(SamlNameId nameId, String session) {
+    public Map<String, Object> createTokenMetadata(@Nullable SamlNameId nameId, String session, @Nullable String inResponseTo) {
         final Map<String, Object> tokenMeta = new HashMap<>();
         if (nameId != null) {
             tokenMeta.put(TOKEN_METADATA_NAMEID_VALUE, nameId.value);
@@ -655,6 +657,9 @@ public final class SamlRealm extends Realm implements Releasable {
             tokenMeta.put(TOKEN_METADATA_NAMEID_SP_PROVIDED_ID, null);
         }
         tokenMeta.put(TOKEN_METADATA_SESSION, session);
+        if (inResponseTo != null) {
+            tokenMeta.put(TOKEN_METADATA_IN_RESPONSE_TO, inResponseTo);
+        }
         tokenMeta.put(TOKEN_METADATA_REALM, name());
         return tokenMeta;
     }

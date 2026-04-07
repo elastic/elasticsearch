@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -1098,7 +1099,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private static class UpdateStateRetryableAction extends RetryableAction<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private static final int MIN_RETRY_SLEEP_MILLIS = 500;
-        private static final int RETRY_TIMEOUT_SECONDS = 30;
         private final JobTask jobTask;
         private final JobTaskState jobTaskState;
 
@@ -1119,7 +1119,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 logger,
                 threadPool,
                 TimeValue.timeValueMillis(UpdateStateRetryableAction.MIN_RETRY_SLEEP_MILLIS),
-                TimeValue.timeValueSeconds(UpdateStateRetryableAction.RETRY_TIMEOUT_SECONDS),
+                MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
                 delegateListener,
                 // executor for retries
                 threadPool.generic()

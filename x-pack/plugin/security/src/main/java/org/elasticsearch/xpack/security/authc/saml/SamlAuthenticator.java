@@ -117,7 +117,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         final Assertion assertion = details.v1();
         final SamlNameId nameId = SamlNameId.forSubject(assertion.getSubject());
         final String session = getSessionIndex(assertion);
-        final SamlAttributes samlAttributes = buildSamlAttributes(nameId, session, details.v2());
+        final SamlAttributes samlAttributes = buildSamlAttributes(nameId, session, response.getInResponseTo(), details.v2());
         if (logger.isTraceEnabled()) {
             StringBuilder sb = new StringBuilder();
             sb.append("The SAML Assertion contained the following attributes: \n");
@@ -141,7 +141,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         return samlAttributes;
     }
 
-    private SamlAttributes buildSamlAttributes(SamlNameId nameId, String session, List<Attribute> attributes) {
+    private SamlAttributes buildSamlAttributes(SamlNameId nameId, String session, String inResponseTo, List<Attribute> attributes) {
         List<SamlAttributes.SamlAttribute> samlAttributes = new ArrayList<>();
         List<SamlAttributes.SamlPrivateAttribute> samlPrivateAttributes = new ArrayList<>();
         for (Attribute attribute : attributes) {
@@ -151,7 +151,7 @@ class SamlAuthenticator extends SamlResponseHandler {
                 samlAttributes.add(new SamlAttributes.SamlAttribute(attribute));
             }
         }
-        return new SamlAttributes(nameId, session, samlAttributes, samlPrivateAttributes);
+        return new SamlAttributes(nameId, session, inResponseTo, samlAttributes, samlPrivateAttributes);
     }
 
     private static String getSessionIndex(Assertion assertion) {

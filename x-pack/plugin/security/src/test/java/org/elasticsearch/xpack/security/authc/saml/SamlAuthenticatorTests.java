@@ -85,6 +85,7 @@ import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.PERSIST
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -1414,6 +1415,20 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(description, endsWith("..."));
     }
 
+    public void testUnsolicitedResponse() throws Exception {
+        final String xml = getSimpleResponseAsString(clock.instant());
+
+        // response with valid in-response-to, while allowedRequestIds is empty (i.e. unsolicited response)
+        final SamlToken token = token(signResponse(xml), Collections.emptyList());
+        ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+        assertThat(exception.getCause(), nullValue());
+        assertThat(exception.getMessage(), containsString("SAML content is in-response-to"));
+
+        final String EXPECTED_METADATA_KEY = "es.security.saml.unsolicited_in_response_to";
+        assertThat(exception.getMetadataKeys(), containsInRelativeOrder(EXPECTED_METADATA_KEY));
+        assertThat(exception.getMetadata(EXPECTED_METADATA_KEY), equalTo(Collections.singletonList(requestId)));
+    }
+
     private interface CryptoTransform {
         String transform(String xml, Tuple<X509Certificate, PrivateKey> keyPair) throws Exception;
     }
@@ -1743,11 +1758,15 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     private SamlToken token(String content) {
-        return token(content.getBytes(StandardCharsets.UTF_8));
+        return token(content.getBytes(StandardCharsets.UTF_8), singletonList(requestId));
     }
 
-    private SamlToken token(byte[] content) {
-        return new SamlToken(content, singletonList(requestId), null);
+    private SamlToken token(String content, List<String> allowedRequestIds) {
+        return token(content.getBytes(StandardCharsets.UTF_8), allowedRequestIds);
+    }
+
+    private SamlToken token(byte[] content, List<String> allowedRequestIds) {
+        return new SamlToken(content, allowedRequestIds, null);
     }
 
 }

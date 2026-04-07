@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -17,10 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
@@ -44,21 +39,14 @@ public class Account {
     public static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_password", null);
 
     static {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            // required as java doesn't always find the correct mailcap to properly handle mime types
-            final MailcapCommandMap mailcap = (MailcapCommandMap) CommandMap.getDefaultCommandMap();
-            mailcap.addMailcap("text/html;; x-java-content-handler=com.sun.mail.handlers.text_html");
-            mailcap.addMailcap("text/xml;; x-java-content-handler=com.sun.mail.handlers.text_xml");
-            mailcap.addMailcap("text/plain;; x-java-content-handler=com.sun.mail.handlers.text_plain");
-            mailcap.addMailcap("multipart/*;; x-java-content-handler=com.sun.mail.handlers.multipart_mixed");
-            mailcap.addMailcap("message/rfc822;; x-java-content-handler=com.sun.mail.handlers.message_rfc822");
-            CommandMap.setDefaultCommandMap(mailcap);
-            return null;
-        });
+        // required as java doesn't always find the correct mailcap to properly handle mime types
+        final MailcapCommandMap mailcap = (MailcapCommandMap) CommandMap.getDefaultCommandMap();
+        mailcap.addMailcap("text/html;; x-java-content-handler=com.sun.mail.handlers.text_html");
+        mailcap.addMailcap("text/xml;; x-java-content-handler=com.sun.mail.handlers.text_xml");
+        mailcap.addMailcap("text/plain;; x-java-content-handler=com.sun.mail.handlers.text_plain");
+        mailcap.addMailcap("multipart/*;; x-java-content-handler=com.sun.mail.handlers.multipart_mixed");
+        mailcap.addMailcap("message/rfc822;; x-java-content-handler=com.sun.mail.handlers.message_rfc822");
+        CommandMap.setDefaultCommandMap(mailcap);
     }
 
     // exists only to allow ensuring class is initialized
@@ -134,14 +122,7 @@ public class Account {
                 message.setHeader(Profile.MESSAGE_ID_HEADER, mid);
             }
 
-            SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
-                // unprivileged code such as scripts do not have SpecialPermission
-                sm.checkPermission(new SpecialPermission());
-            }
-            contextClassLoader = AccessController.doPrivileged(
-                (PrivilegedAction<ClassLoader>) () -> Thread.currentThread().getContextClassLoader()
-            );
+            contextClassLoader = Thread.currentThread().getContextClassLoader();
             // if we cannot get the context class loader, changing does not make sense, as we run into the danger of not being able to
             // change it back
             if (contextClassLoader != null) {
@@ -162,27 +143,11 @@ public class Account {
     }
 
     private void executeConnect(Transport transport, String user, String password) throws MessagingException {
-        SpecialPermission.check();
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                transport.connect(config.smtp.host, config.smtp.port, user, password);
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
-            throw (MessagingException) e.getCause();
-        }
+        transport.connect(config.smtp.host, config.smtp.port, user, password);
     }
 
     private static void setContextClassLoader(final ClassLoader classLoader) {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            // unprivileged code such as scripts do not have SpecialPermission
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            Thread.currentThread().setContextClassLoader(classLoader);
-            return null;
-        });
+        Thread.currentThread().setContextClassLoader(classLoader);
     }
 
     static class Config {

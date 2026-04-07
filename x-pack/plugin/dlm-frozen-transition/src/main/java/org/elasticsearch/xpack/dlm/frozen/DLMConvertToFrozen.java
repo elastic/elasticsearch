@@ -37,11 +37,14 @@ import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -86,7 +89,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
     private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
     private static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
-    private static final TimeValue SNAPSHOT_POLL_INTERVAL = TimeValue.timeValueSeconds(30);
     private static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
 
     private final String indexName;
@@ -635,58 +637,83 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Polls the snapshot status until it completes or the total elapsed time since snapshot start exceeds
-     * {@link #SNAPSHOT_TIMEOUT}. If the snapshot completes successfully, logs and returns. If the snapshot
-     * does not complete successfully for any reason (timeout, disappearance, failure), throws an exception.
+     * Waits for the snapshot to complete by observing cluster state changes via {@link ClusterStateObserver}.
+     * The observer watches for the snapshot to be removed from {@link SnapshotsInProgress}, which indicates
+     * that it has completed (successfully or otherwise). Once the snapshot is no longer in progress, the
+     * snapshot info is fetched from the repository and validated. If the observer times out (i.e. the
+     * remaining time until {@link #SNAPSHOT_TIMEOUT} elapses), an exception is thrown.
      */
     void waitForSnapshotCompletion(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
-        while (true) {
-            long elapsed = clock.millis() - snapshotStartTime;
-            if (elapsed > SNAPSHOT_TIMEOUT.millis()) {
-                throw new ElasticsearchException(
-                    "DLM snapshot [{}] for index [{}] has exceeded timeout of [{}]",
-                    snapshotName,
-                    indexName,
-                    SNAPSHOT_TIMEOUT
-                );
-            }
+        TimeValue timeout = TimeValue.timeValueMillis(SNAPSHOT_TIMEOUT.millis() - (clock.millis() - snapshotStartTime));
 
-            sleepBeforePoll(snapshotName, indexName);
+        // use a future to block until the snapshot completes, the cluster service is closed, or the observer times out
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
 
-            SnapshotInfo snapshot = getSnapshot(repositoryName, snapshotName, indexName);
-            if (snapshot == null) {
-                throw new ElasticsearchException(
-                    "DLM snapshot [{}] for index [{}] disappeared while waiting for completion",
-                    snapshotName,
-                    indexName
-                );
-            }
+        ClusterStateObserver.waitForState(
+            clusterService,
+            clusterService.threadPool().getThreadContext(),
+            new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    try {
+                        SnapshotInfo snapshot = getSnapshot(repositoryName, snapshotName, indexName);
+                        if (snapshot == null) {
+                            future.onFailure(
+                                new ElasticsearchException(
+                                    "DLM snapshot [{}] for index [{}] " + "disappeared while waiting for completion",
+                                    snapshotName,
+                                    indexName
+                                )
+                            );
+                        } else {
+                            checkSnapshotInfoSuccess(indexName, snapshotName, snapshot);
+                            future.onResponse(null);
+                        }
+                    } catch (Exception e) {
+                        future.onFailure(e);
+                    }
+                }
 
-            if (snapshot.state() == SnapshotState.IN_PROGRESS) {
-                logger.debug(
-                    "DLM snapshot [{}] for index [{}] is still in progress (elapsed [{}])",
-                    snapshotName,
-                    indexName,
-                    TimeValue.timeValueMillis(elapsed)
-                );
-                continue;
-            }
+                @Override
+                public void onClusterServiceClose() {
+                    future.onFailure(
+                        new ElasticsearchException(
+                            "Cluster service closed while waiting for " + "DLM snapshot [{}] for index [{}]",
+                            snapshotName,
+                            indexName
+                        )
+                    );
+                }
 
-            checkSnapshotInfoSuccess(indexName, snapshotName, snapshot);
-            return;
-        }
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    future.onFailure(
+                        new ElasticsearchException(
+                            "DLM snapshot [{}] for index [{}] " + "has exceeded timeout of [{}]",
+                            snapshotName,
+                            indexName,
+                            SNAPSHOT_TIMEOUT
+                        )
+                    );
+                }
+            },
+            state -> isSnapshotNoLongerInProgress(state, repositoryName, snapshotName),
+            timeout,
+            logger
+        );
+
+        future.actionGet();
     }
 
     /**
-     * Sleeps for the configured poll interval before polling for snapshot status.
-     * Extracted into its own method so that tests can override to avoid blocking.
+     * Returns {@code true} if the snapshot with the given name is no longer listed in
+     * {@link SnapshotsInProgress} for the specified repository, indicating it has completed (via success or failure).
      */
-    void sleepBeforePoll(String snapshotName, String indexName) {
-        try {
-            Thread.sleep(SNAPSHOT_POLL_INTERVAL.millis());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+    private boolean isSnapshotNoLongerInProgress(ClusterState state, String repositoryName, String snapshotName) {
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
+        return snapshotsInProgress.forRepo(projectId, repositoryName)
+            .stream()
+            .noneMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName));
     }
 
     /**

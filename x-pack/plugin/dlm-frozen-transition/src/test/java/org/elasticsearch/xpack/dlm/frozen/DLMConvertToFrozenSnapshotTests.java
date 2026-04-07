@@ -162,12 +162,7 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     }
 
     private DLMConvertToFrozen createConverter() {
-        return new DLMConvertToFrozen(indexName, projectId, createMockClient(), clusterService, licenseState, clock) {
-            @Override
-            void sleepBeforePoll(String snapshotName, String indexName) {
-                // no-op in tests to avoid 30s Thread.sleep
-            }
-        };
+        return new DLMConvertToFrozen(indexName, projectId, createMockClient(), clusterService, licenseState, clock);
     }
 
     private CreateSnapshotResponse createSuccessfulSnapshotResponse() {
@@ -600,14 +595,21 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
     // --- handleInProgressSnapshot tests ---
 
     public void testHandleInProgressSnapshot_withinTimeout_waitsForCompletion() {
-        // Snapshot started recently (within timeout) - converter should poll and find completed snapshot
+        // Snapshot started recently (within timeout) - observer should wait and find completed snapshot
         long recentStartTime = clock.millis() - 1000; // 1 second ago
         ProjectState projectState = createProjectStateWithInProgressSnapshot(recentStartTime);
         setClusterState(projectState);
 
-        // When polling, return a completed snapshot
+        // When the observer fires (after snapshot leaves SnapshotsInProgress), return a completed snapshot
         SnapshotInfo completedSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
         mockGetSnapshotsResponse.set(getSnapshotsResponseWith(completedSnapshot));
+
+        // Schedule a cluster state update that removes the snapshot from SnapshotsInProgress,
+        // which will trigger the ClusterStateObserver's predicate
+        threadPool.generic().execute(() -> {
+            ProjectState noSnapshotState = createProjectState();
+            setClusterState(noSnapshotState);
+        });
 
         DLMConvertToFrozen converter = createConverter();
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
@@ -659,6 +661,13 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
 
         SnapshotInfo completedSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
         mockGetSnapshotsResponse.set(getSnapshotsResponseWith(completedSnapshot));
+
+        // Schedule a cluster state update that removes the snapshot from SnapshotsInProgress,
+        // which will trigger the ClusterStateObserver's predicate
+        threadPool.generic().execute(() -> {
+            ProjectState noSnapshotState = createProjectState();
+            setClusterState(noSnapshotState);
+        });
 
         DLMConvertToFrozen converter = createConverter();
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);

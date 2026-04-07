@@ -101,7 +101,7 @@ public class ReindexBasicTests extends ReindexTestCase {
     }
 
     /**
-     * Reindex with source and destination specified as index aliases (resolved like search), not only concrete index names.
+     * Reindex with source and destination specified as index aliases
      */
     public void testReindexWithAliases() {
         String prefix = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);

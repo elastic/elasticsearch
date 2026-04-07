@@ -227,14 +227,17 @@ public class KnnIndexer {
         return iwc;
     }
 
-    void forceMerge(KnnIndexTester.Results results, int maxNumSegments) throws Exception {
+    void forceMerge(KnnIndexTester.Results results, int maxNumSegments, Sort indexSort) throws Exception {
         try (Directory dir = getDirectory(indexPath)) {
-            forceMerge(results, maxNumSegments, dir);
+            forceMerge(results, maxNumSegments, dir, indexSort);
         }
     }
 
-    void forceMerge(KnnIndexTester.Results results, int maxNumSegments, Directory dir) throws Exception {
+    void forceMerge(KnnIndexTester.Results results, int maxNumSegments, Directory dir, Sort indexSort) throws Exception {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        if (indexSort != null) {
+            iwc.setIndexSort(indexSort);
+        }
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
             @Override
             public boolean isEnabled(String component) {

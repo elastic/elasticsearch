@@ -344,6 +344,18 @@ public final class TimeSeriesBlockHash extends BlockHash {
         return maxTimestamp;
     }
 
+    public int numUniqueTsids() {
+        return (int) tsidHash.size();
+    }
+
+    public BytesRef getTsidBytes(int ordinal, BytesRef scratch) {
+        return tsidHash.get(ordinal, scratch);
+    }
+
+    public boolean isReverseOutput() {
+        return reverseOutput;
+    }
+
     public String toString() {
         return "BytesRefLongBlockHash{keys=[tsid[channel="
             + tsidChannel

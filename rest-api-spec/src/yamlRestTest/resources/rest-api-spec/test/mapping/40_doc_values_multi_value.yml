@@ -1,0 +1,167 @@
+---
+"multi_value=no rejects multiple values for keyword":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value"]
+      reason: "multi_value doc values parameter support"
+
+  - do:
+      indices.create:
+        index: test_keyword
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: "no"
+
+  - do:
+      index:
+        index: test_keyword
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "single_value"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_keyword
+        body:
+          query:
+            term:
+              kw: "single_value"
+  - match: { hits.total.value: 1 }
+
+  - do:
+      catch: /configured with multi_value=no but more than one value was detected/
+      index:
+        index: test_keyword
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: ["value1", "value2"]
+
+---
+"multi_value=no is enforced per document not per segment":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value"]
+      reason: "multi_value doc values parameter support"
+
+  - do:
+      indices.create:
+        index: test_per_document
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: "no"
+
+  - do:
+      index:
+        index: test_per_document
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "value_a"
+
+  - do:
+      index:
+        index: test_per_document
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "value_b"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_per_document
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total.value: 2 }
+
+---
+"multi_value=no mapping serialization roundtrip":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value"]
+      reason: "multi_value doc values parameter support"
+
+  - do:
+      indices.create:
+        index: test_roundtrip
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  multi_value: "no"
+
+  - do:
+      indices.get_mapping:
+        index: test_roundtrip
+
+  - match: { test_roundtrip.mappings.properties.kw.doc_values.multi_value: "no" }
+
+---
+"multi_value=no rejects multiple values for text":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value"]
+      reason: "multi_value doc values parameter support"
+
+  - do:
+      indices.create:
+        index: test_text
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              message:
+                type: text
+                doc_values:
+                  multi_value: "no"
+
+  - do:
+      index:
+        index: test_text
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          message: "hello world"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_text
+        body:
+          query:
+            match:
+              message: "hello world"
+  - match: { hits.total.value: 1 }
+
+  - do:
+      catch: /configured with multi_value=no but more than one value was detected/
+      index:
+        index: test_text
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          message: ["hello", "world"]
+

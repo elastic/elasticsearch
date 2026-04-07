@@ -21,6 +21,7 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -292,6 +293,44 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     public void testSeqnoField() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, MAPPING_3);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat(SeqNoFieldMapper.NAME)), is(true));
+    }
+
+    /**
+     * Verifies that the TSDB codec is enabled for fields configured with {@code multi_value=no} in LOGSDB mode.
+     * <p>
+     * This is important because the TSDB doc values format provides single-value storage optimizations:
+     * it detects single-valued {@code SortedNumericDocValuesField} documents and uses a more compact ordinal encoding,
+     * and automatically promotes single-valued {@code SortedSetDocValuesField} to {@code SortedDocValuesField}.
+     * Without the TSDB codec, {@code multi_value=no} would only enforce at indexing time but would not
+     * benefit from these storage savings.
+     */
+    public void testLogsDbUsesTSDBCodecForMultiValueNoFields() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        // @timestamp cannot have doc_values attributes; use other field types to cover SortedNumericDocValues (integer)
+        // and SortedSetDocValues (keyword) storage formats that benefit from TSDB single-value optimizations.
+        String mapping = """
+            {
+                "_data_stream_timestamp": {
+                    "enabled": true
+                },
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "status": {
+                        "type": "integer",
+                        "doc_values": { "multi_value": "no" }
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "doc_values": { "multi_value": "no" }
+                    }
+                }
+            }
+            """;
+        PerFieldFormatSupplier perFieldFormatSupplier = createFormatSupplier(IndexMode.LOGSDB, mapping);
+        assertThat(perFieldFormatSupplier.useTSDBDocValuesFormat("status"), is(true));
+        assertThat(perFieldFormatSupplier.useTSDBDocValuesFormat("hostname"), is(true));
     }
 
     private PerFieldFormatSupplier createFormatSupplier(IndexMode mode, String mapping) throws IOException {

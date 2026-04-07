@@ -568,6 +568,11 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue() == DocValuesParameter.Values.MultiValue.NO;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (indexed == false && stored == false && docValuesParameters.enabled() == false) {
             return;

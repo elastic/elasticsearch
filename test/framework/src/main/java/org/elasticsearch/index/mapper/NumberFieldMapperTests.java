@@ -356,21 +356,21 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testAllowMultipleValuesField() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-
-        Mapper mapper = mapperService.mappingLookup().getMapper("field");
-        if (mapper instanceof NumberFieldMapper numberFieldMapper) {
-            numberFieldMapper.setAllowMultipleValues(false);
-        } else {
-            fail("mapper [" + mapper.getClass() + "] error, not number field");
-        }
+    public void testRejectMultipleValuesWhenMultiValueIsDisabled() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
 
         Exception e = expectThrows(
             DocumentParsingException.class,
             () -> mapperService.documentMapper().parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
         );
-        assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [field] is configured with multi_value=no but more than one value was detected")
+        );
     }
 
     protected abstract Number randomNumber();

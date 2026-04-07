@@ -229,7 +229,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         NumberFieldMapper.NumberType.INTEGER,
                         ScriptCompiler.NONE,
                         indexSettings
-                    ).allowMultipleValues(false).ignoreMalformed(false).coerce(false);
+                    ).multiValue(FieldMapper.DocValuesParameter.Values.MultiValue.NO).ignoreMalformed(false).coerce(false);
                     if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS)) {
                         builder.index(false);
                     }
@@ -239,7 +239,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         NumberFieldMapper.NumberType.DOUBLE,
                         ScriptCompiler.NONE,
                         indexSettings
-                    ).allowMultipleValues(false).ignoreMalformed(false).coerce(true);
+                    ).multiValue(FieldMapper.DocValuesParameter.Values.MultiValue.NO).ignoreMalformed(false).coerce(true);
                     if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS)) {
                         builder.index(false);
                     }
@@ -754,7 +754,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             // Check that there aren't any duplicates already parsed
             for (Metric m : metricsParsed.keySet()) {
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(m);
-                if (context.doc().getByKey(delegateFieldMapper.fieldType().name()) != null) {
+                if (context.doc().getFields(delegateFieldMapper.fieldType().name()).isEmpty() == false) {
                     throw new IllegalArgumentException(
                         "Field ["
                             + fullPath()

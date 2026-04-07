@@ -100,4 +100,29 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().enabled(), equalTo(false));
     }
+
+    // -----------------------------------------------------------------------
+    // multi_value=no enforcement tests
+    // -----------------------------------------------------------------------
+
+    public void testMultiValueNoKeywordRejectsDuplicates() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject())
+        );
+
+        // when — single value succeeds
+        mapperService.documentMapper().parse(source(b -> b.field("field", "one")));
+
+        // when — multiple values fails
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.array("field", "one", "two")))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [field] is configured with multi_value=no but more than one value was detected")
+        );
+    }
+
 }

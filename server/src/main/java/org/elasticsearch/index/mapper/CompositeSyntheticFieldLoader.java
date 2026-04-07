@@ -180,7 +180,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      */
     public static Layer malformedValuesLayer(String fieldName, IndexVersion indexVersion) {
         if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
-            return new MalformedValuesBinaryDocValuesLayer(fieldName);
+            return new MalformedValuesBinaryDocValuesLayer(fieldName, indexVersion);
         } else {
             return new MalformedValuesStoredFieldLayer(fieldName);
         }
@@ -209,8 +209,8 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      * Layer that loads malformed values from binary doc values for synthetic source.
      */
     private static class MalformedValuesBinaryDocValuesLayer extends BinaryDocValuesSyntheticFieldLoaderLayer {
-        MalformedValuesBinaryDocValuesLayer(String fieldName) {
-            super(IgnoreMalformedStoredValues.name(fieldName));
+        MalformedValuesBinaryDocValuesLayer(String fieldName, IndexVersion indexVersion) {
+            super(IgnoreMalformedStoredValues.name(fieldName), indexVersion);
         }
 
         @Override

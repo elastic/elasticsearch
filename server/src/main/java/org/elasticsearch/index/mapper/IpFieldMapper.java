@@ -658,6 +658,11 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue() == DocValuesParameter.Values.MultiValue.NO;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         ESInetAddressPoint address;
         XContentString value = context.parser().optimizedTextOrNull();

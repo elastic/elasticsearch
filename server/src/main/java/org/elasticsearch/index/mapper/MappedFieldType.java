@@ -126,6 +126,14 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns the extended doc values parameters for this field type, or {@code null} if the field type does not support them.
+     */
+    @Nullable
+    public FieldMapper.DocValuesParameter.Values docValuesParameters() {
+        return null;
+    }
+
+    /**
      * Returns the collapse type of the field
      * CollapseType.NONE means the field can'be used for collapsing.
      * @return collapse type of the field

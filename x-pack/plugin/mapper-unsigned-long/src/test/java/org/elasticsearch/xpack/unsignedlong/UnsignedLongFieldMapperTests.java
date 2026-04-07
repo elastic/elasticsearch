@@ -409,7 +409,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     public void testIgnoreMalformedWithObject() {} // unimplemented
 
     @Override
-    public void testAllowMultipleValuesField() {} // unimplemented
+    public void testRejectMultipleValuesWhenMultiValueIsDisabled() {} // unimplemented
 
     @Override
     public void testScriptableTypes() {} // unimplemented

@@ -62,6 +62,7 @@ import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.ByteLengthFromBytesRefDocValuesBlockLoader;
@@ -567,6 +568,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final boolean usesBinaryDocValues;
         private final boolean usesBinaryDocValuesForIgnoredFields;
+        private final DocValuesParameter.Values docValuesParams;
+        private final IndexVersion indexVersion;
 
         public KeywordFieldType(
             String name,
@@ -597,6 +600,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = builder.dimension.getValue();
             this.usesBinaryDocValues = builder.usesBinaryDocValues();
             this.usesBinaryDocValuesForIgnoredFields = builder.storeIgnoredFieldsInBinaryDocValues;
+            this.docValuesParams = builder.docValuesParameters();
+            this.indexVersion = builder.indexSettings.getIndexVersionCreated();
         }
 
         public KeywordFieldType(String name) {
@@ -623,6 +628,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = false;
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.usesBinaryDocValuesForIgnoredFields = false;
+            this.docValuesParams = null;
+            this.indexVersion = IndexVersion.current();
         }
 
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
@@ -643,6 +650,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = false;
             this.usesBinaryDocValues = false;
             this.usesBinaryDocValuesForIgnoredFields = false;
+            this.docValuesParams = null;
+            this.indexVersion = IndexVersion.current();
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -663,6 +672,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = false;
             this.usesBinaryDocValues = false;
             this.usesBinaryDocValuesForIgnoredFields = false;
+            this.docValuesParams = null;
+            this.indexVersion = IndexVersion.current();
         }
 
         public boolean usesBinaryDocValues() {
@@ -671,6 +682,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public boolean usesBinaryDocValuesForIgnoredFields() {
             return usesBinaryDocValuesForIgnoredFields;
+        }
+
+        @Override
+        public DocValuesParameter.Values docValuesParameters() {
+            return docValuesParams;
         }
 
         @Override
@@ -718,7 +734,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 return new StringScriptFieldRangeQuery(
                     new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
                     name(),
                     lowerTerm == null ? null : indexedValueForSearch(lowerTerm).utf8ToString(),
                     upperTerm == null ? null : indexedValueForSearch(upperTerm).utf8ToString(),
@@ -752,7 +768,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 return StringScriptFieldFuzzyQuery.build(
                     new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
                     name(),
                     indexedValueForSearch(value).utf8ToString(),
                     fuzziness.asDistance(BytesRefs.toString(value)),
@@ -784,7 +800,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 return new StringScriptFieldPrefixQuery(
                     new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
                     name(),
                     indexedValueForSearch(value).utf8ToString(),
                     caseInsensitive
@@ -812,7 +828,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             } else if (usesBinaryDocValues) {
                 return new StringScriptFieldTermQuery(
                     new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
                     name(),
                     indexedValueForSearch(value).utf8ToString(),
                     true
@@ -883,7 +899,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
                 if (cfg == null) {
                     if (usesBinaryDocValues) {
-                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
+                        if (docValuesParams != null && docValuesParams.multiValue() == DocValuesParameter.Values.MultiValue.NO) {
+                            return new BytesRefsFromBinaryBlockLoader(name());
+                        } else {
+                            return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
+                        }
                     } else {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     }
@@ -1032,7 +1052,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private IndexFieldData.Builder fieldDataFromDocValues() {
             if (usesBinaryDocValues) {
-                return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, KeywordDocValuesField::new);
+                return new BytesBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    KeywordDocValuesField::new,
+                    indexVersion
+                );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(
                     name(),
@@ -1154,7 +1179,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (usesBinaryDocValues) {
                     return new StringScriptFieldWildcardQuery(
                         new Script(""),
-                        ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                        ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
                         name(),
                         value,
                         false
@@ -1190,7 +1215,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (usesBinaryDocValues) {
                     return new StringScriptFieldRegexpQuery(
                         new Script(""),
-                        ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                        ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
                         name(),
                         value,
                         syntaxFlags,
@@ -1323,6 +1348,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         return docValuesParameters;
     }
 
+    @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue() == DocValuesParameter.Values.MultiValue.NO;
+    }
+
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         var value = context.parser().optimizedTextOrNull();
 
@@ -1391,6 +1421,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         keepDuplicatesInBinaryDocValues()
                             ? MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
                             : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                        docValuesParameters.multiValue(),
                         indexCreatedVersion
                     );
                 } else {
@@ -1439,7 +1470,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 context.doc(),
                 fieldType().name(),
                 binaryValue,
-                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                docValuesParameters.multiValue(),
+                indexCreatedVersion
             );
         }
 
@@ -1587,7 +1620,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             } else {
                 assert offsetsFieldName == null;
-                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name()));
+                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().name(), fieldType().indexVersion));
             }
         }
 
@@ -1597,7 +1630,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
             if (storeIgnoredFieldsInBinaryDocValues) {
-                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName));
+                layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName, fieldType().indexVersion));
             } else {
                 // old indices, stored ignored values in stored fields
                 layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {

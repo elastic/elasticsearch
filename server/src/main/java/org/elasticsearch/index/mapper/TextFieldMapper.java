@@ -76,6 +76,7 @@ import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
@@ -500,7 +501,8 @@ public final class TextFieldMapper extends FieldMapper {
                     indexPhrases.getValue(),
                     indexCreatedVersion,
                     usesBinaryDocValuesForFallbackFields,
-                    usesBinaryDocValues()
+                    usesBinaryDocValues(),
+                    docValuesParameters.getValue()
                 );
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
@@ -785,6 +787,7 @@ public final class TextFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final boolean usesBinaryDocValuesForFallbackFields;
         private final boolean usesBinaryDocValues;
+        private final DocValuesParameter.Values docValuesParams;
 
         /**
          * In some configurations text fields use a sub-keyword field to provide
@@ -807,7 +810,8 @@ public final class TextFieldMapper extends FieldMapper {
             boolean indexPhrases,
             IndexVersion indexCreatedVersion,
             boolean usesBinaryDocValuesForFallbackFields,
-            boolean usesBinaryDocValues
+            boolean usesBinaryDocValues,
+            DocValuesParameter.Values docValuesParams
         ) {
             super(name, IndexType.terms(indexed, hasDocValues), stored, tsi, meta, isSyntheticSource, isWithinMultiField);
             this.fielddata = false;
@@ -818,6 +822,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.indexCreatedVersion = indexCreatedVersion;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
             this.usesBinaryDocValues = usesBinaryDocValues;
+            this.docValuesParams = docValuesParams;
         }
 
         public TextFieldType(
@@ -846,7 +851,8 @@ public final class TextFieldMapper extends FieldMapper {
                 indexPhrases,
                 IndexVersion.current(),
                 false,
-                false
+                false,
+                null
             );
         }
 
@@ -867,6 +873,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.indexCreatedVersion = IndexVersion.current();
             this.usesBinaryDocValuesForFallbackFields = false;
             this.usesBinaryDocValues = false;
+            this.docValuesParams = null;
         }
 
         public TextFieldType(String name, boolean isSyntheticSource, boolean isWithinMultiField) {
@@ -910,6 +917,11 @@ public final class TextFieldMapper extends FieldMapper {
 
         public boolean usesBinaryDocValues() {
             return usesBinaryDocValues;
+        }
+
+        @Override
+        public DocValuesParameter.Values docValuesParameters() {
+            return docValuesParams;
         }
 
         @Override
@@ -1282,6 +1294,9 @@ public final class TextFieldMapper extends FieldMapper {
             // Check if we can load from doc values
             if (hasDocValues()) {
                 if (usesBinaryDocValues()) {
+                    if (docValuesParams != null && docValuesParams.multiValue() == DocValuesParameter.Values.MultiValue.NO) {
+                        return new BytesRefsFromBinaryBlockLoader(name());
+                    }
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
                 } else {
                     return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
@@ -1486,7 +1501,12 @@ public final class TextFieldMapper extends FieldMapper {
 
         private IndexFieldData.Builder fieldDataFromDocValues() {
             if (usesBinaryDocValues()) {
-                return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, TextDocValuesField::new);
+                return new BytesBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    TextDocValuesField::new,
+                    indexCreatedVersion
+                );
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(
                     name(),
@@ -1504,7 +1524,7 @@ public final class TextFieldMapper extends FieldMapper {
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, false, tsi, false, false, null, meta, false, false, IndexVersion.current(), false, false);
+            super(name, indexed, stored, false, tsi, false, false, null, meta, false, false, IndexVersion.current(), false, false, null);
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -1695,6 +1715,11 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue() == DocValuesParameter.Values.MultiValue.NO;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
 
@@ -1709,7 +1734,9 @@ public final class TextFieldMapper extends FieldMapper {
                     context.doc(),
                     fieldType().name(),
                     binaryValue,
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                    docValuesParameters.multiValue(),
+                    indexCreatedVersion
                 );
             } else if (binaryValue.length > IndexWriter.MAX_TERM_LENGTH) {
                 // if the binary value's length exceeds Lucene's max term length, then we cannot store it in SortedSetDocValuesField
@@ -1723,7 +1750,7 @@ public final class TextFieldMapper extends FieldMapper {
         if (isIndexed() || fieldType.stored()) {
             Field field = new Field(fieldType().name(), value, fieldType);
             context.doc().add(field);
-            if (fieldType.omitNorms()) {
+            if (fieldType.omitNorms() && fieldType().hasDocValues() == false) {
                 context.addToFieldNames(fieldType().name());
             }
             if (prefixFieldInfo != null) {
@@ -1759,6 +1786,7 @@ public final class TextFieldMapper extends FieldMapper {
             fallbackFieldName,
             bytesRef,
             MultiValuedBinaryDocValuesField.ValueOrdering.SORTED,
+            docValuesParameters.multiValue(),
             indexCreatedVersion
         );
     }
@@ -1979,7 +2007,7 @@ public final class TextFieldMapper extends FieldMapper {
         // layer for loading from a fallback field created during indexing by this text field mapper
         final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
         if (usesBinaryDocValuesForFallbackFields) {
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName));
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName, indexCreatedVersion));
         } else {
             // for bwc - fallback fields were originally stored in StoredFields
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fallbackFieldName) {
@@ -2003,7 +2031,7 @@ public final class TextFieldMapper extends FieldMapper {
     private CompositeSyntheticFieldLoader syntheticFieldLoaderFromDocValues() {
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         if (fieldType().usesBinaryDocValues()) {
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()));
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexCreatedVersion));
         } else {
             layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
                 @Override
@@ -2029,7 +2057,7 @@ public final class TextFieldMapper extends FieldMapper {
             });
 
             // also load from fallback field for values that exceeded MAX_TERM_LENGTH
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().syntheticSourceFallbackFieldName()));
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().syntheticSourceFallbackFieldName(), indexCreatedVersion));
         }
         return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }

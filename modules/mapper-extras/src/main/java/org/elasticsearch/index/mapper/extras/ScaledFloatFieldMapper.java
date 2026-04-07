@@ -658,6 +658,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue() == FieldMapper.DocValuesParameter.Values.MultiValue.NO;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;

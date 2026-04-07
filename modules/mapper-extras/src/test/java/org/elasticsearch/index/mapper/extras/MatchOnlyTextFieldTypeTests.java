@@ -248,7 +248,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             false,
-            false
+            false,
+            null
         );
 
         // when
@@ -272,7 +273,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             false,
-            false
+            false,
+            null
         );
 
         // when
@@ -303,7 +305,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             false,
-            false
+            false,
+            null
         );
 
         // when
@@ -352,7 +355,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             false,
-            false
+            false,
+            null
         );
 
         // when
@@ -404,7 +408,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             false,
-            false
+            false,
+            null
         );
 
         // when
@@ -441,7 +446,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             false,
-            false
+            false,
+            null
         );
 
         var mockedSearchLookup = mock(SearchLookup.class);
@@ -491,7 +497,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             false,
-            false
+            false,
+            null
         );
 
         // when
@@ -516,7 +523,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersion.current(),
             false,
-            false
+            false,
+            null
         );
 
         // when
@@ -541,7 +549,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES),
             false,
-            false
+            false,
+            null
         );
 
         // when

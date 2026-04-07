@@ -512,7 +512,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     public void testIgnoreMalformedWithObject() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
 
     @Override
-    public void testAllowMultipleValuesField() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour
+    public void testRejectMultipleValuesWhenMultiValueIsDisabled() {} // TODO: either implement this, remove it, or update
+                                                                      // ScaledFloatFieldMapper's behaviour
 
     @Override
     public void testScriptableTypes() {} // TODO: either implement this, remove it, or update ScaledFloatFieldMapper's behaviour

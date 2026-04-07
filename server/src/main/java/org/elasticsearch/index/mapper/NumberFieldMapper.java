@@ -20,7 +20,6 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -151,7 +150,6 @@ public class NumberFieldMapper extends FieldMapper {
             return type;
         }
 
-        private boolean allowMultipleValues = true;
         private final IndexSettings indexSettings;
 
         public static Builder docValuesOnly(String name, NumberType type, IndexSettings indexSettings) {
@@ -276,8 +274,9 @@ public class NumberFieldMapper extends FieldMapper {
             return metric;
         }
 
-        public Builder allowMultipleValues(boolean allowMultipleValues) {
-            this.allowMultipleValues = allowMultipleValues;
+        public Builder multiValue(DocValuesParameter.Values.MultiValue multiValue) {
+            var current = this.docValuesParameters.getValue();
+            this.docValuesParameters.setValue(new DocValuesParameter.Values(current.enabled(), current.cardinality(), multiValue));
             return this;
         }
 
@@ -2316,7 +2315,6 @@ public class NumberFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final Script script;
     private final MetricType metricType;
-    private boolean allowMultipleValues;
     private final boolean isSyntheticSource;
     private final String offsetsFieldName;
 
@@ -2346,7 +2344,6 @@ public class NumberFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
-        this.allowMultipleValues = builder.allowMultipleValues;
         this.isSyntheticSource = isSyntheticSource;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSettings = builder.indexSettings;
@@ -2463,6 +2460,12 @@ public class NumberFieldMapper extends FieldMapper {
      * fields that want to share the behavior of numeric fields.
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
+        // Single-value enforcement is handled here instead of in parse() because this method is called directly by composite mappers
+        // such as AggregateMetricDoubleFieldMapper, bypassing parse() entirely. Placing the check here covers both the normal
+        // document-parser path parse() → parseCreateField() → indexValue() and the direct-call path.
+        if (docValuesParameters.multiValue() == DocValuesParameter.Values.MultiValue.NO) {
+            context.enforceSingleValue(fieldType.name());
+        }
         final String name = fieldType.name();
         final LuceneDocument doc = context.doc();
 
@@ -2475,14 +2478,6 @@ public class NumberFieldMapper extends FieldMapper {
             case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue());
             case LONG -> addLongFields(doc, name, numericValue.longValue());
             default -> type.addFields(doc, name, numericValue, fieldType.indexType, stored);
-        }
-
-        if (false == allowMultipleValues && (indexed || docValuesParameters.enabled() || stored)) {
-            // the last field is the current field, Add to the key map, so that we can validate if it has been added
-            List<IndexableField> fields = doc.getFields();
-            final IndexableField last = fields.getLast();
-            assert last.name().equals(name) : "last field name [" + last.name() + "] mis match field name [" + name + "]";
-            doc.onlyAddKey(name, last);
         }
 
         if (docValuesParameters.enabled() == false && (stored || indexed)) {
@@ -2538,10 +2533,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), type, scriptCompiler, indexSettings).dimension(dimension)
-            .metric(metricType)
-            .allowMultipleValues(allowMultipleValues)
-            .init(this);
+        return new Builder(leafName(), type, scriptCompiler, indexSettings).dimension(dimension).metric(metricType).init(this);
     }
 
     @Override
@@ -2586,8 +2578,4 @@ public class NumberFieldMapper extends FieldMapper {
         return super.syntheticSourceSupport();
     }
 
-    // For testing only:
-    void setAllowMultipleValues(boolean allowMultipleValues) {
-        this.allowMultipleValues = allowMultipleValues;
-    }
 }

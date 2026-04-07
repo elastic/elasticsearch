@@ -12,6 +12,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -28,15 +29,18 @@ public class StringBinaryIndexFieldData implements IndexFieldData<MultiValuedBin
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    protected final IndexVersion indexVersion;
 
     public StringBinaryIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        IndexVersion indexVersion
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexVersion = indexVersion;
     }
 
     @Override
@@ -57,7 +61,7 @@ public class StringBinaryIndexFieldData implements IndexFieldData<MultiValuedBin
 
     @Override
     public MultiValuedBinaryDVLeafFieldData load(LeafReaderContext context) {
-        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory);
+        return new MultiValuedBinaryDVLeafFieldData(fieldName, context.reader(), toScriptFieldFactory, indexVersion);
     }
 
     @Override

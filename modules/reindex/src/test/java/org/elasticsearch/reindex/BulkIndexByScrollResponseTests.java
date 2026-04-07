@@ -10,12 +10,15 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,6 +26,8 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 
 public class BulkIndexByScrollResponseTests extends ESTestCase {
     public void testMergeConstructor() {
@@ -78,5 +83,35 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
         assertEquals(allSearchFailures, merged.getSearchFailures());
         assertEquals(timedOut, merged.isTimedOut());
         assertEquals(reasonCancelled, merged.getReasonCancelled());
+    }
+
+    /** Verifies the 3-arg merge constructor with pitId preserves the pitId in the merged response. */
+    public void testMergeConstructorWithPitId() {
+        BytesReference pitId = new BytesArray("merged-pit-id".getBytes(StandardCharsets.UTF_8));
+        List<BulkByScrollResponse> responses = new ArrayList<>();
+        for (int i = 0; i < between(2, 5); i++) {
+            BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+                i,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                timeValueMillis(0),
+                0f,
+                null,
+                timeValueMillis(0)
+            );
+            responses.add(new BulkByScrollResponse(timeValueMillis(100), status, emptyList(), emptyList(), false));
+        }
+
+        BulkByScrollResponse merged = new BulkByScrollResponse(responses, null, pitId);
+
+        assertTrue(merged.getPitId().isPresent());
+        assertThat(merged.getPitId().get(), equalTo(pitId));
     }
 }

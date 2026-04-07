@@ -50,6 +50,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -1010,6 +1011,79 @@ public class ReindexerTests extends ESTestCase {
                 assertNull("routing should not be set", pitRequest.routing());
                 assertNull("preference should not be set", pitRequest.preference());
                 assertFalse("allowPartialSearchResults should be false", pitRequest.allowPartialSearchResults());
+            } finally {
+                terminate(threadPool);
+            }
+        } finally {
+            client.shutdown();
+        }
+    }
+
+    /**
+     * This tests that when a source query is provided, the open pit request includes an index filter.
+     * The case when the source query is null is tested in {@link #testLocalOpenPitRequestHasExpectedProperties} above
+     */
+    public void testLocalOpenPitSetsIndexFilterFromSourceQuery() {
+        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
+        try {
+            final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
+                @Override
+                public ExecutorService executor(String name) {
+                    return DIRECT_EXECUTOR_SERVICE;
+                }
+            };
+            try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+
+                final ProjectResolver projectResolver = mock(ProjectResolver.class);
+                when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
+
+                FeatureService featureService = mock(FeatureService.class);
+                when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
+                final Reindexer reindexer = new Reindexer(
+                    clusterService,
+                    projectResolver,
+                    client,
+                    threadPool,
+                    mock(ScriptService.class),
+                    mock(ReindexSslConfig.class),
+                    null,
+                    mock(TransportService.class),
+                    mock(ReindexRelocationNodePicker.class),
+                    featureService
+                );
+
+                final var termQuery = QueryBuilders.termQuery("field", "value");
+                final ReindexRequest request = new ReindexRequest();
+                request.setSourceIndices("source");
+                request.setDestIndex("dest");
+                request.setSlices(1);
+                request.getSearchRequest().source().query(termQuery);
+
+                final BulkByScrollTask task = new BulkByScrollTask(
+                    randomTaskId(),
+                    "reindex",
+                    "reindex",
+                    "test",
+                    TaskId.EMPTY_TASK_ID,
+                    Collections.emptyMap(),
+                    false,
+                    randomOrigin()
+                );
+
+                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
+                initFuture.actionGet();
+
+                OpenPointInTimeRequest pitRequest = client.getCapturedPitRequest();
+                assertNotNull(pitRequest);
+                assertSame(termQuery, pitRequest.indexFilter());
             } finally {
                 terminate(threadPool);
             }

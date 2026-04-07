@@ -283,12 +283,18 @@ public class Reindexer {
         assert searchRequest.allowPartialSearchResults() == null || searchRequest.allowPartialSearchResults() == false
             : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
 
-        // TODO - Do we need to set the IndexFilter field here? https://github.com/elastic/elasticsearch-team/issues/2392
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
             .keepAlive(pitKeepAlive(request))
             .allowPartialSearchResults(false);
         if (searchRequest.getProjectRouting() != null) {
             pitRequest.projectRouting(searchRequest.getProjectRouting());
+        }
+        // Elasticsearch uses an index-filter when opening a PIT to perform shard-level pruning (removing unnecessary shards from the
+        // point-in-time snapshot, improving performance and memory demands). Document filtering still runs for each subsequent pit
+        // search. When the source query is null, the effective query is match_all, and we omit the index_filter parameter rather than
+        // explicitly setting it.
+        if (searchRequest.source() != null && searchRequest.source().query() != null) {
+            pitRequest.indexFilter(searchRequest.source().query());
         }
 
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call

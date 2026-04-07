@@ -85,6 +85,18 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     LongVector asVector();
 
     @Override
+    default LongBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
     LongBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**

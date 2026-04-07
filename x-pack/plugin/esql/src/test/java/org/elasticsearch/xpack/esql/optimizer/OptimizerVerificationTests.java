@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -16,6 +17,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.S3_PATH;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests.external;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -470,5 +473,23 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             either move the SORT after it, or add a LIMIT after the SORT
             line 5:3: INLINE STATS [INLINE STATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages] before \
             it: either move the SORT after it, or add a LIMIT after the SORT"""));
+    }
+
+    public void testEnrichRemoteRejected() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        var testAnalyzer = external().addEnrichPolicy(
+            Enrich.Mode.REMOTE,
+            EnrichPolicy.MATCH_TYPE,
+            "languages_policy",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        );
+        var err = error(testAnalyzer.query("EXTERNAL \"" + S3_PATH + "\"" + """
+            | EVAL x = TO_STRING(languages)
+            | ENRICH _remote:languages_policy ON x
+            """));
+        assertThat(err, containsString("ENRICH with remote policy can't be executed after [EXTERNAL"));
     }
 }

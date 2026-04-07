@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.ccsM
 import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getInferenceInfo;
 import static org.elasticsearch.xpack.inference.queries.InferenceQueryUtils.getResultFromFuture;
 
-public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
+public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder> {
     public static final String NAME = "semantic";
 
     public static final NodeFeature SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = new NodeFeature("semantic_query.multiple_inference_ids");

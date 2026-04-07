@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144686
+summary: Add ORC predicate pushdown via `SearchArgument`
+type: enhancement

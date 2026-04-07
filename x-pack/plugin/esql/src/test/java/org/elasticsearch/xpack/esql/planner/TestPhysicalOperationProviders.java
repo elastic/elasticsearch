@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -45,6 +46,7 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -80,15 +82,33 @@ import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPrefere
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
-    private final List<IndexPage> indexPages;
 
-    private TestPhysicalOperationProviders(FoldContext foldContext, List<IndexPage> indexPages, AnalysisRegistry analysisRegistry) {
+    public static final LazyInitializable<Environment, RuntimeException> TEST_ENV = new LazyInitializable<>(
+        () -> TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        )
+    );
+
+    private final List<IndexPage> indexPages;
+    private final UnmappedResolution unmappedResolution;
+
+    private TestPhysicalOperationProviders(
+        FoldContext foldContext,
+        List<IndexPage> indexPages,
+        UnmappedResolution unmappedResolution,
+        AnalysisRegistry analysisRegistry
+    ) {
         super(foldContext, analysisRegistry);
         this.indexPages = indexPages;
+        this.unmappedResolution = unmappedResolution;
     }
 
-    public static TestPhysicalOperationProviders create(FoldContext foldContext, List<IndexPage> indexPages) throws IOException {
-        return new TestPhysicalOperationProviders(foldContext, indexPages, createAnalysisRegistry());
+    public static TestPhysicalOperationProviders create(
+        FoldContext foldContext,
+        List<IndexPage> indexPages,
+        UnmappedResolution unmappedResolution
+    ) throws IOException {
+        return new TestPhysicalOperationProviders(foldContext, indexPages, unmappedResolution, createAnalysisRegistry());
     }
 
     public record IndexPage(String index, Page page, List<String> columnNames, Set<String> mappedFields) {
@@ -100,9 +120,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private static AnalysisRegistry createAnalysisRegistry() throws IOException {
         return new AnalysisModule(
-            TestEnvironment.newEnvironment(
-                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
-            ),
+            TEST_ENV.getOrCompute(),
             List.of(new MachineLearning(Settings.EMPTY), new CommonAnalysisPlugin()),
             new StablePluginsRegistry()
         ).getAnalysisRegistry();
@@ -301,11 +319,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             }
         }
         return (indexDoc, blockCopier) -> switch (extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)) {
-            case BlockResultMissing missing -> throw new EsqlIllegalArgumentException(
-                "Cannot find column named [{}] in {}",
-                missing.columnName,
-                missing.columnNames
-            );
+            case BlockResultMissing missing -> {
+                if (unmappedResolution == UnmappedResolution.NULLIFY) {
+                    yield getNullsBlock(indexDoc);
+                }
+                throw new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", missing.columnName, missing.columnNames);
+            }
             case BlockResultSuccess success -> success.block;
         };
     }
@@ -316,18 +335,32 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         MultiTypeEsField multiTypeEsField,
         TestBlockCopier blockCopier
     ) {
-        var conversion = (AbstractConvertFunction) multiTypeEsField.getConversionExpressionForIndex(getIndexPage(indexDoc).index);
+        var conversion = getConversion(multiTypeEsField, getIndexPage(indexDoc));
         if (conversion == null) {
             return getNullsBlock(indexDoc);
         }
         return switch (extractBlockForSingleDoc(indexDoc, ((FieldAttribute) conversion.field()).fieldName().string(), blockCopier)) {
             case BlockResultMissing unused -> getNullsBlock(indexDoc);
             case BlockResultSuccess success -> {
+                if (success.block.elementType() != PlannerUtils.toElementType(conversion.field().dataType().widenSmallNumeric())
+                    && success.block.elementType() == PlannerUtils.toElementType(conversion.dataType().widenSmallNumeric())) {
+                    // Block is already in the correct type, we can skip the conversion.
+                    yield success.block;
+                }
                 try (var converter = new TypeConverter(conversion).build(context)) {
                     yield converter.convert(success.block);
                 }
             }
         };
+    }
+
+    @Nullable
+    private static AbstractConvertFunction getConversion(MultiTypeEsField multiTypeEsField, IndexPage indexPage) {
+        var conversion = (AbstractConvertFunction) multiTypeEsField.getConversionExpressionForIndex(indexPage.index);
+        boolean isPotentiallyUnmapped = conversion == null
+            && multiTypeEsField.getPotentiallyUnmappedExpression() != null
+            && indexPage.mappedFields().contains(multiTypeEsField.getName()) == false;
+        return isPotentiallyUnmapped ? (AbstractConvertFunction) multiTypeEsField.getPotentiallyUnmappedExpression() : conversion;
     }
 
     private IndexPage getIndexPage(DocBlock indexDoc) {

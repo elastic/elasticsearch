@@ -17,6 +17,7 @@ base {
 dependencies {
     compileOnly project(path: xpackModule('core'))
     testImplementation(testArtifact(project(xpackModule('core'))))
+    internalClusterTestImplementation project(':test:framework')
 }
 
 addQaCheckDependencies(project)

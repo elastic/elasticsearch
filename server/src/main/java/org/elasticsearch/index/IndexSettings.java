@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -635,6 +636,17 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
+    /**
+     * Defines the name of the field storing the metric temporality.
+     */
+    public static final Setting<String> TIME_SERIES_TEMPORALITY_FIELD = Setting.simpleString(
+        "index.time_series.temporality_field",
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     // TODO: deprecate this setting as this was designed as an opt-out and name of the setting is tied actual name of the codec:
     public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es87tsdb_codec.enabled",
@@ -710,13 +722,12 @@ public final class IndexSettings {
     public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
     public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", settings -> {
         IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
-        IndexMode indexMode = MODE.get(settings);
-        String codec = INDEX_CODEC_SETTING.get(settings);
+        boolean isTimeSeries = IndexMode.TIME_SERIES.equals(MODE.get(settings));
+        boolean isValidCodec = isValidCodecForSyntheticId(INDEX_CODEC_SETTING.get(settings), indexVersion);
         boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
-        return TSDB_SYNTHETIC_ID_FEATURE_FLAG
-            && IndexMode.TIME_SERIES.equals(indexMode)
-            && CodecService.DEFAULT_CODEC.equalsIgnoreCase(codec)
-            && onByDefault ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
+        return TSDB_SYNTHETIC_ID_FEATURE_FLAG && isTimeSeries && isValidCodec && onByDefault
+            ? Boolean.TRUE.toString()
+            : Boolean.FALSE.toString();
     }, new Setting.Validator<>() {
         @Override
         public void validate(Boolean enabled) {
@@ -751,21 +762,24 @@ public final class IndexSettings {
                     );
                 }
 
+                var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+
                 var codecName = (String) settings.get(INDEX_CODEC_SETTING);
-                if (codecName.equalsIgnoreCase(CodecService.DEFAULT_CODEC) == false) {
+                boolean isValidCodec = isValidCodecForSyntheticId(codecName, indexVersion);
+                if (!isValidCodec) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
-                            "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                            "The setting [%s] is only permitted when [%s] is set to [%s] or [%s]. Current mode: [%s].",
                             SYNTHETIC_ID.getKey(),
                             INDEX_CODEC_SETTING.getKey(),
                             CodecService.DEFAULT_CODEC,
+                            CodecService.BEST_COMPRESSION_CODEC,
                             codecName
                         )
                     );
                 }
 
-                var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
                 if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) == false
                     && indexVersion.equals(IndexVersions.ZERO) == false) {
                     // We validate settings in different places before a real indexVersion has been assigned or
@@ -791,6 +805,16 @@ public final class IndexSettings {
             return list.iterator();
         }
     }, Property.IndexScope, Property.Final);
+
+    public static boolean isValidCodecForSyntheticId(String codecName, IndexVersion indexVersion) {
+        // ZERO will be used as index version if it has not yet been decided.
+        // It's ok to be lenient in this case because we will validate the
+        // final version-codec combination before index is created.
+        return codecName.equalsIgnoreCase(CodecService.DEFAULT_CODEC)
+            || (codecName.equalsIgnoreCase(CodecService.BEST_COMPRESSION_CODEC)
+                && (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
+                    || indexVersion.equals(IndexVersions.ZERO)));
+    }
 
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
@@ -899,10 +923,9 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final FeatureFlag ALLOW_LARGE_BINARY_BLOCK_SIZE = new FeatureFlag("allow_large_binary_block_size");
     public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE = Setting.boolSetting(
         "index.use_time_series_doc_values_format_large_binary_block_size",
-        false,
+        true,
         Property.IndexScope,
         Property.Final
     );
@@ -982,17 +1005,21 @@ public final class IndexSettings {
         );
     }
 
+    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
+
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
         SeqNoFieldMapper.SeqNoIndexOptions.class,
         settings -> {
+            if (DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && settings.getAsBoolean("index.disable_sequence_numbers", false)) {
+                return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
+            }
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
             if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
                 && (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)
                     || IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).equals(IndexVersions.ZERO))) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
-            } else {
-                return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
             }
+            return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
         },
         "index.seq_no.index_options",
         value -> {},
@@ -1023,7 +1050,6 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
-    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
     public static final Setting<Boolean> DISABLE_SEQUENCE_NUMBERS = Setting.boolSetting(
         "index.disable_sequence_numbers",
         false,
@@ -1183,6 +1209,7 @@ public final class IndexSettings {
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
+    private final SyntheticIdBloomFilterSettings syntheticIdBloomFilterSettings;
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
@@ -1393,11 +1420,13 @@ public final class IndexSettings {
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
-        useTimeSeriesDocValuesFormatLargeBinaryBlockSize = ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled()
-            && scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
+        useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
+        syntheticIdBloomFilterSettings = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
+            ? SyntheticIdBloomFilterSettings.fromScopedSettings(scopedSettings)
+            : null;
         if (indexMetadata.useTimeSeriesSyntheticId() != useTimeSeriesSyntheticId) {
             throw new IllegalArgumentException(
                 String.format(
@@ -2163,6 +2192,10 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesSyntheticId() {
         return useTimeSeriesSyntheticId;
+    }
+
+    public SyntheticIdBloomFilterSettings syntheticIdBloomFilterSettings() {
+        return syntheticIdBloomFilterSettings;
     }
 
     /**

@@ -12,13 +12,16 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -34,9 +37,12 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -53,7 +59,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec) {
             plan = planFilterExec(filterExec, evalExec, queryExec, ctx);
         } else if (filterExec.child() instanceof ExternalSourceExec externalExec) {
-            plan = planFilterExecForExternalSource(filterExec, externalExec, ctx.filterPushdownRegistry());
+            plan = planFilterExecForExternalSource(filterExec, externalExec, ctx);
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof ParameterizedQueryExec pqExec) {
             plan = planFilterExec(filterExec, evalExec, pqExec, ctx);
         } else if (filterExec.child() instanceof ParameterizedQueryExec pqExec) {
@@ -88,6 +94,16 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 aliasReplacedByBuilder.put(alias.toAttribute(), attr);
             }
         });
+        return aliasReplacedByBuilder.build();
+    }
+
+    static AttributeMap<Attribute> getAliasReplacedBy(ProjectExec projectExec) {
+        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
+        for (NamedExpression ne : projectExec.projections()) {
+            if (ne instanceof Alias alias && alias.child() instanceof Attribute attr) {
+                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
+            }
+        }
         return aliasReplacedByBuilder.build();
     }
 
@@ -216,18 +232,28 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
      *
      * @param filterExec the filter execution node
      * @param externalExec the external source execution node
-     * @param registry the filter pushdown registry
+     * @param ctx the optimizer context (provides registries for pushdown lookup)
      * @return the optimized plan
      */
     private static PhysicalPlan planFilterExecForExternalSource(
         FilterExec filterExec,
         ExternalSourceExec externalExec,
-        FilterPushdownRegistry registry
+        LocalPhysicalOptimizerContext ctx
     ) {
-        // Look up pushdown support for this source type
-        FilterPushdownSupport pushdownSupport = registry != null ? registry.get(externalExec.sourceType()) : null;
+        // If the external source already has a pushed filter, don't push again.
+        // With RECHECK semantics the FilterExec remains in the plan for row-level
+        // correctness, so the rule would see the same FilterExec -> ExternalSourceExec
+        // pattern on every iteration. Without this guard, the optimizer loops until
+        // the rule execution limit is reached.
+        if (externalExec.pushedFilter() != null) {
+            return filterExec;
+        }
+
+        // Look up pushdown support: first try the registry (for connector-based sources like Iceberg),
+        // then fall back to the FormatReader (for file-based formats like Parquet, ORC).
+        String formatName = resolveFormatName(externalExec.config(), externalExec.sourcePath());
+        FilterPushdownSupport pushdownSupport = resolveFilterPushdownSupport(externalExec.sourceType(), formatName, ctx);
         if (pushdownSupport == null) {
-            // No pushdown support registered for this source type
             return filterExec;
         }
 
@@ -238,20 +264,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(filters);
 
         if (result.hasPushedFilter()) {
-            // Combine with existing pushed filter if present
-            Object combinedFilter = externalExec.pushedFilter();
-            if (combinedFilter != null) {
-                // The pushdown support should handle combining filters
-                // For now, we create a new pushdown with all filters including existing
-                // This is a simplification - in practice, the existing filter would be
-                // combined by the source-specific implementation
-                combinedFilter = result.pushedFilter();
-            } else {
-                combinedFilter = result.pushedFilter();
-            }
-
-            // Create new ExternalSourceExec with combined filter
-            ExternalSourceExec newExternalExec = externalExec.withPushedFilter(combinedFilter);
+            // Create new ExternalSourceExec with pushed filter
+            ExternalSourceExec newExternalExec = externalExec.withPushedFilter(result.pushedFilter());
 
             // If there are non-pushable filters, keep FilterExec
             if (result.hasRemainder()) {
@@ -264,6 +278,74 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
         // No pushable filters - return original plan
         return filterExec;
+    }
+
+    /**
+     * Resolves the format name for file-based external sources, used for format-aware
+     * pushdown dispatch. Checks the config map first (explicit format override from WITH clause),
+     * then falls back to extracting the extension from the source path.
+     *
+     * @return the format name (e.g., "orc", "parquet", "csv"), or null if undetermined
+     */
+    static String resolveFormatName(Map<String, Object> config, String sourcePath) {
+        // Priority 1: explicit format override from config (WITH clause)
+        if (config != null) {
+            Object formatOverride = config.get("format");
+            if (formatOverride != null) {
+                String name = formatOverride.toString().toLowerCase(Locale.ROOT);
+                if (name.isEmpty() == false) {
+                    return name;
+                }
+            }
+        }
+        // Priority 2: extract from file extension
+        if (sourcePath != null) {
+            int lastDot = sourcePath.lastIndexOf('.');
+            if (lastDot >= 0 && lastDot < sourcePath.length() - 1) {
+                String ext = sourcePath.substring(lastDot + 1);
+                // Strip query string or fragment if present (e.g., s3://bucket/file.orc?versionId=... or #frag)
+                int queryStart = ext.indexOf('?');
+                if (queryStart >= 0) {
+                    ext = ext.substring(0, queryStart);
+                }
+                int fragmentStart = ext.indexOf('#');
+                if (fragmentStart >= 0) {
+                    ext = ext.substring(0, fragmentStart);
+                }
+                if (ext.isEmpty() == false) {
+                    return ext.toLowerCase(Locale.ROOT);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Resolves filter pushdown support for the given source type.
+     * Checks the FilterPushdownRegistry first (for connector-based sources like Iceberg),
+     * then falls back to FormatReader.filterPushdownSupport() (for file-based formats).
+     */
+    private static FilterPushdownSupport resolveFilterPushdownSupport(
+        String sourceType,
+        String formatName,
+        LocalPhysicalOptimizerContext ctx
+    ) {
+        // Try registry first (connector-based sources)
+        FilterPushdownRegistry registry = ctx.filterPushdownRegistry();
+        if (registry != null) {
+            FilterPushdownSupport support = registry.get(sourceType, formatName);
+            if (support != null) {
+                return support;
+            }
+        }
+        // Fall back to FormatReader (file-based formats like Parquet, ORC)
+        String lookupName = formatName != null ? formatName : sourceType;
+        FormatReaderRegistry formatReaderRegistry = ctx.formatReaderRegistry();
+        if (formatReaderRegistry != null && formatReaderRegistry.hasFormat(lookupName)) {
+            FormatReader formatReader = formatReaderRegistry.byName(lookupName);
+            return formatReader.filterPushdownSupport();
+        }
+        return null;
     }
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, ParameterizedQueryExec pqExec, LocalPhysicalOptimizerContext ctx) {

@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -115,7 +116,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             threadPool,
             bigArrays
         );
-        this.activityLogger = new ActivityLogger<>(
+        this.activityLogger = new QueryLogger<>(
             clusterService.getClusterSettings(),
             new EqlLogProducer(),
             logWriterProvider,
@@ -249,6 +250,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
 
             EqlConfiguration cfg = new EqlConfiguration(
                 request.indices(),
+                request.originalIndices(),
                 zoneId,
                 username,
                 clusterName,

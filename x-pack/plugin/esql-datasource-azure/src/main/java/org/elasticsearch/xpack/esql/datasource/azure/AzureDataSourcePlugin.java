@@ -53,7 +53,8 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
                     Objects.toString(config.get("account"), null),
                     Objects.toString(config.get("key"), null),
                     Objects.toString(config.get("sas_token"), null),
-                    Objects.toString(config.get("endpoint"), null)
+                    Objects.toString(config.get("endpoint"), null),
+                    Objects.toString(config.get("auth"), null)
                 );
                 return new AzureStorageProvider(azureConfig);
             }

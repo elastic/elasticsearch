@@ -139,6 +139,18 @@ $elseif(boolean)$
 
 $endif$
     @Override
+    default $Type$Block slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
     $Type$Block filter(boolean mayContainDuplicates, int... positions);
 
     /**

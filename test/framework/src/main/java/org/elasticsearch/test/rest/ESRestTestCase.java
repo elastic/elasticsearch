@@ -2887,6 +2887,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("query", instanceOf(Map.class))
             .entry("planning", instanceOf(Map.class))
             .entry("parsing", instanceOf(Map.class))
+            .entry("view_resolution", instanceOf(Map.class))
             .entry("preanalysis", instanceOf(Map.class))
             .entry("dependency_resolution", instanceOf(Map.class))
             .entry("analysis", instanceOf(Map.class))

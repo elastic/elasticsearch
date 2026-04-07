@@ -14,7 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.BeforeClass;
@@ -37,14 +37,14 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     private final int dims;
     private final byte bits;
     private final VectorScorerOSQBenchmark.DirectoryType directoryType;
-    private final ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding;
+    private final ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding;
     private final VectorSimilarityFunction similarityFunction;
 
     public VectorScorerOSQBenchmarkTests(
         int dims,
         byte bits,
         VectorScorerOSQBenchmark.DirectoryType directoryType,
-        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
         VectorSimilarityFunction similarityFunction
     ) {
         this.dims = dims;
@@ -162,7 +162,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
                 .flatMap(
                     params -> Arrays.stream(int4Encodings)
-                        .map(ESNextOSQVectorsScorer.SymmetricInt4Encoding::valueOf)
+                        .map(ES940OSQVectorsScorer.SymmetricInt4Encoding::valueOf)
                         .map(encoding -> appendToCopy(params, encoding))
                 )
                 .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))

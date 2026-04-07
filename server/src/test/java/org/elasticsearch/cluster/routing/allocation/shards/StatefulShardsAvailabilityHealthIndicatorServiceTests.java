@@ -582,7 +582,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE))),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+        final var noGracePeriodSettings = Settings.builder()
+            .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .build();
+        var service = createShardsAvailabilityIndicatorService(projectId, noGracePeriodSettings, clusterState, Collections.emptyMap());
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -624,7 +627,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             List.of(),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+        final var noGracePeriodSettings = Settings.builder()
+            .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .build();
+        var service = createShardsAvailabilityIndicatorService(projectId, noGracePeriodSettings, clusterState, Collections.emptyMap());
 
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(RED, result.status());
@@ -674,7 +681,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             List.of(),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+        final var noGracePeriodSettings = Settings.builder()
+            .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .build();
+        var service = createShardsAvailabilityIndicatorService(projectId, noGracePeriodSettings, clusterState, Collections.emptyMap());
 
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         // index-2 has the higher priority so it ought to be listed first, followed by index-1 then index-3 which have the same priority:
@@ -2127,7 +2138,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             ),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+        final var noGracePeriodSettings = Settings.builder()
+            .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .build();
+        var service = createShardsAvailabilityIndicatorService(projectId, noGracePeriodSettings, clusterState, Collections.emptyMap());
 
         {
             // assert the full result to check that details, impacts, and symptoms use the correct count of affected indices (5)

@@ -58,7 +58,7 @@ public class WriteLoadMetrics {
     public static final String WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME =
         "es.allocator.shard_write_load.prioritisation_threshold.shard_count_exceeding.current";
     public static final String WRITE_LOAD_SUM_METRIC_NAME = "es.allocator.shard_write_load.sum.current";
-    public static final String NODE_AVERAGE_WRITE_LOAD_METRIC_NAME = "es.allocator.node_write_load.average.current";
+    public static final String NODE_WRITE_LOAD_METRIC_NAME = "es.allocator.node_write_load.average.current";
     public static final Setting<Boolean> SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.write_load_decider.shard_write_load_metrics.enabled",
         true,
@@ -127,7 +127,7 @@ public class WriteLoadMetrics {
             this::getWriteLoadSumMetrics
         );
         meterRegistry.registerDoublesGauge(
-            NODE_AVERAGE_WRITE_LOAD_METRIC_NAME,
+            NODE_WRITE_LOAD_METRIC_NAME,
             "average node write load (utilisation multiplied by thread pool size)",
             "write load",
             this::getNodeAverageWriteLoadMetrics

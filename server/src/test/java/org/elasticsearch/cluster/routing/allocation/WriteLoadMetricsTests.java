@@ -155,7 +155,7 @@ public class WriteLoadMetricsTests extends ESTestCase {
         testInfrastructure.meterRegistry.getRecorder().collect();
 
         final var nodeAverageWriteLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.NODE_AVERAGE_WRITE_LOAD_METRIC_NAME);
+            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME);
 
         assertEquals(2, nodeAverageWriteLoadMeasurements.size());
         assertThat(measurementForNode(nodeAverageWriteLoadMeasurements, "index_0").getDouble(), closeTo(utilization0 * poolSize, 0.001));
@@ -388,7 +388,7 @@ public class WriteLoadMetricsTests extends ESTestCase {
         );
         assertThat(
             testInfrastructure.meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.NODE_AVERAGE_WRITE_LOAD_METRIC_NAME),
+                .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME),
             empty()
         );
     }

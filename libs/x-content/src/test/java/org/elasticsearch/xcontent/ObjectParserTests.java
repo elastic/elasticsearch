@@ -769,9 +769,12 @@ public class ObjectParserTests extends ESTestCase {
                 """), null)
         );
         assertThat(garbageException.getMessage(), containsString("parser for [noop] did not end on END_OBJECT"));
-        Exception sneakyException = expectThrows(XContentParseException.class, () -> parser.parse(createParser(JsonXContent.jsonXContent, """
-            {"noop": {"body": "shouldn't"}}
-            """), null));
+        Exception sneakyException = expectThrows(
+            XContentParseException.class,
+            () -> parser.parse(createParser(JsonXContent.jsonXContent, """
+                {"noop": {"body": "shouldn't"}}
+                """), null)
+        );
         assertThat(sneakyException.getMessage(), containsString("parser for [noop] did not end on END_OBJECT"));
     }
 

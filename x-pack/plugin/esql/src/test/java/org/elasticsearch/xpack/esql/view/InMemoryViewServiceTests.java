@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
@@ -1813,6 +1814,31 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             generateCombinations(matchers, size, i + 1, current, result);
             current.removeLast();
         }
+    }
+
+    public void testDeleteMultipleViews() {
+        addView("view1", "FROM emp");
+        addView("view2", "FROM emp");
+        addView("view3", "FROM emp");
+        assertThat(viewService.list(projectId).size(), equalTo(3));
+
+        deleteViews("view1", "view3");
+        assertThat(viewService.list(projectId).size(), equalTo(1));
+        assertNull(viewService.get(projectId, "view1"));
+        assertNotNull(viewService.get(projectId, "view2"));
+        assertNull(viewService.get(projectId, "view3"));
+    }
+
+    public void testDeleteEmptyListIsNoOp() {
+        addView("view1", "FROM emp");
+        deleteViews();
+        assertNotNull(viewService.get(projectId, "view1"));
+    }
+
+    private void deleteViews(String... views) {
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+        viewService.deleteViews(projectId, TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE, List.of(views), future);
+        assertTrue(future.actionGet().isAcknowledged());
     }
 
     protected LogicalPlan query(String e) {

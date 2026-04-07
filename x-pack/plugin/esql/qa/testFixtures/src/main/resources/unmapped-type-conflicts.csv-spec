@@ -921,19 +921,19 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 
 _index:keyword         | event_duration:long
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 725448
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 1232382
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 1756467
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 2764889
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 3450233
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 5033755
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 8268153
 ;
 
 typeConflictLongUnmappedSortWithCastToKeyword
@@ -947,19 +947,19 @@ FROM sample_data, no_mapping_sample_data METADATA _index
 
 _index:keyword         | event_duration:long
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 1232382
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 1756467
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 2764889
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 3450233
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 5033755
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 725448
 no_mapping_sample_data | null
-sample_data            | null
+sample_data            | 8268153
 ;
 
 ############################

@@ -1255,8 +1255,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
-            InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.name(), getTypesToIndices(fa, esIndex));
-            return new FieldAttribute(fa.source(), null, fa.qualifier(), fa.name(), field);
+            InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.field().getName(), getTypesToIndices(fa, esIndex));
+            return new FieldAttribute(fa.source(), fa.parentName(), fa.qualifier(), fa.name(), field);
         }
 
         private static Map<String, Set<String>> getTypesToIndices(FieldAttribute fa, EsIndex esIndex) {

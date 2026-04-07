@@ -109,6 +109,7 @@ import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BB
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -1023,6 +1024,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return chunkingSettings;
         }
 
+        public SemanticTextIndexOptions getIndexOptions() {
+            return indexOptions;
+        }
+
         public ObjectMapper getInferenceField() {
             return inferenceField;
         }
@@ -1422,16 +1427,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         );
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
         if (modelSettings != null) {
-            chunksField.add(
-                createEmbeddingsField(
-                    indexSettings.getIndexVersionCreated(),
-                    modelSettings,
-                    indexOptions,
-                    useLegacyFormat,
-                    indexSettings.getValue(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING),
-                    vectorsFormatProviders
-                )
-            );
+            chunksField.add(createEmbeddingsField(indexSettings, modelSettings, indexOptions, useLegacyFormat, vectorsFormatProviders));
         }
         if (useLegacyFormat) {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexSettings).indexed(false).docValues(false);
@@ -1443,35 +1439,39 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     private static Mapper.Builder createEmbeddingsField(
-        IndexVersion indexVersionCreated,
+        IndexSettings indexSettings,
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions,
         boolean useLegacyFormat,
-        boolean experimentalFeaturesEnabled,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> {
                 SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexVersionCreated,
+                    indexSettings.getIndexVersionCreated(),
                     false
                 ).setStored(useLegacyFormat == false);
 
-                configureSparseVectorMapperBuilder(indexVersionCreated, sparseVectorMapperBuilder, indexOptions);
+                configureSparseVectorMapperBuilder(indexSettings.getIndexVersionCreated(), sparseVectorMapperBuilder, indexOptions);
 
                 yield sparseVectorMapperBuilder;
             }
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexVersionCreated,
+                    indexSettings.getIndexVersionCreated(),
                     false,
-                    experimentalFeaturesEnabled,
+                    IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(indexSettings.getSettings()),
                     vectorsFormatProviders
                 );
 
-                configureDenseVectorMapperBuilder(indexVersionCreated, denseVectorMapperBuilder, modelSettings, indexOptions);
+                configureDenseVectorMapperBuilder(
+                    indexSettings.getIndexVersionCreated(),
+                    denseVectorMapperBuilder,
+                    modelSettings,
+                    indexOptions
+                );
 
                 yield denseVectorMapperBuilder;
             }
@@ -1561,25 +1561,23 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         IndexVersion indexVersionCreated,
         MinimalServiceSettings modelSettings
     ) {
-
+        if (setExplicitIndexOptionsForSemanticText(indexVersionCreated) == false) {
+            return null;
+        }
         if (modelSettings.dimensions() == null) {
             return null; // Cannot determine default index options without dimensions
         }
 
         // As embedding models for text perform better with BBQ, we aggressively default semantic_text fields to use optimized index
         // options
-        if (indexVersionDefaultsToBbqHnsw(indexVersionCreated)) {
-            DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswIndexOptions = defaultBbqHnswDenseVectorIndexOptions();
-            return defaultBbqHnswIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)
-                ? defaultBbqHnswIndexOptions
-                : null;
-        }
-
-        return null;
+        DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswIndexOptions = defaultBbqHnswDenseVectorIndexOptions();
+        return defaultBbqHnswIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)
+            ? defaultBbqHnswIndexOptions
+            : null;
     }
 
-    static boolean indexVersionDefaultsToBbqHnsw(IndexVersion indexVersion) {
-        return indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BBQ)
+    static boolean setExplicitIndexOptionsForSemanticText(IndexVersion indexVersion) {
+        return indexVersion.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ, SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS)
             || indexVersion.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
     }
 

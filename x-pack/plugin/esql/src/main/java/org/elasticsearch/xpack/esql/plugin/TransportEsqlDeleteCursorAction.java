@@ -46,7 +46,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
     static final TimeValue METADATA_RETRY_DELAY = TimeValue.timeValueMillis(200);
     static final TimeValue METADATA_WAIT_TIMEOUT = TimeValue.timeValueSeconds(5);
 
-    private final EsqlCursorIndexService cursorIndexService;
+    private final CursorStorageService cursorStorageService;
     private final Client client;
     private final ThreadPool threadPool;
     private final ExchangeService exchangeService;
@@ -59,7 +59,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
     public TransportEsqlDeleteCursorAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        EsqlCursorIndexService cursorIndexService,
+        CursorStorageService cursorStorageService,
         Client client,
         ExchangeService exchangeService,
         ClusterService clusterService
@@ -71,7 +71,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
             EsqlDeleteCursorRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.cursorIndexService = cursorIndexService;
+        this.cursorStorageService = cursorStorageService;
         this.client = client;
         this.threadPool = transportService.getThreadPool();
         this.exchangeService = exchangeService;
@@ -105,7 +105,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
      * cursor is not found after retries.
      */
     private void checkExistsThenDelete(String cursorId, long deadlineMillis, ActionListener<AcknowledgedResponse> listener) {
-        cursorIndexService.getMetadata(cursorId, ActionListener.wrap(metadata -> {
+        cursorStorageService.getMetadata(cursorId, ActionListener.wrap(metadata -> {
             listener.onResponse(AcknowledgedResponse.TRUE);
             threadPool.generic().execute(() -> cancelThenDelete(cursorId, deadlineMillis, ActionListener.wrap(v -> {}, e -> {
                 logger.warn("background cursor cleanup failed for cursor [{}]", cursorId, e);
@@ -135,7 +135,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
      */
     private void cancelThenDelete(String cursorId, long deadlineMillis, ActionListener<AcknowledgedResponse> listener) {
         logger.info("cancelThenDelete cursor [{}]: fetching metadata", cursorId);
-        cursorIndexService.getMetadata(cursorId, ActionListener.wrap(metadata -> {
+        cursorStorageService.getMetadata(cursorId, ActionListener.wrap(metadata -> {
             if (canAccessCursor(metadata) == false) {
                 listener.onFailure(new ResourceNotFoundException("cursor not found or expired"));
                 return;
@@ -264,7 +264,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
     }
 
     private void deleteWithRetry(String cursorId, int attempt, ActionListener<AcknowledgedResponse> listener) {
-        cursorIndexService.delete(cursorId, ActionListener.wrap(deleted -> {
+        cursorStorageService.delete(cursorId, ActionListener.wrap(deleted -> {
             if (deleted) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
@@ -284,7 +284,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
         return e instanceof IndexNotFoundException || e instanceof NoShardAvailableActionException;
     }
 
-    private boolean canAccessCursor(EsqlCursorIndexService.CursorMetadata metadata) {
+    private boolean canAccessCursor(CursorStorageService.CursorMetadata metadata) {
         try {
             return securityContext.canIAccessResourcesCreatedWithHeaders(metadata.headers());
         } catch (IOException e) {

@@ -520,7 +520,7 @@ public class StorePageOperatorTests extends AnyOperatorTestCase {
      * Simplified subclass that captures storage calls without requiring a real Elasticsearch cluster.
      * All methods that would use the client or cluster service are overridden.
      */
-    static class FakeCursorIndexService extends EsqlCursorIndexService {
+    static class FakeCursorIndexService extends IndexCursorStorageService {
         private final StorageRecorder recorder;
 
         FakeCursorIndexService(StorageRecorder recorder) {

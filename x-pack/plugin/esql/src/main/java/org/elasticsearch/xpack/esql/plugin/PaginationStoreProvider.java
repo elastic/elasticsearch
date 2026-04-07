@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class PaginationStoreProvider {
 
-    private final EsqlCursorIndexService cursorIndexService;
+    private final CursorStorageService cursorStorageService;
     private final PaginationContext paginationContext;
     private volatile List<ColumnInfoImpl> columns;
     private volatile TaskId backgroundTaskId;
@@ -38,8 +38,8 @@ public class PaginationStoreProvider {
     private final SubscribableListener<List<Page>> firstPageListener = new SubscribableListener<>();
     private final AtomicBoolean firstPageResolved = new AtomicBoolean(false);
 
-    public PaginationStoreProvider(EsqlCursorIndexService cursorIndexService, PaginationContext paginationContext) {
-        this.cursorIndexService = cursorIndexService;
+    public PaginationStoreProvider(CursorStorageService cursorStorageService, PaginationContext paginationContext) {
+        this.cursorStorageService = cursorStorageService;
         this.paginationContext = paginationContext;
     }
 
@@ -59,8 +59,8 @@ public class PaginationStoreProvider {
         return backgroundTaskId;
     }
 
-    public EsqlCursorIndexService cursorIndexService() {
-        return cursorIndexService;
+    public CursorStorageService cursorStorageService() {
+        return cursorStorageService;
     }
 
     public PaginationContext paginationContext() {

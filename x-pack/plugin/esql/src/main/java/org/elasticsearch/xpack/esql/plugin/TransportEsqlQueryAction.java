@@ -111,7 +111,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final UsageService usageService;
     private final TransportActionServices services;
     private final ActivityLogger<EsqlLogContext> activityLogger;
-    private final EsqlCursorIndexService cursorIndexService;
+    private final CursorStorageService cursorStorageService;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -138,7 +138,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         UsageService usageService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
-        EsqlCursorIndexService cursorIndexService
+        CursorStorageService cursorStorageService
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -232,7 +232,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             logWriterProvider,
             fieldProvider
         );
-        this.cursorIndexService = cursorIndexService;
+        this.cursorStorageService = cursorStorageService;
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -311,7 +311,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (streamingProvider != null) {
             paginationStoreProvider = null;
         } else if (request.pageSize() != null) {
-            long expirationMillis = threadPool.absoluteTimeInMillis() + EsqlCursorIndexService.DEFAULT_CURSOR_KEEP_ALIVE.getMillis();
+            long expirationMillis = threadPool.absoluteTimeInMillis() + IndexCursorStorageService.DEFAULT_CURSOR_KEEP_ALIVE.getMillis();
             ZoneId zoneId = request.timeZone() != null ? request.timeZone() : ZoneOffset.UTC;
             Map<String, String> securityHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
             PaginationContext paginationContext = new PaginationContext(
@@ -322,7 +322,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 request.columnar(),
                 securityHeaders
             );
-            paginationStoreProvider = new PaginationStoreProvider(cursorIndexService, paginationContext);
+            paginationStoreProvider = new PaginationStoreProvider(cursorStorageService, paginationContext);
         } else {
             paginationStoreProvider = null;
         }

@@ -71,9 +71,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
  * and cursor-level settings, plus one page document per output page containing the serialized
  * row data. This allows fetching a single page without deserializing the entire result set.
  */
-public class EsqlCursorIndexService {
+public class IndexCursorStorageService implements CursorStorageService {
 
-    private static final Logger logger = LogManager.getLogger(EsqlCursorIndexService.class);
+    private static final Logger logger = LogManager.getLogger(IndexCursorStorageService.class);
 
     public static final String CURSOR_INDEX = ".esql-cursors";
     public static final TimeValue DEFAULT_CURSOR_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
@@ -84,10 +84,6 @@ public class EsqlCursorIndexService {
     static final String COLUMNS_FIELD = "columns";
     static final String TOTAL_ROWS_FIELD = "total_rows";
     static final String TOTAL_PAGES_FIELD = "total_pages";
-    /** Sentinel value for {@code total_pages} indicating the query is still producing pages. */
-    static final int TOTAL_PAGES_IN_PROGRESS = -1;
-    /** Sentinel value for {@code total_pages} indicating the query failed after partial storage. */
-    static final int TOTAL_PAGES_FAILED = -2;
     static final String ZONE_ID_FIELD = "zone_id";
     static final String COLUMNAR_FIELD = "columnar";
     static final String TASK_ID_FIELD = "task_id";
@@ -105,7 +101,7 @@ public class EsqlCursorIndexService {
     private final NamedWriteableRegistry registry;
     private final BlockFactory blockFactory;
 
-    public EsqlCursorIndexService(
+    public IndexCursorStorageService(
         Client client,
         ClusterService clusterService,
         NamedWriteableRegistry registry,
@@ -245,6 +241,7 @@ public class EsqlCursorIndexService {
      *
      * @param taskId the background pagination task ID, stored so the task can be cancelled on cursor delete
      */
+    @Override
     public void storeMetadataIncomplete(
         String cursorId,
         List<ColumnInfoImpl> columns,
@@ -277,6 +274,7 @@ public class EsqlCursorIndexService {
      *        that are not safely serializable. Pages that have already been through
      *        {@link Page#filter} produce standard array-backed blocks and can be stored directly.
      */
+    @Override
     public void storePage(String cursorId, int pageIndex, List<Page> pageData, boolean needsDeepCopy, ActionListener<Void> listener) {
         try {
             List<Page> toStore;
@@ -302,6 +300,7 @@ public class EsqlCursorIndexService {
     /**
      * Updates the metadata document to mark the cursor as complete with final totals.
      */
+    @Override
     public void updateMetadataComplete(String cursorId, int totalRows, int totalPages, ActionListener<Void> listener) {
         try {
             XContentBuilder source = XContentBuilder.builder(XContentType.JSON.xContent())
@@ -323,6 +322,7 @@ public class EsqlCursorIndexService {
      * Marks the metadata document as failed so cursor fetch returns a meaningful error
      * instead of retrying until timeout.
      */
+    @Override
     public void updateMetadataFailed(String cursorId, ActionListener<Void> listener) {
         try {
             XContentBuilder source = XContentBuilder.builder(XContentType.JSON.xContent())
@@ -401,6 +401,7 @@ public class EsqlCursorIndexService {
     /**
      * Retrieves cursor metadata (columns, totalPages, zoneId, columnar).
      */
+    @Override
     public void getMetadata(String cursorId, ActionListener<CursorMetadata> listener) {
         GetRequest getRequest = new GetRequest(CURSOR_INDEX).id(cursorId).realtime(true);
         clientWithOrigin.get(getRequest, listener.delegateFailure((l, getResponse) -> {
@@ -483,6 +484,7 @@ public class EsqlCursorIndexService {
     /**
      * Retrieves a single page of data by page index.
      */
+    @Override
     public void getPage(String cursorId, int pageIndex, ActionListener<List<Page>> listener) {
         GetRequest getRequest = new GetRequest(CURSOR_INDEX).id(pageDocId(cursorId, pageIndex)).realtime(true);
         clientWithOrigin.get(getRequest, listener.delegateFailure((l, getResponse) -> {
@@ -544,6 +546,7 @@ public class EsqlCursorIndexService {
      * Refreshes the index first so that the search phase of delete-by-query can find all documents,
      * including those that were recently written and not yet visible to search.
      */
+    @Override
     public void delete(String cursorId, ActionListener<Boolean> listener) {
         logger.info("delete cursor [{}]: refreshing [{}]", cursorId, CURSOR_INDEX);
         clientWithOrigin.admin().indices().refresh(new RefreshRequest(CURSOR_INDEX), listener.delegateFailureAndWrap((l, refreshResp) -> {
@@ -559,6 +562,7 @@ public class EsqlCursorIndexService {
     /**
      * Updates the expiration time of all documents for a cursor.
      */
+    @Override
     public void updateKeepAlive(String cursorId, TimeValue keepAlive, ActionListener<Void> listener) {
         // not critical for correctness — just update the metadata doc; maintenance will handle the rest
         long newExpiration = System.currentTimeMillis() + keepAlive.getMillis();
@@ -610,36 +614,6 @@ public class EsqlCursorIndexService {
     private static InputStream base64InputStream(CharBuffer encodedBuffer) {
         byte[] decoded = Base64.getDecoder().decode(encodedBuffer.toString());
         return new ByteArrayInputStream(decoded);
-    }
-
-    // ---- Data classes ----
-
-    /**
-     * Cursor metadata stored in the metadata document.
-     */
-    public record CursorMetadata(
-        List<ColumnInfoImpl> columns,
-        int totalRows,
-        int totalPages,
-        long expirationTimeMillis,
-        ZoneId zoneId,
-        boolean columnar,
-        @Nullable TaskId taskId,
-        Map<String, String> headers
-    ) {
-        /** The query is still running and producing pages. */
-        public boolean isInProgress() {
-            return totalPages == TOTAL_PAGES_IN_PROGRESS;
-        }
-
-        /** The query failed after partial storage. */
-        public boolean isFailed() {
-            return totalPages == TOTAL_PAGES_FAILED;
-        }
-
-        public boolean isComplete() {
-            return totalPages >= 0;
-        }
     }
 
 }

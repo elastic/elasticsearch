@@ -1187,7 +1187,7 @@ public class ComputeService {
             backgroundTask.markComplete();
             String cursorId = provider.paginationContext().cursorId();
             LOGGER.warn("background page storage failed for cursor [{}]", cursorId, e);
-            provider.cursorIndexService().updateMetadataFailed(cursorId, ActionListener.wrap(v -> {}, metaError -> {
+            provider.cursorStorageService().updateMetadataFailed(cursorId, ActionListener.wrap(v -> {}, metaError -> {
                 LOGGER.warn("failed to mark cursor [{}] as failed; it will remain in-progress until TTL expiry", cursorId, metaError);
             }));
             if (responded.compareAndSet(false, true)) {

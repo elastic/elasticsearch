@@ -143,9 +143,9 @@ public class StreamingOutputOperatorTests extends AnyOperatorTestCase {
         assertFalse(page3.getBlock(0).isReleased());
 
         // First emitChunk sends to channel (mock no-op), subsequent ones go to the queue
-        provider.emitChunk(List.of(page1));
-        provider.emitChunk(List.of(page2));
-        provider.emitChunk(List.of(page3));
+        provider.emitChunk(List.of(page1), 0, 3, List.of());
+        provider.emitChunk(List.of(page2), 0, 3, List.of());
+        provider.emitChunk(List.of(page3), 0, 3, List.of());
 
         // page2 and page3 are in the chunk queue
         provider.releaseAllChunks();
@@ -234,7 +234,7 @@ public class StreamingOutputOperatorTests extends AnyOperatorTestCase {
         }
 
         @Override
-        public void emitChunk(List<Page> pages) {
+        public void emitChunk(List<Page> pages, int offset, int rowCount, List<Page> pagesToRelease) {
             recorder.chunks.add(new ArrayList<>(pages));
         }
     }

@@ -36,11 +36,11 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.plugin.EsqlCursorIndexService.CURSOR_ID_FIELD;
-import static org.elasticsearch.xpack.esql.plugin.EsqlCursorIndexService.CURSOR_INDEX;
-import static org.elasticsearch.xpack.esql.plugin.EsqlCursorIndexService.DOC_TYPE_FIELD;
-import static org.elasticsearch.xpack.esql.plugin.EsqlCursorIndexService.DOC_TYPE_METADATA;
-import static org.elasticsearch.xpack.esql.plugin.EsqlCursorIndexService.EXPIRATION_TIME_FIELD;
+import static org.elasticsearch.xpack.esql.plugin.IndexCursorStorageService.CURSOR_ID_FIELD;
+import static org.elasticsearch.xpack.esql.plugin.IndexCursorStorageService.CURSOR_INDEX;
+import static org.elasticsearch.xpack.esql.plugin.IndexCursorStorageService.DOC_TYPE_FIELD;
+import static org.elasticsearch.xpack.esql.plugin.IndexCursorStorageService.DOC_TYPE_METADATA;
+import static org.elasticsearch.xpack.esql.plugin.IndexCursorStorageService.EXPIRATION_TIME_FIELD;
 
 /**
  * Periodically deletes expired cursor documents from the {@code .esql-cursors} system index.

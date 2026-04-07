@@ -44,7 +44,7 @@ public class StorePageOperator extends SinkOperator {
 
     private final PaginationStoreProvider provider;
     private final PaginationContext paginationContext;
-    private final EsqlCursorIndexService cursorIndexService;
+    private final CursorStorageService cursorStorageService;
     private final Function<Page, Page> mapper;
     private final int pageSize;
 
@@ -74,7 +74,7 @@ public class StorePageOperator extends SinkOperator {
     public StorePageOperator(PaginationStoreProvider provider, Function<Page, Page> mapper) {
         this.provider = provider;
         this.paginationContext = provider.paginationContext();
-        this.cursorIndexService = provider.cursorIndexService();
+        this.cursorStorageService = provider.cursorStorageService();
         this.mapper = mapper;
         this.pageSize = paginationContext.pageSize();
     }
@@ -235,7 +235,7 @@ public class StorePageOperator extends SinkOperator {
      * to guarantee that metadata exists before any page is visible.
      */
     private void storeMetadataAndPage(int pageIndex, List<Page> outputPage, boolean needsDeepCopy) {
-        cursorIndexService.storeMetadataIncomplete(
+        cursorStorageService.storeMetadataIncomplete(
             paginationContext.cursorId(),
             provider.columns(),
             paginationContext.expirationMillis(),
@@ -253,7 +253,7 @@ public class StorePageOperator extends SinkOperator {
     }
 
     private void storePage(int pageIndex, List<Page> outputPage, boolean needsDeepCopy) {
-        cursorIndexService.storePage(
+        cursorStorageService.storePage(
             paginationContext.cursorId(),
             pageIndex,
             outputPage,
@@ -336,7 +336,7 @@ public class StorePageOperator extends SinkOperator {
         SubscribableListener<Void> listener = new SubscribableListener<>();
         finalizeListener = listener;
 
-        cursorIndexService.updateMetadataComplete(
+        cursorStorageService.updateMetadataComplete(
             paginationContext.cursorId(),
             provider.totalRows(),
             provider.totalPages(),

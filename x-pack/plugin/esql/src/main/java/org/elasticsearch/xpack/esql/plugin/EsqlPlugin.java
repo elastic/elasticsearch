@@ -43,6 +43,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -254,7 +255,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
 
-        EsqlCursorIndexService cursorIndexService = new EsqlCursorIndexService(
+        IndexCursorStorageService cursorStorageService = new IndexCursorStorageService(
             services.client(),
             services.clusterService(),
             services.namedWriteableRegistry(),
@@ -280,7 +281,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ),
                 blockFactoryProvider,
                 dataSourceModule,
-                cursorIndexService
+                new PluginComponentBinding<>(CursorStorageService.class, cursorStorageService)
             )
         );
         if (org.elasticsearch.cluster.node.DiscoveryNode.canContainData(services.environment().settings())) {
@@ -454,7 +455,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
-        return List.of(EsqlCursorIndexService.getSystemIndexDescriptor());
+        return List.of(IndexCursorStorageService.getSystemIndexDescriptor());
     }
 
     @Override

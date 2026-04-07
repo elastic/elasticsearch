@@ -85,9 +85,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
   issue: https://github.com/elastic/elasticsearch/issues/138370
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable cardinality is too low}
-  issue: https://github.com/elastic/elasticsearch/issues/138409
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/139024
@@ -97,9 +94,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/139654
-- class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
-  method: testDatafeedWithCcsRemoteUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/140612
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
@@ -226,9 +220,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.ApiKeyIntegTests
   method: testDynamicDeletionInterval
   issue: https://github.com/elastic/elasticsearch/issues/145022
-- class: org.elasticsearch.xpack.ml.integration.AdJobRetryResilienceIT
-  method: testJobReopensAfterIndexUnavailabilityDuringReassignment
-  issue: https://github.com/elastic/elasticsearch/issues/144968
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidByteWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145143
@@ -277,8 +268,6 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/145377
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionToFieldLoadGoldenTests
-  issue: https://github.com/elastic/elasticsearch/issues/145381
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:spatial.twoCitiesPointDistanceGeo}
   issue: https://github.com/elastic/elasticsearch/issues/145406
@@ -345,9 +334,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:floats.values}
   issue: https://github.com/elastic/elasticsearch/issues/145524
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testContainsIterator
-  issue: https://github.com/elastic/elasticsearch/issues/145532
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:ints.convertStringToBaseIndexGroup6}
   issue: https://github.com/elastic/elasticsearch/issues/145540
@@ -357,9 +343,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:dense_vector_aggs.sumDenseVectorSingleRow}
   issue: https://github.com/elastic/elasticsearch/issues/145549
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testUpdateInferenceId_GivenCurrentHasNoModelSettingsAndNewIsIncompatibleTaskType_ShouldSucceed {p0=false}
-  issue: https://github.com/elastic/elasticsearch/issues/145550
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidByteWithCasting
   issue: https://github.com/elastic/elasticsearch/issues/145564
@@ -377,33 +360,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:stats_percentile.percentileOfLong}
   issue: https://github.com/elastic/elasticsearch/issues/145589
-- class: org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests
-  method: testUpdateInferenceId_GivenCurrentHasNoModelSettingsAndNewIsIncompatibleTaskType_ShouldSucceed {p0=true}
-  issue: https://github.com/elastic/elasticsearch/issues/145591
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcFetchSizeIT
   method: testScrollWithDatetimeAndTimezoneParam
   issue: https://github.com/elastic/elasticsearch/issues/145592
 - class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
   method: testLicenseCheck
   issue: https://github.com/elastic/elasticsearch/issues/145600
-- class: org.elasticsearch.indices.IndexingMemoryControllerIT
-  method: testDeletesAloneCanTriggerRefresh
-  issue: https://github.com/elastic/elasticsearch/issues/145609
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
   method: testTopNByKeyEncoderTooMuchMemory
   issue: https://github.com/elastic/elasticsearch/issues/145627
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testBlockWiseBinarySmallValues
-  issue: https://github.com/elastic/elasticsearch/issues/145635
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/145654
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/145655
-- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
-  method: testTSDBWithMultiplePrefixByte
-  issue: https://github.com/elastic/elasticsearch/issues/145668
 - class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
   method: testRecreateTemplateWhenDeleted
   issue: https://github.com/elastic/elasticsearch/issues/123232
@@ -413,6 +384,23 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testScalarOnDates
   issue: https://github.com/elastic/elasticsearch/issues/145667
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
+  method: testApplicationDefaultCredentialsFallbackToComputeEngine
+  issue: https://github.com/elastic/elasticsearch/issues/145689
+- class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcPreparedStatementIT
+  issue: https://github.com/elastic/elasticsearch/issues/145448
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidBigDecimalFromBooleanWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145702
+- class: org.elasticsearch.xpack.esql.action.MetricsAndTSInfoIT
+  method: testTsInfo
+  issue: https://github.com/elastic/elasticsearch/issues/145720
+- class: org.elasticsearch.xpack.esql.action.MetricsAndTSInfoIT
+  method: testMetricsInfo
+  issue: https://github.com/elastic/elasticsearch/issues/145719
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidIntegerWithCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145735
 
 # Examples:
 #

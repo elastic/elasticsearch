@@ -152,7 +152,21 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         List<DataType> signature,
         AbstractFunctionTestCase.PositionalErrorMessageSupplier expectedTypeSupplier
     ) {
-        return typeErrorMessage(includeOrdinal, validPerPosition, signature, expectedTypeSupplier, () -> {
+        return typeErrorMessage(includeOrdinal, false, validPerPosition, signature, expectedTypeSupplier, () -> {
+            throw new IllegalStateException(
+                "Can't generate error message for these types, you probably need a custom error message function signature =" + signature
+            );
+        });
+    }
+
+    protected static String typeErrorMessage(
+        boolean includeOrdinal,
+        boolean implicitOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> signature,
+        AbstractFunctionTestCase.PositionalErrorMessageSupplier expectedTypeSupplier
+    ) {
+        return typeErrorMessage(includeOrdinal, implicitOrdinal, validPerPosition, signature, expectedTypeSupplier, () -> {
             throw new IllegalStateException(
                 "Can't generate error message for these types, you probably need a custom error message function signature =" + signature
             );
@@ -169,6 +183,17 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         AbstractFunctionTestCase.PositionalErrorMessageSupplier expectedTypeSupplier,
         Supplier<String> cantFindError
     ) {
+        return typeErrorMessage(includeOrdinal, false, validPerPosition, signature, expectedTypeSupplier, cantFindError);
+    }
+
+    protected static String typeErrorMessage(
+        boolean includeOrdinal,
+        boolean implicitOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> signature,
+        AbstractFunctionTestCase.PositionalErrorMessageSupplier expectedTypeSupplier,
+        Supplier<String> cantFindError
+    ) {
         int badArgPosition = -1;
         for (int i = 0; i < signature.size(); i++) {
             if (validPerPosition.get(i).contains(signature.get(i)) == false) {
@@ -179,11 +204,34 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         if (badArgPosition == -1) {
             return cantFindError.get();
         }
-        String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
+
+        String ordinal = ordinal(includeOrdinal, implicitOrdinal, badArgPosition);
         String source = sourceForSignature(signature);
         String expectedTypeString = expectedTypeSupplier.apply(validPerPosition.get(badArgPosition), badArgPosition);
         String name = signature.get(badArgPosition).typeName();
         return ordinal + "argument of [" + source + "] must be [" + expectedTypeString + "], found value [] type [" + name + "]";
+    }
+
+    private static String ordinal(boolean includeOrdinal, boolean implicitOrdinal, int badArgPosition) {
+        String result = "";
+
+        if (includeOrdinal == false) {
+            return result;
+        }
+
+        if (implicitOrdinal) {
+            if (badArgPosition == 0) {
+                result = "";
+            } else if (badArgPosition == 1) {
+                result = TypeResolutions.ParamOrdinal.IMPLICIT.name().toLowerCase(Locale.ROOT) + " ";
+            } else {
+                result = TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " ";
+            }
+        } else {
+            result = TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " ";
+        }
+
+        return result;
     }
 
     protected static Matcher<String> typeErrorMessage(List<DataType> signature, int badArgPosition, String expectedTypeString) {

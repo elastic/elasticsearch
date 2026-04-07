@@ -10,10 +10,10 @@ breaking:
     unless the `aggregate_metric_double` only has one sub-field configured, in which case it will delegate to this sub-field.
 
     This change aims to both simplify the configuration of `aggregate_metric_double` and improve its use by non-native operations.
-
-  impact: When `aggregate_metric_double` does not natively support the operation, the average is used instead of the previously configured `default_metric`.
+  impact: "When `aggregate_metric_double` does not natively support the operation,\
+    \ the average is used instead of the previously configured `default_metric`."
   notable: true
-  title:  Simplify the configuration of `aggregate_metric_double` for non-native operations.
+  title: Simplify the configuration of `aggregate_metric_double` for non-native operations.
 highlight:
   body: |-
     In {es} `9.4` we expand the supportability of `aggregate_metric_double` to include non-native operations in ES|QL,
@@ -34,9 +34,10 @@ highlight:
       1419.0     | 356.9865993    | two
     ----
   notable: true
-  title: Improve configuration of `aggregate_metric_double` and supportability by ES|QL.
-issues:
-  - 128356
+  title: Improve configuration of `aggregate_metric_double` and supportability by
+    ES|QL.
+issues: []
 pr: 145742
-summary: Improve configuration of `aggregate_metric_double` and supportability by ES|QL.
+summary: Improve configuration of `aggregate_metric_double` and supportability by
+  ES|QL.
 type: breaking

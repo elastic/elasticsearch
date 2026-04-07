@@ -53,10 +53,6 @@ public class ContextualAiRerankModelTests extends ESTestCase {
         );
     }
 
-    public void testCreateModel_NoModelId_ThrowsException() {
-        expectThrows(NullPointerException.class, () -> createRerankModel(URL_VALUE, API_KEY_VALUE, null));
-    }
-
     public void testCreateModel_NoUrl_DefaultUrl() {
         var model = new ContextualAiRerankModel(
             INFERENCE_ENTITY_ID,

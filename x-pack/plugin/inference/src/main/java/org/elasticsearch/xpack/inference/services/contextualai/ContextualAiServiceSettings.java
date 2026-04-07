@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,13 +79,7 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
      * @param modelId the model ID to use when making requests to the Contextual AI service.
      * @param rateLimitSettings the rate limit settings for the Contextual AI service.
      */
-    public record CommonSettings(URI uri, String modelId, RateLimitSettings rateLimitSettings) {
-        public CommonSettings {
-            Objects.requireNonNull(uri);
-            Objects.requireNonNull(modelId);
-            Objects.requireNonNull(rateLimitSettings);
-        }
-
+    public record CommonSettings(@Nullable URI uri, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         public CommonSettings(StreamInput in) throws IOException {
             this(ServiceUtils.createUri(in.readString()), in.readString(), new RateLimitSettings(in));
         }

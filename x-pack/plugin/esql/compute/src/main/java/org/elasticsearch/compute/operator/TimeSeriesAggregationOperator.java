@@ -141,6 +141,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         if (rowsAddedInCurrentBatch == 0) {
             return;
         }
+        if (blockHash instanceof TimeSeriesBlockHash == false) {
+            super.emit();
+            return;
+        }
         var tsBlockHash = (TimeSeriesBlockHash) blockHash;
         if ((aggregatorMode.isOutputPartial() == false && (outputTimeBucket != null || needsExpandedGroupTrimming(tsBlockHash))) == false) {
             super.emit();
@@ -360,17 +364,17 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             return;
         }
 
-        // TODO(sidosera): Expand query interval to avoid trimming.
+        // TODO(sidosera): Expand query interval to avoid output trimming.
         //
         // For backward looking windows in order to output meaningful calculations
         // the first output bucket must be shifted by window size from query interval start.
         //
         // For example, query start := `0`, step := `1`, window := `2`.
-        // The first bucket must be at minimal offset such that it includes at least `length(window)` slice of data:
+        // The first bucket `B1` must be at minimal offset such that it includes at least `length(window)` slice of data:
         // 0---------1---------2---------3---------4---------5
-        // |---------|#########1#########|---------|---------|
-        // |---------|---------|#########2#########|---------|
-        // |---------|---------|---------|#########3#########|
+        // |---------|####### B1 ########|---------|---------|
+        // |---------|---------|####### B2 ########|---------|
+        // |---------|---------|---------|####### B3 ########|
         // |---------|---------|---------|---------|---------|
         // 0---------1---------2---------3---------4---------5
 

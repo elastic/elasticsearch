@@ -28,8 +28,8 @@ import static org.elasticsearch.xpack.inference.services.contextualai.Contextual
 public class ContextualAiRerankTaskSettings extends ContextualAiTaskSettings implements TopNProvider {
 
     public static final String NAME = "contextualai_rerank_task_settings";
-    private static final String TOP_N_FIELD = "top_n";
-    private static final String INSTRUCTION_FIELD = "instruction";
+    protected static final String TOP_N_FIELD = "top_n";
+    protected static final String INSTRUCTION_FIELD = "instruction";
 
     public static final ContextualAiRerankTaskSettings EMPTY_SETTINGS = new ContextualAiRerankTaskSettings(null, null);
 

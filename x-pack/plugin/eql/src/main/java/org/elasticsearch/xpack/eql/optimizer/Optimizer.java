@@ -396,17 +396,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             List<Constraint> constraints = new ArrayList<>();
 
             // collect constraints for each non-negated filter only; negated (missing event) filters use different semantics
-            join.queries()
-                .stream()
-                .filter(k -> k.isMissingEventFilter() == false)
-                .forEach(k -> k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))));
+            for (KeyedFilter k : join.queries()) {
+                if (k.isMissingEventFilter() == false) {
+                    k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k)));
+                }
+            }
 
             if (constraints.isEmpty() == false) {
                 // propagate constraints only to non-negated filters; applying key constraints to missing event filters is incorrect
-                List<KeyedFilter> queries = join.queries()
-                    .stream()
-                    .map(k -> k.isMissingEventFilter() ? k : addConstraint(k, constraints))
-                    .collect(toList());
+                List<KeyedFilter> queries = new ArrayList<>(join.queries().size());
+                for (KeyedFilter k : join.queries()) {
+                    queries.add(k.isMissingEventFilter() ? k : addConstraint(k, constraints));
+                }
 
                 if (join instanceof Join j) {
                     join = j.with(queries, j.until(), j.direction());

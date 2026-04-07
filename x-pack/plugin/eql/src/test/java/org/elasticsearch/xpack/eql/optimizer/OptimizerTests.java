@@ -683,6 +683,36 @@ public class OptimizerTests extends ESTestCase {
     }
 
     /**
+     * Key conditions in the negated (middle) rule must NOT appear on the second positive rule.
+     * <p>
+     * sequence by a
+     * [ filter X by a ]
+     * ![ filter a gt 1 by a ]
+     * [ filter X by a ]
+     * ==
+     * same (key condition from negated rule not propagated to positive2)
+     */
+    public void testKeyConstraintNotPropagatedAcrossMissingEventFilter() {
+        Attribute a = key("a");
+
+        Expression keyCondition = gtExpression(a);
+        Expression filter = equalsExpression();
+
+        KeyedFilter positive1 = keyedFilter(basicFilter(filter), a);
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter positive2 = keyedFilter(basicFilter(filter), a);
+
+        Sequence seq = sequence(positive1, negatedRule, positive2);
+        LogicalPlan result = new Optimizer.PropagateJoinKeyConstraints().apply(seq);
+        Sequence resultSeq = (Sequence) result;
+
+        List<KeyedFilter> queries = resultSeq.queries();
+        assertEquals(positive1, queries.get(0));
+        assertEquals(negatedRule, queries.get(1));
+        assertEquals(positive2, queries.get(2));
+    }
+
+    /**
      * sequence
      * 1. filter startsWith(a, b) and c > 10 by a, c
      * 2. filter X by a, c

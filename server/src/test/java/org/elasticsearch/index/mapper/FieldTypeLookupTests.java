@@ -9,7 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -427,11 +431,29 @@ public class FieldTypeLookupTests extends ESTestCase {
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
-        return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+        return new FlattenedFieldMapper.Builder(fieldName, indexSettings).build(MapperBuilderContext.root(false, false));
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName, int priority, String... subFieldNames) {
-        var builder = new FlattenedFieldMapper.Builder(fieldName).passthrough(priority);
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+        var builder = new FlattenedFieldMapper.Builder(fieldName, indexSettings).passthrough(priority);
         for (String name : subFieldNames) {
             builder.property(name, new MockFieldMapper.Builder(name));
         }

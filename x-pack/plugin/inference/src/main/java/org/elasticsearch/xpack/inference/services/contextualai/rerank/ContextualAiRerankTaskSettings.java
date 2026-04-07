@@ -85,6 +85,7 @@ public class ContextualAiRerankTaskSettings extends ContextualAiTaskSettings imp
         return topN;
     }
 
+    @Nullable
     public String getInstruction() {
         return instruction;
     }

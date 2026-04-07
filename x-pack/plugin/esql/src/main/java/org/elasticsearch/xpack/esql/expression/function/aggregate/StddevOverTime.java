@@ -35,8 +35,9 @@ public class StddevOverTime extends TimeSeriesAggregateFunction implements OnlyS
         returnType = "double",
         description = "Calculates the population standard deviation over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "stddev_over_time") }
     )
     public StddevOverTime(

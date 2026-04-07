@@ -204,8 +204,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
     /**
      * When the serialization target does not support {@link SearchShardsResponse#SEARCH_SHARDS_NUM_SKIPPED2}, skipped shards must appear
-     * as iterators with {@link SearchShardIterator#skip()} true and {@link CanMatchPreFilterSearchPhase.CanMatchResult#skippedByClusterAlias()}
-     * must stay empty so {@link SearchShardsResponse} can serialize to older peers.
+     * as iterators with {@link SearchShardIterator#skip()} true and
+     * {@link CanMatchPreFilterSearchPhase.CanMatchResult#skippedByClusterAlias()} must stay empty so {@link SearchShardsResponse} can
+     * serialize to older peers.
      */
     public void testBwcPacksSkipsOnIteratorsWhenAggregateCountUnsupported() throws InterruptedException {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(

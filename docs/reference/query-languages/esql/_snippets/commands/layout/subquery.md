@@ -263,3 +263,5 @@ The subquery aggregates `sample_data` by `client_ip`, sorts by count in
 descending order, and limits to the top result. Only the `client_ip` with the
 highest count (`172.21.3.15` with 4 occurrences) is included when combined with
 `employees`.
+
+See [subqueries limitations](/reference/query-languages/esql/limitations.md#esql-limitations-from-subquery) for information on the limitations of subqueries.

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.engine.Engine;
 
@@ -38,7 +39,7 @@ public abstract class MultiEngineGet {
         return true;
     }
 
-    public abstract Engine.GetResult get(Engine.Get get);
+    public abstract Engine.GetResult get(Engine.Get get, SplitShardCountSummary splitShardCountSummary);
 
     final Engine.Searcher wrapSearchSearchWithCache(Engine.Searcher searcher) {
         assert assertAccessingThread();

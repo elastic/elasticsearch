@@ -79,19 +79,23 @@ public class PrometheusLabelsResponseListener {
 
     /**
      * Builds the success response. {@code __name__} is always written first (synthetic for OTel,
-     * deduped for Prometheus). The {@code limit} heuristic: if the ESQL result contains exactly
-     * {@code limit} entries the response may have been truncated, so a {@code warnings} entry is
-     * added. Package-private for testing.
+     * deduped for Prometheus). Truncation detection uses the sentinel approach: the plan builder
+     * requests {@code limit+1} rows from ESQL; if exactly {@code limit+1} rows are returned the
+     * result was truncated and a {@code warnings} entry is added. The extra sentinel row is never
+     * included in the output. When {@code limit == 0} (unlimited) no truncation check is performed.
+     * Package-private for testing.
      */
     static RestResponse buildSuccessResponse(List<String> labelNames, int limit) throws IOException {
-        boolean truncated = limit > 0 && labelNames.size() == limit;
+        boolean truncated = limit > 0 && labelNames.size() == limit + 1;
+        // When truncated the last entry is the sentinel row, exclude it from the output
+        List<String> names = truncated ? labelNames.subList(0, limit) : labelNames;
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("status", "success");
         builder.startArray("data");
         // __name__ is always first — it sorts before 'a' in ASCII so this is also correct order
         builder.value(NAME_LABEL);
-        for (String name : labelNames) {
+        for (String name : names) {
             if (NAME_LABEL.equals(name) == false) {
                 builder.value(name);
             }

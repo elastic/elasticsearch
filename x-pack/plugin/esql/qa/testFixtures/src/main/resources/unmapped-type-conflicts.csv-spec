@@ -5,7 +5,7 @@
 ######################################  
 
 noTypeConflictKeywordUnmappedCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -31,7 +31,7 @@ sample_data            | Disconnected
 ;
 
 noTypeConflictKeywordUnmappedCastToKeywordExplicitEval
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -58,7 +58,7 @@ sample_data            | Disconnected
 ;
 
 typeConflictLongUnmappedCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -85,7 +85,7 @@ sample_data            | 8268153
 ;
 
 typeConflictLongUnmappedCastToLong
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -112,7 +112,7 @@ sample_data            | 8268153
 ;
 
 typeConflictLongUnmappedCastToDouble
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -139,7 +139,7 @@ sample_data            | 8268153.0
 ;
 
 typeConflictLongUnmappedCastToDoubleNoSort
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -171,7 +171,7 @@ sample_data            | 8268153.0
 ###########################
 
 noTypeConflictKeywordNonExistentNoCast
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, colors METADATA _index
@@ -199,7 +199,7 @@ colors         | null
 ;
 
 noTypeConflictKeywordNonExistentCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, colors METADATA _index
@@ -228,7 +228,7 @@ colors         | null
 ;
 
 typeConflictLongNonExistentCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, colors METADATA _index
@@ -257,7 +257,7 @@ colors         | null
 ;
 
 typeConflictLongNonExistentCastToLong
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, colors METADATA _index
@@ -286,7 +286,7 @@ colors         | null
 ;
 
 typeConflictLongNonExistentCastToDouble
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, colors METADATA _index
@@ -315,7 +315,7 @@ colors         | null
 ;
 
 typeConflictLongNonExistentCastToDoubleNoSort
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, heights METADATA _index
@@ -340,7 +340,7 @@ heights        | null
 ;
 
 typeConflictDateNanosDateUnmappedCastToDate
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, sample_data_ts_nanos, no_mapping_sample_data METADATA _index
@@ -378,7 +378,7 @@ sample_data_ts_nanos   | 2023-10-23T13:55:01.543Z
 ###########################
 
 typeConflictLongDateUnmappedCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -412,7 +412,7 @@ sample_data_ts_long    | 1698069301543
 ;
 
 typeConflictLongDateUnmappedCastToDouble
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -454,7 +454,7 @@ sample_data_ts_long    | 1.698069301543E12
 ;
 
 typeConflictLongDateUnmappedCastToDate
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -488,7 +488,7 @@ sample_data_ts_long    | 2023-10-23T13:55:01.543Z
 ;
 
 typeConflictLongDateUnmappedCastToDateNoSort
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -526,7 +526,7 @@ sample_data_ts_long    | 2023-10-23T13:55:01.543Z
 ###############################
 
 typeConflictLongDateNonExistentCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, colors METADATA _index
@@ -565,7 +565,7 @@ colors              | null
 ;
 
 typeConflictLongDateNonExistentCastToDouble
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, colors METADATA _index
@@ -604,7 +604,7 @@ colors              | null
 ;
 
 typeConflictLongDateNonExistentCastToDate
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, colors METADATA _index
@@ -647,7 +647,7 @@ colors              | null
 ##########################################
 
 typeConflictLongDateUnmappedNonExistentCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _index
@@ -691,7 +691,7 @@ colors                 | null
 ;
 
 typeConflictLongDateUnmappedNonExistentCastToDouble
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _index
@@ -743,7 +743,7 @@ colors                 | null
 ;
 
 typeConflictLongDateUnmappedNonExistentCastToDate
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _index
@@ -787,7 +787,7 @@ colors                 | null
 ;
 
 typeConflictLongDateUnmappedNonExistentCastToDateNoSort
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data, heights METADATA _index
@@ -830,7 +830,7 @@ sample_data_ts_long    | 2023-10-23T13:55:01.543Z
 ##############################
 
 typeConflictLongUnmappedWhereWithCastToLong
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -850,7 +850,7 @@ sample_data            | 8268153
 ;
 
 noTypeConflictKeywordUnmappedWhereWithCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -869,7 +869,7 @@ sample_data            | Connected to 10.1.0.3
 ;
 
 typeConflictLongNonExistentWhereWithCastToLong
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, colors METADATA _index
@@ -886,7 +886,7 @@ sample_data    | 8268153
 ;
 
 typeConflictLongDateUnmappedWhereWithCastToDate
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -911,7 +911,7 @@ no_mapping_sample_data | 2024-10-23T13:55:01.543Z
 #############################
 
 typeConflictLongUnmappedSortWithCastToLong
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -937,7 +937,7 @@ sample_data            | 8268153
 ;
 
 typeConflictLongUnmappedSortWithCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -967,7 +967,7 @@ sample_data            | 8268153
 ############################
 
 typeConflictLongUnmappedChainedCastLongToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -994,7 +994,7 @@ sample_data            | 8268153
 ;
 
 typeConflictLongUnmappedChainedCastLongToDouble
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -1021,7 +1021,7 @@ sample_data            | 8268153.0
 ;
 
 typeConflictLongDateUnmappedChainedCastDateToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -1055,7 +1055,7 @@ sample_data_ts_long    | 2023-10-23T13:55:01.543Z
 ;
 
 typeConflictLongUnmappedChainedCastInWhere
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -1079,7 +1079,7 @@ sample_data            | 8268153
 ####################################
 
 noTypeConflictKeywordSourceExcludedNoCast
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -1107,7 +1107,7 @@ partial_mapping_no_source_sample_data | null
 ;
 
 noTypeConflictKeywordSourceExcludedCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -1136,7 +1136,7 @@ partial_mapping_no_source_sample_data | null
 ;
 
 typeConflictLongSourceExcludedCastToKeyword
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -1165,7 +1165,7 @@ partial_mapping_no_source_sample_data | null
 ;
 
 typeConflictLongSourceExcludedCastToLong
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -1194,7 +1194,7 @@ partial_mapping_no_source_sample_data | null
 ;
 
 typeConflictLongSourceExcludedCastToDouble
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
@@ -1223,7 +1223,7 @@ partial_mapping_no_source_sample_data | null
 ;
 
 typeConflictLongSourceExcludedCastToDoubleNoSort
-required_capability: optional_fields_v4
+required_capability: optional_fields_v5
 required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;

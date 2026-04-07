@@ -162,10 +162,15 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
         @Override
         public StoredFieldsReader getFieldsReader() {
             StoredFieldsReader fieldsReader = super.getFieldsReader();
+            // Track whether we successfully unwrapped the TSDBStoredFieldsReader. If the reader is hidden behind
+            // an intermediate wrapper (e.g., MismatchedStoredFieldsReader in tests), we cannot unwrap and must use
+            // PruningStoredFieldsReader to filter out the synthetic _id during merges.
+            boolean unwrappedSyntheticId = false;
             if (useSyntheticId && fieldsReader instanceof TSDBStoredFieldsFormat.TSDBStoredFieldsReader tsdbReader) {
                 fieldsReader = tsdbReader.getStoredFieldsReader();
+                unwrappedSyntheticId = true;
             }
-            if (pruneStoredFieldName == null && pruneIdField == false && useSyntheticId == false) {
+            if (pruneStoredFieldName == null && pruneIdField == false && (useSyntheticId == false || unwrappedSyntheticId)) {
                 return fieldsReader;
             }
             return new PruningStoredFieldsReader(fieldsReader, recoverySourceToKeep, pruneStoredFieldName, pruneIdField, useSyntheticId);

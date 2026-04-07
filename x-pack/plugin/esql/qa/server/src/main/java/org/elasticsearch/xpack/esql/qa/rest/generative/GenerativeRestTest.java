@@ -85,6 +85,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "failed to parse date field \\[.*\\] with format",
         // full-text function trying to parse a non-IP string
         "is not an IP string literal",
+        // a values(<that field>) agg could more than 100,000 values into a single multi-valued field, and a subsequent
+        // inline stats … by <that field> hits the hard limit Block.MAX_LOOKUP = 100_000 in the compute layer
+        // throwing IllegalArgumentException via PackedValuesBlockHash
+        // see https://github.com/elastic/elasticsearch/issues/145694
+        "Found a single entry with .* entries",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -101,6 +106,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
+        // https://github.com/elastic/elasticsearch/issues/145570
+        "function cannot operate on \\[from .*\\], which is not a field from an index mapping",
+        // https://github.com/elastic/elasticsearch/issues/145570
+        "function cannot operate on \\[\\], which is not a field from an index mapping",
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
         "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",
@@ -704,7 +713,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
         Pattern.DOTALL
     );
 

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -1208,6 +1209,7 @@ public final class IndexSettings {
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
+    private final SyntheticIdBloomFilterSettings syntheticIdBloomFilterSettings;
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
@@ -1422,6 +1424,9 @@ public final class IndexSettings {
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
+        syntheticIdBloomFilterSettings = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
+            ? SyntheticIdBloomFilterSettings.fromScopedSettings(scopedSettings)
+            : null;
         if (indexMetadata.useTimeSeriesSyntheticId() != useTimeSeriesSyntheticId) {
             throw new IllegalArgumentException(
                 String.format(
@@ -2187,6 +2192,10 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesSyntheticId() {
         return useTimeSeriesSyntheticId;
+    }
+
+    public SyntheticIdBloomFilterSettings syntheticIdBloomFilterSettings() {
+        return syntheticIdBloomFilterSettings;
     }
 
     /**

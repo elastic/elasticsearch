@@ -838,7 +838,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         // FROM view11 should fail
         Exception e = expectThrows(Exception.class, () -> addView("viewx", "FROM emp"));
-        assertThat(e.getMessage(), containsString("cannot add view, the maximum number of views is reached: 100"));
+        assertThat(e.getMessage(), containsString("cannot add view, the maximum number of views is reached: 500"));
     }
 
     public void testModifiedViewCount() {

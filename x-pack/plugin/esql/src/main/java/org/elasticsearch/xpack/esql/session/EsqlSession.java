@@ -403,7 +403,7 @@ public class EsqlSession {
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
      * this is public for testing.
      */
-    public void executeOptimizedPlan(
+    private void executeOptimizedPlan(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
@@ -833,7 +833,7 @@ public class EsqlSession {
         }
     }
 
-    public void analyzedPlan(
+    private void analyzedPlan(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
         Configuration configuration,
@@ -1461,7 +1461,7 @@ public class EsqlSession {
         return plan;
     }
 
-    public LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {
+    private LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {
         if (logicalPlan.preOptimized() == false) {
             throw new IllegalStateException("Expected pre-optimized plan");
         }
@@ -1474,7 +1474,7 @@ public class EsqlSession {
         return plan;
     }
 
-    public void preOptimizedPlan(
+    private void preOptimizedPlan(
         LogicalPlan logicalPlan,
         LogicalPlanPreOptimizer logicalPlanPreOptimizer,
         PlanTimeProfile planTimeProfile,

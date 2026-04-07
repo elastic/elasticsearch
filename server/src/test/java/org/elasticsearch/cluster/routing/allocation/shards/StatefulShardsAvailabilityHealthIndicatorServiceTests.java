@@ -1033,7 +1033,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             TimeUnit.MILLISECONDS
         );
         final var expiredUnassignedTime = new TimeValue(
-            System.currentTimeMillis() - TimeValue.timeValueSeconds(30).getMillis(),
+            System.currentTimeMillis() - TimeValue.timeValueSeconds(11).getMillis(),
             TimeUnit.MILLISECONDS
         );
         final var primaryReason = randomFrom(UnassignedInfo.Reason.values());
@@ -1056,7 +1056,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         final var service = createShardsAvailabilityIndicatorService(
             projectId,
             Settings.builder()
-                .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), "20s")
+                .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), "10s")
                 .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "20s")
                 .build(),
             clusterState,

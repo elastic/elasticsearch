@@ -196,10 +196,7 @@ public class SecurityContextTests extends ESTestCase {
 
     public void testExecuteAfterRewritingAuthenticationShouldPreserveTransientHeaders() throws IOException {
         RealmRef authBy = new RealmRef("ldap", "foo", "node1");
-        final Authentication original = AuthenticationTestHelper.builder()
-            .user(new User("test"))
-            .realmRef(authBy)
-            .build();
+        final Authentication original = AuthenticationTestHelper.builder().user(new User("test")).realmRef(authBy).build();
         original.writeToContext(threadContext);
 
         final String tokenKey = "_custom_token_key";
@@ -218,10 +215,7 @@ public class SecurityContextTests extends ESTestCase {
         final TransportVersion targetVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.current());
 
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
-            assertThat(
-                securityContext.getAuthentication().getEffectiveSubject().getTransportVersion(),
-                equalTo(targetVersion)
-            );
+            assertThat(securityContext.getAuthentication().getEffectiveSubject().getTransportVersion(), equalTo(targetVersion));
             // AuthenticationToken transients should be preserved
             assertThat(threadContext.getTransient(tokenKey), equalTo(tokenValue));
             assertThat(threadContext.getTransient(anotherTokenKey), equalTo(anotherTokenValue));

@@ -115,7 +115,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     @Before
     public void populateIndex() {
         Settings.Builder settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster"));
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             settings.put("index.codec", "default").put("index.number_of_replicas", 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         client().admin()
@@ -1075,6 +1075,31 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
         searchResponse.decRef();
         assertThat(fromEsql, equalTo(fromSearch));
+    }
+
+    public void testNonMultipleWindowWithTimeBucket() {
+        // 7-second window with 5-second bucket: window is not an exact multiple of the bucket.
+        // GCD(7s, 5s) = 1s, so internal sub-buckets are 1s, output at 5s boundaries.
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu, 7 second)) BY cluster, TBUCKET(5 second)")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat("expected non-empty results", rows, not(empty()));
+            var rounding = new Rounding.Builder(TimeValue.timeValueSeconds(5)).build().prepareForUnknown();
+            for (List<Object> row : rows) {
+                // row: [avg_value, cluster, tbucket_string]
+                String tbucketStr = (String) row.get(2);
+                long tbucketMillis = DEFAULT_DATE_TIME_FORMATTER.parseMillis(tbucketStr);
+                assertThat(
+                    "output timestamp should be at 5-second boundary: " + tbucketStr,
+                    rounding.round(tbucketMillis),
+                    equalTo(tbucketMillis)
+                );
+            }
+        }
+        // Also verify an exact-multiple window still works as before (regression check)
+        try (var resp = run("TS host* | STATS avg(avg_over_time(cpu, 10 second)) BY cluster, TBUCKET(5 second)")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat("expected non-empty results for exact multiple", rows, not(empty()));
+        }
     }
 
     private static double round(double value) {

@@ -2480,10 +2480,10 @@ public class NumberFieldMapper extends FieldMapper {
         if (false == allowMultipleValues && (indexed || docValuesParameters.enabled() || stored)) {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
             List<IndexableField> fields = context.doc().getFields();
-            IndexableField last = fields.get(fields.size() - 1);
+            final IndexableField last = fields.getLast();
             assert last.name().equals(fieldType().name())
                 : "last field name [" + last.name() + "] mis match field name [" + fieldType().name() + "]";
-            context.doc().onlyAddKey(fieldType().name(), fields.get(fields.size() - 1));
+            context.doc().onlyAddKey(fieldType().name(), last);
         }
 
         if (docValuesParameters.enabled() == false && (stored || indexed)) {

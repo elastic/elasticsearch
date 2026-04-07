@@ -76,7 +76,9 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
         }
         int minDocId = docs.get(offset);
         int maxDocId = docs.get(docs.count() - 1);
-        skipper.advance(minDocId);
+        if (minDocId > skipper.maxDocID(0)) {
+            skipper.advance(minDocId);
+        }
         if (skipper.minDocID(0) == DocIdSetIterator.NO_MORE_DOCS) {
             return null;
         }

@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.Maps;
@@ -90,6 +91,8 @@ final class CanMatchPreFilterSearchPhase {
     private final MinAndMax<?>[] minAndMaxes;
     private int numPossibleMatches;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
+    /** When unsupported, skipped shards are represented only via {@link SearchShardIterator#skip(boolean)} for BWC. */
+    private final TransportVersion searchShardsResponseSerializationTarget;
 
     private CanMatchPreFilterSearchPhase(
         Logger logger,
@@ -104,6 +107,7 @@ final class CanMatchPreFilterSearchPhase {
         SearchTask task,
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
+        TransportVersion searchShardsResponseSerializationTarget,
         ActionListener<CanMatchResult> listener
     ) {
         this.logger = logger;
@@ -118,6 +122,7 @@ final class CanMatchPreFilterSearchPhase {
         this.task = task;
         this.requireAtLeastOneMatch = requireAtLeastOneMatch;
         this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
+        this.searchShardsResponseSerializationTarget = searchShardsResponseSerializationTarget;
         this.executor = executor;
         final int size = shardsIts.size();
         possibleMatches = new FixedBitSet(size);
@@ -150,7 +155,8 @@ final class CanMatchPreFilterSearchPhase {
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         SearchResponseMetrics searchResponseMetrics,
-        Map<String, Object> searchRequestAttributes
+        Map<String, Object> searchRequestAttributes,
+        TransportVersion searchShardsResponseSerializationTarget
     ) {
         if (shardsIts.isEmpty()) {
             return SubscribableListener.newSucceeded(new CanMatchResult(Collections.emptyList(), Collections.emptyMap()));
@@ -200,6 +206,7 @@ final class CanMatchPreFilterSearchPhase {
                     task,
                     requireAtLeastOneMatch,
                     coordinatorRewriteContextProvider,
+                    searchShardsResponseSerializationTarget,
                     listener
                 ).runCoordinatorRewritePhase();
             }
@@ -481,24 +488,40 @@ final class CanMatchPreFilterSearchPhase {
             }
             possibleMatches.set(shardIndexToQuery);
         }
-        int i = 0, iMatched = 0, numMatch = possibleMatches.cardinality();
-        final CanMatchResult canMatchResult = new CanMatchResult(new ArrayList<>(Collections.nCopies(numMatch, null)), new HashMap<>());
+        final boolean includeAggregateSkippedCount = searchShardsResponseSerializationTarget.supports(
+            SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2
+        );
+        int i = 0;
+        final int numMatching = possibleMatches.cardinality();
+        final int initialCapacity = includeAggregateSkippedCount ? numMatching : shardsIts.size();
+        final List<SearchShardIterator> iterators = new ArrayList<>(initialCapacity);
+        final Map<String, Integer> skippedByClusterAlias = new HashMap<>();
 
         for (SearchShardIterator iter : shardsIts) {
             iter.reset();
             boolean match = possibleMatches.get(i++);
-            if (match) {
-                assert iter.skip() == false : "Shard shouldn't be marked skipped if possible to match";
-                canMatchResult.iterators.set(iMatched++, iter);
+            if (includeAggregateSkippedCount) {
+                if (match) {
+                    assert iter.skip() == false : "Shard shouldn't be marked skipped if possible to match";
+                    iterators.add(iter);
+                } else {
+                    skippedByClusterAlias.compute(
+                        Objects.requireNonNullElse(iter.getClusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY),
+                        (k, v) -> v == null ? 1 : v + 1
+                    );
+                }
             } else {
-                canMatchResult.skippedByClusterAlias.compute(
-                    Objects.requireNonNullElse(iter.getClusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY),
-                    (k, v) -> v == null ? 1 : v + 1
-                );
+                if (match) {
+                    iter.skip(false);
+                } else {
+                    iter.skip(true);
+                }
+                iterators.add(iter);
             }
         }
         // order matching shard by the natural order, so that search results will use that order
-        canMatchResult.iterators.sort(SearchShardIterator::compareTo);
+        iterators.sort(SearchShardIterator::compareTo);
+        CanMatchResult canMatchResult = new CanMatchResult(iterators, skippedByClusterAlias);
 
         if (shouldSortShards(minAndMaxes) == false) {
             return canMatchResult;

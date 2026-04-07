@@ -10,12 +10,14 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -40,12 +42,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
  * An internal search shards API performs the can_match phase and returns target shards of indices that might match a query.
  */
-public class TransportSearchShardsAction extends HandledTransportAction<SearchShardsRequest, SearchShardsResponse> {
+public class TransportSearchShardsAction extends TransportAction<SearchShardsRequest, SearchShardsResponse> {
 
     public static final String NAME = "indices:admin/search/search_shards";
     public static final ActionType<SearchShardsResponse> TYPE = new ActionType<>(NAME);
@@ -76,12 +79,18 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         IndexNameExpressionResolver indexNameExpressionResolver,
         SearchResponseMetrics searchResponseMetrics
     ) {
-        super(
+        super(TYPE.name(), actionFilters, transportService.getTaskManager(), transportService.getThreadPool()
+            .executor(ThreadPool.Names.SEARCH_COORDINATION));
+        transportService.registerRequestHandler(
             TYPE.name(),
-            transportService,
-            actionFilters,
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION),
+            false,
+            true,
             SearchShardsRequest::new,
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+            (request, channel, task) -> {
+                request.setResponseSerializationTarget(channel.getVersion());
+                executeDirect(task, request, new ChannelActionListener<>(channel));
+            }
         );
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
@@ -180,6 +189,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         searchRequest,
                         concreteIndexNames
                     );
+                    TransportVersion serializationTarget = Optional.ofNullable(searchShardsRequest.getResponseSerializationTarget())
+                        .orElse(TransportVersion.current());
                     CanMatchPreFilterSearchPhase.execute(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(project.cluster().nodes().get(node));
@@ -194,7 +205,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         false,
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                         searchResponseMetrics,
-                        searchRequestAttributes
+                        searchRequestAttributes,
+                        serializationTarget
                     )
                         .addListener(
                             delegate.map(

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -45,6 +46,13 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
     private final String clusterAlias;
 
     private ResolvedIndexExpressions resolvedIndexExpressions;
+
+    /**
+     * Transport version of the peer that will receive the {@link SearchShardsResponse}. Set by the transport handler only;
+     * not serialized on the wire. When null, callers use {@link TransportVersion#current()} for can_match packaging.
+     */
+    @Nullable
+    private transient TransportVersion responseSerializationTarget;
 
     public SearchShardsRequest(
         String[] indices,
@@ -116,6 +124,18 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::description, parentTaskId, headers);
+    }
+
+    /**
+     * Server-internal: invoked from the transport request handler before the action runs.
+     */
+    public void setResponseSerializationTarget(TransportVersion responseSerializationTarget) {
+        this.responseSerializationTarget = responseSerializationTarget;
+    }
+
+    @Nullable
+    public TransportVersion getResponseSerializationTarget() {
+        return responseSerializationTarget;
     }
 
     public String clusterAlias() {

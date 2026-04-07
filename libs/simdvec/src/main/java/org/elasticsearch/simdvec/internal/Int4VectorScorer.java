@@ -212,25 +212,26 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         }
 
         float bulkScoreWithQuery(QueryContext query, int[] ordinals, float[] scores, int numNodes) throws IOException {
-            long[] offsets = new long[numNodes];
-            for (int i = 0; i < numNodes; i++) {
-                offsets[i] = (long) ordinals[i] * vectorPitch;
-            }
-
-            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, packedDims, numNodes, addrs -> {
-                dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, MemorySegment.ofArray(scores));
-            });
-
-            if (resolved == false) {
-                float max = Float.NEGATIVE_INFINITY;
+            if (SUPPORTS_HEAP_SEGMENTS) {
+                long[] offsets = new long[numNodes];
                 for (int i = 0; i < numNodes; i++) {
-                    scores[i] = scoreWithQuery(query, ordinals[i]);
-                    max = Math.max(max, scores[i]);
+                    offsets[i] = (long) ordinals[i] * vectorPitch;
                 }
-                return max;
+                boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, packedDims, numNodes, addrs -> {
+                    dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, MemorySegment.ofArray(scores));
+                });
+                if (resolved) {
+                    return applyCorrectionsBulk(MemorySegment.ofArray(scores), MemorySegment.ofArray(ordinals), numNodes, query);
+                }
             }
 
-            return applyCorrectionsBulk(MemorySegment.ofArray(scores), MemorySegment.ofArray(ordinals), numNodes, query);
+            // fallback to sequential scoring
+            float max = Float.NEGATIVE_INFINITY;
+            for (int i = 0; i < numNodes; i++) {
+                scores[i] = scoreWithQuery(query, ordinals[i]);
+                max = Math.max(max, scores[i]);
+            }
+            return max;
         }
     }
 

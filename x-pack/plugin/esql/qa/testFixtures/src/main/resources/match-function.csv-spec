@@ -1096,3 +1096,33 @@ from books
 book_no:keyword | author:text
 7350            | Return of the Shadow
 ;
+
+matchOnConstantKeywordField
+required_capability: match_function
+required_capability: fix_full_text_functions_on_constant_keyword
+
+from all_types
+| where match(`constant_keyword-foo`, "foo")
+| keep `constant_keyword-foo`, keyword
+| sort keyword
+;
+
+constant_keyword-foo:keyword | keyword:keyword
+foo                          | key1
+foo                          | key2
+foo                          | key3
+foo                          | key4
+foo                          | key5
+;
+
+matchOnConstantKeywordFieldNoMatch
+required_capability: match_function
+required_capability: fix_full_text_functions_on_constant_keyword
+
+from all_types
+| where match(`constant_keyword-foo`, "bar")
+| keep `constant_keyword-foo`, keyword
+;
+
+constant_keyword-foo:keyword | keyword:keyword
+;

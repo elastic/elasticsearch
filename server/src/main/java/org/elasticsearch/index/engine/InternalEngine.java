@@ -47,6 +47,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
@@ -890,6 +891,7 @@ public class InternalEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Searcher, Searcher> searcherWrapper
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
@@ -899,7 +901,7 @@ public class InternalEngine extends Engine {
                 return result;
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
-                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
+                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, splitShardCountSummary, searcherWrapper), false);
             }
         }
     }

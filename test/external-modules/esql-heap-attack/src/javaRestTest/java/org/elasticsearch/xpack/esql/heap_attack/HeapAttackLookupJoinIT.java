@@ -139,9 +139,21 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     }
 
     public void testLookupExplosionBigStringManyMatches() throws IOException {
-        // 500, 1 is enough with a single node, but the serverless copy of this test uses many nodes.
-        // So something like 5000, 10 is much more of a sure thing there.
-        assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 5000, 10));
+        /*
+         * 500, 1 is enough with a single node, but the serverless copy of this test uses many nodes,
+         * so 5000, 10 is a surer hit there.
+         *
+         * Lower the request breaker for this test only: on large heaps the streaming lookup path can
+         * otherwise finish successfully, which forces assertCircuitBreaks through several scaled attempts.
+         * Each attempt reindexes and force-merges a larger sensor_data index; on single-processor CI that
+         * can exceed the suite timeout (#145710).
+         */
+        setRequestBreakerLimit("40%");
+        try {
+            assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 5000, 10));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
     }
 
     private Map<String, Object> lookupExplosion(

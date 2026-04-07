@@ -209,6 +209,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     public void testShouldBeRedWhenPrimaryIsInitializing() {
         ProjectId projectId = randomProjectIdOrDefault();
+
+        // nodeLeft() is not eligible for grace period.
         var clusterState = createClusterStateWith(
             projectId,
             List.of(index("unreplicated-index", new ShardAllocation(randomNodeId(), INITIALIZING, nodeLeft()))),
@@ -288,7 +290,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             ),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+        final var noGracePeriodSettings = Settings.builder()
+            .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .build();
+        var service = createShardsAvailabilityIndicatorService(projectId, noGracePeriodSettings, clusterState, Collections.emptyMap());
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -330,7 +336,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+        final var noGracePeriodSettings = Settings.builder()
+            .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
+            .build();
+        var service = createShardsAvailabilityIndicatorService(projectId, noGracePeriodSettings, clusterState, Collections.emptyMap());
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -1022,13 +1032,22 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
             TimeUnit.MILLISECONDS
         );
+        final var expiredUnassignedTime = new TimeValue(
+            System.currentTimeMillis() - TimeValue.timeValueSeconds(30).getMillis(),
+            TimeUnit.MILLISECONDS
+        );
         final var primaryReason = randomFrom(UnassignedInfo.Reason.values());
+        final var primaryTimeExpired = randomBoolean();
         final var clusterState = createClusterStateWith(
             projectId,
             List.of(
                 index(
                     "test-index",
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, unassignedInfo(primaryReason, recentUnassignedTime)),
+                    new ShardAllocation(
+                        randomNodeId(),
+                        UNAVAILABLE,
+                        unassignedInfo(primaryReason, primaryTimeExpired ? expiredUnassignedTime : recentUnassignedTime)
+                    ),
                     new ShardAllocation(randomNodeId(), UNAVAILABLE, unassignedInfo(randomUnassignedInfoReason(true), recentUnassignedTime))
                 )
             ),
@@ -1044,12 +1063,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             Collections.emptyMap()
         );
         final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
-        if (primaryReason.isExpectedTransient()) {
-            // Primary is in grace period; replica is eligible for its own grace period
+        if (primaryReason.isExpectedTransient() && primaryTimeExpired == false) {
             assertThat(result.status(), equalTo(GREEN));
             assertThat(result.symptom(), equalTo("This cluster has 1 creating primary shard, 1 creating replica shard."));
         } else {
-            // Primary is genuinely unavailable; replica is blocked from grace period
             assertThat(result.status(), equalTo(RED));
             assertThat(result.symptom(), equalTo("This cluster has 1 unavailable primary shard, 1 unavailable replica shard."));
         }
@@ -1066,54 +1083,54 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 System.currentTimeMillis() - TimeValue.timeValueSeconds(randomIntBetween(21, 200)).getMillis(),
                 TimeUnit.MILLISECONDS
             );
-            final var replicaReason1 = randomFrom(UnassignedInfo.Reason.values());
-            final var replicaReason2 = randomFrom(UnassignedInfo.Reason.values());
-            final var replicaReason3 = randomFrom(UnassignedInfo.Reason.values());
-            final var replicaExpired1 = randomBoolean();
-            final var replicaExpired2 = randomBoolean();
-            final var replicaExpired3 = randomBoolean();
-            final var primaryReason1 = randomFrom(UnassignedInfo.Reason.values());
+            final var replicaReason1a = randomFrom(UnassignedInfo.Reason.values());
+            final var replicaReason1b = randomFrom(UnassignedInfo.Reason.values());
+            final var replicaReason1c = randomFrom(UnassignedInfo.Reason.values());
+            final var replicaExpired1a = randomBoolean();
+            final var replicaExpired1b = randomBoolean();
+            final var replicaExpired1c = randomBoolean();
             final var primaryReason2 = randomFrom(UnassignedInfo.Reason.values());
-            final var primaryExpired1 = randomBoolean();
+            final var primaryReason3 = randomFrom(UnassignedInfo.Reason.values());
             final var primaryExpired2 = randomBoolean();
+            final var primaryExpired3 = randomBoolean();
             final var clusterState = createClusterStateWith(
                 projectId,
                 List.of(
                     // Replicas: one index with an active primary and three unavailable replicas
                     index(
-                        "replica-index",
+                        "replica-index-1",
                         new ShardAllocation(randomNodeId(), AVAILABLE),
                         new ShardAllocation(
                             randomNodeId(),
                             UNAVAILABLE,
-                            unassignedInfo(replicaReason1, replicaExpired1 ? expiredUnassignedTime : recentUnassignedTime)
+                            unassignedInfo(replicaReason1a, replicaExpired1a ? expiredUnassignedTime : recentUnassignedTime)
                         ),
                         new ShardAllocation(
                             randomNodeId(),
                             UNAVAILABLE,
-                            unassignedInfo(replicaReason2, replicaExpired2 ? expiredUnassignedTime : recentUnassignedTime)
+                            unassignedInfo(replicaReason1b, replicaExpired1b ? expiredUnassignedTime : recentUnassignedTime)
                         ),
                         new ShardAllocation(
                             randomNodeId(),
                             UNAVAILABLE,
-                            unassignedInfo(replicaReason3, replicaExpired3 ? expiredUnassignedTime : recentUnassignedTime)
+                            unassignedInfo(replicaReason1c, replicaExpired1c ? expiredUnassignedTime : recentUnassignedTime)
                         )
                     ),
                     // Primaries: two separate single-shard indices with unavailable primaries
-                    index(
-                        "primary-index-1",
-                        new ShardAllocation(
-                            randomNodeId(),
-                            UNAVAILABLE,
-                            unassignedInfo(primaryReason1, primaryExpired1 ? expiredUnassignedTime : recentUnassignedTime)
-                        )
-                    ),
                     index(
                         "primary-index-2",
                         new ShardAllocation(
                             randomNodeId(),
                             UNAVAILABLE,
                             unassignedInfo(primaryReason2, primaryExpired2 ? expiredUnassignedTime : recentUnassignedTime)
+                        )
+                    ),
+                    index(
+                        "primary-index-3",
+                        new ShardAllocation(
+                            randomNodeId(),
+                            UNAVAILABLE,
+                            unassignedInfo(primaryReason3, primaryExpired3 ? expiredUnassignedTime : recentUnassignedTime)
                         )
                     )
                 ),
@@ -1129,13 +1146,14 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 Collections.emptyMap()
             );
 
-            final int unavailablePrimaryCount = (primaryReason1.isExpectedTransient() == false || primaryExpired1 ? 1 : 0) + (primaryReason2
+            final int unavailablePrimaryCount = (primaryReason2.isExpectedTransient() == false || primaryExpired2 ? 1 : 0) + (primaryReason3
                 .isExpectedTransient() == false
-                || primaryExpired2 ? 1 : 0);
+                || primaryExpired3 ? 1 : 0);
             final int creatingPrimaryCount = 2 - unavailablePrimaryCount;
-            final int unavailableReplicaCount = (replicaReason1.isExpectedTransient() == false || replicaExpired1 ? 1 : 0) + (replicaReason2
-                .isExpectedTransient() == false
-                || replicaExpired2 ? 1 : 0) + (replicaReason3.isExpectedTransient() == false || replicaExpired3 ? 1 : 0);
+            final int unavailableReplicaCount = (replicaReason1a.isExpectedTransient() == false || replicaExpired1a ? 1 : 0)
+                + (replicaReason1b.isExpectedTransient() == false || replicaExpired1b ? 1 : 0) + (replicaReason1c
+                    .isExpectedTransient() == false
+                    || replicaExpired1c ? 1 : 0);
             final int creatingReplicaCount = 3 - unavailableReplicaCount;
             final var expectedHealth = unavailablePrimaryCount > 0 ? RED : unavailableReplicaCount > 0 ? YELLOW : GREEN;
 

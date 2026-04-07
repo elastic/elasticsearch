@@ -96,7 +96,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     public static final String NAME = "shards_availability";
 
     /// Grace period during which a newly unassigned primary may not cause the health indicator to turn RED.
-    /// See [#isUnassignedPrimaryWithinGracePeriod] for unassignment reason eligibility criteria.
+    /// See [#isUnassignedWithinGracePeriod] for unassignment reason eligibility criteria.
     public static final Setting<TimeValue> PRIMARY_UNASSIGNED_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.primary_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
@@ -107,7 +107,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     );
 
     /// Grace period during which a newly unassigned replica may not cause the health indicator to turn YELLOW.
-    /// See [#isUnassignedReplicaWithinGracePeriod] for unassignment reason eligibility criteria.
+    /// See [#isUnassignedWithinGracePeriod] for unassignment reason eligibility criteria.
     public static final Setting<TimeValue> REPLICA_UNASSIGNED_BUFFER_TIME = Setting.timeSetting(
         "health.shards_availability.replica_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),

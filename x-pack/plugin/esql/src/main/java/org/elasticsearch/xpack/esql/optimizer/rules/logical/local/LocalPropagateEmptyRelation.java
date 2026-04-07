@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -46,11 +46,9 @@ public class LocalPropagateEmptyRelation extends PropagateEmptyRelation {
             if (dataType == DataType.BOOLEAN) {
                 value = true;
             } else if (aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null)) {
-                value = switch (aggFunc.dataType()) {
-                    case LONG -> 0L;     // Count
-                    case DOUBLE -> 0.0;  // CountApproximate
-                    default -> throw new EsqlIllegalArgumentException("Unexpected COUNT return type [{}]", aggFunc.dataType());
-                };
+                value = 0L;
+            } else if (aggFunc instanceof CountApproximate count && (count.foldable() == false || count.fold(foldCtx) != null)) {
+                value = 0.0;
             } else {
                 value = null;
             }

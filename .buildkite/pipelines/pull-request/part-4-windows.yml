@@ -7,8 +7,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-windows-2022
-      machineType: n4-custom-32-98304
-      diskType: hyperdisk-balanced
+      machineType: e2-custom-32-98304
+      diskType: pd-ssd
       diskSizeGb: 350
     env:
       GRADLE_TASK: checkPart4

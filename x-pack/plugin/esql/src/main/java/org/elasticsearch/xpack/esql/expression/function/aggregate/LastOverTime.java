@@ -56,8 +56,9 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long", "integer", "double", "_tsid", "exponential_histogram", "tdigest" },
         description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "last_over_time") }
     )
     public LastOverTime(

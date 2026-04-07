@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 144827
+summary: Fix circuit breaker leak in percolator query construction
+type: bug

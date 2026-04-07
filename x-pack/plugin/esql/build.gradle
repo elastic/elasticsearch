@@ -44,6 +44,7 @@ dependencies {
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
   implementation project(':libs:web-utils')
+  implementation project(':libs:user-agent-api')
   implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
@@ -83,11 +84,13 @@ dependencies {
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:data-streams')
   testImplementation project(path: ':modules:mapper-extras')
+  testImplementation project(path: ':modules:user-agent')
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('ch.obermuhlner:big-math:2.3.2')
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
+  internalClusterTestImplementation project(":modules:user-agent")
   internalClusterTestImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
@@ -311,6 +314,11 @@ tasks.named('internalClusterTestTestingConventions').configure {
 // This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task
 // and generates a types table for the LOOKUP JOIN command. It is possible in future we might have move tests that do this.
 tasks.named("internalClusterTest").configure {
+  // prevent empty stacktraces on JDK 25 for intrinsic Math.*Exact invocations
+  // https://bugs.openjdk.org/browse/JDK-8367990
+  // https://github.com/elastic/elasticsearch/issues/135009
+  jvmArgs '-XX:-OmitStackTraceInFastThrow'
+
   def injected = project.objects.newInstance(Injected)
   File snippetsFolder = file("build/testrun/internalClusterTest/temp/esql/_snippets")
   def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")

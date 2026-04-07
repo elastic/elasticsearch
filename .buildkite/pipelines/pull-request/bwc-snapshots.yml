@@ -16,7 +16,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: e2-standard-32
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 2 / bwc-snapshots"
         key: "bwc-snapshots-part2"
@@ -28,7 +29,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
+          machineType: e2-standard-32
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 3 / bwc-snapshots"
         key: "bwc-snapshots-part3"
@@ -40,7 +42,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
+          machineType: e2-standard-32
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 4 / bwc-snapshots"
         key: "bwc-snapshots-part4"
@@ -52,7 +55,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
+          machineType: e2-standard-32
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 5 / bwc-snapshots"
         key: "bwc-snapshots-part5"
@@ -64,7 +68,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
+          machineType: e2-standard-32
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 6 / bwc-snapshots"
         key: "bwc-snapshots-part6"
@@ -76,5 +81,6 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
+          machineType: e2-standard-32
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk

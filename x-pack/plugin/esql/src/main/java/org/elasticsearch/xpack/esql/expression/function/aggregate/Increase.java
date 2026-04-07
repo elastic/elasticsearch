@@ -52,8 +52,9 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
         description = "Calculates the absolute increase of a counter field in a time window.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries-increase", tag = "increase") }
     )
     public Increase(

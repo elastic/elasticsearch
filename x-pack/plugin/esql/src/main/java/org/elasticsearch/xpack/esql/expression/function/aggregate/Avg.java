@@ -128,14 +128,15 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
     public Expression surrogate() {
         var s = source();
         var field = field();
-        if (field.dataType() == AGGREGATE_METRIC_DOUBLE
-            || field.dataType() == EXPONENTIAL_HISTOGRAM
-            || field.dataType() == DataType.TDIGEST) {
+        if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
             return new Div(
                 s,
                 new Sum(s, field, filter(), window(), summationMode).surrogate(),
                 new Count(s, field, filter(), window()).surrogate()
             );
+        }
+        if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
+            return new Div(s, new Sum(s, field, filter(), window(), summationMode).surrogate(), Count.AggregateMetricDoubleSurrogate(this));
         }
         if (field.foldable()) {
             return new MvAvg(s, field);

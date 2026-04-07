@@ -68,9 +68,7 @@ public class IbmWatsonxChatCompletionServiceSettings extends FilteredXContentObj
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new IbmWatsonxChatCompletionServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
     }

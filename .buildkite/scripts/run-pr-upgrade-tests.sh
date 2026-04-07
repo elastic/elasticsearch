@@ -34,8 +34,10 @@ steps:
           timeout_in_minutes: 300
           agents:
             provider: gcp
+            zones: us-east1-b,us-east1-c,us-east1-d,us-west1-a,us-west1-b,us-west1-c
             image: family/elasticsearch-ubuntu-2004
-            machineType: n1-standard-32
+            machineType: e2-standard-32
+            diskType: pd-ssd
             buildDirectory: /dev/shm/bk
           matrix:
             setup:

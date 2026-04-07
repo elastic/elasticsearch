@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.datastreams.DataStreamsPlugin.LOOK_AHEAD_TIME_DEFAULT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0;
@@ -42,8 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DownsampleIT extends DownsamplingIntegTestCase {
-
-    private static final int DEFAULT_LOOK_AHEAD_TIME = 9;
 
     public void testDownsamplingPassthroughDimensions() throws Exception {
         String dataStreamName = "metrics-foo";
@@ -74,7 +73,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         Supplier<XContentBuilder> sourceSupplier = () -> {
             String ts = randomDateForRange(
                 now.minusSeconds(60 * 60).toEpochMilli(),
-                now.plusSeconds(60 * (DEFAULT_LOOK_AHEAD_TIME - 1)).toEpochMilli()
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
             );
             try {
                 return XContentFactory.jsonBuilder()
@@ -127,7 +126,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         Supplier<XContentBuilder> sourceSupplier = () -> {
             String ts = randomDateForRange(
                 now.minusSeconds(60 * 60).toEpochMilli(),
-                now.plusSeconds(60 * (DEFAULT_LOOK_AHEAD_TIME - 1)).toEpochMilli()
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
             );
             try {
                 return XContentFactory.jsonBuilder()
@@ -217,7 +216,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         Supplier<XContentBuilder> sourceSupplier = () -> {
             String ts = randomDateForRange(
                 now.minusSeconds(60 * 60).toEpochMilli(),
-                now.plusSeconds(60 * (DEFAULT_LOOK_AHEAD_TIME - 1)).toEpochMilli()
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
             );
             try {
                 int maxHistogramSize = randomIntBetween(2, 10);
@@ -376,7 +375,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         Supplier<XContentBuilder> sourceSupplier = () -> {
             String ts = randomDateForRange(
                 now.minusSeconds(60 * 60).toEpochMilli(),
-                now.plusSeconds(60 * (DEFAULT_LOOK_AHEAD_TIME - 1)).toEpochMilli()
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
             );
             try {
                 return XContentFactory.jsonBuilder()
@@ -400,8 +399,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         // don't want to conflict with the previous backing index
         Supplier<XContentBuilder> nextSourceSupplier = () -> {
             String ts = randomDateForRange(
-                now.plusSeconds(60 * (DEFAULT_LOOK_AHEAD_TIME + 1)).toEpochMilli(),
-                now.plusSeconds(60 * (2 * DEFAULT_LOOK_AHEAD_TIME - 1)).toEpochMilli()
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT + 1)).toEpochMilli(),
+                now.plusSeconds(60 * (2 * LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
             );
             try {
                 return XContentFactory.jsonBuilder()
@@ -480,7 +479,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         Supplier<XContentBuilder> sourceSupplier = () -> {
             String ts = randomDateForRange(
                 now.minusSeconds(60 * 60).toEpochMilli(),
-                now.minusSeconds(60 * (DEFAULT_LOOK_AHEAD_TIME - 1)).toEpochMilli()
+                now.minusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
             );
             try {
                 return XContentFactory.jsonBuilder()
@@ -498,7 +497,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         sourceSupplier = () -> {
             String ts = randomDateForRange(
                 now.minusSeconds(60 * 14).toEpochMilli(),
-                now.plusSeconds(60 * (DEFAULT_LOOK_AHEAD_TIME - 1)).toEpochMilli()
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1)).toEpochMilli()
             );
             try {
                 return XContentFactory.jsonBuilder()
@@ -519,8 +518,8 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
         Supplier<XContentBuilder> nextSourceSupplier = () -> {
             String ts = randomDateForRange(
-                now.plusSeconds(60 * (DEFAULT_LOOK_AHEAD_TIME + 1)).toEpochMilli(),
-                now.plusSeconds(60 * ((2 * DEFAULT_LOOK_AHEAD_TIME - 1))).toEpochMilli()
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT + 1)).toEpochMilli(),
+                now.plusSeconds(60 * ((2 * LOOK_AHEAD_TIME_DEFAULT - 1))).toEpochMilli()
             );
             try {
                 return XContentFactory.jsonBuilder()

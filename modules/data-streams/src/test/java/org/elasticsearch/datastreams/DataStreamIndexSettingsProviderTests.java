@@ -39,6 +39,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirs
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
+import static org.elasticsearch.datastreams.DataStreamsPlugin.LOOK_AHEAD_TIME_DEFAULT;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,9 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     private static final TimeValue DEFAULT_LOOK_BACK_TIME = TimeValue.timeValueHours(2);
-    private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueMinutes(
-        UpdateTimeSeriesRangeServiceTests.DEFAULT_LOOK_AHEAD
-    );
+    private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueMinutes(LOOK_AHEAD_TIME_DEFAULT);
 
     DataStreamIndexSettingsProvider provider;
     private boolean indexDimensionsTsidStrategyEnabledSetting;

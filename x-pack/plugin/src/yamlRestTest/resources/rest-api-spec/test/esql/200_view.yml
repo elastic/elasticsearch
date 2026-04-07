@@ -166,6 +166,34 @@ setup:
   - match: { views.0.name: "faxes" }
 
 ---
+"delete-all-views":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.put_view:
+        name: cats
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 2 }
+
+  - do:
+      esql.delete_view:
+        name: _all
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 0 }
+
+---
 "delete-multiple-views-one-missing":
   - do:
       esql.put_view:

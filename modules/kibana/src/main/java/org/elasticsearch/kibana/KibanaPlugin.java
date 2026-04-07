@@ -9,18 +9,60 @@
 
 package org.elasticsearch.kibana;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction.Request;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.ExecutorNames;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static final List<String> KIBANA_PRODUCT_ORIGIN = List.of("kibana");
+
+    private static final String KIBANA_WORKFLOWS_ORIGIN = "kibana";
+
+    /** Log data stream registered in {@link #workflowsEventsSystemDataStreamDescriptor()}. */
+    public static final String WORKFLOWS_EVENTS_DATA_STREAM_NAME = ".workflows-events";
+
+    /** Log data stream registered in {@link #workflowsExecutionDataStreamLogsSystemDataStreamDescriptor()}. */
+    public static final String WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME = ".workflows-execution-data-stream-logs";
+
+    /**
+     * Matches workflows-related system <strong>indices</strong> under {@code .workflows-}, but not the log
+     * {@linkplain SystemDataStreamDescriptor system data streams} registered in {@link #getSystemDataStreamDescriptors()}
+     * ({@value #WORKFLOWS_EVENTS_DATA_STREAM_NAME} and {@value #WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME}).
+     * <p>
+     * A plain {@code .workflows-*} pattern is invalid here: it matches those data stream names, and
+     * {@link org.elasticsearch.indices.SystemIndices} forbids overlap between a {@link SystemIndexDescriptor} pattern and
+     * a {@link SystemDataStreamDescriptor} (see {@code checkForOverlappingPatterns}). Uses the same complement style as Fleet's
+     * {@code .fleet-actions~(-results*)}; see {@link SystemIndexDescriptor} for pattern syntax.
+     */
+    public static final String WORKFLOWS_SYSTEM_INDEX_PATTERN =
+        ".workflows~(-events*|-execution-data-stream-logs*)";
 
     public static final SystemIndexDescriptor KIBANA_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(".kibana_*")
@@ -61,8 +103,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .build();
 
     public static final SystemIndexDescriptor WORKFLOWS_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(".workflows-*")
-        .setDescription("Workflows system index")
+        .setIndexPattern(WORKFLOWS_SYSTEM_INDEX_PATTERN)
+        .setDescription("Workflows system indices")
         .setType(Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
         .setAllowsTemplates()
@@ -78,6 +120,120 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             APM_AGENT_CONFIG_INDEX_DESCRIPTOR,
             APM_CUSTOM_LINK_INDEX_DESCRIPTOR
         );
+    }
+
+    @Override
+    public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+        return List.of(workflowsEventsSystemDataStreamDescriptor(), workflowsExecutionDataStreamLogsSystemDataStreamDescriptor());
+    }
+
+    private static SystemDataStreamDescriptor workflowsEventsSystemDataStreamDescriptor() {
+        try {
+            ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate("workflows-events.json");
+            return new SystemDataStreamDescriptor(
+                WORKFLOWS_EVENTS_DATA_STREAM_NAME,
+                "Workflows execution events",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                composableIndexTemplate,
+                Map.of(),
+                KIBANA_PRODUCT_ORIGIN,
+                KIBANA_WORKFLOWS_ORIGIN,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static SystemDataStreamDescriptor workflowsExecutionDataStreamLogsSystemDataStreamDescriptor() {
+        try {
+            ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate("workflows-execution-data-stream-logs.json");
+            return new SystemDataStreamDescriptor(
+                WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME,
+                "Workflows execution logs",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                composableIndexTemplate,
+                Map.of(),
+                KIBANA_PRODUCT_ORIGIN,
+                KIBANA_WORKFLOWS_ORIGIN,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static ComposableIndexTemplate loadWorkflowsComposableTemplate(String resourceFileName) throws IOException {
+        try (InputStream in = KibanaPlugin.class.getResourceAsStream(resourceFileName)) {
+            if (in == null) {
+                throw new IllegalStateException("missing workflows template resource [" + resourceFileName + "]");
+            }
+            byte[] bytes = Streams.readFully(in);
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, bytes)) {
+                return ComposableIndexTemplate.parse(parser);
+            }
+        }
+    }
+
+    @Override
+    public void cleanUpFeature(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Client client,
+        TimeValue masterNodeTimeout,
+        ActionListener<ResetFeatureStateStatus> listener
+    ) {
+        Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
+        if (dataStreamDescriptors.isEmpty() == false) {
+            try {
+                Request request = new Request(
+                    TimeValue.THIRTY_SECONDS,
+                    dataStreamDescriptors.stream().map(SystemDataStreamDescriptor::getDataStreamName).toArray(String[]::new)
+                );
+                request.indicesOptions(
+                    IndicesOptions.builder(request.indicesOptions())
+                        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                        .build()
+                );
+
+                client.execute(
+                    DeleteDataStreamAction.INSTANCE,
+                    request,
+                    ActionListener.wrap(
+                        response -> SystemIndexPlugin.super.cleanUpFeature(
+                            clusterService,
+                            projectResolver,
+                            client,
+                            masterNodeTimeout,
+                            listener
+                        ),
+                        e -> {
+                            Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                            if (unwrapped instanceof ResourceNotFoundException) {
+                                SystemIndexPlugin.super.cleanUpFeature(
+                                    clusterService,
+                                    projectResolver,
+                                    client,
+                                    masterNodeTimeout,
+                                    listener
+                                );
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    )
+                );
+            } catch (Exception e) {
+                Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                if (unwrapped instanceof ResourceNotFoundException) {
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        } else {
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, listener);
+        }
     }
 
     @Override

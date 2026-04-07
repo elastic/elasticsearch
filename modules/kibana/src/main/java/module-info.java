@@ -9,4 +9,5 @@
 
 module org.elasticsearch.kibana {
     requires org.elasticsearch.server;
+    requires org.elasticsearch.xcontent;
 }

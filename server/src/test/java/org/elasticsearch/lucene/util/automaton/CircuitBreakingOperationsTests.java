@@ -22,8 +22,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.apache.lucene.tests.util.automaton.AutomatonTestUtil.subsetOf;
-
 public class CircuitBreakingOperationsTests extends ESTestCase {
 
     public void testDeterminizeWithNullBreakerThrowsAssertionError() {
@@ -130,7 +128,7 @@ public class CircuitBreakingOperationsTests extends ESTestCase {
     private static void assertAcceptSameStrings(Automaton expected, Automaton actual) {
         assertTrue(
             "Circuit-breaking determinize should produce the same language as Lucene's determinize",
-            subsetOf(expected, actual) && subsetOf(actual, expected)
+            Operations.subsetOf(expected, actual) && Operations.subsetOf(actual, expected)
         );
     }
 }

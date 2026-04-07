@@ -34,8 +34,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements PostFilterableKnnQuery {
 
-    private volatile boolean isQueryPreconditioned = false;
-    private volatile float[] query;
+    private boolean isQueryPreconditioned = false;
+    private float[] query;
     private final float[] originalQuery;
     private final Map<Integer, FixedBitSet> skipCentroidsPerLeaf;
     private final ConcurrentHashMap<Integer, FixedBitSet> visitedCentroidsPerLeaf = new ConcurrentHashMap<>();
@@ -58,7 +58,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         float visitRatio,
         boolean doPrecondition
     ) {
-        this(field, query, k, numCands, filter, visitRatio, doPrecondition, true, null);
+        this(field, query, k, numCands, filter, visitRatio, doPrecondition, false, null);
     }
 
     IVFKnnFloatVectorQuery(
@@ -69,10 +69,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
         Query filter,
         float visitRatio,
         boolean doPrecondition,
-        boolean shouldPostFilter,
+        boolean isPostFilterDelegate,
         Map<Integer, FixedBitSet> skipCentroidsPerLeaf
     ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition, shouldPostFilter);
+        super(field, visitRatio, k, numCands, filter, doPrecondition, isPostFilterDelegate);
         this.query = query;
         this.originalQuery = query.clone();
         this.skipCentroidsPerLeaf = skipCentroidsPerLeaf;
@@ -144,7 +144,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
     }
 
     @Override
-    protected void preconditionQuery(LeafReaderContext context) throws IOException {
+    protected synchronized void preconditionQuery(LeafReaderContext context) throws IOException {
         if (isQueryPreconditioned) {
             // already preconditioned
             return;
@@ -247,7 +247,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery implements
             null,
             scaledVisitRatio,
             doPrecondition,
-            false,
+            true,
             null
         );
     }

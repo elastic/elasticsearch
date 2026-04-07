@@ -26,7 +26,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     private final int kParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
-    private final boolean shouldPostFilter;
+    private final boolean isPostFilterDelegate;
     private final FixedBitSet seenDocs;
     private final TopDocs seedResults;
 
@@ -56,10 +56,10 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         Query filter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        boolean shouldPostFilter,
+        boolean isPostFilterDelegate,
         FixedBitSet seenDocs
     ) {
-        this(field, target, k, numCands, filter, strategy, earlyTermination, shouldPostFilter, seenDocs, null);
+        this(field, target, k, numCands, filter, strategy, earlyTermination, isPostFilterDelegate, seenDocs, null);
     }
 
     ESKnnFloatVectorQuery(
@@ -70,21 +70,21 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         Query filter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        boolean shouldPostFilter,
+        boolean isPostFilterDelegate,
         FixedBitSet seenDocs,
         TopDocs seedResults
     ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
         this.earlyTermination = earlyTermination;
-        this.shouldPostFilter = shouldPostFilter;
+        this.isPostFilterDelegate = isPostFilterDelegate;
         this.seenDocs = seenDocs;
         this.seedResults = seedResults;
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        Query postFiltered = maybePostFilterRewrite(indexSearcher, filter, field, shouldPostFilter, ctx -> {
+        Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, isPostFilterDelegate, ctx -> {
             FloatVectorValues fvv = ctx.reader().getFloatVectorValues(field);
             return fvv != null ? fvv.size() : 0;
         },
@@ -130,7 +130,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
-        FixedBitSet newSeenDocs = buildRetrySeenDocs(seenDocs, capturedMergedResults, reader);
+        FixedBitSet newSeenDocs = PostFilterHelper.buildRetrySeenDocs(seenDocs, capturedMergedResults, reader);
         return new ESKnnFloatVectorQuery(
             field,
             getTargetCopy(),
@@ -162,6 +162,6 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return wrapCollectorManager(super.getKnnCollectorManager(k, searcher), seedResults, field, earlyTermination);
+        return PostFilterHelper.wrapCollectorManager(super.getKnnCollectorManager(k, searcher), seedResults, field, earlyTermination);
     }
 }

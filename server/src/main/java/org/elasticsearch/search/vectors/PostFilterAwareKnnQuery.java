@@ -87,6 +87,9 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
 
         for (int round = 0; round < MAX_ROUNDS; round++) {
             Query delegateQuery = (Query) current;
+            // The return value is intentionally discarded. The delegate's rewrite() executes the
+            // vector search as a side effect and populates capturedResults() on the same instance.
+            // We need the raw unfiltered TopDocs (via capturedResults()), not the rewritten query.
             delegateQuery.rewrite(searcher);
 
             TopDocs raw = current.capturedResults();
@@ -252,6 +255,9 @@ public class PostFilterAwareKnnQuery extends Query implements QueryProfilerProvi
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PostFilterAwareKnnQuery that = (PostFilterAwareKnnQuery) o;
+        // Weight doesn't implement equals/hashCode, so use identity comparison.
+        // This is acceptable because this query is always rewritten before execution
+        // and never needs cache matching.
         return k == that.k
             && delegate.equals(that.delegate)
             && filterWeight == that.filterWeight

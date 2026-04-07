@@ -33,7 +33,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     private long vectorOpsCount;
     private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
-    private final boolean shouldPostFilter;
+    private final boolean isPostFilterDelegate;
     private final FixedBitSet seenDocs;
     private final TopDocs seedResults;
 
@@ -73,7 +73,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        boolean shouldPostFilter,
+        boolean isPostFilterDelegate,
         FixedBitSet seenDocs,
         TopDocs seedResults
     ) {
@@ -82,14 +82,14 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         this.numCands = numCands;
         this.earlyTermination = earlyTermination;
         this.parentsFilter = parentsFilter;
-        this.shouldPostFilter = shouldPostFilter;
+        this.isPostFilterDelegate = isPostFilterDelegate;
         this.seenDocs = seenDocs;
         this.seedResults = seedResults;
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        Query postFiltered = maybePostFilterRewrite(indexSearcher, filter, field, shouldPostFilter, ctx -> {
+        Query postFiltered = PostFilterHelper.maybePostFilterRewrite(indexSearcher, filter, field, isPostFilterDelegate, ctx -> {
             ByteVectorValues bvv = ctx.reader().getByteVectorValues(field);
             return bvv != null ? bvv.size() : 0;
         },
@@ -137,7 +137,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
 
     @Override
     public PostFilterableKnnQuery createRetryQuery(IndexReader reader) {
-        FixedBitSet newSeenDocs = buildRetrySeenDocs(seenDocs, capturedMergedResults, reader);
+        FixedBitSet newSeenDocs = PostFilterHelper.buildRetrySeenDocs(seenDocs, capturedMergedResults, reader);
         return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),
@@ -166,6 +166,6 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
 
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return wrapCollectorManager(super.getKnnCollectorManager(k, searcher), seedResults, field, earlyTermination);
+        return PostFilterHelper.wrapCollectorManager(super.getKnnCollectorManager(k, searcher), seedResults, field, earlyTermination);
     }
 }

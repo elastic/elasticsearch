@@ -54,6 +54,10 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
     public KnnCollector newOptimisticCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx, int k)
         throws IOException {
         if (delegate.isOptimistic()) {
+            SeedResult seeds = buildSeedOrdinals(ctx);
+            if (seeds != null) {
+                searchStrategy = new KnnSearchStrategy.Seeded(seeds.ordinals, seeds.count, searchStrategy);
+            }
             return delegate.newOptimisticCollector(visitLimit, searchStrategy, ctx, k);
         }
         return null;
@@ -126,9 +130,21 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
 
             @Override
             public int advance(int target) {
-                while (idx < finalCount && docID() < target) {
-                    idx++;
+                if (idx >= finalCount) {
+                    return NO_MORE_DOCS;
                 }
+                // Binary search since ordinals are sorted
+                int lo = Math.max(0, idx);
+                int hi = finalCount;
+                while (lo < hi) {
+                    int mid = (lo + hi) >>> 1;
+                    if (finalOrdinals[mid] < target) {
+                        lo = mid + 1;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                idx = lo;
                 return docID();
             }
 

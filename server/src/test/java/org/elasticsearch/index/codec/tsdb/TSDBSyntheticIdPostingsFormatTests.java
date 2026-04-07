@@ -88,7 +88,6 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     public record Doc(long timestamp, String hostName, String metricField, Integer metricValue, int version, int routing) {}
 
     public void testTerms() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         runTest((writer, parser) -> {
 
             final var now = Instant.now();
@@ -197,7 +196,6 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     public void testSeek() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         runTestWithRandomDocs((writer, finalDocs) -> {
             try (var reader = DirectoryReader.open(writer)) {
                 assertThat(reader.getDocCount(IdFieldMapper.NAME), equalTo(finalDocs.values().stream().mapToInt(Doc::version).sum()));
@@ -393,7 +391,6 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     public void testSeekCeilWithShortOrEmptyTerms() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         runTestWithRandomDocs((writer, finalDocs) -> {
             try (var reader = DirectoryReader.open(writer)) {
                 assertThat(reader.leaves().size(), equalTo(1));

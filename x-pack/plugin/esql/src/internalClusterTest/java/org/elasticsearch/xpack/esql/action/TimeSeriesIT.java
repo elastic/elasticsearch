@@ -115,7 +115,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     @Before
     public void populateIndex() {
         Settings.Builder settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster"));
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             settings.put("index.codec", "default").put("index.number_of_replicas", 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         client().admin()
@@ -465,7 +465,29 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             request.allowPartialResults(false);
             run(request).close();
         });
-        assertThat(failure.getMessage(), containsString("Unknown index [hosts-old]"));
+        assertThat(failure.getMessage(), containsString("[hosts-old] is not a time series index. Use FROM command instead"));
+    }
+
+    public void testTsAgainstNonExistentIndex() {
+        Exception failure = expectThrows(Exception.class, () -> {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("TS does_not_exist | STATS count(host) BY host");
+            request.allowPartialResults(false);
+            run(request).close();
+        });
+        assertThat(failure.getMessage(), containsString("Unknown index [does_not_exist]"));
+    }
+
+    public void testTsAgainstWildcardMatchingOnlyNonTsdsIndices() {
+        // TS with a wildcard pattern that matches only non-TSDS indices should not produce "Unknown index"
+        // but should resolve to an empty mapping (no TSDS indices matched the pattern).
+        // The existing testIndexMode already covers "TS hosts*" which matches both TSDS and non-TSDS.
+        // Here we verify only non-TSDS indices are present.
+        createIndex("logs-test");
+        try (var resp = run("TS logs-test* | LIMIT 0")) {
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values, empty());
+        }
     }
 
     public void testTsStatsLastWithTimestampSort() {

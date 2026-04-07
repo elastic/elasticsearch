@@ -29,14 +29,14 @@ MARCH_AMD64_TIER2   = icelake-client
 # Compilers
 # Darwin cross-compilation: -nostdinc blocks host (glibc) headers, then we
 # add our minimal C++ std headers (tinystd) and clang builtins.
-CLANG_RESOURCE = $(shell clang++-18 -print-resource-dir)
-CLANG       = clang++-18 --target=arm64-apple-macos14 -Winline -nostdinc \
+CLANG_RESOURCE = $(shell clang++-21 -print-resource-dir)
+CLANG       = clang++-21 --target=arm64-apple-macos14 -Winline -nostdinc \
                 -isystem src/vec/headers/darwin/tinystd \
                 -isystem $(CLANG_RESOURCE)/include
-CLANG_LINK  = clang++-18 --target=arm64-apple-macos14 -fuse-ld=lld -nostdlib -Wl,-undefined,dynamic_lookup
-CLANG_STRIP = llvm-strip-18 --strip-debug
-GCC_ARM     = aarch64-linux-gnu-g++-14 -Winline
-GCC_X64     = g++-14 -Winline
+CLANG_LINK  = clang++-21 --target=arm64-apple-macos14 -fuse-ld=lld -nostdlib -Wl,-undefined,dynamic_lookup
+CLANG_STRIP = llvm-strip-21 --strip-debug
+CXX_ARM     = clang++-21 --target=aarch64-linux-gnu -Winline
+CXX_X64     = clang++-21 -Winline
 
 # Sources split by tier
 SRC_AARCH64_TIER1 = $(filter-out %_2.cpp, $(wildcard src/vec/c/aarch64/*.cpp))
@@ -66,7 +66,7 @@ SO_X64 = $(OUT_DIR_AMD64)/libvec.so
 
 # --- local: build for the current platform using the native compiler ---
 # On macOS, overrides CLANG/CLANG_LINK to use the system clang (SDK available natively).
-# On Linux, the GCC variables already use the native compiler.
+# On Linux aarch64, overrides CXX_ARM to drop the cross-compilation target.
 
 .PHONY: all clean local install
 
@@ -80,6 +80,7 @@ ifeq ($(shell uname -s),Darwin)
 else ifeq ($(shell uname -m),aarch64)
   LOCAL_PLATFORM = linux-aarch64
   LOCAL_OUTPUT   = $(SO_ARM)
+  local: CXX_ARM = clang++-21 -Winline
   local: $(SO_ARM)
 else
   LOCAL_PLATFORM = linux-x64
@@ -112,26 +113,26 @@ $(DYLIB): $(OBJ_DARWIN_TIER1) $(OBJ_DARWIN_TIER2) | $(OUT_DIR_AARCH64)
 # --- linux-aarch64 ---
 
 $(OBJ_LIN_ARM_TIER1): $(OBJ_LIN_ARM)/%.o: src/vec/c/aarch64/%.cpp | $(OBJ_LIN_ARM)
-	$(GCC_ARM) $(CXXFLAGS) -march=$(MARCH_AARCH64_TIER1) $(HEADERS) -c $< -o $@
+	$(CXX_ARM) $(CXXFLAGS) -march=$(MARCH_AARCH64_TIER1) $(HEADERS) -c $< -o $@
 
 $(OBJ_LIN_ARM_TIER2): $(OBJ_LIN_ARM)/%.o: src/vec/c/aarch64/%.cpp | $(OBJ_LIN_ARM)
-	$(GCC_ARM) $(CXXFLAGS) -march=$(MARCH_AARCH64_TIER2) $(HEADERS) -c $< -o $@
+	$(CXX_ARM) $(CXXFLAGS) -march=$(MARCH_AARCH64_TIER2) $(HEADERS) -c $< -o $@
 
 $(SO_ARM): $(OBJ_LIN_ARM_TIER1) $(OBJ_LIN_ARM_TIER2) | $(OUT_DIR_AARCH64)
-	$(GCC_ARM) -shared $^ -o $@
-	aarch64-linux-gnu-strip --strip-unneeded $@
+	$(CXX_ARM) -fuse-ld=lld -shared $^ -o $@
+	llvm-strip-21 --strip-unneeded $@
 
 # --- linux-x64 ---
 
 $(OBJ_LIN_X64_TIER1): $(OBJ_LIN_X64)/%.o: src/vec/c/amd64/%.cpp | $(OBJ_LIN_X64)
-	$(GCC_X64) $(CXXFLAGS) -march=$(MARCH_AMD64_TIER1) $(HEADERS) -c $< -o $@
+	$(CXX_X64) $(CXXFLAGS) -march=$(MARCH_AMD64_TIER1) $(HEADERS) -c $< -o $@
 
 $(OBJ_LIN_X64_TIER2): $(OBJ_LIN_X64)/%.o: src/vec/c/amd64/%.cpp | $(OBJ_LIN_X64)
-	$(GCC_X64) $(CXXFLAGS) -march=$(MARCH_AMD64_TIER2) $(HEADERS) -c $< -o $@
+	$(CXX_X64) $(CXXFLAGS) -march=$(MARCH_AMD64_TIER2) $(HEADERS) -c $< -o $@
 
 $(SO_X64): $(OBJ_LIN_X64_TIER1) $(OBJ_LIN_X64_TIER2) | $(OUT_DIR_AMD64)
-	$(GCC_X64) -shared $^ -o $@
-	strip --strip-unneeded $@
+	$(CXX_X64) -shared $^ -o $@
+	llvm-strip-21 --strip-unneeded $@
 
 # --- directories ---
 

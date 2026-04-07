@@ -112,7 +112,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                             final int nbDocs = randomIntBetween(10, 100);
                             for (int i = 0; i < nbDocs; i++) {
-                                if (i > 0 && randomBoolean()) {
+                                if (i > 0 && (randomBoolean() || i == nbDocs / 2)) {
                                     writer.flush();
                                 }
                                 Document doc = new Document();

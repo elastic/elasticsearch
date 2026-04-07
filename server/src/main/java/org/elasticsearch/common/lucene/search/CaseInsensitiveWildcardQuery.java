@@ -11,6 +11,7 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import static org.elasticsearch.common.lucene.search.AutomatonQueries.toCaseInsensitiveWildcardAutomaton;
 
@@ -26,8 +27,16 @@ public class CaseInsensitiveWildcardQuery extends AutomatonQuery {
         super(term, toCaseInsensitiveWildcardAutomaton(term));
     }
 
+    public CaseInsensitiveWildcardQuery(Term term, CircuitBreaker circuitBreaker) {
+        super(term, toCaseInsensitiveWildcardAutomaton(term, circuitBreaker));
+    }
+
     public CaseInsensitiveWildcardQuery(Term term, boolean isBinary, RewriteMethod rewriteMethod) {
         super(term, toCaseInsensitiveWildcardAutomaton(term), isBinary, rewriteMethod);
+    }
+
+    public CaseInsensitiveWildcardQuery(Term term, boolean isBinary, RewriteMethod rewriteMethod, CircuitBreaker circuitBreaker) {
+        super(term, toCaseInsensitiveWildcardAutomaton(term, circuitBreaker), isBinary, rewriteMethod);
     }
 
     @Override

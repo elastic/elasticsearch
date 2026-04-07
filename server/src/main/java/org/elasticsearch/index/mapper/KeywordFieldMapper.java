@@ -27,6 +27,7 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -1126,6 +1127,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 if (caseInsensitive == false) {
                     Term term = new Term(name(), value);
+                    if (context.getCircuitBreaker() != null) {
+                        Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
@@ -1156,6 +1161,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     );
                 } else {
                     Term term = new Term(name(), value);
+                    if (context.getCircuitBreaker() != null) {
+                        Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
             }
@@ -1189,6 +1198,17 @@ public final class KeywordFieldMapper extends FieldMapper {
                         maxDeterminizedStates
                     );
                 } else {
+                    if (context.getCircuitBreaker() != null) {
+                        Term term = new Term(name(), indexedValueForSearch(value));
+                        Automaton dfa = AutomatonQueries.toRegexpAutomaton(
+                            term,
+                            syntaxFlags,
+                            matchFlags,
+                            maxDeterminizedStates,
+                            context.getCircuitBreaker()
+                        );
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
                     return new RegexpQuery(
                         new Term(name(), indexedValueForSearch(value)),
                         syntaxFlags,

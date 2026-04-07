@@ -54,7 +54,6 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
-        preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "rate") }
     )
 

@@ -50,7 +50,6 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
-        preview = true,
         examples = { @Example(file = "k8s-timeseries", tag = "deriv") }
     )
     public Deriv(

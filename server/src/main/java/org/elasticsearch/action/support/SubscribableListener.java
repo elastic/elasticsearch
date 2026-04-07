@@ -649,7 +649,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     @SuppressWarnings("rawtypes")
-    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
+    private static final SubscribableListener NULL_SUCCESS = new SubscribableListener<>(SuccessResult.of(null));
 
     /**
      * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.

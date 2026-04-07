@@ -58,7 +58,11 @@ public class JdbcAssertNoSearchContextsIT extends JdbcIntegrationTestCase {
         assertEquals(200, searchResponse.getStatusLine().getStatusCode());
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(searchResponse.getEntity()), false);
+        Map<String, Object> map = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            EntityUtils.toString(searchResponse.getEntity()),
+            false
+        );
         String scrollId = (String) map.get("_scroll_id");
         assertNotNull(scrollId);
 
@@ -108,4 +112,3 @@ public class JdbcAssertNoSearchContextsIT extends JdbcIntegrationTestCase {
         return (Integer) search.get("open_contexts");
     }
 }
-

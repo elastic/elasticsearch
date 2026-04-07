@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -48,11 +47,11 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
     private ResolvedIndexExpressions resolvedIndexExpressions;
 
     /**
-     * Transport version of the peer that will receive the {@link SearchShardsResponse}. Set by the transport handler only;
-     * not serialized on the wire. When null, callers use {@link TransportVersion#current()} for can_match packaging.
+     * Server-internal: set by the {@code search_shards} transport handler only; not serialized on the wire.
+     * When {@code true}, can-match includes every shard in returned iterators with {@code skip} flags (BWC for peers that
+     * do not support aggregate skipped-shard accounting on {@link SearchShardsResponse}). Defaults to {@code false}.
      */
-    @Nullable
-    private transient TransportVersion responseSerializationTarget;
+    private transient boolean includeSkippedShardsInIterators;
 
     public SearchShardsRequest(
         String[] indices,
@@ -129,13 +128,12 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
     /**
      * Server-internal: invoked from the transport request handler before the action runs.
      */
-    public void setResponseSerializationTarget(TransportVersion responseSerializationTarget) {
-        this.responseSerializationTarget = responseSerializationTarget;
+    public void setIncludeSkippedShardsInIterators(boolean includeSkippedShardsInIterators) {
+        this.includeSkippedShardsInIterators = includeSkippedShardsInIterators;
     }
 
-    @Nullable
-    public TransportVersion getResponseSerializationTarget() {
-        return responseSerializationTarget;
+    public boolean includeSkippedShardsInIterators() {
+        return includeSkippedShardsInIterators;
     }
 
     public String clusterAlias() {

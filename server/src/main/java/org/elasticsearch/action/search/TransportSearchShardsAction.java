@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
@@ -42,7 +41,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -92,7 +90,9 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
             true,
             SearchShardsRequest::new,
             (request, channel, task) -> {
-                request.setResponseSerializationTarget(channel.getVersion());
+                request.setIncludeSkippedShardsInIterators(
+                    channel.getVersion().supports(SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2) == false
+                );
                 executeDirect(task, request, new ChannelActionListener<>(channel));
             }
         );
@@ -193,8 +193,6 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
                         searchRequest,
                         concreteIndexNames
                     );
-                    TransportVersion serializationTarget = Optional.ofNullable(searchShardsRequest.getResponseSerializationTarget())
-                        .orElse(TransportVersion.current());
                     CanMatchPreFilterSearchPhase.execute(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(project.cluster().nodes().get(node));
@@ -210,7 +208,7 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                         searchResponseMetrics,
                         searchRequestAttributes,
-                        serializationTarget
+                        searchShardsRequest.includeSkippedShardsInIterators()
                     )
                         .addListener(
                             delegate.map(

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -2095,7 +2094,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     searchResponseMetrics,
                     searchRequestAttributes,
-                    TransportVersion.current()
+                    false
                 ).addListener(listener.delegateFailureAndWrap((l, canMatchResult) -> {
                     skippedByClusterAlias.forEach(
                         (cluster, count) -> canMatchResult.skippedByClusterAlias().merge(cluster, count, Integer::sum)

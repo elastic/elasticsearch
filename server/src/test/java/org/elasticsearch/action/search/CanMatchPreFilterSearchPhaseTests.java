@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
@@ -179,7 +178,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             EMPTY_CONTEXT_PROVIDER,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of(),
-            TransportVersion.current()
+            false
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -203,10 +202,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     }
 
     /**
-     * When the serialization target does not support {@link SearchShardsResponse#SEARCH_SHARDS_NUM_SKIPPED2}, skipped shards must appear
-     * as iterators with {@link SearchShardIterator#skip()} true and
+     * When {@code includeSkippedShardsInIterators} is {@code true} (as for peers before {@link SearchShardsResponse#SEARCH_SHARDS_NUM_SKIPPED2}),
+     * skipped shards must appear as iterators with {@link SearchShardIterator#skip()} true and
      * {@link CanMatchPreFilterSearchPhase.CanMatchResult#skippedByClusterAlias()} must stay empty so {@link SearchShardsResponse} can
-     * serialize to older peers.
+     * serialize to those peers.
      */
     public void testBwcPacksSkipsOnIteratorsWhenAggregateCountUnsupported() throws InterruptedException {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
@@ -248,8 +247,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
 
-        TransportVersion oldPeer = new TransportVersion(SearchShardsResponse.SEARCH_SHARDS_NUM_SKIPPED2.id() - 1);
-
         CanMatchPreFilterSearchPhase.execute(
             logger,
             searchTransportService,
@@ -265,7 +262,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             EMPTY_CONTEXT_PROVIDER,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of(),
-            oldPeer
+            true
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -354,7 +351,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             EMPTY_CONTEXT_PROVIDER,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of(),
-            TransportVersion.current()
+            false
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -459,7 +456,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 EMPTY_CONTEXT_PROVIDER,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 Map.of(),
-                TransportVersion.current()
+                false
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -565,7 +562,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 EMPTY_CONTEXT_PROVIDER,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 Map.of(),
-                TransportVersion.current()
+                false
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -1554,7 +1551,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 contextProvider,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 Map.of(),
-                TransportVersion.current()
+                false
             ),
             requests
         );

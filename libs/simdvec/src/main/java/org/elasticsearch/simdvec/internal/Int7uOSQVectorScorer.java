@@ -58,6 +58,8 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         }
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
+
+        // TODO: remove when we switch to dotProductI7uBulkSparse
         if ((input instanceof MemorySegmentAccessInput) == false) {
             return Optional.empty();
         }

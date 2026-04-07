@@ -17,6 +17,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 
+import java.io.IOException;
 import java.util.Optional;
 
 /** A factory of quantized vector scorers. */
@@ -186,7 +187,7 @@ public interface VectorScorerFactory {
         VectorSimilarityType similarityType,
         IndexInput input,
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
-    );
+    ) throws IOException;
 
     /**
      * Returns an optional containing an int4 packed-nibble query-time vector scorer
@@ -209,5 +210,5 @@ public interface VectorScorerFactory {
         float upperInterval,
         float additionalCorrection,
         int quantizedComponentSum
-    );
+    ) throws IOException;
 }

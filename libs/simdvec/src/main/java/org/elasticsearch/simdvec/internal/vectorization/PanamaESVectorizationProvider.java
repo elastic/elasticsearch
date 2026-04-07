@@ -80,11 +80,11 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) {
+    public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
 
-        if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
+        if (IndexInputUtils.canGetSingleSegment(unwrappedInput)) {
             return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize);
         }
         return new ES92Int7VectorsScorer(input, dimension, bulkSize);
@@ -96,7 +96,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         if (NATIVE_SUPPORTED) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-            if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
+            if (IndexInputUtils.canGetSingleSegment(unwrappedInput)) {
                 return new NativeBinaryQuantizedVectorScorer(unwrappedInput, dimensions, vectorLengthInBytes);
             }
         }

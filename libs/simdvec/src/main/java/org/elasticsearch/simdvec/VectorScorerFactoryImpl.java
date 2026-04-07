@@ -25,6 +25,7 @@ import org.elasticsearch.simdvec.internal.ByteVectorScorer;
 import org.elasticsearch.simdvec.internal.ByteVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.FloatVectorScorer;
 import org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.Int4VectorScorer;
 import org.elasticsearch.simdvec.internal.Int4VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
@@ -32,6 +33,7 @@ import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorerSupplier;
 
+import java.io.IOException;
 import java.util.Optional;
 
 final class VectorScorerFactoryImpl implements VectorScorerFactory {
@@ -162,6 +164,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     ) {
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
+        // TODO: remove when we switch to dotProductI7uBulkSparse
         if (input instanceof MemorySegmentAccessInput msInput) {
             checkInvariants(values.size(), values.dimension(), input);
             return switch (similarityType) {
@@ -199,10 +202,14 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         VectorSimilarityType similarityType,
         IndexInput input,
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
-    ) {
+    ) throws IOException {
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         checkInvariants(values.size(), values.dimension() / 2, input);
+        // TODO: remove when we switch to dotProductI4BulkSparse
+        if (IndexInputUtils.canGetSingleSegment(input) == false) {
+            return Optional.empty();
+        }
         return Optional.of(new Int4VectorScorerSupplier(input, values, similarityType));
     }
 
@@ -215,7 +222,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         float upperInterval,
         float additionalCorrection,
         int quantizedComponentSum
-    ) {
+    ) throws IOException {
         return Int4VectorScorer.create(
             sim,
             values,

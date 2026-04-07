@@ -19,6 +19,56 @@ emp_no:integer
 // LIMIT BY
 //
 
+docsLimitBy
+required_capability: esql_limit_by
+
+// tag::limitBy[]
+FROM employees
+| SORT salary DESC
+| LIMIT 1 BY gender
+| KEEP first_name, last_name, salary, gender
+// end::limitBy[]
+;
+
+// tag::limitBy-result[]
+first_name:keyword | last_name:keyword | salary:integer | gender:keyword
+Otmar              | Herbst            | 74999          | M
+Tzvetan            | Zielinski         | 74572          | F
+Lillian            | Haddadi           | 73717          | null
+// end::limitBy-result[]
+;
+
+docsLimitByMultipleGroups
+required_capability: esql_limit_by
+
+// tag::limitByMultipleGroups[]
+FROM employees
+| SORT salary DESC
+| LIMIT 1 BY languages, gender
+// end::limitByMultipleGroups[]
+| SORT languages DESC NULLS LAST, gender DESC NULLS LAST, salary DESC
+| KEEP first_name, last_name, salary, languages, gender
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer | gender:keyword
+Premal             | Baek              | 52833          | 5                 | M
+Arumugam           | Ossenbruggen      | 66817          | 5                 | F
+Patricio           | Bridgland         | 48942          | 5                 | null
+Mayumi             | Schueller         | 65367          | 4                 | M
+Tzvetan            | Zielinski         | 74572          | 4                 | F
+Duangkaew          | Piveteau          | 45797          | 4                 | null
+Moss               | Shanbhogue        | 74970          | 3                 | M
+Erez               | Ritzmann          | 62405          | 3                 | F
+Georgi             | Facello           | 57305          | 2                 | M
+Valter             | Sullins           | 73578          | 2                 | F
+Kazuhito           | Cappelletti       | 61358          | 2                 | null
+null               | Merlo             | 70011          | 1                 | M
+Sumant             | Peac              | 66174          | 1                 | F
+Lillian            | Haddadi           | 73717          | 1                 | null
+Otmar              | Herbst            | 74999          | null              | M
+Divier             | Reistad           | 73851          | null              | F
+;
+
 limitBy
 required_capability: esql_limit_by
 
@@ -354,6 +404,7 @@ Mayumi             | Schueller         | 65367          | 4                 | M
 
 sortLimitByQualifiedName
 required_capability: esql_topn_by
+required_capability: name_qualifiers
 
 FROM employees
 | SORT salary DESC
@@ -1033,4 +1084,89 @@ emp_no:integer | language_code:integer | language_name:keyword
 10004          | 5                     | null
 10005          | 1                     | English
 10005          | 1                     | English
+;
+
+limitByWithEnrich
+required_capability: enrich_load
+required_capability: limit_by_enrich_fix
+
+FROM *
+| ENRICH languages_policy on street
+| KEEP abbrev, integer, year
+| LIMIT 1 BY abbrev
+| SORT abbrev
+| LIMIT 5
+;
+
+abbrev:keyword | integer:integer | year:integer
+ABJ            | null            | null
+ABQ            | null            | null
+ABV            | null            | null
+ACA            | null            | null
+ACC            | null            | null
+;
+
+limitByWithGrok
+required_capability: esql_topn_by
+
+FROM employees
+| SORT emp_no
+| GROK first_name "(?<first_letter>.)(?<rest>.*)"
+| LIMIT 2 BY first_letter
+| KEEP first_name, first_letter, emp_no
+| LIMIT 10
+;
+
+first_name:keyword | first_letter:keyword | emp_no:integer
+Georgi             | G                    | 10001
+Bezalel            | B                    | 10002
+Parto              | P                    | 10003
+Chirstian          | C                    | 10004
+Kyoichi            | K                    | 10005
+Anneke             | A                    | 10006
+Tzvetan            | T                    | 10007
+Saniya             | S                    | 10008
+Sumant             | S                    | 10009
+Duangkaew          | D                    | 10010
+;
+
+limitByWithUriParts
+required_capability: esql_topn_by
+
+FROM web_logs
+| SORT uri
+| URI_PARTS p = uri
+| LIMIT 1 BY p.domain
+| KEEP p.scheme, p.domain, p.path, p.query
+;
+
+p.scheme:keyword | p.domain:keyword   | p.path:keyword           | p.query:keyword
+null             | null               | /api/v1/users/123        | null
+ftp              | files.internal     | /data.zip                | null
+https            | discuss.elastic.co | /c/elasticsearch         | null
+https            | github.com         | /elastic/elasticsearch   | null
+https            | www.elastic.co     | /downloads/elasticsearch | null
+https            | www.google.com     | /search                  | q=elasticsearch
+https            | www.iana.org       | /domains/reserved        | null
+;
+
+limitByWithRerank
+required_capability: esql_topn_by
+required_capability: rerank
+required_capability: match_operator_colon
+
+FROM books
+| SORT book_no
+| LIMIT 5
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| LIMIT 3 BY _score
+| KEEP book_no, title, author, _score
+;
+
+book_no:keyword | title:text                                            | author:text              | _score:double
+1211            | The brothers Karamazov                                | Fyodor Dostoevsky        | 0.04545454680919647
+1463            | Realms of Tolkien: Images of Middle-earth             | J. R. R. Tolkien         | 0.024390242993831635
+1502            | Selected Passages from Correspondence with Friends    | Nikolai Vasilevich Gogol | 0.019999999552965164
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | Fyodor Dostoevsky        | 0.01886792480945587
+1985            | Brothers Karamazov                                    | Fyodor Dostoevsky        | 0.0555555559694767
 ;

@@ -3,30 +3,55 @@
 #define VEC_COMMON_H
 
 #include <stdint.h>
-#include <assert.h>
 #include <type_traits>
 #include <utility>
 
 template <uintptr_t align>
 static inline uintptr_t align_downwards(const void* ptr) {
     static_assert(align > 0 && (align & (align - 1)) == 0, "Align must be a power of 2");
-    assert(ptr != 0);
 
     uintptr_t addr = (uintptr_t)ptr;
     // Round down to align-byte boundary
     addr &= -align;
-    assert(addr <= (uintptr_t)ptr);
     return addr;
 }
 
-template <typename T>
-static inline auto dot_scalar(const T a, const T b) {
+template <typename T, typename U>
+static inline auto dot_scalar(const T a, const U b) {
     return a * b;
 }
 
-template <typename T>
-static inline auto sqr_scalar(const T a, const T b) {
+template <>
+inline auto dot_scalar<uint16_t, uint16_t>(const uint16_t a, const uint16_t b) {
+    const f32_t af = __builtin_bit_cast(f32_t, a << 16);
+    const f32_t bf = __builtin_bit_cast(f32_t, b << 16);
+    return af * bf;
+}
+
+template <>
+inline auto dot_scalar<uint16_t, f32_t>(const uint16_t a, const f32_t b) {
+    const f32_t af = __builtin_bit_cast(f32_t, a << 16);
+    return af * b;
+}
+
+template <typename T, typename U>
+static inline auto sqr_scalar(const T a, const U b) {
     auto d = a - b;
+    return d * d;
+}
+
+template <>
+inline auto sqr_scalar<uint16_t, uint16_t>(const uint16_t a, const uint16_t b) {
+    const f32_t af = __builtin_bit_cast(f32_t, a << 16);
+    const f32_t bf = __builtin_bit_cast(f32_t, b << 16);
+    auto d = af - bf;
+    return d * d;
+}
+
+template <>
+inline auto sqr_scalar<uint16_t, f32_t>(const uint16_t a, const f32_t b) {
+    const f32_t af = __builtin_bit_cast(f32_t, a << 16);
+    auto d = af - b;
     return d * d;
 }
 

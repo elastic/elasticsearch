@@ -1,6 +1,8 @@
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.2.0
+
+
+serverless: ga
+stack: preview 9.2, ga 9.4
 ```
 
 The `TS` source command is similar to the [`FROM`](/reference/query-languages/esql/commands/from.md)
@@ -52,6 +54,8 @@ You can also combine time series aggregation functions with regular [aggregation
 
 However, using a time series aggregation function in combination with an inner time series function causes an error. For an example, refer to [Invalid query: nested time series functions](#invalid-query-nested-time-series-functions).
 
+If there is no `STATS` command in the query, the output of the `TS` command gets sorted by `@timestamp` in descending order by default. This helps listing recent values across many time series, as opposed to listing the results based on index sort configuration that may just return data points for a single time series.
+
 ## Best practices
 
 - Avoid aggregating multiple metrics in the same query when those metrics have different dimensional cardinalities.
@@ -66,6 +70,10 @@ However, using a time series aggregation function in combination with an inner t
   [`FORK`](/reference/query-languages/esql/commands/fork.md)) before the `STATS` command is applied. Once `STATS` is
   applied, you can process the tabular output with any applicable ES|QL operations.
 - Add a time range filter on `@timestamp` to limit the data volume scanned and improve query performance.
+- Time series aggregations produce large result sets, especially if they involve many dimensions and small time buckets.
+  The limits are updated accordingly, with the default result truncation size increased to 10,000 rows. For more
+  information on the limits and how to adjust them, refer to
+  [Result set size limitation](/reference/query-languages/esql/_snippets/common/result-set-size-limitation.md).
 
 ## Examples
 

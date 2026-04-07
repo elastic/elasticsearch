@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -30,6 +31,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
 public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
+    private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:.*/.*;base64,");
+
     static final String TYPE_FIELD = "type";
     static final String FORMAT_FIELD = "format";
     static final String VALUE_FIELD = "value";
@@ -67,6 +70,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
         validateTypeAndFormat();
         this.value = Objects.requireNonNull(value);
+        validateDataURIFormat();
     }
 
     private void validateTypeAndFormat() {
@@ -79,6 +83,17 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
                     dataType.getSupportedFormats()
                 )
             );
+        }
+    }
+
+    private void validateDataURIFormat() {
+        if (dataFormat == DataFormat.BASE64) {
+            var endOfURIPart = value.indexOf(',');
+            if (endOfURIPart < 0 || DATA_URI_PATTERN.matcher(value.substring(0, endOfURIPart + 1)).matches() == false) {
+                throw new IllegalArgumentException(
+                    "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
+                );
+            }
         }
     }
 

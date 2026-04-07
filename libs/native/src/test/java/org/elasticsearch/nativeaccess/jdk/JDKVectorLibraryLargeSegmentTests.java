@@ -81,7 +81,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             byte[][] vectors = new byte[numVecs][];
             for (int i = 0; i < numVecs; i++) {
                 vectors[i] = randomByteArrayOfLength(dims);
-                MemorySegment.copy(MemorySegment.ofArray(vectors[i]), JAVA_BYTE, 0L, vectorsSegment, JAVA_BYTE, (long) i * dims, dims);
+                MemorySegment.copy(vectors[i], 0, vectorsSegment, JAVA_BYTE, (long) i * dims, dims);
             }
 
             var offsetsSegment = arena.allocate(Integer.BYTES);
@@ -93,7 +93,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
                 .invokeExact(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
-            float expected = dotProductI8Scalar(vectors[0], vectors[1]);
+            float expected = ScalarOperations.dotProduct(vectors[0], vectors[1]);
             assertEquals(expected, actual, 1e-5f * dims);
         }
     }
@@ -109,7 +109,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             byte[][] vectors = new byte[numVecs][];
             for (int i = 0; i < numVecs; i++) {
                 vectors[i] = randomByteArrayOfLength(dims);
-                MemorySegment.copy(MemorySegment.ofArray(vectors[i]), JAVA_BYTE, 0L, vectorsSegment, JAVA_BYTE, (long) i * dims, dims);
+                MemorySegment.copy(vectors[i], 0, vectorsSegment, JAVA_BYTE, (long) i * dims, dims);
             }
 
             var offsetsSegment = arena.allocate(Integer.BYTES);
@@ -121,7 +121,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
                 .invokeExact(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
-            float expected = squareDistanceI8Scalar(vectors[0], vectors[1]);
+            float expected = ScalarOperations.squareDistance(vectors[0], vectors[1]);
             assertEquals(expected, actual, 1e-5f * dims);
         }
     }
@@ -137,7 +137,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             byte[][] vectors = new byte[numVecs][];
             for (int i = 0; i < numVecs; i++) {
                 vectors[i] = randomByteArrayOfLength(dims);
-                MemorySegment.copy(MemorySegment.ofArray(vectors[i]), JAVA_BYTE, 0L, vectorsSegment, JAVA_BYTE, (long) i * dims, dims);
+                MemorySegment.copy(vectors[i], 0, vectorsSegment, JAVA_BYTE, (long) i * dims, dims);
             }
 
             var offsetsSegment = arena.allocate(Integer.BYTES);
@@ -149,7 +149,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
                 .invokeExact(vectorsSegment, querySegment, dims, dims, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
-            float expected = cosineI8Scalar(vectors[0], vectors[1]);
+            float expected = ScalarOperations.cosine(vectors[0], vectors[1]);
             assertEquals(expected, actual, 1e-5f * dims);
         }
     }
@@ -166,15 +166,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
             for (int i = 0; i < numVecs; i++) {
                 vectors[i] = randomFloatArray(dims);
                 long dstOffset = (long) i * dims * Float.BYTES;
-                MemorySegment.copy(
-                    MemorySegment.ofArray(vectors[i]),
-                    JAVA_FLOAT_UNALIGNED,
-                    0L,
-                    vectorsSegment,
-                    JAVA_FLOAT_UNALIGNED,
-                    dstOffset,
-                    dims
-                );
+                MemorySegment.copy(vectors[i], 0, vectorsSegment, JAVA_FLOAT_UNALIGNED, dstOffset, dims);
             }
 
             int pitch = dims * Float.BYTES;
@@ -187,46 +179,9 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
                 .invokeExact(vectorsSegment, querySegment, dims, pitch, offsetsSegment, 1, scoresSegment);
 
             float actual = scoresSegment.get(JAVA_FLOAT_UNALIGNED, 0);
-            float expected = dotProductF32Scalar(vectors[0], vectors[1]);
+            float expected = ScalarOperations.dotProduct(vectors[0], vectors[1]);
             assertEquals(expected, actual, 1e-5f * dims);
         }
-    }
-
-    static int dotProductI8Scalar(byte[] a, byte[] b) {
-        int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += a[i] * b[i];
-        }
-        return res;
-    }
-
-    static int squareDistanceI8Scalar(byte[] a, byte[] b) {
-        int squareSum = 0;
-        for (int i = 0; i < a.length; i++) {
-            int diff = a[i] - b[i];
-            squareSum += diff * diff;
-        }
-        return squareSum;
-    }
-
-    static float cosineI8Scalar(byte[] a, byte[] b) {
-        int sum = 0;
-        int norm1 = 0;
-        int norm2 = 0;
-        for (int i = 0; i < a.length; i++) {
-            sum += a[i] * b[i];
-            norm1 += a[i] * a[i];
-            norm2 += b[i] * b[i];
-        }
-        return (float) (sum / Math.sqrt((double) norm1 * (double) norm2));
-    }
-
-    static float dotProductF32Scalar(float[] a, float[] b) {
-        float res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += a[i] * b[i];
-        }
-        return res;
     }
 
     static float[] randomFloatArray(int length) {

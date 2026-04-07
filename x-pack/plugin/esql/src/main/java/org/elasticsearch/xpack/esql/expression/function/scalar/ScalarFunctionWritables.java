@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DaysInMonth;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
@@ -101,6 +102,7 @@ public class ScalarFunctionWritables {
         entries.add(DateFormat.ENTRY);
         entries.add(DateParse.ENTRY);
         entries.add(DateTrunc.ENTRY);
+        entries.add(DaysInMonth.ENTRY);
         entries.add(DayName.ENTRY);
         entries.add(RangeWithin.ENTRY);
         entries.add(MonthName.ENTRY);

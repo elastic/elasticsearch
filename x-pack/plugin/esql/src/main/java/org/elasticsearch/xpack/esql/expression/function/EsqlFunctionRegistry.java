@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DaysInMonth;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
@@ -473,6 +474,7 @@ public class EsqlFunctionRegistry {
                 DateFormat.DEFINITION,
                 DateParse.DEFINITION,
                 DateTrunc.DEFINITION,
+                DaysInMonth.DEFINITION,
                 DayName.DEFINITION,
                 MonthName.DEFINITION,
                 Now.DEFINITION,

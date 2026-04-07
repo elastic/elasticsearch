@@ -1,0 +1,18 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "scalar",
+  "name" : "days_in_month",
+  "description" : "Returns the number of days in the month of the evaluation timestamp.",
+  "signatures" : [
+    {
+      "params" : [ ],
+      "variadic" : false,
+      "returnType" : "scalar"
+    }
+  ],
+  "examples" : [
+    "days_in_month()"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DaysInMonth;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
@@ -148,6 +149,7 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.DAY_OF_MONTH,
         PromqlBuiltinFunctionDefinitions.DAY_OF_WEEK,
         PromqlBuiltinFunctionDefinitions.DAY_OF_YEAR,
+        PromqlBuiltinFunctionDefinitions.DAYS_IN_MONTH,
         PromqlBuiltinFunctionDefinitions.HOUR,
         PromqlBuiltinFunctionDefinitions.MINUTE,
         PromqlBuiltinFunctionDefinitions.TIME, };
@@ -190,7 +192,6 @@ public class PromqlFunctionRegistry {
         "sort_desc",
 
         // Time functions
-        "days_in_month",
         "timestamp",
 
         // Label manipulation functions

@@ -1995,6 +1995,11 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for PromQL days_in_month() function.
+         */
+        PROMQL_DAYS_IN_MONTH,
+
+        /**
          * Support for deriving PromQL time buckets from [start, end, buckets] when [step] is omitted.
          */
         PROMQL_BUCKETS_PARAMETER,

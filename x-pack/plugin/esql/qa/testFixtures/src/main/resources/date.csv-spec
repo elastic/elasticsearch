@@ -1124,6 +1124,19 @@ Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-06-02
 // end::docsDateFormat-result[]
 ;
 
+docsDaysInMonth
+// tag::docsDaysInMonth[]
+ROW dt = to_datetime("2024-02-15T00:00:00.000Z")
+| EVAL days = DAYS_IN_MONTH(dt)
+// end::docsDaysInMonth[]
+;
+
+// tag::docsDaysInMonth-result[]
+dt:date                | days:long
+2024-02-15T00:00:00.000Z | 29
+// end::docsDaysInMonth-result[]
+;
+
 evalDateFormatString
 required_capability: string_literal_auto_casting
 

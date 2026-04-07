@@ -67,18 +67,35 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     public static final Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(
+            // non-system indices definied in files in x-pack/plugin/core/template-resources/src/main/resources/ml:
             "\\.ml-anomalies-.*",
             "\\.ml-annotations-\\d+",
-            "\\.ml-state-\\d+",
-            "\\.ml-stats-\\d+",
+            "\\.ml-notifications-.*",
+            "\\.ml-state.*",
+            "\\.ml-stats-.*",
+            // non-system Observability indices:
             "\\.slo-observability\\.sli-v\\d+.*",
             "\\.slo-observability\\.summary-v\\d+.*",
+            // non-system Security index:
             "\\.entities\\.v\\d+\\..*",
+            // non-system indices or data streams defined in files in x-pack/plugin/core/template-resources/src/main/resources/monitoring-*:
             "\\.monitoring-es-8-.*",
             "\\.monitoring-logstash-8-.*",
             "\\.monitoring-kibana-8-.*",
             "\\.monitoring-beats-8-.*",
-            "\\.monitoring-ent-search-8-.*"
+            "\\.monitoring-ent-search-8-.*",
+            // non-system data streams defined in files in x-pack/plugin/core/template-resources/src/main/resources/fleet-*:
+            "\\.fleet-fileds-fromhost-data-.*",
+            "\\.fleet-fileds-fromhost-meta-.*",
+            "\\.fleet-fileds-tohost-data-.*",
+            "\\.fleet-fileds-tohost-meta-.*",
+            // non system data stream definied in x-pack/plugin/core/template-resources/src/main/resources/kibana-reporting@template.json:
+            "\\.kibana-reporting.*",
+            // non-system data stream defined in x-pack/plugin/core/template-resources/src/main/resources/slm-history.json:
+            "\\.slm-history-7.*",
+            // non-system index defined in
+            // x-pack/plugin/ent-search/src/main/java/org/elasticsearch/xpack/application/connector/ConnectorTemplateRegistry.java
+            "\\.search-acl-filter-.*"
         ),
         (patternList) -> patternList.forEach(pattern -> {
             try {

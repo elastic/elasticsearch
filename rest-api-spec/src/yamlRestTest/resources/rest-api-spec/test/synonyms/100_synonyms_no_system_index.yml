@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: Introduced in 8.10.0
 ---
 "Get synonyms sets returns not found when no index exists":

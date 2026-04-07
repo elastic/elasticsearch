@@ -10,59 +10,34 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class SinhTests extends AbstractFunctionTestCase {
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
+
+public class SinhTests extends AbstractScalarFunctionTestCase {
     public SinhTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
-            "SinhEvaluator",
-            "val",
-            Math::sinh,
-            -710d,
-            710d,  // Hyperbolic sine grows extremely fast. Values outside this range return Double.POSITIVE_INFINITY
-            List.of()
-        );
-        suppliers = anyNullIsNull(true, suppliers);
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        UnaryTestCaseHelper helper = unary().evaluatorToString("SinhEvaluator[val=%0]").expectedFromDouble(Math::sinh);
+        helper.castingToDouble(-710d, 710d, true, suppliers);
 
         // Out of range cases
-        suppliers.addAll(
-            TestCaseSupplier.forUnaryCastingToDouble(
-                "SinhEvaluator",
-                "val",
-                k -> null,
-                Double.NEGATIVE_INFINITY,
-                -711d,
-                List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "java.lang.ArithmeticException: sinh overflow"
-                )
-            )
-        );
-        suppliers.addAll(
-            TestCaseSupplier.forUnaryCastingToDouble(
-                "SinhEvaluator",
-                "val",
-                k -> null,
-                711d,
-                Double.POSITIVE_INFINITY,
-                List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "java.lang.ArithmeticException: sinh overflow"
-                )
-            )
-        );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        UnaryTestCaseHelper overflow = helper.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: sinh overflow"));
+        overflow.castingToDouble(Double.NEGATIVE_INFINITY, -711d, false, suppliers);
+        overflow.castingToDouble(711d, Double.POSITIVE_INFINITY, false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

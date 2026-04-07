@@ -8,16 +8,18 @@
 package org.elasticsearch.xpack.ml.notifications;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.ml.notifications.SystemAuditMessage;
 
 public class SystemAuditor extends AbstractMlAuditor<SystemAuditMessage> {
 
-    public SystemAuditor(Client client, ClusterService clusterService) {
+    public SystemAuditor(Client client, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(
             client,
             (resourceId, message, level, timestamp, nodeName) -> new SystemAuditMessage(message, level, timestamp, nodeName),
-            clusterService
+            clusterService,
+            indexNameExpressionResolver
         );
     }
 
@@ -42,12 +44,12 @@ public class SystemAuditor extends AbstractMlAuditor<SystemAuditMessage> {
     @Override
     public void warning(String resourceId, String message) {
         assert resourceId == null;
-        super.info(null, message);
+        super.warning(null, message);
     }
 
     @Override
     public void error(String resourceId, String message) {
         assert resourceId == null;
-        super.info(null, message);
+        super.error(null, message);
     }
 }

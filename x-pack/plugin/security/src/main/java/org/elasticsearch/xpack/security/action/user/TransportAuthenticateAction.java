@@ -10,7 +10,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -18,10 +19,10 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.operator.OperatorPrivilegesUtil;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 
 public class TransportAuthenticateAction extends HandledTransportAction<AuthenticateRequest, AuthenticateResponse> {
 
@@ -35,7 +36,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
         SecurityContext securityContext,
         AnonymousUser anonymousUser
     ) {
-        super(AuthenticateAction.NAME, transportService, actionFilters, AuthenticateRequest::new);
+        super(AuthenticateAction.NAME, transportService, actionFilters, AuthenticateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = securityContext;
         this.anonymousUser = anonymousUser;
     }
@@ -60,7 +61,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
             listener.onResponse(
                 new AuthenticateResponse(
                     authentication.maybeAddAnonymousRoles(anonymousUser),
-                    OperatorPrivileges.isOperator(securityContext.getThreadContext())
+                    OperatorPrivilegesUtil.isOperator(securityContext.getThreadContext())
                 )
             );
         }

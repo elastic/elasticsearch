@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
@@ -48,7 +49,7 @@ public class CIDRUtils {
         return isBetween(addr, lower, upper);
     }
 
-    private static Tuple<byte[], byte[]> getLowerUpper(Tuple<InetAddress, Integer> cidr) {
+    public static Tuple<byte[], byte[]> getLowerUpper(Tuple<InetAddress, Integer> cidr) {
         final InetAddress value = cidr.v1();
         final Integer prefixLength = cidr.v2();
 
@@ -81,7 +82,7 @@ public class CIDRUtils {
 
     // Borrowed from Lucene to make this consistent IP fields matching for the mix of IPv4 and IPv6 values
     // Modified signature to avoid extra conversions
-    private static byte[] encode(byte[] address) {
+    public static byte[] encode(byte[] address) {
         if (address.length == 4) {
             byte[] mapped = new byte[16];
             System.arraycopy(IPV4_PREFIX, 0, mapped, 0, IPV4_PREFIX.length);

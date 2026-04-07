@@ -8,31 +8,36 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MedianAbsoluteDeviationLongAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MedianAbsoluteDeviationLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  public MedianAbsoluteDeviationLongAggregatorFunctionSupplier() {
+  }
 
-  private final List<Integer> channels;
+  @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MedianAbsoluteDeviationLongAggregatorFunction.intermediateStateDesc();
+  }
 
-  public MedianAbsoluteDeviationLongAggregatorFunctionSupplier(BigArrays bigArrays,
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MedianAbsoluteDeviationLongGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public MedianAbsoluteDeviationLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    this.bigArrays = bigArrays;
-    this.channels = channels;
+    return new MedianAbsoluteDeviationLongAggregatorFunction(driverContext, channels);
   }
 
   @Override
-  public MedianAbsoluteDeviationLongAggregatorFunction aggregator() {
-    return MedianAbsoluteDeviationLongAggregatorFunction.create(channels);
-  }
-
-  @Override
-  public MedianAbsoluteDeviationLongGroupingAggregatorFunction groupingAggregator() {
-    return MedianAbsoluteDeviationLongGroupingAggregatorFunction.create(channels, bigArrays);
+  public MedianAbsoluteDeviationLongGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext, List<Integer> channels) {
+    return new MedianAbsoluteDeviationLongGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

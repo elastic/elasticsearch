@@ -18,6 +18,6 @@ public class ExecuteWatchAction extends ActionType<ExecuteWatchResponse> {
     public static final String NAME = "cluster:admin/xpack/watcher/watch/execute";
 
     private ExecuteWatchAction() {
-        super(NAME, ExecuteWatchResponse::new);
+        super(NAME);
     }
 }

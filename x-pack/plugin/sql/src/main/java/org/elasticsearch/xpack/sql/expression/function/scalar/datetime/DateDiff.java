@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -14,7 +15,6 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -114,7 +114,7 @@ public class DateDiff extends ThreeArgsDateTimeFunction {
 
         private static int safeInt(long diff) {
             if (diff > Integer.MAX_VALUE || diff < Integer.MIN_VALUE) {
-                throw new SqlIllegalArgumentException(
+                throw new InvalidArgumentException(
                     "The DATE_DIFF function resulted in an overflow; the number of units "
                         + "separating two date/datetime instances is too large. Try to use DATE_DIFF with a less precise unit."
                 );

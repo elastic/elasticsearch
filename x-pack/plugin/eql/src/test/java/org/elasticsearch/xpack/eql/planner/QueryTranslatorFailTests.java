@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.analysis.VerificationException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.ParsingException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
@@ -188,8 +189,8 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
     }
 
     public void testPropertyEquationFilterUnsupported() {
-        QlIllegalArgumentException e = expectThrows(
-            QlIllegalArgumentException.class,
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
             () -> plan("process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid)")
         );
         String msg = e.getMessage();
@@ -260,6 +261,17 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
         assertEquals("1:2: A sequence requires a minimum of 2 queries, found [1]", s);
     }
 
+    public void testSequenceWithTooLittleQueriesWithUntil() throws Exception {
+        String s = errorParsing("sequence [any where true] until [any where true]");
+        assertEquals("1:2: A sequence requires a minimum of 2 queries (excluding UNTIL clause), found [1]", s);
+        plan("sequence [any where true] [any where true] until [any where true]");
+    }
+
+    public void testSequenceWithOnlyMissingEventsAndUntil() throws Exception {
+        String s = errorParsing("sequence with maxspan=1h ![process where true] until [process where true]");
+        assertEquals("1:2: A sequence requires a minimum of 2 queries (excluding UNTIL clause), found [1]", s);
+    }
+
     public void testSequenceWithIncorrectOption() throws Exception {
         EqlClientException e = expectThrows(EqlClientException.class, () -> plan("sequence [any where true] with repeat=123"));
         String msg = e.getMessage();
@@ -318,6 +330,38 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
             errorParsing("sample by host [success where true] by ?x [failure where true] by host"),
             startsWith("1:65: Join keys must be used only once, found duplicates: [host]")
         );
+    }
 
+    public void testNegativeHeadTail() {
+        String query = randomFrom("head -5", "tail -5");
+        assertThat(errorParsing("any where true | " + query), endsWith("expects a positive integer but found [-5]"));
+    }
+
+    public void testNegativeFoldedValueForHeadAndTail() {
+        String query = randomFrom(" head ", " tail ");
+        String value = "-10 + 5";
+        assertThat(errorParsing("any where true |" + query + value), endsWith("expects a positive integer but found [-10 + 5]"));
+    }
+
+    public void testLongValueForHeadAndTail() {
+        String query = randomFrom(" head ", " tail ");
+        Long value = randomLongBetween(Integer.MAX_VALUE + 1, Long.MAX_VALUE);
+        assertThat(errorParsing("any where true |" + query + value), endsWith("expects a positive integer but found [" + value + "]"));
+    }
+
+    public void testFoldedLongValueForHeadAndTail() {
+        String query = randomFrom(" head ", " tail ");
+        int validInt1 = Integer.MAX_VALUE - 5;
+        int validInt2 = 10;
+        assertThat(
+            errorParsing("any where true |" + query + validInt1 + " + " + validInt2),
+            endsWith("expects a positive integer but found [2147483642 + 10]")
+        );
+    }
+
+    public void testFloatingPointValueForHeadAndTail() {
+        String query = randomFrom(" head ", " tail ");
+        Double value = randomFrom(0.0d, 1.0d, .0d, randomDouble());
+        assertThat(errorParsing("any where true |" + query + value), endsWith("expects a positive integer but found [" + value + "]"));
     }
 }

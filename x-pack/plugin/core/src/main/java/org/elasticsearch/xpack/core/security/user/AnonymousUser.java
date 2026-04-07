@@ -22,10 +22,9 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 public class AnonymousUser extends ReservedUser {
 
     public static final String DEFAULT_ANONYMOUS_USERNAME = "_anonymous";
-    public static final Setting<String> USERNAME_SETTING = new Setting<>(
+    public static final Setting<String> USERNAME_SETTING = Setting.simpleString(
         setting("authc.anonymous.username"),
         DEFAULT_ANONYMOUS_USERNAME,
-        s -> s,
         Property.NodeScope
     );
     public static final Setting<List<String>> ROLES_SETTING = Setting.stringListSetting(

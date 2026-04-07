@@ -1,21 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.downsample;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -37,7 +35,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
     public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
 
     private DownsampleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -47,26 +45,28 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
         private DownsampleConfig downsampleConfig;
 
         public Request(
+            TimeValue masterNodeTimeout,
             final String sourceIndex,
             final String targetIndex,
             final TimeValue waitTimeout,
             final DownsampleConfig downsampleConfig
         ) {
+            super(masterNodeTimeout);
             this.sourceIndex = sourceIndex;
             this.targetIndex = targetIndex;
             this.waitTimeout = waitTimeout == null ? DEFAULT_WAIT_TIMEOUT : waitTimeout;
             this.downsampleConfig = downsampleConfig;
         }
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             sourceIndex = in.readString();
             targetIndex = in.readString();
-            waitTimeout = in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_054)
-                ? TimeValue.parseTimeValue(in.readString(), "timeout")
-                : DEFAULT_WAIT_TIMEOUT;
+            waitTimeout = TimeValue.parseTimeValue(in.readString(), "timeout");
             downsampleConfig = new DownsampleConfig(in);
         }
 
@@ -77,7 +77,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public IndicesOptions indicesOptions() {
-            return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         @Override
@@ -90,11 +90,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(sourceIndex);
             out.writeString(targetIndex);
-            out.writeString(
-                out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_054)
-                    ? waitTimeout.getStringRep()
-                    : DEFAULT_WAIT_TIMEOUT.getStringRep()
-            );
+            out.writeString(waitTimeout.getStringRep());
             downsampleConfig.writeTo(out);
         }
 
@@ -164,10 +160,4 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        protected RequestBuilder(ElasticsearchClient client, DownsampleAction action) {
-            super(client, action, new Request());
-        }
-    }
 }

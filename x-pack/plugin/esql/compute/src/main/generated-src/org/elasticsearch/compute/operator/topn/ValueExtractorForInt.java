@@ -11,6 +11,10 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
+/**
+ * Extracts non-sort-key values for top-n from their {@link IntBlock}s.
+ * This class is generated. Edit {@code X-KeyExtractor.java.st} instead.
+ */
 abstract class ValueExtractorForInt implements ValueExtractor {
     static ValueExtractorForInt extractorFor(TopNEncoder encoder, boolean inKey, IntBlock block) {
         IntVector vector = block.asVector();
@@ -23,7 +27,7 @@ abstract class ValueExtractorForInt implements ValueExtractor {
     protected final boolean inKey;
 
     ValueExtractorForInt(TopNEncoder encoder, boolean inKey) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+        assert encoder.toUnsortable() == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
     }
 

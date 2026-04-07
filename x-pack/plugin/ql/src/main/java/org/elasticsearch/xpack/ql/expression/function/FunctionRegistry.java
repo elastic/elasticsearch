@@ -47,10 +47,12 @@ public class FunctionRegistry {
     /**
      * Register the given function definitions with this registry.
      */
+    @SuppressWarnings("this-escape")
     public FunctionRegistry(FunctionDefinition... functions) {
         register(functions);
     }
 
+    @SuppressWarnings("this-escape")
     public FunctionRegistry(FunctionDefinition[]... groupFunctions) {
         register(groupFunctions);
     }
@@ -154,7 +156,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")
     protected static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder, String... names) {
-        Check.isTrue(names.length > 0, "At least one name must be provided for the function");
+        Check.isTrueInternal(names.length > 0, "At least one name must be provided for the function");
         String primaryName = names[0];
         List<String> aliases = Arrays.asList(names).subList(1, names.length);
         FunctionDefinition.Builder realBuilder = (uf, cfg, extras) -> {
@@ -458,5 +460,4 @@ public class FunctionRegistry {
         }
         return (Boolean) extras[0];
     }
-
 }

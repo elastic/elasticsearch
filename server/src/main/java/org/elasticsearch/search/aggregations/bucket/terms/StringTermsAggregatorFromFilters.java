@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -65,20 +66,11 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         LongPredicate acceptedOrds,
         CheckedSupplier<SortedSetDocValues, IOException> valuesSupplier
     ) throws IOException {
-        if (false == valuesSourceConfig.alignesWithSearchIndex()) {
+        if (false == valuesSourceConfig.alignsWithSearchIndex()) {
             return null;
         }
         FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters> filterByFilterBuilder =
-            new FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters>(
-                name,
-                false,
-                false,
-                null,
-                context,
-                parent,
-                cardinality,
-                metadata
-            ) {
+            new FilterByFilterAggregator.AdapterBuilder<>(name, false, false, null, context, parent, cardinality, metadata) {
                 @Override
                 protected StringTermsAggregatorFromFilters adapt(
                     CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate
@@ -164,7 +156,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         }
         TermsEnum terms = valuesSupplier.get().termsEnum();
         if (filters.getBuckets().size() > bucketCountThresholds.getShardSize()) {
-            PriorityQueue<OrdBucket> queue = new PriorityQueue<OrdBucket>(bucketCountThresholds.getShardSize()) {
+            PriorityQueue<OrdBucket> queue = new PriorityQueue<>(bucketCountThresholds.getShardSize()) {
                 private final Comparator<Bucket> comparator = order.comparator();
 
                 @Override
@@ -195,7 +187,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                 for (OrdBucket b : queue) {
                     buckets.add(buildBucket(b, terms));
                 }
-                Collections.sort(buckets, reduceOrder.comparator());
+                buckets.sort(reduceOrder.comparator());
             } else {
                 /*
                  * Note for the curious: you can just use a for loop to iterate
@@ -217,7 +209,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
                 }
                 buckets.add(buildBucket(b, terms));
             }
-            Collections.sort(buckets, reduceOrder.comparator());
+            buckets.sort(reduceOrder.comparator());
         }
         return new StringTerms(
             filters.getName(),

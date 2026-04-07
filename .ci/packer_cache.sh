@@ -49,6 +49,6 @@ for branch in "${branches[@]}"; do
   rm -rf checkout/$branch
   git clone --reference $(dirname "${SCRIPT}")/../.git https://github.com/elastic/elasticsearch.git --branch ${branch} --single-branch checkout/${branch}
   export JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA}
-  ./checkout/${branch}/gradlew --project-dir ./checkout/${branch} --parallel clean -s resolveAllDependencies -Dorg.gradle.warning.mode=none
+  ./checkout/${branch}/gradlew --project-dir ./checkout/${branch} --parallel clean -s resolveAllDependencies -Dbwc.throttle.maxParallelUsages=1 -Dorg.gradle.warning.mode=none
   rm -rf ./checkout/${branch}
 done

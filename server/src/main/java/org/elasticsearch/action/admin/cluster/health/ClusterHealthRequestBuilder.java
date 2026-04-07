@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.health;
@@ -21,8 +22,8 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
     ClusterHealthResponse,
     ClusterHealthRequestBuilder> {
 
-    public ClusterHealthRequestBuilder(ElasticsearchClient client, ClusterHealthAction action) {
-        super(client, action, new ClusterHealthRequest());
+    public ClusterHealthRequestBuilder(ElasticsearchClient client, TimeValue masterNodeTimeout) {
+        super(client, TransportClusterHealthAction.TYPE, new ClusterHealthRequest(masterNodeTimeout));
     }
 
     public ClusterHealthRequestBuilder setIndices(String... indices) {
@@ -36,11 +37,6 @@ public class ClusterHealthRequestBuilder extends MasterNodeReadOperationRequestB
     }
 
     public ClusterHealthRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    public ClusterHealthRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
         return this;
     }

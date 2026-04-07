@@ -26,9 +26,24 @@ setup:
               value_field:
                 type: integer
 
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: { }
+
+
 ---
 "Test basic put_job":
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -55,6 +70,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.get_jobs:
         id: foo
 
@@ -94,10 +111,17 @@ setup:
           status:
             job_state: "stopped"
 
+  - do: {xpack.usage: {}}
+  - match: { rollup.available: true }
+  - match: { rollup.enabled: true }
+  - match: { rollup.number_of_rollup_jobs: 1 }
+
 ---
 "Test put_job with existing name":
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -124,6 +148,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       catch: /Cannot create rollup job \[foo\] because job was previously created \(existing metadata\)/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -155,6 +181,8 @@ setup:
       indices.create:
         index: non-rollup
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       catch: /Rollup data cannot be added to existing indices that contain non-rollup data/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -185,6 +213,8 @@ setup:
 "Try to include headers":
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       catch: /unknown field \[headers\]/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -217,7 +247,44 @@ setup:
 "Validation failures":
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       catch: /Could not find a \[numeric\] or \[date,date_nanos\] field with name \[field_doesnt_exist\] in any of the indices matching the index pattern/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "field_doesnt_exist",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+
+---
+"Deprecation validation failure":
+
+  - do:
+      indices.delete:
+        index: dummy-rollup-index
+
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      catch: /new rollup jobs are not allowed in clusters that don't have any rollup usage, since rollup has been deprecated/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -246,6 +313,8 @@ setup:
 "Unknown Metric":
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       catch: /Unsupported metric \[does_not_exist\]/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -287,6 +356,7 @@ setup:
   - do:
       allowed_warnings:
         - "index [foo_rollup] matches multiple legacy templates [global, test], composable templates will only match a single template"
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -357,11 +427,13 @@ setup:
 
 ---
 "Test put_job with comma-delimited index pattern":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Comma delimited index pattern introduced in 8.2.0
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -388,6 +460,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.get_jobs:
         id: bar
 

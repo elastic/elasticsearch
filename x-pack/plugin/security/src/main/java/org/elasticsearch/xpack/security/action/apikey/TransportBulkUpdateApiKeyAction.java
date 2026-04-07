@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -38,7 +38,7 @@ public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateAp
         final CompositeRolesStore rolesStore,
         final NamedXContentRegistry xContentRegistry
     ) {
-        super(BulkUpdateApiKeyAction.NAME, transportService, actionFilters, BulkUpdateApiKeyRequest::new, context);
+        super(BulkUpdateApiKeyAction.NAME, transportService, actionFilters, context);
         this.apiKeyService = apiKeyService;
         this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
     }

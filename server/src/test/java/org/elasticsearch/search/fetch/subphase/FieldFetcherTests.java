@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LongFieldScriptTests;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
@@ -32,6 +34,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchHit;
@@ -48,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
@@ -115,7 +119,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo.bar");
         assertThat(fields.size(), equalTo(1));
@@ -251,7 +255,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
 
-            Source s = SourceProvider.fromStoredFields().getSource(readerContext, 0);
+            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                .getSource(readerContext, 0);
 
             Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(s, 0);
             assertThat(fetchedFields.size(), equalTo(5));
@@ -269,7 +274,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             FieldNamesFieldMapper.NAME,
             NestedPathFieldMapper.name(IndexVersion.current())
         )) {
-            expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
+            expectThrows(IllegalArgumentException.class, () -> fetchFields(mapperService, source, fieldname));
         }
     }
 
@@ -392,6 +397,176 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         field = fields.get("geo_point");
         assertNotNull(field);
         assertThat(field.getValues().size(), equalTo(2));
+    }
+
+    public void testGeopointArrayInObject() throws IOException {
+        MapperService mapperService = createMapperService();
+        {
+            String source = """
+                {
+                    "object" : [
+                        {
+                            "geo_point_in_obj" : [
+                                {"lat" : 42.0, "lon" : 27.1},
+                                [2.1, 41.0]
+                            ]
+                        }
+                    ]
+                }
+                """;
+
+            Map<String, DocumentField> fields = fetchFields(
+                mapperService,
+                source,
+                fieldAndFormatList("object.geo_point_in_obj", null, false)
+            );
+            assertThat(fields.size(), equalTo(1));
+
+            DocumentField field = fields.get("object.geo_point_in_obj");
+            assertNotNull(field);
+            List<Object> values = field.getValues();
+            assertThat(values.size(), equalTo(2));
+            assertPoint((Map<?, ?>) values.get(0), 42.0, 27.1);
+            assertPoint((Map<?, ?>) values.get(1), 41.0, 2.1);
+        }
+        {
+            // check the same without the root field as array
+            String source = """
+                {
+                    "object" : {
+                        "geo_point_in_obj" : [
+                            {"lat" : 42.0, "lon" : 27.1},
+                            [2.1, 41.0]
+                        ]
+                    }
+                }
+                """;
+
+            Map<String, DocumentField> fields = fetchFields(
+                mapperService,
+                source,
+                fieldAndFormatList("object.geo_point_in_obj", null, false)
+            );
+            assertThat(fields.size(), equalTo(1));
+
+            DocumentField field = fields.get("object.geo_point_in_obj");
+            assertNotNull(field);
+            List<Object> values = field.getValues();
+            assertThat(values.size(), equalTo(2));
+            assertPoint((Map<?, ?>) values.get(0), 42.0, 27.1);
+            assertPoint((Map<?, ?>) values.get(1), 41.0, 2.1);
+        }
+    }
+
+    private void assertPoint(Map<?, ?> pointMap, double lat, double lon) {
+        assertEquals("Point", pointMap.get("type"));
+        assertEquals(List.of(lon, lat), pointMap.get("coordinates"));
+    }
+
+    public void testDenseVectorInObject() throws IOException {
+        MapperService mapperService = createMapperService();
+        {
+            String source = """
+                {
+                    "object" : [
+                        {
+                            "dense_vector_in_obj" : [ 1, 2, 3]
+                        }
+                    ]
+                }
+                """;
+
+            Map<String, DocumentField> fields = fetchFields(
+                mapperService,
+                source,
+                fieldAndFormatList("object.dense_vector_in_obj", null, false)
+            );
+            assertThat(fields.size(), equalTo(1));
+
+            DocumentField field = fields.get("object.dense_vector_in_obj");
+            assertNotNull(field);
+            List<Object> values = field.getValues();
+            assertThat(field.getValues().size(), equalTo(3));
+        }
+        {
+            // check the same without the root field as array
+            String source = """
+                {
+                    "object" : {
+                        "dense_vector_in_obj" : [ 1, 2, 3]
+                    }
+                }
+                """;
+
+            Map<String, DocumentField> fields = fetchFields(
+                mapperService,
+                source,
+                fieldAndFormatList("object.dense_vector_in_obj", null, false)
+            );
+            assertThat(fields.size(), equalTo(1));
+
+            DocumentField field = fields.get("object.dense_vector_in_obj");
+            assertNotNull(field);
+            List<Object> values = field.getValues();
+            assertThat(values.size(), equalTo(3));
+        }
+    }
+
+    public void testKeywordArrayInObject() throws IOException {
+        MapperService mapperService = createMapperService();
+
+        String source = """
+            {
+                "object" : [
+                    {
+                        "field" : [ "foo", "bar"]
+                    }
+                ]
+            }
+            """;
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("object.field", null, false));
+        assertThat(fields.size(), equalTo(1));
+
+        DocumentField field = fields.get("object.field");
+        assertNotNull(field);
+        assertThat(field.getValues().size(), equalTo(2));
+
+        source = """
+            {
+                "object" : {
+                    "field" : [ "foo", "bar", "baz"]
+                }
+            }
+            """;
+
+        fields = fetchFields(mapperService, source, fieldAndFormatList("object.field", null, false));
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("object.field");
+        assertNotNull(field);
+        assertThat(field.getValues().size(), equalTo(3));
+
+        // mixing array and singleton object on two separate paths
+        source = """
+            {
+                "object" : [
+                    {
+                        "field" : "foo"
+                    },
+                    {
+                        "field" : [ "bar", "baz"]
+                    }
+                ]
+            }
+            """;
+
+        fields = fetchFields(mapperService, source, fieldAndFormatList("object.field", null, false));
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("object.field");
+        assertNotNull(field);
+        assertThat(field.getValues(), containsInAnyOrder("foo", "bar", "baz"));
     }
 
     public void testFieldNamesWithWildcard() throws IOException {
@@ -999,7 +1174,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             """;
 
         var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
-        SearchHit searchHit = new SearchHit(0);
+        SearchHit searchHit = SearchHit.unpooled(0);
         searchHit.addDocumentFields(results, Map.of());
         assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
     }
@@ -1367,7 +1542,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
-            Source source = SourceProvider.fromStoredFields().getSource(readerContext, 0);
+            Source source = SourceProvider.fromLookup(
+                mapperService.mappingLookup(),
+                null,
+                mapperService.getMapperMetrics().sourceFieldMetrics()
+            ).getSource(readerContext, 0);
             Map<String, DocumentField> fields = fieldFetcher.fetch(source, 0);
             assertEquals(1, fields.size());
             DocumentField field = fields.get("runtime_field");
@@ -1408,9 +1587,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testStoredFieldsSpec() throws IOException {
+        var mapperService = createMapperService();
         List<FieldAndFormat> fields = List.of(new FieldAndFormat("field", null));
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields);
-        assertEquals(StoredFieldsSpec.NEEDS_SOURCE, fieldFetcher.storedFieldsSpec());
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
+        assertEquals(
+            StoredFieldsSpec.withSourcePaths(mapperService.getIndexSettings().getIgnoredSourceFormat(), Set.of("field")),
+            fieldFetcher.storedFieldsSpec()
+        );
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
@@ -1467,6 +1650,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .startObject("field")
             .field("type", "keyword")
             .endObject()
+            .startObject("geo_point_in_obj")
+            .field("type", "geo_point")
+            .endObject()
+            .startObject("dense_vector_in_obj")
+            .field("type", "dense_vector")
+            .field("dims", 3)
+            .endObject()
             .endObject()
             .endObject()
             .startObject("field_that_does_not_match")
@@ -1509,7 +1699,10 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            emptyMap()
+            emptyMap(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

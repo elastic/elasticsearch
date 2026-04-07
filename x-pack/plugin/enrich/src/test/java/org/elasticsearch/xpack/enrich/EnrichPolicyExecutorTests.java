@@ -15,12 +15,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -46,7 +46,10 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -88,7 +91,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
         final CountDownLatch firstTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyName),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName),
             new LatchedActionListener<>(ActionListener.noop(), firstTaskComplete)
         );
 
@@ -97,7 +100,10 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             EsRejectedExecutionException.class,
             "Expected exception but nothing was thrown",
             () -> {
-                testExecutor.coordinatePolicyExecution(new ExecuteEnrichPolicyAction.Request(testPolicyName), ActionListener.noop());
+                testExecutor.coordinatePolicyExecution(
+                    new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName),
+                    ActionListener.noop()
+                );
                 // Should throw exception on the previous statement, but if it doesn't, be a
                 // good citizen and conclude the fake runs to keep the logs clean from interrupted exceptions
                 latch.countDown();
@@ -118,7 +124,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         // Ensure that the lock from the previous run has been cleared
         CountDownLatch secondTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyName),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName),
             new LatchedActionListener<>(ActionListener.noop(), secondTaskComplete)
         );
         secondTaskComplete.await();
@@ -144,13 +150,13 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         // Launch a two fake policy runs that will block until counted down to use up the maximum concurrent
         final CountDownLatch firstTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "1"),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyBaseName + "1"),
             new LatchedActionListener<>(ActionListener.noop(), firstTaskComplete)
         );
 
         final CountDownLatch secondTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "2"),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyBaseName + "2"),
             new LatchedActionListener<>(ActionListener.noop(), secondTaskComplete)
         );
 
@@ -160,7 +166,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             "Expected exception but nothing was thrown",
             () -> {
                 testExecutor.coordinatePolicyExecution(
-                    new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "3"),
+                    new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyBaseName + "3"),
                     ActionListener.noop()
                 );
                 // Should throw exception on the previous statement, but if it doesn't, be a
@@ -188,7 +194,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         assertThat(locks.lockedPolices(), is(empty()));
         CountDownLatch finalTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "1"),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyBaseName + "1"),
             new LatchedActionListener<>(ActionListener.noop(), finalTaskComplete)
         );
         finalTaskComplete.await();
@@ -229,7 +235,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
                         Thread.currentThread().interrupt();
                     }
 
-                    if (GetTaskAction.INSTANCE.equals(action)) {
+                    if (TransportGetTaskAction.TYPE.equals(action)) {
                         if (shouldGetTaskApiReturnTimeout.get() == false) {
                             // This is the second call to the Get Task API, so count down the latch to let the main test logic know.
                             secondGetTaskWasCalled.countDown();
@@ -277,9 +283,9 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         );
 
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
-        PlainActionFuture<ExecuteEnrichPolicyAction.Response> firstTaskResult = PlainActionFuture.newFuture();
+        PlainActionFuture<ExecuteEnrichPolicyAction.Response> firstTaskResult = new PlainActionFuture<>();
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyName).setWaitForCompletion(false),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName).setWaitForCompletion(false),
             firstTaskResult
         );
 
@@ -382,8 +388,11 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
     public void testRunPolicyLocallyMissingPolicy() {
         EnrichPolicy enrichPolicy = EnrichPolicyTests.randomEnrichPolicy(XContentType.JSON);
+        final var projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(EnrichMetadata.TYPE, new EnrichMetadata(Map.of("id", enrichPolicy))).build())
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId).putCustom(EnrichMetadata.TYPE, new EnrichMetadata(Map.of("id", enrichPolicy))).build()
+            )
             .build();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
@@ -402,9 +411,59 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         ExecuteEnrichPolicyTask task = mock(ExecuteEnrichPolicyTask.class);
         Exception e = expectThrows(
             ResourceNotFoundException.class,
-            () -> testExecutor.runPolicyLocally(task, "my-policy", ".enrich-my-policy-123456789", null)
+            () -> testExecutor.runPolicyLocally(projectId, task, "my-policy", ".enrich-my-policy-123456789", null)
         );
         assertThat(e.getMessage(), equalTo("policy [my-policy] does not exist"));
+    }
+
+    public void testWaitForTaskUsesEnrichOrigin() throws Exception {
+        String testPolicyName = "test_policy";
+        String testTaskId = randomAlphaOfLength(10) + ":" + randomIntBetween(100, 300);
+
+        AtomicReference<String> capturedOrigin = new AtomicReference<>();
+        CountDownLatch getTaskCalled = new CountDownLatch(1);
+
+        Client client = new NoOpClient(testThreadPool) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                testThreadPool.generic().execute(() -> {
+                    if (TransportGetTaskAction.TYPE.equals(action)) {
+                        capturedOrigin.set(testThreadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME));
+                        getTaskCalled.countDown();
+                        listener.onResponse(null);
+                    } else if (InternalExecutePolicyAction.INSTANCE.equals(action)) {
+                        @SuppressWarnings("unchecked")
+                        Response response = (Response) new ExecuteEnrichPolicyAction.Response(new TaskId(testTaskId));
+                        listener.onResponse(response);
+                    } else {
+                        listener.onResponse(null);
+                    }
+                });
+            }
+        };
+
+        final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
+            Settings.EMPTY,
+            null,
+            null,
+            client,
+            testThreadPool,
+            TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
+            new EnrichPolicyLocks(),
+            ESTestCase::randomNonNegativeLong
+        );
+
+        testExecutor.coordinatePolicyExecution(
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName).setWaitForCompletion(false),
+            ActionListener.noop()
+        );
+
+        assertTrue("Expected GetTask to be called", getTaskCalled.await(3, TimeUnit.SECONDS));
+        assertThat(capturedOrigin.get(), equalTo(ENRICH_ORIGIN));
     }
 
     private Client getClient(CountDownLatch latch) {

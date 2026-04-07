@@ -8,13 +8,19 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,6 +36,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.TransformExtension;
+import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -37,6 +45,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformStatePersistenceException;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.time.Clock;
@@ -59,11 +68,14 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
 
         MockClientTransformIndexer(
             ThreadPool threadPool,
+            ClusterService clusterService,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            TransformExtension transformExtension,
             TransformServices transformServices,
             CheckpointProvider checkpointProvider,
             AtomicReference<IndexerState> initialState,
             TransformIndexerPosition initialPosition,
-            Client client,
+            ParentTaskAssigningClient client,
             TransformIndexerStats initialStats,
             TransformConfig transformConfig,
             TransformProgress transformProgress,
@@ -75,6 +87,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
         ) {
             super(
                 threadPool,
+                clusterService,
+                indexNameExpressionResolver,
+                transformExtension,
                 transformServices,
                 checkpointProvider,
                 initialState,
@@ -119,7 +134,12 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             ActionListener<SeqNoPrimaryTermAndIndex> listener
         ) {
             if (failAt.contains(persistenceCallCount++)) {
-                listener.onFailure(exception);
+                listener.onFailure(
+                    new TransformStatePersistenceException(
+                        "FailingToPutStoredDocTransformConfigManager.putOrUpdateTransformStoredDoc is intentionally throwing an exception",
+                        exception
+                    )
+                );
             } else {
                 super.putOrUpdateTransformStoredDoc(storedDoc, seqNoPrimaryTermAndIndex, listener);
             }
@@ -142,7 +162,10 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             if (seqNo != -1) {
                 if (seqNoPrimaryTermAndIndex.getSeqNo() != seqNo || seqNoPrimaryTermAndIndex.getPrimaryTerm() != primaryTerm) {
                     listener.onFailure(
-                        new VersionConflictEngineException(new ShardId("index", "indexUUID", 42), "some_id", 45L, 44L, 43L, 42L)
+                        new TransformStatePersistenceException(
+                            "SeqNoCheckingTransformConfigManager.putOrUpdateTransformStoredDoc is intentionally throwing an exception",
+                            new VersionConflictEngineException(new ShardId("index", "indexUUID", 42), "some_id", 45L, 44L, 43L, 42L)
+                        )
                     );
                     return;
                 }
@@ -196,7 +219,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             public void failureCountChanged() {}
 
             @Override
-            public void fail(String failureMessage, ActionListener<Void> listener) {
+            public void fail(Throwable exception, String failureMessage, ActionListener<Void> listener) {
                 state.set(TransformTaskState.FAILED);
             }
         };
@@ -207,20 +230,27 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 ? new VersionConflictEngineException(new ShardId("index", "indexUUID", 42), "some_id", 45L, 44L, 43L, 42L)
                 : new ElasticsearchTimeoutException("timeout");
             TransformConfigManager configManager = new FailingToPutStoredDocTransformConfigManager(Set.of(0, 1, 2, 3), exceptionToThrow);
-            try (Client client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
 
                 MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                     mock(ThreadPool.class),
+                    mock(ClusterService.class),
+                    mock(IndexNameExpressionResolver.class),
+                    mock(TransformExtension.class),
                     new TransformServices(
                         configManager,
                         mock(TransformCheckpointService.class),
                         mock(TransformAuditor.class),
-                        new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
+                        new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                        mock(TransformNode.class),
+                        mock(CrossProjectModeDecider.class),
+                        projectId -> false
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
                     null,
-                    client,
+                    new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
                     mock(TransformIndexerStats.class),
                     config,
                     null,
@@ -249,7 +279,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(1));
                     }
@@ -261,7 +291,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(2));
                     }
@@ -273,13 +303,12 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.FAILED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(3));
                     }
                 );
             }
-
         }
 
         // test reset on success
@@ -290,19 +319,26 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 ? new VersionConflictEngineException(new ShardId("index", "indexUUID", 42), "some_id", 45L, 44L, 43L, 42L)
                 : new ElasticsearchTimeoutException("timeout");
             TransformConfigManager configManager = new FailingToPutStoredDocTransformConfigManager(Set.of(0, 2, 3, 4), exceptionToThrow);
-            try (Client client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                     mock(ThreadPool.class),
+                    mock(ClusterService.class),
+                    mock(IndexNameExpressionResolver.class),
+                    mock(TransformExtension.class),
                     new TransformServices(
                         configManager,
                         mock(TransformCheckpointService.class),
                         mock(TransformAuditor.class),
-                        new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
+                        new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                        mock(TransformNode.class),
+                        mock(CrossProjectModeDecider.class),
+                        projectId -> false
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
                     null,
-                    client,
+                    new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
                     mock(TransformIndexerStats.class),
                     config,
                     null,
@@ -331,7 +367,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(1));
                     }
@@ -356,7 +392,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(1));
                     }
@@ -368,7 +404,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(2));
                     }
@@ -380,7 +416,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         listener
                     ),
                     e -> {
-                        assertThat(e, isA(exceptionToThrow.getClass()));
+                        assertThat(ExceptionsHelper.unwrapCause(e), isA(exceptionToThrow.getClass()));
                         assertThat(state.get(), equalTo(TransformTaskState.FAILED));
                         assertThat(indexer.getStatePersistenceFailures(), equalTo(3));
                     }
@@ -412,7 +448,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             public void failureCountChanged() {}
 
             @Override
-            public void fail(String failureMessage, ActionListener<Void> listener) {
+            public void fail(Throwable exception, String failureMessage, ActionListener<Void> listener) {
                 state.set(TransformTaskState.FAILED);
             }
         };
@@ -420,19 +456,26 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
         TransformContext context = new TransformContext(state.get(), null, 0, contextListener);
         TransformConfigManager configManager = new SeqNoCheckingTransformConfigManager();
 
-        try (Client client = new NoOpClient(getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mock(TransformExtension.class),
                 new TransformServices(
                     configManager,
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
                 null,
-                client,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
                 mock(TransformIndexerStats.class),
                 config,
                 null,
@@ -491,7 +534,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     listener
                 ),
                 e -> {
-                    assertThat(e, isA(VersionConflictEngineException.class));
+                    assertThat(ExceptionsHelper.unwrapCause(e), isA(VersionConflictEngineException.class));
                     assertThat(state.get(), equalTo(TransformTaskState.STARTED));
                     assertThat(indexer.getStatePersistenceFailures(), equalTo(1));
                 }

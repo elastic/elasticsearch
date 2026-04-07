@@ -1,0 +1,5 @@
+area: SQL
+issues: []
+pr: 142021
+summary: Add support for API key to JDBC and CLI
+type: enhancement

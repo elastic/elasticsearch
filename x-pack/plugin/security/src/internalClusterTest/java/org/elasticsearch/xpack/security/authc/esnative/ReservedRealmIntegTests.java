@@ -64,7 +64,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         for (String username : usernames) {
             ClusterHealthResponse response = client().filterWithHeader(
                 singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
-            ).admin().cluster().prepareHealth().get();
+            ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
 
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
@@ -89,7 +89,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
 
             ClusterHealthResponse response = client().filterWithHeader(
                 singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
-            ).admin().cluster().prepareHealth().get();
+            ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
 
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
@@ -110,7 +110,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         if (randomBoolean()) {
             ClusterHealthResponse response = client().filterWithHeader(
                 singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
-            ).admin().cluster().prepareHealth().get();
+            ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
 
@@ -121,14 +121,14 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
             () -> client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
                 .admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .get()
         );
         assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
 
         ClusterHealthResponse healthResponse = client().filterWithHeader(
             singletonMap("Authorization", basicAuthHeaderValue(username, new SecureString(newPassword)))
-        ).admin().cluster().prepareHealth().get();
+        ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
         assertThat(healthResponse.getClusterName(), is(cluster().getClusterName()));
     }
 
@@ -136,7 +136,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         // validate the user works
         ClusterHealthResponse response = client().filterWithHeader(
             singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword()))
-        ).admin().cluster().prepareHealth().get();
+        ).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getClusterName(), is(cluster().getClusterName()));
 
         // disable user
@@ -146,7 +146,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
             () -> client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
                 .admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .get()
         );
         assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
@@ -156,7 +156,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         response = client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
             .admin()
             .cluster()
-            .prepareHealth()
+            .prepareHealth(TEST_REQUEST_TIMEOUT)
             .get();
         assertThat(response.getClusterName(), is(cluster().getClusterName()));
     }

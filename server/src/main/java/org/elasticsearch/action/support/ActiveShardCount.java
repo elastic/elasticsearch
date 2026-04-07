@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -122,21 +125,29 @@ public record ActiveShardCount(int value) implements Writeable {
      * Returns true iff the given cluster state's routing table contains enough active
      * shards for the given indices to meet the required shard count represented by this instance.
      */
-    public boolean enoughShardsActive(final ClusterState clusterState, final String... indices) {
+    public boolean enoughShardsActive(
+        @Nullable final ProjectMetadata projectMetadata,
+        @Nullable final RoutingTable routingTable,
+        final String... indices
+    ) {
         if (this == ActiveShardCount.NONE) {
             // not waiting for any active shards
             return true;
         }
-
+        if (projectMetadata == null || routingTable == null) {
+            // while waiting, the project might have been deleted
+            // in this case consider the wait for active shards over
+            return true;
+        }
         for (final String indexName : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+            final IndexMetadata indexMetadata = projectMetadata.index(indexName);
             if (indexMetadata == null) {
                 // its possible the index was deleted while waiting for active shard copies,
                 // in this case, we'll just consider it that we have enough active shard copies
                 // and we can stop waiting
                 continue;
             }
-            final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
+            final IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
             if (indexRoutingTable == null && indexMetadata.getState() == IndexMetadata.State.CLOSE) {
                 // its possible the index was closed while waiting for active shard copies,
                 // in this case, we'll just consider it that we have enough active shard copies
@@ -153,7 +164,7 @@ public record ActiveShardCount(int value) implements Writeable {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
             for (int i = 0; i < indexRoutingTable.size(); i++) {
-                if (waitForActiveShards.enoughShardsActive(indexRoutingTable.shard(i)) == false) {
+                if (waitForActiveShards.enoughShardsActive(indexRoutingTable.shard(i)).enoughShards() == false) {
                     // not enough active shard copies yet
                     return false;
                 }
@@ -164,20 +175,36 @@ public record ActiveShardCount(int value) implements Writeable {
     }
 
     /**
-     * Returns true iff the active shard count in the shard routing table is enough
-     * to meet the required shard count represented by this instance.
+     * Record that captures the decision of {@link #enoughShardsActive(IndexShardRoutingTable)}.
+     * @param enoughShards the decision of whether the active shard count is enough to meet the required shard count of this instance
+     * @param currentActiveShards the currently active shards considered for making the decision
      */
-    public boolean enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
+    public record EnoughShards(boolean enoughShards, int currentActiveShards) {};
+
+    /**
+     * Returns a {@link EnoughShards} record where the first value is true iff the active shard count in the shard routing table is enough
+     * to meet the required shard count represented by this instance, and the second value is the active shard count.
+     */
+    public EnoughShards enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
         final int activeShardCount = shardRoutingTable.activeShards().size();
+        boolean enoughShards = false;
+        int currentActiveShards = activeShardCount;
         if (this == ActiveShardCount.ALL) {
-            return activeShardCount == shardRoutingTable.size();
+            enoughShards = activeShardCount == shardRoutingTable.size();
         } else if (value == 0) {
-            return true;
+            enoughShards = true;
         } else if (value == 1) {
-            return shardRoutingTable.hasSearchShards() ? shardRoutingTable.getActiveSearchShardCount() >= 1 : activeShardCount >= 1;
+            if (shardRoutingTable.hasSearchShards()) {
+                enoughShards = shardRoutingTable.getActiveSearchShardCount() >= 1;
+                currentActiveShards = shardRoutingTable.getActiveSearchShardCount();
+            } else {
+                enoughShards = activeShardCount >= 1;
+            }
         } else {
-            return shardRoutingTable.getActiveSearchShardCount() >= value;
+            enoughShards = shardRoutingTable.getActiveSearchShardCount() >= value;
+            currentActiveShards = shardRoutingTable.getActiveSearchShardCount();
         }
+        return new EnoughShards(enoughShards, currentActiveShards);
     }
 
     @Override

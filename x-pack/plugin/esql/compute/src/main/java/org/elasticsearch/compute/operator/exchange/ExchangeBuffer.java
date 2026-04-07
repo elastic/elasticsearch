@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 
 import java.util.Queue;
@@ -17,7 +18,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class ExchangeBuffer {
-
     private final Queue<Page> queue = new ConcurrentLinkedQueue<>();
     // uses a separate counter for size for CAS; and ConcurrentLinkedQueue#size is not a constant time operation.
     private final AtomicInteger queueSize = new AtomicInteger();
@@ -44,6 +44,21 @@ final class ExchangeBuffer {
         queue.add(page);
         if (queueSize.incrementAndGet() == 1) {
             notifyNotEmpty();
+        }
+        if (noMoreInputs) {
+            // O(N) but acceptable because it only occurs with the stop API, and the queue size should be very small.
+            if (page.batchMetadata() == null) {
+                if (queue.removeIf(p -> p == page)) {
+                    page.releaseBlocks();
+                    final int size = queueSize.decrementAndGet();
+                    if (size == maxSize - 1) {
+                        notifyNotFull();
+                    }
+                    if (size == 0) {
+                        completionFuture.onResponse(null);
+                    }
+                }
+            }
         }
     }
 
@@ -80,7 +95,7 @@ final class ExchangeBuffer {
         }
     }
 
-    SubscribableListener<Void> waitForWriting() {
+    IsBlockedResult waitForWriting() {
         // maxBufferSize check is not water-tight as more than one sink can pass this check at the same time.
         if (queueSize.get() < maxSize || noMoreInputs) {
             return Operator.NOT_BLOCKED;
@@ -92,11 +107,11 @@ final class ExchangeBuffer {
             if (notFullFuture == null) {
                 notFullFuture = new SubscribableListener<>();
             }
-            return notFullFuture;
+            return new IsBlockedResult(notFullFuture, "exchange full");
         }
     }
 
-    SubscribableListener<Void> waitForReading() {
+    IsBlockedResult waitForReading() {
         if (size() > 0 || noMoreInputs) {
             return Operator.NOT_BLOCKED;
         }
@@ -107,16 +122,21 @@ final class ExchangeBuffer {
             if (notEmptyFuture == null) {
                 notEmptyFuture = new SubscribableListener<>();
             }
-            return notEmptyFuture;
+            return new IsBlockedResult(notEmptyFuture, "exchange empty");
+        }
+    }
+
+    private void discardPages() {
+        Page p;
+        while ((p = pollPage()) != null) {
+            p.releaseBlocks();
         }
     }
 
     void finish(boolean drainingPages) {
         noMoreInputs = true;
         if (drainingPages) {
-            while (pollPage() != null) {
-
-            }
+            discardPages();
         }
         notifyNotEmpty();
         if (drainingPages || queueSize.get() == 0) {

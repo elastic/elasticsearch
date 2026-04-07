@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.blockloader.script.DoubleScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -43,7 +45,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             DoubleFieldScript.Factory factory,
             Script script,
@@ -54,12 +56,14 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        DoubleFieldScript.Factory getParseFromSourceFactory() {
+        protected DoubleFieldScript.Factory getParseFromSourceFactory() {
             return DoubleFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        DoubleFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected DoubleFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return DoubleFieldScript.leafAdapter(parentScriptFactory);
         }
     }
@@ -80,7 +84,8 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            scriptFactory.isParsedFromSource()
         );
     }
 
@@ -101,6 +106,29 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
             return DocValueFormat.RAW;
         }
         return new DocValueFormat.Decimal(format);
+    }
+
+    @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        var fallbackSyntheticSourceBlockLoader = numericFallbackSyntheticSourceBlockLoader(
+            blContext,
+            NumberType.DOUBLE,
+            BlockLoader.BlockFactory::doubles,
+            (values, blockBuilder) -> {
+                var builder = (BlockLoader.DoubleBuilder) blockBuilder;
+                for (var value : values) {
+                    builder.appendDouble(value.doubleValue());
+                }
+            }
+        );
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        } else {
+            return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(
+                leafFactory(blContext.lookup()),
+                blContext.scriptByteSize()
+            );
+        }
     }
 
     @Override
@@ -143,7 +171,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
         Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
         for (Object value : values) {

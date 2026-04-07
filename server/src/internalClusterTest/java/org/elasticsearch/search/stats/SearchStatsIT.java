@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.stats;
@@ -11,13 +12,14 @@ package org.elasticsearch.search.stats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -26,10 +28,14 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.FailingFieldPlugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -39,7 +45,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -52,7 +59,7 @@ public class SearchStatsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return List.of(CustomScriptPlugin.class, FailingFieldPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -83,7 +90,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test1").setSettings(indexSettings(shardsIdx1, 0)));
         int docsTest1 = scaledRandomIntBetween(3 * shardsIdx1, 5 * shardsIdx1);
         for (int i = 0; i < docsTest1; i++) {
-            client().prepareIndex("test1").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("test1").setId(Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
@@ -91,7 +98,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test2").setSettings(indexSettings(shardsIdx2, 0)));
         int docsTest2 = scaledRandomIntBetween(3 * shardsIdx2, 5 * shardsIdx2);
         for (int i = 0; i < docsTest2; i++) {
-            client().prepareIndex("test2").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("test2").setId(Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
@@ -103,16 +110,22 @@ public class SearchStatsIT extends ESIntegTestCase {
         refresh();
         int iters = scaledRandomIntBetween(100, 150);
         for (int i = 0; i < iters; i++) {
-            SearchResponse searchResponse = internalCluster().coordOnlyNodeClient()
-                .prepareSearch()
-                .setQuery(QueryBuilders.termQuery("field", "value"))
-                .setStats("group1", "group2")
-                .highlighter(new HighlightBuilder().field("field"))
-                .addScriptField("script1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.field", Collections.emptyMap()))
-                .setSize(100)
-                .get();
-            assertHitCount(searchResponse, docsTest1 + docsTest2);
-            assertAllSuccessful(searchResponse);
+            assertResponse(
+                internalCluster().coordOnlyNodeClient()
+                    .prepareSearch()
+                    .setQuery(QueryBuilders.termQuery("field", "value"))
+                    .setStats("group1", "group2")
+                    .highlighter(new HighlightBuilder().field("field"))
+                    .addScriptField(
+                        "script1",
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.field", Collections.emptyMap())
+                    )
+                    .setSize(100),
+                response -> {
+                    assertHitCount(response, docsTest1 + docsTest2);
+                    assertAllSuccessful(response);
+                }
+            );
         }
 
         IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();
@@ -150,8 +163,8 @@ public class SearchStatsIT extends ESIntegTestCase {
     }
 
     private Set<String> nodeIdsWithIndex(String... indices) {
-        ClusterState state = clusterAdmin().prepareState().get().getState();
-        GroupShardsIterator<ShardIterator> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        List<ShardIterator> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         Set<String> nodes = new HashSet<>();
         for (ShardIterator shardIterator : allAssignedShardsGrouped) {
             for (ShardRouting routing : shardIterator) {
@@ -175,11 +188,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         final int docs = scaledRandomIntBetween(20, 50);
         for (int s = 0; s < numAssignedShards(index); s++) {
             for (int i = 0; i < docs; i++) {
-                client().prepareIndex(index)
-                    .setId(Integer.toString(s * docs + i))
-                    .setSource("field", "value")
-                    .setRouting(Integer.toString(s))
-                    .get();
+                prepareIndex(index).setId(Integer.toString(s * docs + i)).setSource("field", "value").setRouting(Integer.toString(s)).get();
             }
         }
         indicesAdmin().prepareRefresh(index).get();
@@ -188,12 +197,15 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
 
         int size = scaledRandomIntBetween(1, docs);
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setSize(size)
-            .setScroll(TimeValue.timeValueMinutes(2))
-            .get();
-        assertSearchResponse(searchResponse);
+        final String[] scroll = new String[1];
+        final int[] total = new int[1];
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(matchAllQuery()).setSize(size).setScroll(TimeValue.timeValueMinutes(2)),
+            response -> {
+                scroll[0] = response.getScrollId();
+                total[0] = response.getHits().getHits().length;
+            }
+        );
 
         // refresh the stats now that scroll contexts are opened
         indicesStats = indicesAdmin().prepareStats(index).get();
@@ -203,11 +215,14 @@ public class SearchStatsIT extends ESIntegTestCase {
 
         int hits = 0;
         while (true) {
-            if (searchResponse.getHits().getHits().length == 0) {
+            if (total[0] == 0) {
                 break;
             }
-            hits += searchResponse.getHits().getHits().length;
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
+            hits += total[0];
+            assertResponse(client().prepareSearchScroll(scroll[0]).setScroll(TimeValue.timeValueMinutes(2)), response -> {
+                scroll[0] = response.getScrollId();
+                total[0] = response.getHits().getHits().length;
+            });
         }
         long expected = 0;
 
@@ -221,7 +236,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertEquals(hits, docs * numAssignedShards(index));
         assertThat(stats.getQueryCount(), greaterThanOrEqualTo(expected));
 
-        clearScroll(searchResponse.getScrollId());
+        clearScroll(scroll[0]);
 
         indicesStats = indicesAdmin().prepareStats().get();
         stats = indicesStats.getTotal().getSearch().getTotal();
@@ -231,8 +246,68 @@ public class SearchStatsIT extends ESIntegTestCase {
     }
 
     protected int numAssignedShards(String... indices) {
-        ClusterState state = clusterAdmin().prepareState().get().getState();
-        GroupShardsIterator<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        List<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
+    }
+
+    public void testFailureStats() throws Exception {
+        String indexName = "test";
+        XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
+        mapping.startObject("runtime");
+        {
+            mapping.startObject("fail_me");
+            {
+                mapping.field("type", "long");
+                mapping.startObject("script").field("source", "").field("lang", "failing_field").endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+        mapping.endObject();
+        int numOfShards = between(1, 5);
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards))
+            .setMapping(mapping)
+            .get();
+        int numDocs = between(20, 100);
+        for (int i = 1; i < numDocs; i++) {
+            index(indexName, Integer.toString(i), Map.of("position", i));
+        }
+        refresh(indexName);
+        int numQueries = between(1, 10);
+        long failedQueries = 0;
+        for (int q = 0; q < numQueries; q++) {
+            expectThrows(Exception.class, () -> {
+                client().prepareSearch(indexName)
+                    .setQuery(new RangeQueryBuilder("fail_me").gt(10))
+                    .setAllowPartialSearchResults(true)
+                    .get();
+            });
+            failedQueries += numOfShards;
+            var stats = client().admin().indices().prepareStats(indexName).all().get().getTotal().search.getTotal();
+            assertThat(stats.getQueryCount(), equalTo(0L));
+            assertThat(stats.getQueryFailure(), equalTo(failedQueries));
+            assertThat(stats.getFetchCount(), equalTo(0L));
+            assertThat(stats.getFetchFailure(), equalTo(0L));
+        }
+        int numFetches = between(1, 10);
+        for (int q = 0; q < numFetches; q++) {
+            expectThrows(Exception.class, () -> {
+                client().prepareSearch(indexName)
+                    .setQuery(new RangeQueryBuilder("position").gt(0))
+                    .setFetchSource(false)
+                    .addFetchField("fail_me")
+                    .setSize(1000)
+                    .get();
+            });
+            var stats = client().admin().indices().prepareStats(indexName).all().get().getTotal().search.getTotal();
+            assertThat(stats.getQueryCount(), equalTo((q + 1L) * numOfShards));
+            assertThat(stats.getQueryFailure(), equalTo(failedQueries));
+            assertThat(stats.getFetchCount(), equalTo(0L));
+            assertThat(stats.getFetchFailure(), equalTo((q + 1L) * numOfShards));
+        }
     }
 }

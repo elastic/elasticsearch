@@ -121,7 +121,7 @@ public abstract class StringUtils {
         }
         String pathToUse = path.replace("\\", SLASH);
 
-        int prefixIndex = pathToUse.indexOf(":");
+        int prefixIndex = pathToUse.indexOf(':');
         String prefix = "";
         if (prefixIndex != -1) {
             prefix = pathToUse.substring(0, prefixIndex + 1);
@@ -305,7 +305,7 @@ public abstract class StringUtils {
         if (count < 0) {
             throw new IllegalArgumentException("negative count: " + count);
         }
-        StringBuffer sb = new StringBuffer(in.length() * count);
+        StringBuilder sb = new StringBuilder(in.length() * count);
         for (int i = 0; i < count; i++) {
             sb.append(in);
         }

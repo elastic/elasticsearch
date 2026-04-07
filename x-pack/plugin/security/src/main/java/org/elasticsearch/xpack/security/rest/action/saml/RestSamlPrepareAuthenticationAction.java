@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -55,9 +54,7 @@ public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/saml/prepare").replaces(POST, "/_xpack/security/saml/prepare", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_security/saml/prepare"));
     }
 
     @Override

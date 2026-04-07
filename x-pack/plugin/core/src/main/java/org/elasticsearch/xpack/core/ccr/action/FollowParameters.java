@@ -189,6 +189,7 @@ public class FollowParameters implements Writeable, ToXContentObject {
         return e;
     }
 
+    @SuppressWarnings("this-escape")
     public FollowParameters(StreamInput in) throws IOException {
         fromStreamInput(in);
     }

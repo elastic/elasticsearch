@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -20,43 +21,29 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             b.startObject("o").field("type", "object").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
         }));
-        assertFalse(mapper.mappers().newSourceLoader().reordersFieldValues());
+        assertFalse(mapper.mappers().newSourceLoader(null, SourceFieldMetrics.NOOP).reordersFieldValues());
     }
 
     public void testEmptyObject() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("o").field("type", "object").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
-        }));
-        assertTrue(mapper.mappers().newSourceLoader().reordersFieldValues());
+        })).documentMapper();
+        assertTrue(mapper.mappers().newSourceLoader(null, SourceFieldMetrics.NOOP).reordersFieldValues());
         assertThat(syntheticSource(mapper, b -> b.field("kwd", "foo")), equalTo("""
             {"kwd":"foo"}"""));
     }
 
-    public void testUnsupported() throws IOException {
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createDocumentMapper(syntheticSourceMapping(b -> b.startObject("txt").field("type", "text").endObject()))
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "field [txt] of type [text] doesn't support synthetic source unless it is stored or has a sub-field "
-                    + "of type [keyword] with doc values or stored and without a normalizer"
-            )
-        );
-    }
-
     public void testDotsInFieldName() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            syntheticSourceMapping(b -> b.startObject("foo.bar.baz").field("type", "keyword").endObject())
-        );
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            mapping(b -> b.startObject("foo.bar.baz").field("type", "keyword").endObject())
+        ).documentMapper();
         assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo":{"bar":{"baz":"aaa"}}}"""));
     }
 
     public void testNoSubobjectsIntermediateObject() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("foo");
             {
                 b.field("type", "object").field("subobjects", false);
@@ -67,30 +54,29 @@ public class SourceLoaderTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        }));
+        })).documentMapper();
         assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo":{"bar.baz":"aaa"}}"""));
     }
 
     public void testNoSubobjectsRootObject() throws IOException {
         XContentBuilder mappings = topMapping(b -> {
-            b.startObject("_source").field("mode", "synthetic").endObject();
             b.field("subobjects", false);
             b.startObject("properties");
             b.startObject("foo.bar.baz").field("type", "keyword").endObject();
             b.endObject();
         });
-        DocumentMapper mapper = createDocumentMapper(mappings);
+        DocumentMapper mapper = createSytheticSourceMapperService(mappings).documentMapper();
         assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
             {"foo.bar.baz":"aaa"}"""));
     }
 
     public void testSorted() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("foo").field("type", "keyword").endObject();
             b.startObject("bar").field("type", "keyword").endObject();
             b.startObject("baz").field("type", "keyword").endObject();
-        }));
+        })).documentMapper();
         assertThat(
             syntheticSource(mapper, b -> b.field("foo", "over the lazy dog").field("bar", "the quick").field("baz", "brown fox jumped")),
             equalTo("""
@@ -99,12 +85,12 @@ public class SourceLoaderTests extends MapperServiceTestCase {
     }
 
     public void testArraysPushedToLeaves() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("o").startObject("properties");
             b.startObject("foo").field("type", "keyword").endObject();
             b.startObject("bar").field("type", "keyword").endObject();
             b.endObject().endObject();
-        }));
+        })).documentMapper();
         assertThat(syntheticSource(mapper, b -> {
             b.startArray("o");
             b.startObject().field("foo", "a").endObject();
@@ -117,7 +103,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
     }
 
     public void testHideTheCopyTo() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createSytheticSourceMapperService(mapping(b -> {
             b.startObject("foo");
             {
                 b.field("type", "keyword");

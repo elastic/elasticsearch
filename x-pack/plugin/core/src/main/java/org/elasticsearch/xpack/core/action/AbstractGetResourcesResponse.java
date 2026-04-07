@@ -11,25 +11,22 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writeable> extends ActionResponse
-    implements
-        StatusToXContentObject {
+public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writeable> extends ActionResponse implements ToXContentObject {
 
     private QueryPage<T> resources;
 
     protected AbstractGetResourcesResponse() {}
 
+    @SuppressWarnings("this-escape")
     protected AbstractGetResourcesResponse(StreamInput in) throws IOException {
-        super(in);
         resources = new QueryPage<>(in, getReader());
     }
 
@@ -44,11 +41,6 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         resources.writeTo(out);
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.OK;
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.painless.action;
 
@@ -36,6 +37,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.painless.action.PainlessExecuteAction.TransportAction.innerShardOperation;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
@@ -68,9 +70,21 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         assertThat(e.getCause().getMessage(), equalTo("cannot resolve symbol [doc]"));
     }
 
+    public void testNestedDocs() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "rank", "type=long", "nested", "type=nested");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
+            {"rank": 4.0, "nested": [{"text": "foo"}, {"text": "bar"}]}"""), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(new Script(ScriptType.INLINE, "painless", "doc['rank'].value", Map.of()), "score", contextSetup);
+        Response response = innerShardOperation(request, scriptService, indexService);
+        assertThat(response.getResult(), equalTo(4.0D));
+    }
+
     public void testFilterExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "field", "type=long");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "field", "type=long");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("{\"field\": 3}"), null);
         contextSetup.setXContentType(XContentType.JSON);
@@ -101,7 +115,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
     public void testScoreExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "rank", "type=long", "text", "type=text");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
             {"rank": 4.0, "text": "quick brown fox"}"""), new MatchQueryBuilder("text", "fox"));
@@ -122,7 +136,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
     public void testBooleanFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "rank", "type=long", "text", "type=text");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
             {"rank": 4.0, "text": "quick brown fox"}"""), new MatchQueryBuilder("text", "fox"));
@@ -148,7 +162,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
     public void testDateFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_date", "type=date");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "test_date", "type=date");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup(
             "index",
@@ -180,7 +194,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     public void testDoubleFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "rank", "type=long", "text", "type=text");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup(
             "index",
@@ -223,7 +237,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     public void testGeoPointFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "test_point", "type=geo_point");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup(
             "index",
@@ -259,9 +273,54 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         assertEquals("Point", points.get(1).get("type"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testGeometryFieldExecutionContext() throws IOException {
+        ScriptService scriptService = getInstanceFromNode(ScriptService.class);
+        IndexService indexService = createIndex("index", Settings.EMPTY, "test_point", "type=geo_point");
+
+        Request.ContextSetup contextSetup = new Request.ContextSetup(
+            "index",
+            new BytesArray("{\"test_point\":\"30.0,40.0\"}"),
+            new MatchAllQueryBuilder()
+        );
+        contextSetup.setXContentType(XContentType.JSON);
+        Request request = new Request(
+            new Script(
+                ScriptType.INLINE,
+                "painless",
+                "emit(\"Point(\" + doc['test_point'].value.lon + \" \" + doc['test_point'].value.lat + \")\")",
+                emptyMap()
+            ),
+            "geometry_field",
+            contextSetup
+        );
+        Response response = innerShardOperation(request, scriptService, indexService);
+        List<Map<String, Object>> geometry = (List<Map<String, Object>>) response.getResult();
+        assertEquals(40.0, (double) ((List<Object>) geometry.get(0).get("coordinates")).get(0), 0.00001);
+        assertEquals(30.0, (double) ((List<Object>) geometry.get(0).get("coordinates")).get(1), 0.00001);
+        assertEquals("Point", geometry.get(0).get("type"));
+
+        contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
+        contextSetup.setXContentType(XContentType.JSON);
+        request = new Request(
+            new Script(
+                ScriptType.INLINE,
+                "painless",
+                "emit(\"LINESTRING(78.96 12.12, 12.12 78.96)\"); emit(\"POINT(13.45 56.78)\");",
+                emptyMap()
+            ),
+            "geometry_field",
+            contextSetup
+        );
+        response = innerShardOperation(request, scriptService, indexService);
+        geometry = (List<Map<String, Object>>) response.getResult();
+        assertEquals("GeometryCollection", geometry.get(0).get("type"));
+        assertEquals(2, ((List<?>) geometry.get(0).get("geometries")).size());
+    }
+
     public void testIpFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_ip", "type=ip");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "test_ip", "type=ip");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup(
             "index",
@@ -299,7 +358,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
     public void testLongFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_value", "type=long");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "test_value", "type=long");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup(
             "index",
@@ -333,7 +392,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
     public void testKeywordFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=keyword");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "rank", "type=long", "text", "type=keyword");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
             {"rank": 4.0, "text": "quick brown fox"}"""), new MatchQueryBuilder("text", "fox"));
@@ -365,7 +424,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
     public void testCompositeExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=keyword");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "rank", "type=long", "text", "type=keyword");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
@@ -408,7 +467,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
     public void testFilterExecutionContextWorksWithRemoteClusterPrefix() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         String indexName = "index";
-        IndexService indexService = createIndex(indexName, Settings.EMPTY, "doc", "field", "type=long");
+        IndexService indexService = createIndex(indexName, Settings.EMPTY, "field", "type=long");
 
         String indexNameWithClusterAlias = "remote1:" + indexName;
         Request.ContextSetup contextSetup = new Request.ContextSetup(indexNameWithClusterAlias, new BytesArray("{\"field\": 3}"), null);
@@ -469,5 +528,50 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("blogs:  "));
         expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1:foo,remote2:bar"));
         expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("a:b,c:d,e:f"));
+    }
+
+    public void testRemoveClusterAliasFromIndexExpression() {
+        {
+            // index expressions with no clusterAlias should come back unchanged
+            PainlessExecuteAction.Request request = createRequest("blogs");
+            assertThat(request.index(), equalTo("blogs"));
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), equalTo("blogs"));
+        }
+        {
+            // index expressions with no index specified should come back unchanged
+            PainlessExecuteAction.Request request = createRequest(null);
+            assertThat(request.index(), nullValue());
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), nullValue());
+        }
+        {
+            // index expressions with clusterAlias should come back with it stripped off
+            PainlessExecuteAction.Request request = createRequest("remote1:blogs");
+            assertThat(request.index(), equalTo("remote1:blogs"));
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), equalTo("blogs"));
+        }
+        {
+            // index expressions with clusterAlias should come back with it stripped off
+            PainlessExecuteAction.Request request = createRequest("remote1:remote1");
+            assertThat(request.index(), equalTo("remote1:remote1"));
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), equalTo("remote1"));
+        }
+    }
+
+    public void testMarkOriginOnly() {
+        PainlessExecuteAction.Request request = createRequest("p1:blogs");
+        request.markOriginOnly();
+        assertThat(request.index(), equalTo("blogs"));
+    }
+
+    private PainlessExecuteAction.Request createRequest(String indexExpression) {
+        return new PainlessExecuteAction.Request(
+            new Script("100.0 / 1000.0"),
+            null,
+            new PainlessExecuteAction.Request.ContextSetup(indexExpression, null, null)
+        );
     }
 }

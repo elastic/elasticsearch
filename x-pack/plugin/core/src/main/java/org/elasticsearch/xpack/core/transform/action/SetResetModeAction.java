@@ -15,7 +15,7 @@ public class SetResetModeAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:internal/xpack/transform/reset_mode";
 
     private SetResetModeAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
 }

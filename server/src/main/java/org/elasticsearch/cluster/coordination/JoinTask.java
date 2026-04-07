@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.collect.Iterators;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaster, long term, ClusterState initialState)
@@ -26,11 +28,12 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
     public static JoinTask singleNode(
         DiscoveryNode node,
         CompatibilityVersions compatibilityVersions,
+        Set<String> features,
         JoinReason reason,
         ActionListener<Void> listener,
         long term
     ) {
-        return new JoinTask(List.of(new NodeJoinTask(node, compatibilityVersions, reason, listener)), false, term, null);
+        return new JoinTask(List.of(new NodeJoinTask(node, compatibilityVersions, features, reason, listener)), false, term, null);
     }
 
     public static JoinTask completingElection(Stream<NodeJoinTask> nodeJoinTaskStream, long term) {
@@ -78,6 +81,7 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
     public record NodeJoinTask(
         DiscoveryNode node,
         CompatibilityVersions compatibilityVersions,
+        Set<String> features,
         JoinReason reason,
         ActionListener<Void> listener
     ) {
@@ -85,11 +89,13 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         public NodeJoinTask(
             DiscoveryNode node,
             CompatibilityVersions compatibilityVersions,
+            Set<String> features,
             JoinReason reason,
             ActionListener<Void> listener
         ) {
             this.node = Objects.requireNonNull(node);
             this.compatibilityVersions = Objects.requireNonNull(compatibilityVersions);
+            this.features = Objects.requireNonNull(features);
             this.reason = reason;
             this.listener = listener;
         }

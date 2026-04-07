@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.BlockFactory;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -22,11 +24,11 @@ public class ShowOperator extends LocalSourceOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new ShowOperator(() -> objects);
+            return new ShowOperator(driverContext.blockFactory(), () -> objects);
         }
     }
 
-    public ShowOperator(ListSupplier listSupplier) {
-        super(listSupplier);
+    public ShowOperator(BlockFactory blockFactory, ListSupplier listSupplier) {
+        super(blockFactory, listSupplier);
     }
 }

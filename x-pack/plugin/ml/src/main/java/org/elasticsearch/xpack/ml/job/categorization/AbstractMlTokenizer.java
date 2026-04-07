@@ -16,8 +16,11 @@ import java.io.IOException;
 
 public abstract class AbstractMlTokenizer extends Tokenizer {
 
+    @SuppressWarnings("this-escape")
     protected final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+    @SuppressWarnings("this-escape")
     protected final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
+    @SuppressWarnings("this-escape")
     protected final PositionIncrementAttribute posIncrAtt = addAttribute(PositionIncrementAttribute.class);
 
     /**

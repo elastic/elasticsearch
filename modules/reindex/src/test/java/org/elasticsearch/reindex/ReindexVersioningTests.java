@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -105,7 +106,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     private void setupSourceAbsent() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("source").setId("test").setVersionType(EXTERNAL).setVersion(SOURCE_VERSION).setSource("foo", "source")
+            prepareIndex("source").setId("test").setVersionType(EXTERNAL).setVersion(SOURCE_VERSION).setSource("foo", "source")
         );
 
         assertEquals(SOURCE_VERSION, client().prepareGet("source", "test").get().getVersion());
@@ -113,10 +114,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
 
     private void setupDest(int version) throws Exception {
         setupSourceAbsent();
-        indexRandom(
-            true,
-            client().prepareIndex("dest").setId("test").setVersionType(EXTERNAL).setVersion(version).setSource("foo", "dest")
-        );
+        indexRandom(true, prepareIndex("dest").setId("test").setVersionType(EXTERNAL).setVersion(version).setSource("foo", "dest"));
 
         assertEquals(version, client().prepareGet("dest", "test").get().getVersion());
     }

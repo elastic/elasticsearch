@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -19,7 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -33,7 +34,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -73,6 +74,8 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                             .build(),
                         randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*")).toArray(new String[0])
                     ) },
+                null,
+                null,
                 null
             )
         );
@@ -129,7 +132,16 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final AuthorizationService authzService = internalCluster().getInstance(AuthorizationService.class, nodeName);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
             new RoleDescriptorsIntersection(
-                randomValueOtherThanMany(rd -> false == rd.hasPrivilegesOtherThanIndex(), () -> RoleDescriptorTests.randomRoleDescriptor())
+                randomValueOtherThanMany(
+                    rd -> false == rd.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+                    () -> RoleDescriptorTestHelper.builder()
+                        .allowReservedMetadata(randomBoolean())
+                        .allowRemoteIndices(randomBoolean())
+                        .allowRestriction(randomBoolean())
+                        .allowDescription(randomBoolean())
+                        .allowRemoteClusters(randomBoolean())
+                        .build()
+                )
             )
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -147,7 +159,8 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             assertThat(
                 actual.getMessage(),
                 equalTo(
-                    "Role descriptor for cross cluster access can only contain index privileges but other privileges found for subject ["
+                    "Role descriptor for cross cluster access can only contain index and "
+                        + "cluster privileges but other privileges found for subject ["
                         + expectedPrincipal
                         + "]"
                 )
@@ -162,7 +175,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final String concreteClusterAlias
     ) throws InterruptedException {
         try (var ignored = threadContext.stashContext()) {
-            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
+            assertThat(AUTHORIZATION_INFO_VALUE.get(threadContext), nullValue());
             final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
             final CountDownLatch latch = new CountDownLatch(1);
             // A request ID is set during authentication and is required for authorization; since we are not authenticating, set it
@@ -181,9 +194,10 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                     ActionTestUtils.assertNoFailureListener(nothing -> {
                         authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                             concreteClusterAlias,
+                            TransportVersion.current(),
                             authentication.getEffectiveSubject(),
                             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
-                                assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(nullValue()));
+                                assertThat(AUTHORIZATION_INFO_VALUE.get(threadContext), not(nullValue()));
                                 actual.set(newValue);
                             }), latch)
                         );
@@ -192,9 +206,10 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             } else {
                 authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                     concreteClusterAlias,
+                    TransportVersion.current(),
                     authentication.getEffectiveSubject(),
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
-                        assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
+                        assertThat(AUTHORIZATION_INFO_VALUE.get(threadContext), nullValue());
                         actual.set(newValue);
                     }), latch)
                 );
@@ -202,7 +217,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
 
             latch.await();
             // Validate original authz info is restored after call complete
-            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
+            assertThat(AUTHORIZATION_INFO_VALUE.get(threadContext), nullValue());
             return actual.get();
         }
     }

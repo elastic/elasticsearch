@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -29,11 +30,11 @@ public class FlushListenersTests extends ESTestCase {
             );
             flushListeners.afterFlush(generation, lastWriteLocation);
             Translog.Location waitLocation = new Translog.Location(
-                lastWriteLocation.generation - randomLongBetween(0, 2),
-                lastWriteLocation.generation - randomLongBetween(10, 90),
+                lastWriteLocation.generation() - randomLongBetween(0, 2),
+                lastWriteLocation.generation() - randomLongBetween(10, 90),
                 2
             );
-            PlainActionFuture<Long> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future = new PlainActionFuture<>();
             flushListeners.addOrNotify(waitLocation, future);
             assertThat(future.actionGet(), equalTo(generation));
         }
@@ -48,11 +49,11 @@ public class FlushListenersTests extends ESTestCase {
                 Integer.MAX_VALUE
             );
             Translog.Location waitLocation = new Translog.Location(
-                lastWriteLocation.generation - randomLongBetween(0, 2),
-                lastWriteLocation.generation - randomLongBetween(10, 90),
+                lastWriteLocation.generation() - randomLongBetween(0, 2),
+                lastWriteLocation.generation() - randomLongBetween(10, 90),
                 2
             );
-            PlainActionFuture<Long> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future = new PlainActionFuture<>();
             flushListeners.addOrNotify(waitLocation, future);
             assertFalse(future.isDone());
 
@@ -61,17 +62,17 @@ public class FlushListenersTests extends ESTestCase {
 
             long generation2 = generation + 1;
             Translog.Location secondLastWriteLocation = new Translog.Location(
-                lastWriteLocation.generation,
-                lastWriteLocation.translogLocation + 10,
+                lastWriteLocation.generation(),
+                lastWriteLocation.translogLocation() + 10,
                 Integer.MAX_VALUE
             );
             Translog.Location waitLocation2 = new Translog.Location(
-                lastWriteLocation.generation,
-                lastWriteLocation.translogLocation + 4,
+                lastWriteLocation.generation(),
+                lastWriteLocation.translogLocation() + 4,
                 2
             );
 
-            PlainActionFuture<Long> future2 = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future2 = new PlainActionFuture<>();
             flushListeners.addOrNotify(waitLocation2, future2);
             assertFalse(future2.isDone());
 
@@ -81,7 +82,7 @@ public class FlushListenersTests extends ESTestCase {
     }
 
     public void testFlushListenerClose() {
-        PlainActionFuture<Long> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Long> future = new PlainActionFuture<>();
         try (FlushListeners flushListeners = new FlushListeners(logger, new ThreadContext(Settings.EMPTY))) {
             Translog.Location waitLocation = new Translog.Location(randomLongBetween(0, 2), randomLongBetween(10, 90), 2);
             flushListeners.addOrNotify(waitLocation, future);
@@ -91,7 +92,7 @@ public class FlushListenersTests extends ESTestCase {
 
             expectThrows(AlreadyClosedException.class, future::actionGet);
 
-            expectThrows(IllegalStateException.class, () -> flushListeners.addOrNotify(waitLocation, PlainActionFuture.newFuture()));
+            expectThrows(IllegalStateException.class, () -> flushListeners.addOrNotify(waitLocation, new PlainActionFuture<>()));
         }
     }
 }

@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -42,7 +45,7 @@ public class ESIndexInputTestCase extends ESTestCase {
             name,
             10,
             0,
-            EsExecutors.daemonThreadFactory(name),
+            TestEsExecutors.testOnlyDaemonThreadFactory(name),
             new ThreadContext(Settings.EMPTY),
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
@@ -69,7 +72,7 @@ public class ESIndexInputTestCase extends ESTestCase {
         int readPos = (int) indexInput.getFilePointer();
         byte[] output = new byte[length];
         while (readPos < length) {
-            final var readStrategy = between(0, 8);
+            final var readStrategy = between(0, 9);
             switch (readStrategy) {
                 case 0, 1, 2, 3:
                     if (length - readPos >= Long.BYTES && readStrategy <= 0) {
@@ -83,6 +86,37 @@ public class ESIndexInputTestCase extends ESTestCase {
                         readPos += Short.BYTES;
                     } else {
                         output[readPos++] = indexInput.readByte();
+                    }
+                    if (indexInput instanceof RandomAccessInput randomAccessInput && randomBoolean()) {
+                        final var randomAccessReadStart = between(0, length - 1);
+                        final int randomAccessReadEnd;
+                        if (length - randomAccessReadStart >= Long.BYTES && randomBoolean()) {
+                            ByteBuffer.wrap(output, randomAccessReadStart, Long.BYTES)
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .putLong(randomAccessInput.readLong(randomAccessReadStart));
+                            randomAccessReadEnd = randomAccessReadStart + Long.BYTES;
+                        } else if (length - randomAccessReadStart >= Integer.BYTES && randomBoolean()) {
+                            ByteBuffer.wrap(output, randomAccessReadStart, Integer.BYTES)
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .putInt(randomAccessInput.readInt(randomAccessReadStart));
+                            randomAccessReadEnd = randomAccessReadStart + Integer.BYTES;
+                        } else if (length - randomAccessReadStart >= Short.BYTES && randomBoolean()) {
+                            ByteBuffer.wrap(output, randomAccessReadStart, Short.BYTES)
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .putShort(randomAccessInput.readShort(randomAccessReadStart));
+                            randomAccessReadEnd = randomAccessReadStart + Short.BYTES;
+                        } else {
+                            output[randomAccessReadStart] = randomAccessInput.readByte(randomAccessReadStart);
+                            randomAccessReadEnd = randomAccessReadStart + 1;
+                        }
+                        if (randomAccessReadStart <= readPos && readPos <= randomAccessReadEnd && randomBoolean()) {
+                            readPos = between(readPos, randomAccessReadEnd);
+                            indexInput.seek(readPos);
+                        }
+                        indexInput.seek(readPos); // BUG these random-access reads shouldn't affect the current position
+                        if (readPos < length) {
+                            indexInput.prefetch(readPos, randomIntBetween(1, Math.max(length - readPos - 1, 1)));
+                        }
                     }
                     break;
                 case 4:
@@ -127,6 +161,14 @@ public class ESIndexInputTestCase extends ESTestCase {
                     assertEquals(readPos, indexInput.getFilePointer());
                     break;
                 case 8:
+                    // Prefetch at random positions
+                    int loop = randomIntBetween(2, 5);
+                    for (int i = 0; i < loop; i++) {
+                        int offset = randomIntBetween(0, length - 1);
+                        indexInput.prefetch(offset, randomIntBetween(1, Math.max(length - offset - 1, 1)));
+                    }
+                    break;
+                case 9:
                     // Read clone or slice concurrently
                     final int cloneCount = between(1, 3);
                     final CountDownLatch startLatch = new CountDownLatch(1 + cloneCount);

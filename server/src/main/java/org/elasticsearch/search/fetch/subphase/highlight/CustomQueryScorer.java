@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
@@ -22,28 +23,12 @@ import java.util.Map;
 
 public final class CustomQueryScorer extends QueryScorer {
 
-    public CustomQueryScorer(Query query, IndexReader reader, String field, String defaultField) {
-        super(query, reader, field, defaultField);
-    }
-
-    public CustomQueryScorer(Query query, IndexReader reader, String field) {
-        super(query, reader, field);
-    }
-
-    public CustomQueryScorer(Query query, String field, String defaultField) {
-        super(query, field, defaultField);
-    }
-
     public CustomQueryScorer(Query query, String field) {
         super(query, field);
     }
 
     public CustomQueryScorer(Query query) {
         super(query);
-    }
-
-    public CustomQueryScorer(WeightedSpanTerm[] weightedTerms) {
-        super(weightedTerms);
     }
 
     @Override
@@ -69,13 +54,14 @@ public final class CustomQueryScorer extends QueryScorer {
         protected void extract(Query query, float boost, Map<String, WeightedSpanTerm> terms) throws IOException {
             if (isChildOrParentQuery(query.getClass())) {
                 // skip has_child or has_parent queries, see: https://github.com/elastic/elasticsearch/issues/14999
-                return;
             } else if (query instanceof FunctionScoreQuery) {
                 super.extract(((FunctionScoreQuery) query).getSubQuery(), boost, terms);
             } else if (query instanceof ESToParentBlockJoinQuery) {
                 super.extract(((ESToParentBlockJoinQuery) query).getChildQuery(), boost, terms);
             } else if (query instanceof ScriptScoreQuery ssq) {
                 super.extract(ssq.getSubQuery(), boost, terms);
+            } else if (query instanceof IndexSortSortedNumericDocValuesRangeQuery isq) {
+                super.extract(isq.getFallbackQuery(), boost, terms);
             } else {
                 super.extract(query, boost, terms);
             }

@@ -1,40 +1,43 @@
 {
-  "security.disable_user_profile":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-disable-user-profile.html",
-      "description":"Disables a user profile so it's not visible in user profile searches."
+  "security.disable_user_profile": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-disable-user-profile",
+      "description": "Disable a user profile"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/profile/{uid}/_disable",
-          "methods":[
+          "path": "/_security/profile/{uid}/_disable",
+          "methods": [
             "PUT",
             "POST"
           ],
-          "parts":{
-            "uid":{
-              "type":"string",
-              "description":"Unique identifier for the user profile"
+          "parts": {
+            "uid": {
+              "type": "string",
+              "description": "Unique identifier for the user profile"
             }
           }
         }
       ]
     },
-    "params":{
-      "refresh":{
-        "type":"enum",
-        "options":[
+    "params": {
+      "refresh": {
+        "type": "enum",
+        "options": [
           "true",
           "false",
           "wait_for"
         ],
-        "description":"If `true` then refresh the affected shards to make this operation visible to search, if `wait_for` (the default) then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+        "default": "false",
+        "description": "If `true` then refresh the affected shards to make this operation visible to search, if `wait_for` (the default) then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
       }
     }
   }

@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
-import org.elasticsearch.action.search.SearchAction;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.Maps;
@@ -20,10 +22,10 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.time.ZonedDateTime;
 import java.util.Collections;
@@ -38,6 +40,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
  * This class will search the buckets and indices over a given window to determine if any data is missing
  */
 public class DatafeedDelayedDataDetector implements DelayedDataDetector {
+
+    private static final Logger logger = LogManager.getLogger(DatafeedDelayedDataDetector.class);
 
     private static final String DATE_BUCKETS = "date_buckets";
 
@@ -129,22 +133,33 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
                 new DateHistogramAggregationBuilder(DATE_BUCKETS).fixedInterval(new DateHistogramInterval(bucketSpan + "ms"))
                     .field(timeField)
             )
-            .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end))
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end))
             .runtimeMappings(runtimeMappings);
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder).indicesOptions(indicesOptions);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            SearchResponse response = client.execute(SearchAction.INSTANCE, searchRequest).actionGet();
-            List<? extends Histogram.Bucket> buckets = ((Histogram) response.getAggregations().get(DATE_BUCKETS)).getBuckets();
-            Map<Long, Long> hashMap = Maps.newMapWithExpectedSize(buckets.size());
-            for (Histogram.Bucket bucket : buckets) {
-                long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
-                if (bucketTime < 0) {
-                    throw new IllegalStateException("Histogram key [" + bucket.getKey() + "] cannot be converted to a timestamp");
+            SearchResponse searchResponse = client.execute(TransportSearchAction.TYPE, searchRequest).actionGet();
+            try {
+                Histogram histogram = searchResponse.getAggregations().get(DATE_BUCKETS);
+                if (histogram == null) {
+                    // We log search response here to get information about shards and hits which may be helpful while debugging.
+                    // The size of the search response is small as we only log if the "date_buckets" aggregation is missing.
+                    logger.warn("[{}] Delayed data check failed with missing aggregation in search response [{}]", jobId, searchResponse);
+                    return Collections.emptyMap();
                 }
-                hashMap.put(bucketTime, bucket.getDocCount());
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                Map<Long, Long> hashMap = Maps.newMapWithExpectedSize(buckets.size());
+                for (Histogram.Bucket bucket : buckets) {
+                    long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
+                    if (bucketTime < 0) {
+                        throw new IllegalStateException("Histogram key [" + bucket.getKey() + "] cannot be converted to a timestamp");
+                    }
+                    hashMap.put(bucketTime, bucket.getDocCount());
+                }
+                return hashMap;
+            } finally {
+                searchResponse.decRef();
             }
-            return hashMap;
         }
     }
 

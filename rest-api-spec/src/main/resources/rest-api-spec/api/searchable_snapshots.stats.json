@@ -1,13 +1,15 @@
 {
   "searchable_snapshots.stats": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/searchable-snapshots-apis.html",
-      "description": "Retrieve shard-level statistics about searchable snapshots."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-searchable-snapshots-stats",
+      "description": "Get searchable snapshot statistics"
     },
     "stability": "stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
@@ -32,15 +34,15 @@
       ]
     },
     "params": {
-      "level":{
-        "type":"enum",
-        "description":"Return stats aggregated at cluster, index or shard level",
-        "options":[
+      "level": {
+        "type": "enum",
+        "description": "Return stats aggregated at cluster, index or shard level",
+        "options": [
           "cluster",
           "indices",
           "shards"
         ],
-        "default":"indices"
+        "default": "indices"
       }
     }
   }

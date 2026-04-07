@@ -13,12 +13,19 @@ import java.util.List;
 
 public class TestLocalPhysicalPlanOptimizer extends LocalPhysicalPlanOptimizer {
 
+    private final boolean esRules;
+
     public TestLocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
+        this(context, false);
+    }
+
+    public TestLocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context, boolean esRules) {
         super(context);
+        this.esRules = esRules;
     }
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return rules(false);
+        return rules(esRules);
     }
 }

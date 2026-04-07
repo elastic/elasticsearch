@@ -33,7 +33,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -539,15 +538,17 @@ public class InferenceIngestIT extends ESRestTestCase {
         return request;
     }
 
-    private Map<String, Object> generateSourceDoc() {
-        return new HashMap<>() {
-            {
-                put("col1", randomFrom("female", "male"));
-                put("col2", randomFrom("S", "M", "L", "XL"));
-                put("col3", randomFrom("true", "false", "none", "other"));
-                put("col4", randomIntBetween(0, 10));
-            }
-        };
+    private static Map<String, Object> generateSourceDoc() {
+        return Map.of(
+            "col1",
+            randomFrom("female", "male"),
+            "col2",
+            randomFrom("S", "M", "L", "XL"),
+            "col3",
+            randomFrom("true", "false", "none", "other"),
+            "col4",
+            randomIntBetween(0, 10)
+        );
     }
 
     private static final String REGRESSION_DEFINITION = """

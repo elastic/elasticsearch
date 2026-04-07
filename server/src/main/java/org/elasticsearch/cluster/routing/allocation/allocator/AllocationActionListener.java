@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -27,10 +28,10 @@ public class AllocationActionListener<T> {
     private final SetOnce<Map<String, List<String>>> additionalResponseHeaders = new SetOnce<>();
 
     /**
-     * This listener could be used when reroute completion (such as even balancing shards across the cluster) is not required for the
-     * completion of the caller operation.
+     * Returns a no-op listener for callers that do not need to wait for reroute to finish (e.g. shard rebalancing across the cluster)
+     * before completing their own operation.
      *
-     * For example, it is required to compute the desired balance to properly allocate newly created index, but it is not when deleting one.
+     * For example, waiting for reroute is needed to allocate shards for a newly created index, but not when deleting one.
      */
     public static ActionListener<Void> rerouteCompletionIsNotRequired() {
         return ActionListener.noop();

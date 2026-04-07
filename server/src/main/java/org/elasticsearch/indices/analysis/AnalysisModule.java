@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
@@ -136,7 +138,7 @@ public final class AnalysisModule {
         tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-                if (indexSettings.getIndexVersionCreated().before(IndexVersion.V_7_0_0)) {
+                if (indexSettings.getIndexVersionCreated().before(IndexVersions.V_7_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.ANALYSIS,
                         "standard_deprecation",
@@ -145,7 +147,7 @@ public final class AnalysisModule {
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
                 }
-                return new AbstractTokenFilterFactory(name, settings) {
+                return new AbstractTokenFilterFactory(name) {
                     @Override
                     public TokenStream create(TokenStream tokenStream) {
                         return tokenStream;
@@ -201,7 +203,7 @@ public final class AnalysisModule {
             // This was originally removed in 7_0_0 but due to a cacheing bug it was still possible
             // in certain circumstances to create a new index referencing the standard token filter
             // until version 7_5_2
-            if (version.before(IndexVersion.V_7_6_0)) {
+            if (version.before(IndexVersions.V_7_6_0)) {
                 deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "standard_deprecation",

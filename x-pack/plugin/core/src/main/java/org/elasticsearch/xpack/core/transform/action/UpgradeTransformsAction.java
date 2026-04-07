@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -28,7 +27,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
     public static final String NAME = "cluster:admin/transform/upgrade";
 
     private UpgradeTransformsAction() {
-        super(NAME, UpgradeTransformsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -41,13 +40,8 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         }
 
         public Request(boolean dryRun, TimeValue timeout) {
-            super(timeout);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.dryRun = dryRun;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         public boolean isDryRun() {
@@ -63,7 +57,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), dryRun);
+            return Objects.hash(ackTimeout(), dryRun);
         }
 
         @Override
@@ -77,7 +71,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
             Request other = (Request) obj;
 
             // the base class does not implement equals, therefore we need to check timeout ourselves
-            return this.dryRun == other.dryRun && timeout().equals(other.timeout());
+            return this.dryRun == other.dryRun && ackTimeout().equals(other.ackTimeout());
         }
     }
 

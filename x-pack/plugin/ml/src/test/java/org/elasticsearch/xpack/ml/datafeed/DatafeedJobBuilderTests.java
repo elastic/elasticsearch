@@ -79,10 +79,15 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             new HashSet<>(
                 Arrays.asList(
                     MachineLearning.DELAYED_DATA_CHECK_FREQ,
+                    MachineLearning.CCS_STABILIZATION_CYCLES,
+                    MachineLearning.CCS_STABILIZATION_FLOOR,
                     MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                 )
             )
         );
@@ -129,12 +134,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             wasHandlerCalled.compareAndSet(false, true);
         });
 
-        DatafeedContext datafeedContext = DatafeedContext.builder()
-            .setDatafeedConfig(datafeed.build())
-            .setJob(jobBuilder.build())
-            .setRestartTimeInfo(new RestartTimeInfo(null, null, false))
-            .setTimingStats(new DatafeedTimingStats(jobBuilder.getId()))
-            .build();
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(null, null, false),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 
@@ -159,12 +164,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             wasHandlerCalled.compareAndSet(false, true);
         });
 
-        DatafeedContext datafeedContext = DatafeedContext.builder()
-            .setDatafeedConfig(datafeed.build())
-            .setJob(jobBuilder.build())
-            .setRestartTimeInfo(new RestartTimeInfo(3_600_000L, 7_200_000L, false))
-            .setTimingStats(new DatafeedTimingStats(jobBuilder.getId()))
-            .build();
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(3_800_000L, 7_200_000L, false),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 
@@ -189,12 +194,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             wasHandlerCalled.compareAndSet(false, true);
         });
 
-        DatafeedContext datafeedContext = DatafeedContext.builder()
-            .setDatafeedConfig(datafeed.build())
-            .setJob(jobBuilder.build())
-            .setRestartTimeInfo(new RestartTimeInfo(3_800_000L, 3_600_000L, false))
-            .setTimingStats(new DatafeedTimingStats(jobBuilder.getId()))
-            .build();
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(3_800_000L, 3_600_000L, false),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 
@@ -241,12 +246,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             }
         );
 
-        DatafeedContext datafeedContext = DatafeedContext.builder()
-            .setDatafeedConfig(datafeed.build())
-            .setJob(jobBuilder.build())
-            .setRestartTimeInfo(new RestartTimeInfo(null, null, false))
-            .setTimingStats(new DatafeedTimingStats(jobBuilder.getId()))
-            .build();
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(null, null, false),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 

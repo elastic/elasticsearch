@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.UUIDs;
@@ -46,11 +46,11 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testAllowedIndicesMatcherAction() throws Exception {
-        testAllowedIndicesMatcher(permission.indices().allowedIndicesMatcher(GetAction.NAME));
+        testAllowedIndicesMatcher(permission.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()));
     }
 
     public void testAllowedIndicesMatcherForMappingUpdates() throws Exception {
-        for (String mappingUpdateActionName : List.of(PutMappingAction.NAME, AutoPutMappingAction.NAME)) {
+        for (String mappingUpdateActionName : List.of(TransportPutMappingAction.TYPE.name(), TransportAutoPutMappingAction.TYPE.name())) {
             IndexAbstraction mockIndexAbstraction = mock(IndexAbstraction.class);
             IsResourceAuthorizedPredicate indexPredicate = permission.indices().allowedIndicesMatcher(mappingUpdateActionName);
             // mapping updates are still permitted on indices and aliases
@@ -71,8 +71,8 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testAllowedIndicesMatcherActionCaching() throws Exception {
-        IsResourceAuthorizedPredicate matcher1 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
-        IsResourceAuthorizedPredicate matcher2 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
+        IsResourceAuthorizedPredicate matcher1 = permission.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
+        IsResourceAuthorizedPredicate matcher2 = permission.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name());
         assertThat(matcher1, is(matcher2));
     }
 

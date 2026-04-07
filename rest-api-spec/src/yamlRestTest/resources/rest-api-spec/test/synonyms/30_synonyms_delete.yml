@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: Introduced in 8.10.0
   - do:
       synonyms.put_synonym:
@@ -71,7 +71,6 @@ setup:
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:

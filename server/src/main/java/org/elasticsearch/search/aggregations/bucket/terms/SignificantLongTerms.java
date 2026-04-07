@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -29,23 +30,14 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
 
         long term;
 
-        public Bucket(
-            long subsetDf,
-            long subsetSize,
-            long supersetDf,
-            long supersetSize,
-            long term,
-            InternalAggregations aggregations,
-            DocValueFormat format,
-            double score
-        ) {
-            super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
+        public Bucket(long subsetDf, long supersetDf, long term, InternalAggregations aggregations, DocValueFormat format, double score) {
+            super(subsetDf, supersetDf, aggregations, format);
             this.term = term;
             this.score = score;
         }
 
-        Bucket(StreamInput in, long subsetSize, long supersetSize, DocValueFormat format) throws IOException {
-            super(in, subsetSize, supersetSize, format);
+        Bucket(StreamInput in, DocValueFormat format) throws IOException {
+            super(format);
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
             term = in.readLong();
@@ -70,11 +62,6 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         @Override
         public String getKeyAsString() {
             return format.format(term).toString();
-        }
-
-        @Override
-        public Number getKeyAsNumber() {
-            return term;
         }
 
         @Override
@@ -140,16 +127,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, SignificantLongTerms.Bucket prototype) {
-        return new Bucket(
-            prototype.subsetDf,
-            prototype.subsetSize,
-            prototype.supersetDf,
-            prototype.supersetSize,
-            prototype.term,
-            aggregations,
-            prototype.format,
-            prototype.score
-        );
+        return new Bucket(prototype.subsetDf, prototype.supersetDf, prototype.term, aggregations, prototype.format, prototype.score);
     }
 
     @Override
@@ -173,14 +151,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
     }
 
     @Override
-    Bucket createBucket(
-        long subsetDf,
-        long subsetSize,
-        long supersetDf,
-        long supersetSize,
-        InternalAggregations aggregations,
-        SignificantLongTerms.Bucket prototype
-    ) {
-        return new Bucket(subsetDf, subsetSize, supersetDf, supersetSize, prototype.term, aggregations, format, prototype.score);
+    Bucket createBucket(long subsetDf, long supersetDf, InternalAggregations aggregations, SignificantLongTerms.Bucket prototype) {
+        return new Bucket(subsetDf, supersetDf, prototype.term, aggregations, format, prototype.score);
     }
 }

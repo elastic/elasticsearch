@@ -112,7 +112,7 @@ public class PyTorchStateStreamer {
         return true;
     }
 
-    private long writeModelSize(String modelId, Long modelSizeBytes, OutputStream outputStream) throws IOException {
+    private static long writeModelSize(String modelId, Long modelSizeBytes, OutputStream outputStream) throws IOException {
         if (modelSizeBytes == null) {
             String message = String.format(
                 Locale.ROOT,

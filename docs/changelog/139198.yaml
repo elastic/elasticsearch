@@ -1,0 +1,5 @@
+pr: 139198
+summary: Define bulk operations for vector square distance
+area: Vector Search
+type: enhancement
+issues: []

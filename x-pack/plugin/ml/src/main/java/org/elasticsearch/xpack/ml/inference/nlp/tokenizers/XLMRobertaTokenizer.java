@@ -102,6 +102,11 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
     }
 
     @Override
+    int numExtraTokensForSingleSequence() {
+        return 2;
+    }
+
+    @Override
     int clsTokenId() {
         return clsTokenId;
     }
@@ -126,10 +131,10 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
 
     @Override
     public NlpTask.RequestBuilder requestBuilder() {
-        return (inputs, requestId, truncate, span) -> buildTokenizationResult(
+        return (inputs, requestId, truncate, span, windowSize) -> buildTokenizationResult(
             IntStream.range(0, inputs.size())
                 .boxed()
-                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId).stream())
+                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId, windowSize).stream())
                 .collect(Collectors.toList())
         ).buildRequest(requestId, truncate);
     }
@@ -163,6 +168,10 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
         return new XLMRobertaTokenizationResult.XLMRobertaTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
     }
 
+    /**
+     * @param seq cannot be null
+     * @return InnerTokenization
+     */
     @Override
     public InnerTokenization innerTokenize(String seq) {
         List<Integer> tokenPositionMap = new ArrayList<>();
@@ -270,7 +279,7 @@ public class XLMRobertaTokenizer extends NlpTokenizer {
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
-            this.innerTokenizer = UnigramTokenizer.build(neverSplit, vocabulary, scores, unknownToken);
+            this.innerTokenizer = UnigramTokenizer.build(neverSplit, vocabulary, scores, unknownToken, false);
             return new TokenStreamComponents(this.innerTokenizer);
         }
 

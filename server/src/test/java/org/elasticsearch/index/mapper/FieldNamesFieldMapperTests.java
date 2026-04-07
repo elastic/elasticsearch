@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -34,7 +35,10 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {}
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        // enabled is deprecated and throws on 8.0+ indices; tested separately in testUsingEnabledSettingThrows
+        checker.registerIgnoredParameter("enabled");
+    }
 
     private static void assertFieldNames(Set<String> expected, ParsedDocument doc) {
         assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_field_names")), containsInAnyOrder(expected.toArray()));
@@ -84,9 +88,8 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
      * disabling the _field_names should still work for indices before 8.0
      */
     public void testUsingEnabledBefore8() throws Exception {
-
         DocumentMapper docMapper = createDocumentMapper(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0),
+            IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0),
             topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject())
         );
 
@@ -103,7 +106,7 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
      */
     public void testMergingMappingsBefore8() throws Exception {
         MapperService mapperService = createMapperService(
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0),
+            IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0),
             mapping(b -> {})
         );
 

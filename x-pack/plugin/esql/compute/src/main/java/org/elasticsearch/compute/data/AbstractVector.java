@@ -10,10 +10,10 @@ package org.elasticsearch.compute.data;
 /**
  * A dense Vector of single values.
  */
-abstract class AbstractVector implements Vector {
+abstract class AbstractVector extends AbstractNonThreadSafeRefCounted implements Vector {
 
     private final int positionCount;
-    protected final BlockFactory blockFactory;
+    private BlockFactory blockFactory;
 
     protected AbstractVector(int positionCount, BlockFactory blockFactory) {
         this.positionCount = positionCount;
@@ -25,18 +25,17 @@ abstract class AbstractVector implements Vector {
     }
 
     @Override
-    public final Vector getRow(int position) {
-        return filter(position);
-    }
-
-    @Override
     public BlockFactory blockFactory() {
         return blockFactory;
     }
 
     @Override
-    public void close() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+    public void allowPassingToDifferentDriver() {
+        blockFactory = blockFactory.parent();
     }
 
+    @Override
+    protected void closeInternal() {
+        blockFactory.adjustBreaker(-ramBytesUsed());
+    }
 }

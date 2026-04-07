@@ -1,7 +1,7 @@
 ---
 "Test cat recovery output":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: format of bytes output changed in 8.0.0
 
   - do:
@@ -30,8 +30,8 @@
                 (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
                 (empty_store|existing_store|peer|snapshot|local_shards) \s+ # source type
                 (init|index|verify_index|translog|finalize|done) \s+ # stage
-                [-\w./]+    \s+                                 # source_host
-                [-\w./]+    \s+                                 # target_host
+                [-\w.%:/]+  \s+                                 # source_host
+                [-\w.%:/]+  \s+                                 # target_host
                 [-\w./]+    \s+                                 # repository
                 [-\w./]+    \s+                                 # snapshot
                 \d+         \s+                                 # files
@@ -81,10 +81,10 @@
 
 ---
 "Test cat recovery output for closed index":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: format of bytes output changed in 8.0.0
-      features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -97,8 +97,6 @@
   - do:
       indices.close:
         index: index2
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:
@@ -120,8 +118,8 @@
           (?:\d+ms|\d+(?:\.\d+)?s)    \s+                 # time in ms or seconds
           existing_store \s+                              # source type (always existing_store for closed indices)
           done        \s+                                 # stage
-          [-\w./]+    \s+                                 # source_host
-          [-\w./]+    \s+                                 # target_host
+          [-\w.%:/]+  \s+                                 # source_host
+          [-\w.%:/]+  \s+                                 # target_host
           [-\w./]+    \s+                                 # repository
           [-\w./]+    \s+                                 # snapshot
           \d+         \s+                                 # files

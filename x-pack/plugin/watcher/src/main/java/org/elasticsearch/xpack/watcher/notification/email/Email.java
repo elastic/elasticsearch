@@ -141,7 +141,7 @@ public class Email implements ToXContentObject {
         if (priority != null) {
             builder.field(Field.PRIORITY.getPreferredName(), priority.value());
         }
-        builder.timeField(Field.SENT_DATE.getPreferredName(), sentDate);
+        builder.timestampField(Field.SENT_DATE.getPreferredName(), sentDate);
         if (to != null) {
             builder.field(Field.TO.getPreferredName(), to, params);
         }

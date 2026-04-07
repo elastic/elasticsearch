@@ -79,8 +79,8 @@
 
 ---
 "Can create filtered alias with a date_nanos range query":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "skipping older version until backport"
 
   - do:
@@ -103,3 +103,30 @@
         index: test_index
         name: test_alias
   - match: {test_index.aliases.test_alias: {"filter": {"range": {"date_nanos_field": {"gt": "now-7d/d"}}}}}
+
+---
+"Throw exception for unknown token":
+  - requires:
+      cluster_features: [ "index.throw_exception_for_unknown_token_in_rest_index_put_alias_action" ]
+      reason: "Throw exception for unknown token in RestIndexPutAliasAction"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      catch: /Unsupported field \[foo\]/
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body:
+          is_write_index: true
+          foo: "bar"
+
+  - do:
+      catch: / Unexpected token \[START_ARRAY\]/
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body:
+          routing: [ "routing" ]

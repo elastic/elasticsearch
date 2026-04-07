@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.operateAllIndices;
@@ -37,8 +38,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         // Special "match none" pattern succeeds, since non-destructive
         assertAcked(indicesAdmin().prepareDelete("*", "-*").get());
 
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareDelete("i*").get());
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareDelete("_all").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareDelete("i*"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareDelete("_all"));
     }
 
     public void testDeleteIndexDefaultBehaviour() throws Exception {
@@ -67,8 +68,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         // Special "match none" pattern succeeds, since non-destructive
         assertAcked(indicesAdmin().prepareClose("*", "-*").get());
 
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareClose("i*").get());
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareClose("_all").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareClose("i*"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareClose("_all"));
     }
 
     public void testCloseIndexDefaultBehaviour() throws Exception {
@@ -84,8 +85,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
             assertAcked(indicesAdmin().prepareClose("*").get());
         }
 
-        ClusterState state = clusterAdmin().prepareState().get().getState();
-        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().indices().entrySet()) {
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().getProject().indices().entrySet()) {
             assertEquals(IndexMetadata.State.CLOSE, indexMetadataEntry.getValue().getState());
         }
     }
@@ -99,8 +100,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         // Special "match none" pattern succeeds, since non-destructive
         assertAcked(indicesAdmin().prepareOpen("*", "-*").get());
 
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareOpen("i*").get());
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareOpen("_all").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareOpen("i*"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareOpen("_all"));
     }
 
     public void testOpenIndexDefaultBehaviour() throws Exception {
@@ -117,8 +118,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
             assertAcked(indicesAdmin().prepareOpen("*").get());
         }
 
-        ClusterState state = clusterAdmin().prepareState().get().getState();
-        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().indices().entrySet()) {
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().getProject().indices().entrySet()) {
             assertEquals(IndexMetadata.State.OPEN, indexMetadataEntry.getValue().getState());
         }
     }
@@ -133,8 +134,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         // Special "match none" pattern succeeds, since non-destructive
         assertAcked(indicesAdmin().prepareAddBlock(WRITE, "*", "-*").get());
 
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareAddBlock(WRITE, "i*").get());
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareAddBlock(WRITE, "_all").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAddBlock(WRITE, "i*"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAddBlock(WRITE, "_all"));
     }
 
     public void testAddIndexBlockDefaultBehaviour() throws Exception {
@@ -150,8 +151,50 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
             assertAcked(indicesAdmin().prepareAddBlock(WRITE, "*").get());
         }
 
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertTrue("write block is set on index1", state.getBlocks().hasIndexBlock("index1", IndexMetadata.INDEX_WRITE_BLOCK));
         assertTrue("write block is set on 1index", state.getBlocks().hasIndexBlock("1index", IndexMetadata.INDEX_WRITE_BLOCK));
+    }
+
+    public void testRemoveIndexBlockIsRejected() throws Exception {
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true));
+
+        createIndex("index1", "1index");
+        // Add blocks first
+        assertAcked(indicesAdmin().prepareAddBlock(WRITE, "index1", "1index").get());
+
+        // Test rejected wildcard patterns (while blocks still exist)
+        expectThrows(
+            IllegalArgumentException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "i*")
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "_all")
+        );
+
+        // Test successful requests (exact names and non-destructive patterns)
+        assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "1index").get());
+        assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "*", "-*").get());
+    }
+
+    public void testRemoveIndexBlockDefaultBehaviour() throws Exception {
+        if (randomBoolean()) {
+            updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false));
+        }
+
+        createIndex("index1", "1index");
+        // Add blocks first
+        assertAcked(indicesAdmin().prepareAddBlock(WRITE, "index1", "1index").get());
+
+        if (randomBoolean()) {
+            assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "_all").get());
+        } else {
+            assertAcked(indicesAdmin().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, WRITE, "*").get());
+        }
+
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        assertFalse("write block is removed from index1", state.getBlocks().hasIndexBlock("index1", IndexMetadata.INDEX_WRITE_BLOCK));
+        assertFalse("write block is removed from 1index", state.getBlocks().hasIndexBlock("1index", IndexMetadata.INDEX_WRITE_BLOCK));
     }
 }

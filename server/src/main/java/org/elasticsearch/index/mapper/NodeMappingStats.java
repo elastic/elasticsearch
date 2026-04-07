@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -30,10 +31,15 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
         static final String TOTAL_COUNT = "total_count";
         static final String TOTAL_ESTIMATED_OVERHEAD = "total_estimated_overhead";
         static final String TOTAL_ESTIMATED_OVERHEAD_IN_BYTES = "total_estimated_overhead_in_bytes";
+        static final String TOTAL_SEGMENTS = "total_segments";
+        static final String TOTAL_SEGMENT_FIELDS = "total_segment_fields";
+        static final String AVERAGE_FIELDS_PER_SEGMENT = "average_fields_per_segment";
     }
 
     private long totalCount;
     private long totalEstimatedOverhead;
+    private long totalSegments;
+    private long totalSegmentFields;
 
     public NodeMappingStats() {
 
@@ -42,17 +48,23 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     public NodeMappingStats(StreamInput in) throws IOException {
         totalCount = in.readVLong();
         totalEstimatedOverhead = in.readVLong();
+        totalSegments = in.readVLong();
+        totalSegmentFields = in.readVLong();
     }
 
-    public NodeMappingStats(long totalCount, long totalEstimatedOverhead) {
+    public NodeMappingStats(long totalCount, long totalEstimatedOverhead, long totalSegments, long totalSegmentFields) {
         this.totalCount = totalCount;
         this.totalEstimatedOverhead = totalEstimatedOverhead;
+        this.totalSegments = totalSegments;
+        this.totalSegmentFields = totalSegmentFields;
     }
 
     public void add(@Nullable NodeMappingStats other) {
         if (other == null) return;
         this.totalCount += other.totalCount;
         this.totalEstimatedOverhead += other.totalEstimatedOverhead;
+        this.totalSegments += other.totalSegments;
+        this.totalSegmentFields += other.totalSegmentFields;
     }
 
     public long getTotalCount() {
@@ -63,10 +75,20 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
         return ByteSizeValue.ofBytes(totalEstimatedOverhead);
     }
 
+    public long getTotalSegments() {
+        return totalSegments;
+    }
+
+    public long getTotalSegmentFields() {
+        return totalSegmentFields;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(totalCount);
         out.writeVLong(totalEstimatedOverhead);
+        out.writeVLong(totalSegments);
+        out.writeVLong(totalSegmentFields);
     }
 
     @Override
@@ -74,6 +96,9 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.MAPPINGS);
         builder.field(Fields.TOTAL_COUNT, getTotalCount());
         builder.humanReadableField(Fields.TOTAL_ESTIMATED_OVERHEAD_IN_BYTES, Fields.TOTAL_ESTIMATED_OVERHEAD, getTotalEstimatedOverhead());
+        builder.field(Fields.TOTAL_SEGMENTS, totalSegments);
+        builder.field(Fields.TOTAL_SEGMENT_FIELDS, totalSegmentFields);
+        builder.field(Fields.AVERAGE_FIELDS_PER_SEGMENT, totalSegments == 0 ? 0 : totalSegmentFields / totalSegments);
         builder.endObject();
         return builder;
     }
@@ -83,11 +108,14 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeMappingStats that = (NodeMappingStats) o;
-        return totalCount == that.totalCount && totalEstimatedOverhead == that.totalEstimatedOverhead;
+        return totalCount == that.totalCount
+            && totalEstimatedOverhead == that.totalEstimatedOverhead
+            && totalSegments == that.totalSegments
+            && totalSegmentFields == that.totalSegmentFields;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalCount, totalEstimatedOverhead);
+        return Objects.hash(totalCount, totalEstimatedOverhead, totalSegments, totalSegmentFields);
     }
 }

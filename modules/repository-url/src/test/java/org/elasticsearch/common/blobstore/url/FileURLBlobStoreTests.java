@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.mockito.Mockito.mock;
 
 public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
@@ -59,6 +61,6 @@ public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     @Override
     public void testURLBlobStoreCanReadBlobRange() throws IOException {
-        expectThrows(UnsupportedOperationException.class, () -> getBlobContainer().readBlob("test", 0, 12));
+        expectThrows(UnsupportedOperationException.class, () -> getBlobContainer().readBlob(randomPurpose(), "test", 0, 12));
     }
 }

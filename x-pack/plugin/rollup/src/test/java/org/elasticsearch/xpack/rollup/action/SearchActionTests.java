@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -678,13 +677,17 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse response = mock(SearchResponse.class);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
         MultiSearchResponse msearchResponse = new MultiSearchResponse(new MultiSearchResponse.Item[] { item }, 1);
-
-        SearchResponse r = TransportRollupSearchAction.processResponses(
-            result,
-            msearchResponse,
-            InternalAggregationTestCase.emptyReduceContextBuilder()
-        );
-        assertThat(r, equalTo(response));
+        try {
+            // a mock SearchResponse, so does not need to be decRef'd
+            SearchResponse r = TransportRollupSearchAction.processResponses(
+                result,
+                msearchResponse,
+                InternalAggregationTestCase.emptyReduceContextBuilder()
+            );
+            assertThat(r, equalTo(response));
+        } finally {
+            msearchResponse.decRef();
+        }
     }
 
     public void testRollupOnly() throws Exception {
@@ -733,21 +736,30 @@ public class SearchActionTests extends ESTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggs = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggs = InternalAggregations.from(aggTree);
         when(response.getAggregations()).thenReturn(mockAggs);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
         MultiSearchResponse msearchResponse = new MultiSearchResponse(new MultiSearchResponse.Item[] { item }, 1);
-
-        SearchResponse r = TransportRollupSearchAction.processResponses(
-            result,
-            msearchResponse,
-            InternalAggregationTestCase.emptyReduceContextBuilder()
-        );
-
-        assertNotNull(r);
-        Aggregations responseAggs = r.getAggregations();
-        Avg avg = responseAggs.get("foo");
-        assertThat(avg.getValue(), IsEqual.equalTo(5.0));
+        try {
+            SearchResponse r = TransportRollupSearchAction.processResponses(
+                result,
+                msearchResponse,
+                InternalAggregationTestCase.emptyReduceContextBuilder(
+                    new AggregatorFactories.Builder().addAggregator(new SumAggregationBuilder("foo"))
+                )
+            );
+            try {
+                assertNotNull(r);
+                InternalAggregations responseAggs = r.getAggregations();
+                Avg avg = responseAggs.get("foo");
+                assertThat(avg.getValue(), IsEqual.equalTo(5.0));
+            } finally {
+                // this SearchResponse is not a mock, so we decRef
+                r.decRef();
+            }
+        } finally {
+            msearchResponse.decRef();
+        }
     }
 
     public void testTooManyRollups() throws IOException {
@@ -788,16 +800,19 @@ public class SearchActionTests extends ESTestCase {
             Collections.emptySet()
         );
         MultiSearchResponse msearchResponse = new MultiSearchResponse(new MultiSearchResponse.Item[0], 1);
-
-        RuntimeException e = expectThrows(
-            RuntimeException.class,
-            () -> TransportRollupSearchAction.processResponses(
-                result,
-                msearchResponse,
-                InternalAggregationTestCase.emptyReduceContextBuilder()
-            )
-        );
-        assertThat(e.getMessage(), equalTo("MSearch response was empty, cannot unroll RollupSearch results"));
+        try {
+            RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> TransportRollupSearchAction.processResponses(
+                    result,
+                    msearchResponse,
+                    InternalAggregationTestCase.emptyReduceContextBuilder()
+                )
+            );
+            assertThat(e.getMessage(), equalTo("MSearch response was empty, cannot unroll RollupSearch results"));
+        } finally {
+            msearchResponse.decRef();
+        }
     }
 
     public void testBoth() throws Exception {
@@ -830,7 +845,7 @@ public class SearchActionTests extends ESTestCase {
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
         InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, null);
         protoAggTree.add(internalAvg);
-        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
+        InternalAggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -860,29 +875,34 @@ public class SearchActionTests extends ESTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
-        MultiSearchResponse msearchResponse = new MultiSearchResponse(
+        final MultiSearchResponse msearchResponse = new MultiSearchResponse(
             new MultiSearchResponse.Item[] { unrolledResponse, rolledResponse },
             123
         );
-
-        SearchResponse response = TransportRollupSearchAction.processResponses(
-            separateIndices,
-            msearchResponse,
-            InternalAggregationTestCase.emptyReduceContextBuilder(
-                new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("foo"))
-                    .addAggregator(new MaxAggregationBuilder("foo." + RollupField.COUNT_FIELD))
-            )
-        );
-
-        assertNotNull(response);
-        Aggregations responseAggs = response.getAggregations();
-        assertNotNull(responseAggs);
-        Avg avg = responseAggs.get("foo");
-        assertThat(avg.getValue(), IsEqual.equalTo(5.0));
-
+        try {
+            SearchResponse response = TransportRollupSearchAction.processResponses(
+                separateIndices,
+                msearchResponse,
+                InternalAggregationTestCase.emptyReduceContextBuilder(
+                    new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("foo"))
+                        .addAggregator(new MaxAggregationBuilder("foo." + RollupField.COUNT_FIELD))
+                )
+            );
+            try {
+                assertNotNull(response);
+                InternalAggregations responseAggs = response.getAggregations();
+                assertNotNull(responseAggs);
+                Avg avg = responseAggs.get("foo");
+                assertThat(avg.getValue(), IsEqual.equalTo(5.0));
+            } finally {
+                response.decRef();
+            }
+        } finally {
+            msearchResponse.decRef();
+        }
     }
 }

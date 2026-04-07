@@ -6,14 +6,11 @@
  */
 package org.elasticsearch.xpack.eql.analysis;
 
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.Sample;
-import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -21,11 +18,8 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
-import java.util.Collection;
 import java.util.Map;
-import java.util.function.Function;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.eql.analysis.AnalyzerTestUtils.analyzer;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -374,6 +368,13 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where serial_event_id == 0");
     }
 
+    public void testJoinCommand() {
+        final IndexResolution idxr = loadIndexResolution("mapping-ip.json");
+
+        assertEquals("1:1: JOIN command is not supported", error(idxr, "join [any where true] [any where true]"));
+        assertEquals("1:1: JOIN command is not supported", error(idxr, "join [any where true] [any where true] | tail 3"));
+    }
+
     public void testMultiField() {
         final IndexResolution idxr = loadIndexResolution("mapping-multi-field.json");
         accept(idxr, "foo where multi_field.raw == \"bar\"");
@@ -450,29 +451,6 @@ public class VerifierTests extends ESTestCase {
             "1:69: Sequence key [opcode] type [long] is incompatible with key [@timestamp] type [date]",
             error(index, "sequence " + "[process where true] by @timestamp " + "[process where true] by opcode")
         );
-    }
-
-    private LogicalPlan analyzeWithVerifierFunction(Function<String, Collection<String>> versionIncompatibleClusters) {
-        PreAnalyzer preAnalyzer = new PreAnalyzer();
-        EqlConfiguration eqlConfiguration = new EqlConfiguration(
-            new String[] { "none" },
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC,
-            "nobody",
-            "cluster",
-            null,
-            emptyMap(),
-            null,
-            TimeValue.timeValueSeconds(30),
-            null,
-            123,
-            1,
-            "",
-            new TaskId("test", 123),
-            null
-        );
-        Analyzer analyzer = analyzer(eqlConfiguration);
-        IndexResolution resolution = IndexResolution.valid(new EsIndex("irrelevant", loadEqlMapping("mapping-default.json")));
-        return analyzer.analyze(preAnalyzer.preAnalyze(new EqlParser().createStatement("any where true"), resolution));
     }
 
     public void testIgnoredTimestampAndTiebreakerInSamples() {

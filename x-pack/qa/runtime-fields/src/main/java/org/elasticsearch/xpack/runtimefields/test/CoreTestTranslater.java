@@ -67,7 +67,7 @@ public abstract class CoreTestTranslater {
             ClientYamlTestSection modified = new ClientYamlTestSection(
                 candidate.getTestSection().getLocation(),
                 candidate.getTestSection().getName(),
-                candidate.getTestSection().getSkipSection(),
+                candidate.getTestSection().getPrerequisiteSection(),
                 candidate.getTestSection().getExecutableSections()
             );
             result.add(new Object[] { new ClientYamlTestCandidate(suite.modified, modified) });
@@ -169,7 +169,7 @@ public abstract class CoreTestTranslater {
                 candidate.getApi(),
                 candidate.getName(),
                 candidate.getRestTestSuite().getFile(),
-                new SetupSection(candidate.getSetupSection().getSkipSection(), setup),
+                new SetupSection(candidate.getSetupSection().getPrerequisiteSection(), setup),
                 candidate.getTeardownSection(),
                 List.of()
             );
@@ -222,10 +222,32 @@ public abstract class CoreTestTranslater {
          */
         protected abstract boolean modifySearch(ApiCallSection search);
 
+        private static Object getSetting(final Object map, final String... keys) {
+            Map<?, ?> current = (Map<?, ?>) map;
+            for (final String key : keys) {
+                if (current != null) {
+                    current = (Map<?, ?>) current.get(key);
+                } else {
+                    return null;
+                }
+            }
+            return current;
+        }
+
         private boolean modifyCreateIndex(ApiCallSection createIndex) {
             String index = createIndex.getParams().get("index");
             for (Map<?, ?> body : createIndex.getBodies()) {
-                Object settings = body.get("settings");
+                final Object settings = body.get("settings");
+                final Object indexMapping = getSetting(settings, "index", "mapping");
+                if (indexMapping instanceof Map<?, ?> m) {
+                    final Object ignoreAbove = m.get("ignore_above");
+                    if (ignoreAbove instanceof Integer ignoreAboveValue) {
+                        if (ignoreAboveValue >= 0) {
+                            // Scripts don't support ignore_above so we skip those fields
+                            continue;
+                        }
+                    }
+                }
                 if (settings instanceof Map && ((Map<?, ?>) settings).containsKey("sort.field")) {
                     /*
                      * You can't sort the index on a runtime field
@@ -261,7 +283,7 @@ public abstract class CoreTestTranslater {
          * runtime fields that load from source.
          * @return true if this mapping supports runtime fields, false otherwise
          */
-        protected final boolean runtimeifyMappingProperties(Map<String, Object> properties, Map<String, Object> runtimeFields) {
+        protected static boolean runtimeifyMappingProperties(Map<String, Object> properties, Map<String, Object> runtimeFields) {
             for (Map.Entry<String, Object> property : properties.entrySet()) {
                 if (false == property.getValue() instanceof Map) {
                     continue;
@@ -341,15 +363,17 @@ public abstract class CoreTestTranslater {
                     try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, bos)) {
                         b.map(body);
                     }
-                    bos.write(JsonXContent.jsonXContent.streamSeparator());
+                    bos.write(JsonXContent.jsonXContent.bulkSeparator());
                 }
                 List<IndexRequest> indexRequests = new ArrayList<>();
-                new BulkRequestParser(false, RestApiVersion.current()).parse(
+                new BulkRequestParser(false, true, RestApiVersion.current()).parse(
                     bos.bytes(),
                     defaultIndex,
                     defaultRouting,
                     null,
                     defaultPipeline,
+                    null,
+                    null,
                     null,
                     true,
                     XContentType.JSON,

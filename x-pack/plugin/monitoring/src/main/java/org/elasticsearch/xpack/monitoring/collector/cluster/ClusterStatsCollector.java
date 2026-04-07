@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
@@ -25,8 +25,9 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
-import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
+import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
@@ -85,16 +86,18 @@ public class ClusterStatsCollector extends Collector {
 
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState) {
-        final Supplier<List<XPackFeatureSet.Usage>> usageSupplier = () -> new XPackUsageRequestBuilder(client).get().getUsages();
-
         final ClusterStatsResponse clusterStats = client.admin().cluster().prepareClusterStats().setTimeout(getCollectionTimeout()).get();
         ensureNoTimeouts(getCollectionTimeout(), clusterStats);
 
         final String clusterName = clusterService.getClusterName().value();
         final String clusterUuid = clusterUuid(clusterState);
-        final String version = Version.CURRENT.toString();
+        final String version = Build.current().version();
         final License license = licenseService.getLicense();
-        final List<XPackFeatureSet.Usage> xpackUsage = collect(usageSupplier);
+        final List<XPackFeatureUsage> xpackUsage = collect(
+            () -> client.execute(XPackUsageAction.INSTANCE, new XPackUsageRequest(getCollectionTimeout()))
+                .actionGet(getCollectionTimeout())
+                .getUsages()
+        );
         final boolean apmIndicesExist = doAPMIndicesExist(clusterState);
         // if they have any other type of license, then they are either okay or already know
         final boolean clusterNeedsTLSEnabled = license != null

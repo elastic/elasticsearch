@@ -11,16 +11,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class is used for returning information for lists of search applications, to avoid including all
@@ -68,28 +64,6 @@ public class SearchApplicationListItem implements Writeable, ToXContentObject {
         builder.field(UPDATED_AT_MILLIS_FIELD.getPreferredName(), updatedAtMillis);
         builder.endObject();
         return builder;
-    }
-
-    private static final ConstructingObjectParser<SearchApplicationListItem, String> PARSER = new ConstructingObjectParser<>(
-        "search_application_list_item`",
-        false,
-        (params) -> {
-            final String name = (String) params[0];
-            @SuppressWarnings("unchecked")
-            final String analyticsCollectionName = (String) params[2];
-            final Long updatedAtMillis = (Long) params[3];
-            return new SearchApplicationListItem(name, analyticsCollectionName, updatedAtMillis);
-        }
-    );
-
-    static {
-        PARSER.declareStringOrNull(optionalConstructorArg(), NAME_FIELD);
-        PARSER.declareStringOrNull(optionalConstructorArg(), ANALYTICS_COLLECTION_NAME_FIELD);
-        PARSER.declareLong(optionalConstructorArg(), UPDATED_AT_MILLIS_FIELD);
-    }
-
-    public SearchApplicationListItem fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

@@ -7,51 +7,38 @@
 
 package org.elasticsearch.xpack.transform;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Holder for all transform services that need to get injected via guice.
- *
+ * <p>
  * Needed because interfaces can not be injected.
  * Note: Guice will be removed in the long run.
  */
-public final class TransformServices {
-
-    private final TransformConfigManager configManager;
-    private final TransformCheckpointService checkpointService;
-    private final TransformAuditor auditor;
-    private final TransformScheduler scheduler;
-
-    public TransformServices(
-        TransformConfigManager configManager,
-        TransformCheckpointService checkpointService,
-        TransformAuditor auditor,
-        TransformScheduler scheduler
-    ) {
-        this.configManager = Objects.requireNonNull(configManager);
-        this.checkpointService = Objects.requireNonNull(checkpointService);
-        this.auditor = Objects.requireNonNull(auditor);
-        this.scheduler = Objects.requireNonNull(scheduler);
-    }
-
-    public TransformConfigManager getConfigManager() {
-        return configManager;
-    }
-
-    public TransformCheckpointService getCheckpointService() {
-        return checkpointService;
-    }
-
-    public TransformAuditor getAuditor() {
-        return auditor;
-    }
-
-    public TransformScheduler getScheduler() {
-        return scheduler;
+public record TransformServices(
+    TransformConfigManager configManager,
+    TransformCheckpointService checkpointService,
+    TransformAuditor auditor,
+    TransformScheduler scheduler,
+    TransformNode transformNode,
+    CrossProjectModeDecider crossProjectModeDecider,
+    Function<ProjectId, Boolean> hasLinkedProjects
+) {
+    public TransformServices {
+        Objects.requireNonNull(configManager);
+        Objects.requireNonNull(checkpointService);
+        Objects.requireNonNull(auditor);
+        Objects.requireNonNull(scheduler);
+        Objects.requireNonNull(transformNode);
+        Objects.requireNonNull(crossProjectModeDecider);
+        Objects.requireNonNull(hasLinkedProjects);
     }
 }

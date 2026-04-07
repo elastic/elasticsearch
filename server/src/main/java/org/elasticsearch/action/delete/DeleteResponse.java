@@ -1,22 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * The response of the delete action.
@@ -48,6 +47,20 @@ public class DeleteResponse extends DocWriteResponse {
     }
 
     @Override
+    public DeleteResponse withoutSequenceNumber() {
+        DeleteResponse copy = new DeleteResponse(
+            getShardId(),
+            getId(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+            getVersion(),
+            result
+        );
+        copyMutableFieldsTo(copy);
+        return copy;
+    }
+
+    @Override
     public RestStatus status() {
         return result == Result.DELETED ? super.status() : RestStatus.NOT_FOUND;
     }
@@ -62,23 +75,6 @@ public class DeleteResponse extends DocWriteResponse {
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
-    }
-
-    public static DeleteResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-
-        Builder context = new Builder();
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            parseXContentFields(parser, context);
-        }
-        return context.build();
-    }
-
-    /**
-     * Parse the current token and update the parsing context appropriately.
-     */
-    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
-        DocWriteResponse.parseInnerToXContent(parser, context);
     }
 
     /**

@@ -1,0 +1,69 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.mrjar'
+apply plugin: 'java-test-fixtures'
+
+dependencies {
+  implementation project(':libs:native')
+  implementation project(':libs:logging')
+  implementation "org.apache.lucene:lucene-core:${versions.lucene}"
+
+  testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
+  testImplementation(testFixtures(project(':libs:native')))
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'native'
+  }
+  testFixturesImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'native'
+  }
+}
+
+tasks.named('compileJava').configure {
+  options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  options.compilerArgs << '--add-reads=org.elasticsearch.simdvec=jdk.incubator.vector'
+}
+
+tasks.named('javadoc').configure {
+  options.addStringOption("-add-modules", "jdk.incubator.vector")
+  options.addStringOption("-add-reads", "org.elasticsearch.simdvec=jdk.incubator.vector")
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  ignoreMissingClasses = true
+}
+
+tasks.named('test').configure {
+  dependsOn 'testJava21'
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+def java21Launcher = javaToolchains.launcherFor {
+  languageVersion = JavaLanguageVersion.of(21)
+}
+
+tasks.register('testJava21', Test) {
+  description = 'Runs simdvec tests with JDK 21 to verify runtime version guards'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  javaLauncher = java21Launcher
+  executable = java21Launcher.get().executablePath.asFile.absolutePath
+  jvmArgs '--add-modules=jdk.incubator.vector'
+  onlyIf('runtime JDK is not already 21') {
+    buildParams.getRuntimeJavaVersion().get().majorVersion.toInteger() > 21
+  }
+}

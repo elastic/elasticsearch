@@ -225,6 +225,11 @@ public class SessionFactoryTests extends ESTestCase {
             public void session(String user, SecureString password, ActionListener<LdapSession> listener) {
                 listener.onResponse(null);
             }
+
+            @Override
+            public void reload(Settings settings) {
+                // no-op
+            }
         };
     }
 }

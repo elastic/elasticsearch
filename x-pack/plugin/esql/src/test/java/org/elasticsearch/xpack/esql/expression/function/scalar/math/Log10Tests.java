@@ -10,119 +10,57 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class Log10Tests extends AbstractFunctionTestCase {
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
+
+public class Log10Tests extends AbstractScalarFunctionTestCase {
     public Log10Tests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String read = "Attribute[channel=0]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        UnaryTestCaseHelper valid = unary().expectedOutputType(DataType.DOUBLE);
+
         // Cases in valid range
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "Log10IntEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
-            Math::log10,
-            1,
-            Integer.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "Log10LongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
-            Math::log10,
-            1L,
-            Long.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            "Log10UnsignedLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
-            ul -> Math.log10(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
-            BigInteger.ONE,
-            UNSIGNED_LONG_MAX,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "Log10DoubleEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
-            Math::log10,
-            Double.MIN_VALUE,
-            Double.POSITIVE_INFINITY,
-            List.of()
-        );
+        valid.ints(1, Integer.MAX_VALUE).expectedFromInt(Math::log10).evaluatorToString("Log10IntEvaluator[val=%0]").build(suppliers);
+        valid.longs(1, Long.MAX_VALUE).expectedFromLong(Math::log10).evaluatorToString("Log10LongEvaluator[val=%0]").build(suppliers);
+        valid.unsignedLongs(BigInteger.ONE, UNSIGNED_LONG_MAX)
+            .expectedFromBigInteger(ul -> Math.log10(unsignedLongToDouble(bigIntegerToUnsignedLong(ul))))
+            .evaluatorToString("Log10UnsignedLongEvaluator[val=%0]")
+            .build(suppliers);
+        valid.doubles(Double.MIN_VALUE /* near 0 */, Double.POSITIVE_INFINITY)
+            .expectedFromDouble(Math::log10)
+            .evaluatorToString("Log10DoubleEvaluator[val=%0]")
+            .build(suppliers);
 
         // Add in null cases here; the out of range cases won't set the right warnings on a null input.
         suppliers = anyNullIsNull(true, suppliers);
 
         // Cases with invalid inputs
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "Log10IntEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
-            k -> null,
-            Integer.MIN_VALUE,
-            0,
-            List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
-            )
+        UnaryTestCaseHelper invalid = valid.expectNullAndWarnings(
+            o -> List.of("Line 1:1: java.lang.ArithmeticException: Log of non-positive number")
         );
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "Log10LongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
-            k -> null,
-            Long.MIN_VALUE,
-            0L,
-            List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
-            )
-        );
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            "Log10UnsignedLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
-            k -> null,
-            BigInteger.ZERO,
-            BigInteger.ZERO,
-            List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
-            )
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "Log10DoubleEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
-            k -> null,
-            Double.NEGATIVE_INFINITY,
-            0d,
-            List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
-            )
-        );
+        invalid.ints(Integer.MIN_VALUE, 0).evaluatorToString("Log10IntEvaluator[val=%0]").build(suppliers);
+        invalid.longs(Long.MIN_VALUE, 0L).evaluatorToString("Log10LongEvaluator[val=%0]").build(suppliers);
+        invalid.unsignedLongs(BigInteger.ZERO, BigInteger.ZERO).evaluatorToString("Log10UnsignedLongEvaluator[val=%0]").build(suppliers);
+        invalid.doubles(Double.NEGATIVE_INFINITY, 0d).evaluatorToString("Log10DoubleEvaluator[val=%0]").build(suppliers);
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

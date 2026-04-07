@@ -139,7 +139,7 @@ import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
 
-public class SqlFunctionRegistry extends FunctionRegistry {
+public final class SqlFunctionRegistry extends FunctionRegistry {
 
     public SqlFunctionRegistry() {
         register(functions());
@@ -306,7 +306,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
         boolean datetime,
         String... names
     ) {
-        Check.isTrue(names.length > 0, "At least one name must be provided for the function");
+        Check.isTrueInternal(names.length > 0, "At least one name must be provided for the function");
         String primaryName = names[0];
         List<String> aliases = Arrays.asList(names).subList(1, names.length);
         FunctionDefinition.Builder realBuilder = (uf, cfg, extras) -> {

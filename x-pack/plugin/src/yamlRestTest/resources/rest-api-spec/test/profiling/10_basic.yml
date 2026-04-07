@@ -1,0 +1,343 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ "allowed_warnings_regex" ]
+      cluster_features: ["gte_v8.13.0"]
+      reason: "Universal Profiling test infrastructure is available in 8.12+"
+
+  - do:
+      allowed_warnings_regex:
+        # https://github.com/elastic/elasticsearch/issues/127911
+        - "Index \\[\\.profiling-.*\\] name begins with a dot .* and will not be allowed in a future Elasticsearch version."
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.profiling.templates.enabled: true
+
+  - do:
+      profiling.status:
+        wait_for_resources_created: true
+        timeout: "1m"
+
+  - do:
+      indices.create:
+        index: test-events
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+                format: epoch_second
+              events:
+                type: counted_keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - {"create": {"_index": "profiling-events-all"}}
+          - {"Stacktrace.count": [1], "profiling.project.id": ["100"], "os.kernel": ["9.9.9-0"], "tags": ["environment:qa", "region:eu-west-1"], "host.ip": ["192.168.1.2"], "@timestamp": ["1700504427"], "container.name": ["instance-0000000010"], "ecs.version": ["1.12.0"], "Stacktrace.id": ["S07KmaoGhvNte78xwwRbZQ"], "agent.version": ["head-be593ef3-1688111067"], "host.name": ["ip-192-168-1-2"], "host.id": ["8457605156473051743"], "process.thread.name": ["497295213074376"]}
+          - {"create": {"_index": "profiling-stacktraces", "_id": "S07KmaoGhvNte78xwwRbZQ"}}
+          - {"Stacktrace": {"frame": {"ids": "634wiWh6F21tPpXr0Zz3mgAAAAAAEfFi8NlMClggx8jaziUTJXlmWAAAAAAAAIYIZSkKN3zNxr0HYuO2pqe5hQAAAAAAwcBwZSkKN3zNxr0HYuO2pqe5hQAAAAAA5ECvZSkKN3zNxr0HYuO2pqe5hQAAAAAA4_9_ZSkKN3zNxr0HYuO2pqe5hQAAAAAAj7b5ZSkKN3zNxr0HYuO2pqe5hQAAAAAAgwXKZSkKN3zNxr0HYuO2pqe5hQAAAAAAgu3UAAAAAAAAV4sAAAAAAAAAHezOBBlhpr8qZgY89pr05YIxi0DTL7hyTAAAAAAAAAALzZZ6VCjFYAFVAKtY0XlyPwAAAAAAAAAFySPx-89oJ6TfXYn-uir7mQAAAAAAAABch4dwrMYlRFRjyfsvjXt4tgAAAAAAAAAg3V-8FLy1GH8nVRceMDeaiwAAAAAAAAABnVB2vvQdnm3M5BpEt6xnFAAAAAAAAAAV4j8yS0qsC_6XfTfMdPp5KQAAAAAAAAAQ9oBnE4xnAvOiOv1q-LbApgAAAAAAAAAEwRQstrBYZ0ShmJnYV-ADrQAAAAAAAAFLAFikCbtP_Dm7iUthjnlnEgAAAAAAAAEq56q5trA0bAF1B-Um6L_rqwAAAAAAAAAGgi_774C-EJhuJfyXXhzVgwAAAAAAAABEgvYbo0YBmE65VwrpTWYalQAAAAAAAAB2tMqbgEmfZJ47YRogSA-gKgAAAAAAAADlCQUIxcdtvT35ZznMVnzc_AAAAAAAAACXN4c5sJszjyVzcx3AmWN8pwAAAAAAAADS_GFFImAT2VE6Ar5VgmaN7QAAAAAAAAHywnSBrxGSumHiAQQABJeNtQAAAAAAAAAkPK6VPfk6aJqBe-5Qji8O5gAAAAAAAAAFEIxfgHbDbI5dElFzd3Ha-QAAAAAAAAAZFq10nEfKWtXEt510UwEUUAAAAAAAAAB7V_QMdmt4RxKxn4ZNgdvkJwAAAAAAAAAReNITicG0MvFr9HQHk70FLAAAAAAAAAAI9j0yGbd8eQNwdRhHZ159OQAAAAAAAAA9vzzPIR5tUnMkJ7d_ITdQRgAAAAAAAAAC6YIeLAztuVSewvuGh8XKXgAAAAAAAAAFIQvpHpp20NHD-0mZNf95oAAAAAAAAABp0vAOoRRxsQcS4vDapC3-mwAAAAAAAAANqnvWBP24iZLcQ-Wi76ZDxQAAAAAAAAAI3X9PCd1tVPhzrMiwigfodgAAAAAAAAAAZSkKN3zNxr0HYuO2pqe5hQAAAAAA52Uf8NlMClggx8jaziUTJXlmWAAAAAAAAQEslHp5_WAgpLy2alrUVab6HAAAAAAAwACLlHp5_WAgpLy2alrUVab6HAAAAAAAAEIGlHp5_WAgpLy2alrUVab6HAAAAAAAFFQelHp5_WAgpLy2alrUVab6HAAAAAAAFErelHp5_WAgpLy2alrUVab6HAAAAAAAFBtp", "types": "CAMfBQIDBQQ"}}, "ecs": {"version": "1.12.0"}}
+          - {"create": {"_index": "profiling-stackframes", "_id": "8NlMClggx8jaziUTJXlmWAAAAAAAAIYI"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["/build/glibc-sMfBJT/glibc-2.31/nptl/pthread_create.c"], "Stackframe.function.name": ["start_thread"], "Stackframe.line.number": [477]}
+          - { "create": { "_index": "profiling-stackframes", "_id": "AAAAAAAAV4sAAAAAAAAAHezOBBlhpr8q" } }
+          - { "ecs.version": "1.12.0", "Stackframe.file.name": [ "" ], "Stackframe.function.name": [ "StubRoutines (1)" ], "Stackframe.line.number": [ 0 ], "Stackframe.function.offset": [ 0 ] }
+          - { "create": { "_index": "profiling-stackframes", "_id": "ZgY89pr05YIxi0DTL7hyTAAAAAAAAAAL" } }
+          - { "ecs.version": "1.12.0", "Stackframe.file.name": [ "Thread.java" ], "Stackframe.function.name": [ "void java.lang.Thread.run()" ], "Stackframe.line.number": [ 833 ], "Stackframe.function.offset": [ 1 ] }
+          - {"create": {"_index": "profiling-stackframes", "_id": "zZZ6VCjFYAFVAKtY0XlyPwAAAAAAAAAF"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ThreadPoolExecutor.java"], "Stackframe.function.name": ["void java.util.concurrent.ThreadPoolExecutor$Worker.run()"], "Stackframe.line.number": [635], "Stackframe.function.offset": [0]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "ySPx-89oJ6TfXYn-uir7mQAAAAAAAABc"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ThreadPoolExecutor.java"], "Stackframe.function.name": ["void java.util.concurrent.ThreadPoolExecutor.runWorker(java.util.concurrent.ThreadPoolExecutor$Worker)"], "Stackframe.line.number": [1136], "Stackframe.function.offset": [20]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "h4dwrMYlRFRjyfsvjXt4tgAAAAAAAAAg"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["PrioritizedEsThreadPoolExecutor.java"], "Stackframe.function.name": ["void org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.run()"], "Stackframe.line.number": [225], "Stackframe.function.offset": [6]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "3V-8FLy1GH8nVRceMDeaiwAAAAAAAAAB"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["PrioritizedEsThreadPoolExecutor.java"], "Stackframe.function.name": ["void org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.runAndClean(java.lang.Runnable)"], "Stackframe.line.number": [262], "Stackframe.function.offset": [0]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "nVB2vvQdnm3M5BpEt6xnFAAAAAAAAAAV"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ThreadContext.java"], "Stackframe.function.name": ["void org.elasticsearch.common.util.concurrent.ThreadContext$ContextPreservingRunnable.run()"], "Stackframe.line.number": [718], "Stackframe.function.offset": [2]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "4j8yS0qsC_6XfTfMdPp5KQAAAAAAAAAQ"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ClusterApplierService.java"], "Stackframe.function.name": ["void org.elasticsearch.cluster.service.ClusterApplierService$UpdateTask.run()"], "Stackframe.line.number": [154], "Stackframe.function.offset": [0]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "9oBnE4xnAvOiOv1q-LbApgAAAAAAAAAE"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ClusterApplierService.java"], "Stackframe.function.name": ["void org.elasticsearch.cluster.service.ClusterApplierService.access$000(org.elasticsearch.cluster.service.ClusterApplierService, java.lang.String, java.util.function.Function, org.elasticsearch.action.ActionListener)"], "Stackframe.line.number": [56], "Stackframe.function.offset": [0]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "wRQstrBYZ0ShmJnYV-ADrQAAAAAAAAFL"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ClusterApplierService.java"], "Stackframe.function.name": ["void org.elasticsearch.cluster.service.ClusterApplierService.runTask(java.lang.String, java.util.function.Function, org.elasticsearch.action.ActionListener)"], "Stackframe.line.number": [428], "Stackframe.function.offset": [44]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "AFikCbtP_Dm7iUthjnlnEgAAAAAAAAEq"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ClusterApplierService.java"], "Stackframe.function.name": ["void org.elasticsearch.cluster.service.ClusterApplierService.applyChanges(org.elasticsearch.cluster.ClusterState, org.elasticsearch.cluster.ClusterState, java.lang.String, org.elasticsearch.cluster.service.ClusterApplierRecordingService$Recorder)"], "Stackframe.line.number": [503], "Stackframe.function.offset": [25]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "56q5trA0bAF1B-Um6L_rqwAAAAAAAAAG"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ClusterApplierService.java"], "Stackframe.function.name": ["void org.elasticsearch.cluster.service.ClusterApplierService.callClusterStateAppliers(org.elasticsearch.cluster.ClusterChangedEvent, org.elasticsearch.cluster.service.ClusterApplierRecordingService$Recorder)"], "Stackframe.line.number": [539], "Stackframe.function.offset": [0]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "gi_774C-EJhuJfyXXhzVgwAAAAAAAABE"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ClusterApplierService.java"], "Stackframe.function.name": ["void org.elasticsearch.cluster.service.ClusterApplierService.callClusterStateAppliers(org.elasticsearch.cluster.ClusterChangedEvent, org.elasticsearch.cluster.service.ClusterApplierRecordingService$Recorder, java.util.Collection)"], "Stackframe.line.number": [553], "Stackframe.function.offset": [4]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "gvYbo0YBmE65VwrpTWYalQAAAAAAAAB2"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["IndicesClusterStateService.java"], "Stackframe.function.name": ["void org.elasticsearch.indices.cluster.IndicesClusterStateService.applyClusterState(org.elasticsearch.cluster.ClusterChangedEvent)"], "Stackframe.line.number": [231], "Stackframe.function.offset": [31]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "tMqbgEmfZJ47YRogSA-gKgAAAAAAAADl"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["IndicesClusterStateService.java"], "Stackframe.function.name": ["void org.elasticsearch.indices.cluster.IndicesClusterStateService.createOrUpdateShards(org.elasticsearch.cluster.ClusterState)"], "Stackframe.line.number": [556], "Stackframe.function.offset": [18]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "CQUIxcdtvT35ZznMVnzc_AAAAAAAAACX"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["IndicesClusterStateService.java"], "Stackframe.function.name": ["void org.elasticsearch.indices.cluster.IndicesClusterStateService.updateShard(org.elasticsearch.cluster.node.DiscoveryNodes, org.elasticsearch.cluster.routing.ShardRouting, org.elasticsearch.indices.cluster.IndicesClusterStateService$Shard, org.elasticsearch.cluster.routing.RoutingTable, org.elasticsearch.cluster.ClusterState)"], "Stackframe.line.number": [614], "Stackframe.function.offset": [14]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "N4c5sJszjyVzcx3AmWN8pwAAAAAAAADS"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["IndexShard.java"], "Stackframe.function.name": ["void org.elasticsearch.index.shard.IndexShard.updateShardState(org.elasticsearch.cluster.routing.ShardRouting, long, java.util.function.BiConsumer, long, java.util.Set, org.elasticsearch.cluster.routing.IndexShardRoutingTable)"], "Stackframe.line.number": [535], "Stackframe.function.offset": [24]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "_GFFImAT2VE6Ar5VgmaN7QAAAAAAAAHy"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ReplicationTracker.java"], "Stackframe.function.name": ["void org.elasticsearch.index.seqno.ReplicationTracker.updateFromMaster(long, java.util.Set, org.elasticsearch.cluster.routing.IndexShardRoutingTable)"], "Stackframe.line.number": [1198], "Stackframe.function.offset": [47]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "wnSBrxGSumHiAQQABJeNtQAAAAAAAAAk"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ReplicationTracker.java"], "Stackframe.function.name": ["void org.elasticsearch.index.seqno.ReplicationTracker.updateReplicationGroupAndNotify()"], "Stackframe.line.number": [994], "Stackframe.function.offset": [3]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "PK6VPfk6aJqBe-5Qji8O5gAAAAAAAAAF"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["PendingReplicationActions.java"], "Stackframe.function.name": ["void org.elasticsearch.action.support.replication.PendingReplicationActions.accept(java.lang.Object)"], "Stackframe.line.number": [25], "Stackframe.function.offset": [0]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "EIxfgHbDbI5dElFzd3Ha-QAAAAAAAAAZ"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["PendingReplicationActions.java"], "Stackframe.function.name": ["void org.elasticsearch.action.support.replication.PendingReplicationActions.accept(org.elasticsearch.index.shard.ReplicationGroup)"], "Stackframe.line.number": [71], "Stackframe.function.offset": [3]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "Fq10nEfKWtXEt510UwEUUAAAAAAAAAB7"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["PendingReplicationActions.java"], "Stackframe.function.name": ["void org.elasticsearch.action.support.replication.PendingReplicationActions.acceptNewTrackedAllocationIds(java.util.Set)"], "Stackframe.line.number": [95], "Stackframe.function.offset": [10]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "V_QMdmt4RxKxn4ZNgdvkJwAAAAAAAAAR"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["PendingReplicationActions.java"], "Stackframe.function.name": ["void org.elasticsearch.action.support.replication.PendingReplicationActions.cancelActions(java.util.ArrayList, java.lang.String)"], "Stackframe.line.number": [108], "Stackframe.function.offset": [1]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "eNITicG0MvFr9HQHk70FLAAAAAAAAAAI"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["EsThreadPoolExecutor.java"], "Stackframe.function.name": ["void org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor.execute(java.lang.Runnable)"], "Stackframe.line.number": [95], "Stackframe.function.offset": [2]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "9j0yGbd8eQNwdRhHZ159OQAAAAAAAAA9"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["ThreadPoolExecutor.java"], "Stackframe.function.name": ["void java.util.concurrent.ThreadPoolExecutor.execute(java.lang.Runnable)"], "Stackframe.line.number": [1357], "Stackframe.function.offset": [28]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "vzzPIR5tUnMkJ7d_ITdQRgAAAAAAAAAC"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["EsExecutors.java"], "Stackframe.function.name": ["boolean org.elasticsearch.common.util.concurrent.EsExecutors$ExecutorScalingQueue.offer(java.lang.Object)"], "Stackframe.line.number": [363], "Stackframe.function.offset": [0]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "6YIeLAztuVSewvuGh8XKXgAAAAAAAAAF"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["LinkedTransferQueue.java"], "Stackframe.function.name": ["boolean java.util.concurrent.LinkedTransferQueue.tryTransfer(java.lang.Object)"], "Stackframe.line.number": [1241], "Stackframe.function.offset": [0]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "IQvpHpp20NHD-0mZNf95oAAAAAAAAABp"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["LinkedTransferQueue.java"], "Stackframe.function.name": ["java.lang.Object java.util.concurrent.LinkedTransferQueue.xfer(java.lang.Object, boolean, int, long)"], "Stackframe.line.number": [605], "Stackframe.function.offset": [10]}
+          - { "create": { "_index": "profiling-stackframes", "_id": "0vAOoRRxsQcS4vDapC3-mwAAAAAAAAAN" } }
+          - { "ecs.version": "1.12.0", "Stackframe.file.name": [ "LinkedTransferQueue.java" ], "Stackframe.function.name": [ "boolean java.util.concurrent.LinkedTransferQueue$Node.tryMatch(java.lang.Object, java.lang.Object)" ], "Stackframe.line.number": [ 448 ], "Stackframe.function.offset": [ 1 ] }
+          - {"create": {"_index": "profiling-stackframes", "_id": "qnvWBP24iZLcQ-Wi76ZDxQAAAAAAAAAI"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["LockSupport.java"], "Stackframe.function.name": ["void java.util.concurrent.locks.LockSupport.unpark(java.lang.Thread)"], "Stackframe.line.number": [177], "Stackframe.function.offset": [1]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "3X9PCd1tVPhzrMiwigfodgAAAAAAAAAA"}}
+          - {"ecs.version": "1.12.0", "Stackframe.file.name": ["Unsafe.java"], "Stackframe.function.name": ["void jdk.internal.misc.Unsafe.unpark(java.lang.Object)"], "Stackframe.line.number": [0], "Stackframe.function.offset": [0]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "lHp5_WAgpLy2alrUVab6HAAAAAAAwACL"}}
+          - {"ecs.version": "1.12.0", "Stackframe.function.name": ["entry_SYSCALL_64_after_hwframe"]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "lHp5_WAgpLy2alrUVab6HAAAAAAAAEIG"}}
+          - {"ecs.version": "1.12.0", "Stackframe.function.name": ["do_syscall_64"]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "lHp5_WAgpLy2alrUVab6HAAAAAAAFFQe"}}
+          - {"ecs.version": "1.12.0", "Stackframe.function.name": ["__x64_sys_futex"]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "lHp5_WAgpLy2alrUVab6HAAAAAAAFEre"}}
+          - {"ecs.version": "1.12.0", "Stackframe.function.name": ["do_futex"]}
+          - {"create": {"_index": "profiling-stackframes", "_id": "lHp5_WAgpLy2alrUVab6HAAAAAAAFBtp"}}
+          - {"ecs.version": "1.12.0", "Stackframe.function.name": ["futex_wake"]}
+          - { "create": { "_index": "profiling-executables", "_id": "634wiWh6F21tPpXr0Zz3mg" } }
+          - { "@timestamp": "1698019200", "Executable": { "build": { "id": "9fdb74e7b217d06c93172a8243f8547f947ee6d1" }, "file": { "name": "libc-2.31.so" } }, "Symbolization": { "next_time": "4851892087" }, "ecs": { "version": "1.12.0" } }
+          - {"create": {"_index": "profiling-executables", "_id": "8NlMClggx8jaziUTJXlmWA"}}
+          - {"@timestamp": "1698019200", "Executable": {"build": {"id": "f0983025f0e0f327a6da752ff4ffa675e0be393f"}, "file": {"name": "libpthread-2.31.so"}}, "Symbolization": {"next_time": "4851892090"}, "ecs": {"version": "1.12.0"}}
+          - {"create": {"_index": "profiling-executables", "_id": "lHp5_WAgpLy2alrUVab6HA"}}
+          - {"@timestamp": "1698624000", "Executable": {"build": {"id": "c5f89ea1c68710d2a493bb604c343a92c4f8ddeb"}, "file": {"name": "vmlinux"}}, "Symbolization": {"next_time": "4852491791"}, "ecs": {"version": "1.12.0"}}
+          - {"create": {"_index": "profiling-hosts", "_id": "eLH27YsBj2lLi3tJYlvr"}}
+          - {"profiling.project.id": 100, "host.id": "8457605156473051743", "@timestamp": 1700504426, "ecs.version": "1.12.0", "profiling.agent.build_timestamp": 1688111067, "profiling.instance.private_ipv4s": ["192.168.1.2"], "ec2.instance_life_cycle": "on-demand", "profiling.agent.config.map_scale_factor": 0, "host.type": "i3.2xlarge", "profiling.host.ip": "192.168.1.2", "profiling.agent.config.bpf_log_level": 0, "profiling.host.sysctl.net.core.bpf_jit_enable": 1, "profiling.agent.config.file": "/etc/prodfiler/prodfiler.conf", "ec2.local_ipv4": "192.168.1.2", "profiling.agent.config.no_kernel_version_check": false, "host.arch": "amd64", "profiling.host.tags": ["cloud_provider:aws", "cloud_environment:qa", "cloud_region:eu-west-1"], "profiling.agent.config.probabilistic_threshold": 100, "profiling.agent.config.disable_tls": false, "profiling.agent.config.tracers": "all", "profiling.agent.start_time": 1700090045589, "profiling.agent.config.max_elements_per_interval": 800, "cloud.provider": "aws", "cloud.region": "eu-west-1", "profiling.agent.config.present_cpu_cores": 8, "profiling.host.kernel_version": "9.9.9-0-aws", "profiling.agent.config.bpf_log_size": 65536, "profiling.agent.config.known_traces_entries": 65536, "profiling.host.sysctl.kernel.unprivileged_bpf_disabled": 1, "profiling.agent.config.verbose": false, "profiling.agent.config.probabilistic_interval": "1m0s", "ec2.placement.availability_zone_id": "euw1-az1", "ec2.security_groups": "", "ec2.local_hostname": "ip-192-168-1-2.eu-west-1.compute.internal", "ec2.placement.availability_zone": "eu-west-1c", "profiling.agent.config.upload_symbols": false, "profiling.host.sysctl.kernel.bpf_stats_enabled": 0, "host.name": "ip-192-168-1-2", "ec2.mac": "00:11:22:33:44:55", "profiling.host.kernel_proc_version": "Linux version 9.9.9-0-aws", "profiling.agent.config.cache_directory": "/var/cache/optimyze/", "profiling.agent.version": "v8.12.0", "ec2.hostname": "ip-192-168-1-2.eu-west-1.compute.internal", "profiling.agent.config.elastic_mode": false, "ec2.ami_id": "ami-aaaaaaaaaaa", "ec2.instance_id": "i-0b999999999999999" }
+          - {"index": {"_index": "test-events"}}
+          - {"@timestamp": "1700504427", "events": ["S07KmaoGhvNte78xwwRbZQ"]}
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.profiling.templates.enabled: false
+
+---
+"Test Status":
+  - do:
+      profiling.status: {}
+
+  - match: {profiling.enabled: true}
+  - match: {resource_management.enabled: true}
+  - match: {resources.created: true}
+  - match: {resources.pre_8_9_1_data: false}
+  - match: {resources.has_data: true}
+
+---
+"Test stacktraces agg":
+  # This test mimics the behavior of the first query of the get stacktraces API. In certain environments we have
+  # observed that the stacktrace API returns a count of 2, although we only ever add one document with a count of 1.
+  # As these failures are very rare we start by adding a minimal reproduction that only relies on core ES features
+  # and eliminates any use of profiling-related APIs.
+  - do:
+      search:
+        index: profiling-events-all
+        body:
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "2023-11-20",
+                      "lt": "2023-11-21",
+                      "format": "yyyy-MM-dd"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+          size: 0
+          track_total_hits: false
+          aggs:
+            group_by:
+              terms:
+                field: host.id
+                execution_hint: map
+                size: 150000
+              aggs:
+                group_by:
+                  terms:
+                    field: Stacktrace.id
+                    execution_hint: map
+                    size: 150000
+                  aggs:
+                    count:
+                      sum:
+                        field: Stacktrace.count
+            total_count:
+              sum:
+                field: Stacktrace.count
+            min_time:
+              min:
+                field: "@timestamp"
+            max_time:
+              max:
+                field: "@timestamp"
+
+  - match: { aggregations.group_by.buckets.0.group_by.buckets.0.key: "S07KmaoGhvNte78xwwRbZQ" }
+  - match: { aggregations.group_by.buckets.0.group_by.buckets.0.count.value: 1 }
+
+---
+"Test get stacktraces":
+  - do:
+      profiling.stacktraces:
+        body: >
+          {
+            "sample_size": 20000,
+            "requested_duration": 86400,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "@timestamp": {
+                        "gte": "2023-11-20",
+                        "lt": "2023-11-21",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { stack_traces.S07KmaoGhvNte78xwwRbZQ.count: 1}
+
+---
+"Test flamegraph from profiling-events":
+  - do:
+      profiling.flamegraph:
+        body: >
+          {
+            "sample_size": 20000,
+            "requested_duration": 86400,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "@timestamp": {
+                        "gte": "2023-11-20",
+                        "lt": "2023-11-21",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { Size: 49}
+
+---
+"Test flamegraph from test-events":
+  - do:
+      profiling.flamegraph:
+        body: >
+          {
+            "sample_size": 20000,
+            "indices": ["test-event*"],
+            "stacktrace_ids_field": "events",
+            "requested_duration": 86400,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "@timestamp": {
+                        "gte": "2023-11-20",
+                        "lt": "2023-11-21",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { Size: 49}
+
+---
+"Test topN functions from profiling-events":
+  - requires:
+      cluster_features: "gte_v8.14.0"
+      reason: "the topN functions API was added in 8.14.0"
+
+  - do:
+      profiling.topn_functions:
+        body: >
+          {
+            "sample_size": 20000,
+            "requested_duration": 86400,
+            "limit": 10,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "@timestamp": {
+                        "gte": "2023-11-20",
+                        "lt": "2023-11-21",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - length: { topn: 10}
+
+---
+"Test topN functions from test-events":
+  - requires:
+      cluster_features: "gte_v8.14.0"
+      reason: "the topN functions API was added in 8.14.0"
+
+  - do:
+      profiling.topn_functions:
+        body: >
+          {
+            "sample_size": 20000,
+            "indices": ["test-event*"],
+            "stacktrace_ids_field": "events",
+            "requested_duration": 86400,
+            "limit": 10,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "@timestamp": {
+                        "gte": "2023-11-20",
+                        "lt": "2023-11-21",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - length: { topn: 10}

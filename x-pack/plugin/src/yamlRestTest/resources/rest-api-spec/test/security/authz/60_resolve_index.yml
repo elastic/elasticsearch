@@ -1,8 +1,8 @@
 ---
 setup:
-  - skip:
-      features: ["headers", "allowed_warnings"]
-      version: " - 7.8.99"
+  - requires:
+      test_runner_features: ["headers", "allowed_warnings"]
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do:
@@ -89,10 +89,10 @@ teardown:
 
 ---
 "resolve index respects view_index_metadata privilege":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: ["headers", "allowed_warnings"]
+      test_runner_features: ["headers", "allowed_warnings"]
 
   - do: # superuser
       indices.create_data_stream:

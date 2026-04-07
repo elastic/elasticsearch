@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -55,8 +56,8 @@ public class VersionTests extends ESTestCase {
     public void testMin() {
         assertEquals(VersionUtils.getPreviousVersion(), Version.min(Version.CURRENT, VersionUtils.getPreviousVersion()));
         assertEquals(Version.fromString("1.0.1"), Version.min(Version.fromString("1.0.1"), Version.CURRENT));
-        Version version = VersionUtils.randomVersion(random());
-        Version version1 = VersionUtils.randomVersion(random());
+        Version version = randomVersion();
+        Version version1 = randomVersion();
         if (version.id <= version1.id) {
             assertEquals(version, Version.min(version1, version));
         } else {
@@ -67,8 +68,8 @@ public class VersionTests extends ESTestCase {
     public void testMax() {
         assertEquals(Version.CURRENT, Version.max(Version.CURRENT, VersionUtils.getPreviousVersion()));
         assertEquals(Version.CURRENT, Version.max(Version.fromString("1.0.1"), Version.CURRENT));
-        Version version = VersionUtils.randomVersion(random());
-        Version version1 = VersionUtils.randomVersion(random());
+        Version version = randomVersion();
+        Version version1 = randomVersion();
         if (version.id >= version1.id) {
             assertEquals(version, Version.max(version1, version));
         } else {
@@ -80,7 +81,7 @@ public class VersionTests extends ESTestCase {
         assertThat(Version.CURRENT, sameInstance(Version.fromId(Version.CURRENT.id)));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
-            Version version = randomVersion(random());
+            Version version = randomVersion();
             assertThat(version, sameInstance(Version.fromId(version.id)));
         }
     }
@@ -88,7 +89,7 @@ public class VersionTests extends ESTestCase {
     public void testCURRENTIsLatest() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
-            Version version = randomVersion(random());
+            Version version = randomVersion();
             if (version != Version.CURRENT) {
                 assertThat(
                     "Version: " + version + " should be before: " + Version.CURRENT + " but wasn't",
@@ -102,7 +103,7 @@ public class VersionTests extends ESTestCase {
     public void testVersionFromString() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
-            Version version = randomVersion(random());
+            Version version = randomVersion();
             assertThat(Version.fromString(version.toString()), sameInstance(version));
         }
     }
@@ -161,7 +162,7 @@ public class VersionTests extends ESTestCase {
     public void testParseVersion() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
-            Version version = randomVersion(random());
+            Version version = randomVersion();
             if (random().nextBoolean()) {
                 version = new Version(version.id);
             }
@@ -178,8 +179,7 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testAllVersionsMatchId() throws Exception {
-        final Set<Version> releasedVersions = new HashSet<>(VersionUtils.allReleasedVersions());
-        final Set<Version> unreleasedVersions = new HashSet<>(VersionUtils.allUnreleasedVersions());
+        final Set<Version> versions = new HashSet<>(VersionUtils.allVersions());
         Map<String, Version> maxBranchVersions = new HashMap<>();
         for (java.lang.reflect.Field field : Version.class.getFields()) {
             if (field.getName().matches("_ID")) {
@@ -194,41 +194,13 @@ public class VersionTests extends ESTestCase {
 
                 Version v = (Version) versionConstant.get(null);
                 logger.debug("Checking {}", v);
-                if (field.getName().endsWith("_UNRELEASED")) {
-                    assertTrue(unreleasedVersions.contains(v));
-                } else {
-                    assertTrue(releasedVersions.contains(v));
-                }
+                assertTrue(versions.contains(v));
                 assertEquals("Version id " + field.getName() + " does not point to " + constantName, v, Version.fromId(versionId));
                 assertEquals("Version " + constantName + " does not have correct id", versionId, v.id);
                 String number = v.toString();
                 assertEquals("V_" + number.replace('.', '_'), constantName);
-
-                // only the latest version for a branch should be a snapshot (ie unreleased)
-                String branchName = "" + v.major + "." + v.minor;
-                Version maxBranchVersion = maxBranchVersions.get(branchName);
-                if (maxBranchVersion == null) {
-                    maxBranchVersions.put(branchName, v);
-                } else if (v.after(maxBranchVersion)) {
-                    if (v == Version.CURRENT) {
-                        // Current is weird - it counts as released even though it shouldn't.
-                        continue;
-                    }
-                    assertFalse(
-                        "Version " + maxBranchVersion + " cannot be a snapshot because version " + v + " exists",
-                        VersionUtils.allUnreleasedVersions().contains(maxBranchVersion)
-                    );
-                    maxBranchVersions.put(branchName, v);
-                }
             }
         }
-    }
-
-    public static void assertUnknownVersion(Version version) {
-        assertFalse(
-            "Version " + version + " has been releaed don't use a new instance of this version",
-            VersionUtils.allReleasedVersions().contains(version)
-        );
     }
 
     public void testIsCompatible() {
@@ -267,8 +239,8 @@ public class VersionTests extends ESTestCase {
         assertFalse(isCompatible(Version.fromId(5000099), Version.fromString("6.0.0")));
         assertFalse(isCompatible(Version.fromId(5000099), Version.fromString("7.0.0")));
 
-        Version a = randomVersion(random());
-        Version b = randomVersion(random());
+        Version a = randomVersion();
+        Version b = randomVersion();
         assertThat(a.isCompatible(b), equalTo(b.isCompatible(a)));
     }
 
@@ -276,14 +248,6 @@ public class VersionTests extends ESTestCase {
         boolean result = left.isCompatible(right);
         assert result == right.isCompatible(left);
         return result;
-    }
-
-    // This exists because 5.1.0 was never released due to a mistake in the release process.
-    // This verifies that we never declare the version as "released" accidentally.
-    // It would never pass qa tests later on, but those come very far in the build and this is quick to check now.
-    public void testUnreleasedVersion() {
-        Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
-        VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
     }
 
     public void testIllegalMinorAndPatchNumbers() {

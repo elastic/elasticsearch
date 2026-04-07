@@ -11,14 +11,14 @@ import org.elasticsearch.gradle.OS
 apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
-  name 'ml-package-loader'
-  description 'Loader for prepackaged Machine Learning Models from Elastic'
-  classname 'org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader'
+  name = 'ml-package-loader'
+  description = 'Loader for prepackaged Machine Learning Models from Elastic'
+  classname ='org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader'
   extendedPlugins = ['x-pack-core']
 }
 
 dependencies {
-  implementation project(path: ':libs:elasticsearch-logging')
+  implementation project(path: ':libs:logging')
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))

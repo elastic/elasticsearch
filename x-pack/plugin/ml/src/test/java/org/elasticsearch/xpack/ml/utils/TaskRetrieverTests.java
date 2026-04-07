@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
@@ -63,22 +64,22 @@ public class TaskRetrieverTests extends ESTestCase {
             actionListener.onFailure(new Exception("error"));
 
             return Void.TYPE;
-        }).when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportListTasksAction.TYPE), any(), any());
 
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getDownloadTaskInfo(client, "modelId", false, listener, TIMEOUT);
+        getDownloadTaskInfo(client, "inferenceEntityId", false, TIMEOUT, () -> "", listener);
 
         var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(exception.getMessage(), is("Unable to retrieve task information for model id [modelId]"));
+        assertThat(exception.getMessage(), is("Unable to retrieve task information for model id [inferenceEntityId]"));
     }
 
     public void testGetExistingTaskInfoCallsListenerWithNullWhenNoTasksExist() {
         var client = mockClientWithTasksResponse(Collections.emptyList(), threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getDownloadTaskInfo(client, "modelId", false, listener, TIMEOUT);
+        getDownloadTaskInfo(client, "inferenceEntityId", false, TIMEOUT, () -> "", listener);
 
         assertThat(listener.actionGet(TIMEOUT), nullValue());
     }
@@ -88,7 +89,7 @@ public class TaskRetrieverTests extends ESTestCase {
         var client = mockClientWithTasksResponse(listTaskInfo, threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getDownloadTaskInfo(client, "modelId", false, listener, TIMEOUT);
+        getDownloadTaskInfo(client, "inferenceEntityId", false, TIMEOUT, () -> "", listener);
 
         assertThat(listener.actionGet(TIMEOUT), is(listTaskInfo.get(0)));
     }
@@ -98,9 +99,35 @@ public class TaskRetrieverTests extends ESTestCase {
         var client = mockClientWithTasksResponse(listTaskInfo, threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getDownloadTaskInfo(client, "modelId", false, listener, TIMEOUT);
+        getDownloadTaskInfo(client, "inferenceEntityId", false, TIMEOUT, () -> "", listener);
 
         assertThat(listener.actionGet(TIMEOUT), is(listTaskInfo.get(0)));
+    }
+
+    public void testGetTimeoutOnWaitForCompletion() {
+        var client = mockListTasksClient(threadPool);
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<ListTasksResponse> actionListener = (ActionListener<ListTasksResponse>) invocationOnMock.getArguments()[2];
+            actionListener.onResponse(
+                new ListTasksResponse(
+                    List.of(),
+                    List.of(),
+                    List.of(new ElasticsearchStatusException("node timeout", RestStatus.REQUEST_TIMEOUT))
+                )
+            );
+
+            return Void.TYPE;
+        }).when(client).execute(same(TransportListTasksAction.TYPE), any(), any());
+
+        var listener = new PlainActionFuture<TaskInfo>();
+
+        getDownloadTaskInfo(client, "inferenceEntityId", true, TIMEOUT, () -> "Testing timeout", listener);
+
+        var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.REQUEST_TIMEOUT));
+        assertThat(exception.getMessage(), is("Testing timeout"));
     }
 
     /**
@@ -123,7 +150,7 @@ public class TaskRetrieverTests extends ESTestCase {
             actionListener.onResponse(listTasksResponse);
 
             return Void.TYPE;
-        }).when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportListTasksAction.TYPE), any(), any());
 
         return client;
     }
@@ -150,7 +177,7 @@ public class TaskRetrieverTests extends ESTestCase {
     public static Client mockListTasksClient(Client client) {
         var cluster = client.admin().cluster();
 
-        when(cluster.prepareListTasks()).thenReturn(new ListTasksRequestBuilder(client, ListTasksAction.INSTANCE));
+        when(cluster.prepareListTasks()).thenReturn(new ListTasksRequestBuilder(client));
 
         return client;
     }

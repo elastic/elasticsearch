@@ -8,30 +8,42 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SumLongAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SumLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
+  WarningSourceLocation warningsSource;
 
-  private final List<Integer> channels;
-
-  public SumLongAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
-    this.bigArrays = bigArrays;
-    this.channels = channels;
+  public SumLongAggregatorFunctionSupplier(WarningSourceLocation warningsSource) {
+    this.warningsSource = warningsSource;
   }
 
   @Override
-  public SumLongAggregatorFunction aggregator() {
-    return SumLongAggregatorFunction.create(channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SumLongAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public SumLongGroupingAggregatorFunction groupingAggregator() {
-    return SumLongGroupingAggregatorFunction.create(channels, bigArrays);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SumLongGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public SumLongAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new SumLongAggregatorFunction(warnings, driverContext, channels);
+  }
+
+  @Override
+  public SumLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new SumLongGroupingAggregatorFunction(warnings, channels, driverContext);
   }
 
   @Override

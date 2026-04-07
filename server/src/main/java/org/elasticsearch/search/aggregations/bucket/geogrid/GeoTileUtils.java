@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
@@ -20,8 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Locale;
 
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
+import static org.elasticsearch.common.geo.GeoUtils.quantizeLat;
 
 /**
  * Implements geotile key hashing, same as used by many map tile implementations.
@@ -40,6 +40,12 @@ public final class GeoTileUtils {
     private static final double PI_TIMES_2 = Math.PI * 2.0;
 
     private static final double PI_TIMES_4 = Math.PI * 4.0;
+
+    // precision up to geometry and arithmetic solution are consistent
+    private static final int MAX_TILES_FULL_PRECISION = 1 << 20;
+
+    // lucene latitude resolution
+    static final double LUCENE_LAT_RES = 180.0D / (0x1L << 32);
 
     /**
      * Largest number of tiles (precision) to use.
@@ -105,15 +111,13 @@ public final class GeoTileUtils {
      * Calculates the x-coordinate in the tile grid for the specified longitude given
      * the number of tile columns for a pre-determined zoom-level.
      *
-     * @param longitude the longitude to use when determining the tile x-coordinate
+     * @param longitude the longitude to use when determining the tile x-coordinate. Longitude is in degrees
+     *                  and must be between -180 and 180 degrees.
      * @param tiles     the number of tiles per row for a pre-determined zoom-level
      */
     public static int getXTile(double longitude, int tiles) {
-        // normalizeLon treats this as 180, which is not friendly for tile mapping
-        if (longitude == -180) {
-            return 0;
-        }
-        final double xTile = (normalizeLon(longitude) + 180.0) / 360.0 * tiles;
+        assert longitude >= -180 && longitude <= 180 : "Longitude must be between -180 and 180 degrees";
+        final double xTile = (longitude + 180.0) / 360.0 * tiles;
         // Edge values may generate invalid values, and need to be clipped.
         return Math.max(0, Math.min(tiles - 1, (int) Math.floor(xTile)));
     }
@@ -122,11 +126,13 @@ public final class GeoTileUtils {
      * Calculates the y-coordinate in the tile grid for the specified longitude given
      * the number of tile rows for pre-determined zoom-level.
      *
-     * @param latitude  the latitude to use when determining the tile y-coordinate
+     * @param latitude  the latitude to use when determining the tile y-coordinate. Latitude is in degrees
+     *                  and must be between -90 and 90 degrees.
      * @param tiles     the number of tiles per column for a pre-determined zoom-level
      */
     public static int getYTile(double latitude, int tiles) {
-        final double latSin = SloppyMath.cos(PI_DIV_2 - Math.toRadians(normalizeLat(latitude)));
+        assert latitude >= -90 && latitude <= 90 : "Latitude must be between -90 and 90 degrees";
+        final double latSin = SloppyMath.cos(PI_DIV_2 - Math.toRadians(latitude));
         final double yTile = (0.5 - (ESSloppyMath.log((1.0 + latSin) / (1.0 - latSin)) / PI_TIMES_4)) * tiles;
         // Edge values may generate invalid values, and need to be clipped.
         // For example, polar regions (above/below lat 85.05112878) get normalized.
@@ -196,7 +202,7 @@ public final class GeoTileUtils {
     public static String stringEncode(long hash) {
         final int[] res = parseHash(hash);
         validateZXY(res[0], res[1], res[2]);
-        return "" + res[0] + "/" + res[1] + "/" + res[2];
+        return res[0] + "/" + res[1] + "/" + res[2];
     }
 
     /**
@@ -229,10 +235,12 @@ public final class GeoTileUtils {
     }
 
     /**
-     * Decode a bucket key to a bounding box of the tile corners
+     * Decode a bucket key to a bounding box of the tile corners. The points belonging
+     * to the max latitude and min longitude belong to the tile while the points
+     * belonging to the min latitude and max longitude belong to the next tile.
      */
     public static Rectangle toBoundingBox(int xTile, int yTile, int precision) {
-        final double tiles = validateZXY(precision, xTile, yTile);
+        final int tiles = validateZXY(precision, xTile, yTile);
         return new Rectangle(
             tileToLon(xTile, tiles),            // minLon
             tileToLon(xTile + 1, tiles),  // maxLon
@@ -256,10 +264,29 @@ public final class GeoTileUtils {
      * Decode a yTile into its latitude value
      */
     public static double tileToLat(int yTile, int tiles) {
-        return tileToLat(yTile, (double) tiles);
+        final double lat = tileToLat((double) yTile, tiles);
+        if (tiles < MAX_TILES_FULL_PRECISION || yTile == 0 || yTile == tiles) {
+            return lat; // precise case, don't need to do more work
+        }
+        // Maybe adjust latitude due to numerical errors
+        final double qLat = quantizeLat(lat);
+        final int computedYTile = getYTile(qLat, tiles);
+        // the idea here is that the latitude returned belongs to the tile and the next latitude up belongs to the next tile
+        // therefore we can be in the current tile and we need to find the point up just before the next tile,
+        // or we are in the other tile and we need to find the first point down that belong to this tile.
+        return findBoundaryPoint(qLat, computedYTile, tiles, computedYTile == yTile ? LUCENE_LAT_RES : -LUCENE_LAT_RES);
     }
 
-    private static double tileToLat(double yTile, double tiles) {
+    private static double findBoundaryPoint(double qLat, int yTile, int tiles, double step) {
+        final double nextQLat = qLat + step;
+        final int nextYTile = getYTile(nextQLat, tiles);
+        if (yTile != nextYTile) {
+            return step > 0 ? qLat : nextQLat;
+        }
+        return findBoundaryPoint(nextQLat, nextYTile, tiles, step);
+    }
+
+    private static double tileToLat(double yTile, int tiles) {
         final double n = Math.PI - (PI_TIMES_2 * yTile) / tiles;
         return Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(n)));
     }
@@ -281,7 +308,7 @@ public final class GeoTileUtils {
      * Converts zoom/x/y integers into a GeoPoint.
      */
     private static GeoPoint zxyToGeoPoint(int zoom, int xTile, int yTile) {
-        final double tiles = validateZXY(zoom, xTile, yTile);
+        final int tiles = validateZXY(zoom, xTile, yTile);
         return new GeoPoint(tileToLat(yTile + 0.5, tiles), tileToLon(xTile + 0.5, tiles));
     }
 }

@@ -100,14 +100,18 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
         assertThat(response.getStatsResponses().get(1).status().followerIndex(), equalTo("follower2"));
 
-        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
-        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower2")).actionGet());
+        assertAcked(
+            client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower1")).actionGet()
+        );
+        assertAcked(
+            client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower2")).actionGet()
+        );
 
         assertBusy(() -> {
-            List<FollowStatsAction.StatsResponse> responseList = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request())
-                .actionGet()
-                .getFollowStats()
-                .getStatsResponses();
+            List<FollowStatsAction.StatsResponse> responseList = client().execute(
+                CcrStatsAction.INSTANCE,
+                new CcrStatsAction.Request(TEST_REQUEST_TIMEOUT)
+            ).actionGet().getFollowStats().getStatsResponses();
             assertThat(responseList.size(), equalTo(0));
         });
     }
@@ -139,7 +143,9 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         e = expectThrows(ResourceNotFoundException.class, () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
         assertThat(e.getMessage(), equalTo("No shard follow tasks for follower indices [follower2]"));
 
-        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
+        assertAcked(
+            client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower1")).actionGet()
+        );
     }
 
     public void testFollowStatsApiWithDeletedFollowerIndex() throws Exception {
@@ -202,7 +208,9 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         assertThat(response.getStatsResponses().size(), equalTo(1));
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
 
-        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
+        assertAcked(
+            client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower1")).actionGet()
+        );
     }
 
 }

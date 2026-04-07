@@ -1,0 +1,108 @@
+---
+setup:
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [enrich-template] has index patterns [my-ds] matching patterns from existing older templates [global] with patterns (global => [*]); this template [enrich-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: enrich-template
+        body:
+          index_patterns: [my-ds]
+          data_stream: {}
+
+  - do:
+      bulk:
+        refresh: true
+        index: my-ds
+        body:
+          - '{"create": {}}'
+          - '{"@timestamp": "2022-01-01", "baz": "quick", "a": "brown", "b": "fox"}'
+          - '{"create": {}}'
+          - '{"@timestamp": "2022-01-01", "baz": "lazy", "a": "dog"}'
+
+  - do:
+      enrich.put_policy:
+        name: test_policy
+        body:
+          match:
+            indices: ["my-ds"]
+            match_field: baz
+            enrich_fields: ["a", "b"]
+
+  - do:
+      enrich.execute_policy:
+        name: test_policy
+
+  - do:
+      ingest.put_pipeline:
+        id: test_pipeline
+        body:
+          processors:
+            - enrich:
+                policy_name: test_policy
+                field: baz
+                target_field: target
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: test_pipeline
+
+  - do:
+      enrich.delete_policy:
+        name: test_policy
+
+---
+"enrich documents over _bulk via a data stream":
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
+      reason: "enrich didn't support data streams until 8.14.0+"
+
+  - do:
+      bulk:
+        refresh: true
+        index: target
+        pipeline: test_pipeline
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"baz": "quick", "c": 1}'
+          - '{"index": {"_id": "2"}}'
+          - '{"baz": "lazy", "c": 2}'
+          - '{"index": {"_id": "3"}}'
+          - '{"baz": "slow", "c": 3}'
+
+  - do:
+      get:
+        index: target
+        id: "1"
+  - match:
+      _source:
+        baz: quick
+        target:
+          baz: quick
+          a: brown
+          b: fox
+        c: 1
+
+  - do:
+      get:
+        index: target
+        id: "2"
+  - match:
+      _source:
+        baz: lazy
+        target:
+          baz: lazy
+          a: dog
+        c: 2
+
+  - do:
+      get:
+        index: target
+        id: "3"
+  - match:
+      _source:
+        baz: slow
+        c: 3

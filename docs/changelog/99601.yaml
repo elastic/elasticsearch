@@ -1,6 +1,0 @@
-pr: 99601
-summary: "ESQL: continue resolving attributes for Eval"
-area: ES|QL
-type: bug
-issues:
- - 99576

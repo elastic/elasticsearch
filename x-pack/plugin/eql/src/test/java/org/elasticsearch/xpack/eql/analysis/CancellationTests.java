@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.eql.analysis;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
+import org.elasticsearch.xpack.eql.logging.EqlLogContext;
 import org.elasticsearch.xpack.eql.plugin.TransportEqlSearchAction;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
@@ -49,7 +51,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -64,6 +65,8 @@ public class CancellationTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private TransportService transportService;
+    @SuppressWarnings("unchecked")
+    private ActivityLogger<EqlLogContext> logger = mock(ActivityLogger.class);
 
     @Before
     public void mockTransportService() {
@@ -75,6 +78,8 @@ public class CancellationTests extends ESTestCase {
             TransportVersion.current(),
             threadPool
         );
+        // Always return first argument
+        when(logger.wrap(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @After
@@ -98,6 +103,7 @@ public class CancellationTests extends ESTestCase {
             "",
             transportService,
             mockClusterService,
+            logger,
             new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse eqlSearchResponse) {
@@ -115,23 +121,14 @@ public class CancellationTests extends ESTestCase {
         countDownLatch.await();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
     private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
-        FieldCapabilities fooField = new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, emptyMap());
-        FieldCapabilities categoryField = new FieldCapabilities(
-            "event.category",
-            "keyword",
-            false,
-            true,
-            true,
-            indices,
-            null,
-            null,
-            emptyMap()
-        );
-        FieldCapabilities timestampField = new FieldCapabilities("@timestamp", "date", false, true, true, indices, null, null, emptyMap());
+        FieldCapabilities fooField = new FieldCapabilitiesBuilder("foo", "integer").indices(indices).build();
+        FieldCapabilities categoryField = new FieldCapabilitiesBuilder("event.category", "keyword").indices(indices).build();
+        FieldCapabilities timestampField = new FieldCapabilitiesBuilder("@timestamp", "date").indices(indices).build();
         Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(categoryField.getName(), singletonMap(categoryField.getName(), categoryField));
@@ -168,6 +165,7 @@ public class CancellationTests extends ESTestCase {
             "",
             transportService,
             mockClusterService,
+            logger,
             new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse eqlSearchResponse) {
@@ -186,6 +184,7 @@ public class CancellationTests extends ESTestCase {
         verify(client).fieldCaps(any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -211,7 +210,7 @@ public class CancellationTests extends ESTestCase {
 
         // Emulation of search cancellation
         ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        when(client.prepareSearch(any())).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indices));
+        when(client.prepareSearch(any())).thenReturn(new SearchRequestBuilder(client).setIndices(indices));
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             SearchRequest request = (SearchRequest) invocation.getArguments()[1];
@@ -235,6 +234,7 @@ public class CancellationTests extends ESTestCase {
             "",
             transportService,
             mockClusterService,
+            logger,
             new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse eqlSearchResponse) {
@@ -255,6 +255,7 @@ public class CancellationTests extends ESTestCase {
         verify(client).execute(any(), any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 

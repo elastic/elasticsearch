@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.function.Consumer;
 
 class ShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry> {
     private final GeometryParser geometryParser;
@@ -26,18 +25,21 @@ class ShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry> {
     }
 
     @Override
-    public void parse(XContentParser parser, CheckedConsumer<Geometry, IOException> consumer, Consumer<Exception> onMalformed)
-        throws IOException {
+    public void parse(
+        XContentParser parser,
+        CheckedConsumer<Geometry, IOException> consumer,
+        AbstractGeometryFieldMapper.MalformedValueHandler malformedHandler
+    ) throws IOException {
         try {
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    parse(parser, consumer, onMalformed);
+                    parse(parser, consumer, malformedHandler);
                 }
             } else {
                 consumer.accept(geometryParser.parse(parser));
             }
         } catch (ParseException | ElasticsearchParseException | IllegalArgumentException e) {
-            onMalformed.accept(e);
+            malformedHandler.notify(e);
         }
     }
 

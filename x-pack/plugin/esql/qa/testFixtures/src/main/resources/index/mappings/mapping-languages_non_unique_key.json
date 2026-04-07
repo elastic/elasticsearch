@@ -1,0 +1,18 @@
+{
+    "properties" : {
+        "language_code" : {
+            "type" : "integer"
+        },
+        "language_name" : {
+            "type" : "keyword"
+        },
+        "country": {
+            "type": "text",
+            "fields": {
+                "keyword": {
+                    "type": "keyword"
+                }
+            }
+        }
+    }
+}

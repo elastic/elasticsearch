@@ -10,15 +10,20 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
-  testImplementation project(":libs:elasticsearch-x-content")
+  testImplementation project(":libs:x-content")
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
+    exclude group: 'org.elasticsearch', module: 'x-content'
   }
 }
 
-tasks.named("compileJava").configure {
+java {
   targetCompatibility = JavaVersion.VERSION_1_8
   sourceCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.named("compileTestJava").configure {
+  targetCompatibility = buildParams.getMinimumRuntimeVersion()
+  sourceCompatibility = buildParams.getMinimumRuntimeVersion()
 }
 
 tasks.named('forbiddenApisMain').configure {

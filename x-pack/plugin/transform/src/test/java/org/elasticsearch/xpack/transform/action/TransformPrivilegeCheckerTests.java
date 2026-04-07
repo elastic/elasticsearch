@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -90,11 +89,8 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
 
     @Before
     public void setupClient() {
-        if (client != null) {
-            client.close();
-        }
-        client = new MyMockClient(getTestName());
-        threadPool = new TestThreadPool("transform_privilege_checker_tests");
+        threadPool = createThreadPool();
+        client = new MyMockClient(threadPool);
         securityContext = new SecurityContext(Settings.EMPTY, threadPool.getThreadContext()) {
             public User getUser() {
                 return new User(USER_NAME);
@@ -104,7 +100,6 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
 
     @After
     public void tearDownClient() {
-        client.close();
         threadPool.shutdown();
     }
 
@@ -404,8 +399,8 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             emptyMap()
         );
 
-        MyMockClient(String testName) {
-            super(testName);
+        MyMockClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")

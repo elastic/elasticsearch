@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -50,11 +51,11 @@ public class RecoveryClusterStateDelayListeners implements Releasable {
         clusterStateBarriers.values().forEach(l -> l.onResponse(null));
     }
 
-    void addCleanup(Runnable runnable) {
+    public void addCleanup(Runnable runnable) {
         cleanup.add(runnable);
     }
 
-    SubscribableListener<Void> getClusterStateDelayListener(long clusterStateVersion) {
+    public SubscribableListener<Void> getClusterStateDelayListener(long clusterStateVersion) {
         ESTestCase.assertThat(clusterStateVersion, greaterThanOrEqualTo(initialClusterStateVersion));
         if (refCounted.tryIncRef()) {
             try {
@@ -63,18 +64,17 @@ public class RecoveryClusterStateDelayListeners implements Releasable {
                 refCounted.decRef();
             }
         } else {
-            return SubscribableListener.newSucceeded(null);
+            return SubscribableListener.nullSuccess();
         }
     }
 
-    void onStartRecovery() {
+    public void onStartRecovery() {
         Thread.yield();
         ESTestCase.assertFalse(startRecoveryListener.isDone());
         startRecoveryListener.onResponse(null);
     }
 
     public void delayUntilRecoveryStart(SubscribableListener<Void> listener) {
-        ESTestCase.assertFalse(startRecoveryListener.isDone());
         startRecoveryListener.addListener(listener);
     }
 }

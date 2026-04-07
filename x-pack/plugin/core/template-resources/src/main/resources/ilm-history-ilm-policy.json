@@ -5,6 +5,9 @@
         "rollover": {
           "max_primary_shard_size": "50gb",
           "max_age": "30d"
+        },
+        "forcemerge": {
+          "max_num_segments": 1
         }
       }
     },

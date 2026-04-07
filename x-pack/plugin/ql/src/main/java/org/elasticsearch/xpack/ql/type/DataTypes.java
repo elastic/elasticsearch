@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
 import java.util.Collection;
@@ -52,6 +54,14 @@ public final class DataTypes {
     public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
     public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
     //end::noformat
+    public static final DataType SOURCE = new DataType(
+        SourceFieldMapper.NAME,
+        SourceFieldMapper.NAME,
+        Integer.MAX_VALUE,
+        false,
+        false,
+        false
+    );
 
     private static final Collection<DataType> TYPES = Stream.of(
         UNSUPPORTED,
@@ -102,41 +112,21 @@ public final class DataTypes {
     }
 
     public static DataType fromJava(Object value) {
-        if (value == null) {
-            return NULL;
-        }
-        if (value instanceof Integer) {
-            return INTEGER;
-        }
-        if (value instanceof Long) {
-            return LONG;
-        }
-        if (value instanceof BigInteger) {
-            return UNSIGNED_LONG;
-        }
-        if (value instanceof Boolean) {
-            return BOOLEAN;
-        }
-        if (value instanceof Double) {
-            return DOUBLE;
-        }
-        if (value instanceof Float) {
-            return FLOAT;
-        }
-        if (value instanceof Byte) {
-            return BYTE;
-        }
-        if (value instanceof Short) {
-            return SHORT;
-        }
-        if (value instanceof ZonedDateTime) {
-            return DATETIME;
-        }
-        if (value instanceof String || value instanceof Character) {
-            return KEYWORD;
-        }
-
-        return null;
+        return switch (value) {
+            case null -> NULL;
+            case Integer i -> INTEGER;
+            case Long l -> LONG;
+            case BigInteger bigInteger -> UNSIGNED_LONG;
+            case Boolean b -> BOOLEAN;
+            case Double v -> DOUBLE;
+            case Float v -> FLOAT;
+            case Byte b -> BYTE;
+            case Short s -> SHORT;
+            case ZonedDateTime zonedDateTime -> DATETIME;
+            case String s -> KEYWORD;
+            case Character c -> KEYWORD;
+            default -> null;
+        };
     }
 
     public static boolean isUnsupported(DataType from) {

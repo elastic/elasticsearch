@@ -28,6 +28,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -41,15 +42,18 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -59,15 +63,19 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
@@ -82,6 +90,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,12 +134,12 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldType = builder.build(MapperBuilderContext.root(false, false));
 
-        Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.V_7_9_0);
+        Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersions.V_7_9_0);
         wildcardFieldType79 = builder79.build(MapperBuilderContext.root(false, false));
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
             KEYWORD_FIELD_NAME,
-            IndexVersion.current()
+            defaultIndexSettings()
         );
         keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false, false));
 
@@ -184,7 +193,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
-        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(1L));
+        assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(1L));
 
         reader.close();
         dir.close();
@@ -204,8 +213,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertEquals(0, fields.size());
 
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(1, fields.size());
-        assertEquals("field", fields.get(0).stringValue());
+        assertEquals(2, fields.size());
+        assertTrue(fields.stream().anyMatch(field -> "field".equals(field.stringValue())));
     }
 
     public void testBWCIndexVersion() throws IOException {
@@ -228,12 +237,12 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // Unnatural circumstance - testing we fail if we were to use the new analyzer on old index
         Query oldWildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("a b", null, null);
         TopDocs oldWildcardFieldTopDocs = searcher.search(oldWildcardFieldQuery, 10, Sort.INDEXORDER);
-        assertThat(oldWildcardFieldTopDocs.totalHits.value, equalTo(0L));
+        assertThat(oldWildcardFieldTopDocs.totalHits.value(), equalTo(0L));
 
         // Natural circumstance test we revert to the old analyzer for old indices
         Query wildcardFieldQuery = wildcardFieldType79.fieldType().wildcardQuery("a b", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
-        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(1L));
+        assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(1L));
 
         reader.close();
         dir.close();
@@ -262,12 +271,12 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String queryString = randomABString((IndexSearcher.getMaxClauseCount() * 2) + 1);
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(queryString, null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
-        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
+        assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(0L));
 
         // Test regexp query
         wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(queryString, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
         wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
-        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
+        assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(0L));
 
         reader.close();
         dir.close();
@@ -304,13 +313,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     private void expectTermMatch(IndexSearcher searcher, String term, long count) throws IOException {
         Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_CONTEXT);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
-        assertThat(td.totalHits.value, equalTo(count));
+        assertThat(td.totalHits.value(), equalTo(count));
     }
 
     private void expectPrefixMatch(IndexSearcher searcher, String term, long count) throws IOException {
         Query q = wildcardFieldType.fieldType().prefixQuery(term, null, MOCK_CONTEXT);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
-        assertThat(td.totalHits.value, equalTo(count));
+        assertThat(td.totalHits.value(), equalTo(count));
     }
 
     public void testSearchResultsVersusKeywordField() throws IOException {
@@ -423,8 +432,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, values.size() + 1, Sort.RELEVANCE);
             assertThat(
                 keywordFieldQuery + "\n" + wildcardFieldQuery,
-                wildcardFieldTopDocs.totalHits.value,
-                equalTo(kwTopDocs.totalHits.value)
+                wildcardFieldTopDocs.totalHits.value(),
+                equalTo(kwTopDocs.totalHits.value())
             );
 
             HashSet<Integer> expectedDocs = new HashSet<>();
@@ -441,12 +450,12 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         SearchExecutionContext searchExecutionContext = createMockContext();
 
         FieldSortBuilder wildcardSortBuilder = new FieldSortBuilder(WILDCARD_FIELD_NAME);
-        SortField wildcardSortField = wildcardSortBuilder.build(searchExecutionContext).field;
-        ScoreDoc[] wildcardHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(wildcardSortField)).scoreDocs;
+        SortField wildcardSortField = wildcardSortBuilder.build(searchExecutionContext).field();
+        ScoreDoc[] wildcardHits = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs, new Sort(wildcardSortField)).scoreDocs;
 
         FieldSortBuilder keywordSortBuilder = new FieldSortBuilder(KEYWORD_FIELD_NAME);
-        SortField keywordSortField = keywordSortBuilder.build(searchExecutionContext).field;
-        ScoreDoc[] keywordHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(keywordSortField)).scoreDocs;
+        SortField keywordSortField = keywordSortBuilder.build(searchExecutionContext).field();
+        ScoreDoc[] keywordHits = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs, new Sort(keywordSortField)).scoreDocs;
 
         assertThat(wildcardHits.length, equalTo(keywordHits.length));
         for (int i = 0; i < wildcardHits.length; i++) {
@@ -530,7 +539,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
             TopDocs kwTopDocs = searcher.search(keywordFieldQuery, 10, Sort.RELEVANCE);
             TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.RELEVANCE);
-            assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
+            assertThat(wildcardFieldTopDocs.totalHits.value(), equalTo(kwTopDocs.totalHits.value()));
 
             HashSet<Integer> expectedDocs = new HashSet<>();
             for (ScoreDoc topDoc : kwTopDocs.scoreDocs) {
@@ -566,11 +575,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             { "(maynotexist)?foobar", "+eoo +ooa +oaa +aaq +aq_ +q__" },
             { ".*/etc/passw.*", "+\\/es +esc +sc\\/ +c\\/o +\\/oa +oas +ass +ssw" },
             { ".*etc/passwd", " +esc +sc\\/ +c\\/o +\\/oa +oas +ass +ssw +swc +wc_ +c__" },
-            { "(http|ftp)://foo.*", "+((+gss +sso) eso) +(+\\/\\/\\/ +\\/\\/e +\\/eo +eoo)" },
+            { "(http|ftp)://foo.*", "+\\/\\/\\/ +\\/\\/e +\\/eo +eoo +((+gss +sso) eso)" },
             {
                 "[Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll]\\.[Ee][Xx][Ee]",
                 "+_oo +oow +owe +weq +eqs +qsg +sge +gek +ekk +kk\\/ +k\\/e +\\/ew +ewe +we_ +e__" },
-            { "foo<1-100>bar", "+(+_eo +eoo) +(+aaq +aq_ +q__)" },
+            { "foo<1-100>bar", "+_eo +eoo +aaq +aq_ +q__" },
             { "(aaa.+&.+bbb)cat", "+cas +as_ +s__" },
             { ".a", "a__" } };
         for (String[] test : acceleratedTests) {
@@ -599,7 +608,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             "\\D" };
         for (String regex : matchAllButVerifyTests) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
-            BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;
+            BinaryDvConfirmedQuery q = (BinaryDvConfirmedQuery) wildcardFieldQuery;
             Query approximationQuery = unwrapAnyBoost(q.getApproximationQuery());
             approximationQuery = getSimplifiedApproximationQuery(q.getApproximationQuery());
             assertTrue(
@@ -655,7 +664,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             testExpectedAccelerationQuery(pattern, wildcardFieldQuery, expectedAccelerationQueryString);
-            assertTrue(unwrapAnyConstantScore(wildcardFieldQuery) instanceof BinaryDvConfirmedAutomatonQuery);
+            assertTrue(unwrapAnyConstantScore(wildcardFieldQuery) instanceof BinaryDvConfirmedQuery);
         }
 
         // TODO All these expressions have no acceleration at all and could be improved
@@ -663,7 +672,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         for (String pattern : slowPatterns) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             wildcardFieldQuery = unwrapAnyConstantScore(wildcardFieldQuery);
-            BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;
+            BinaryDvConfirmedQuery q = (BinaryDvConfirmedQuery) wildcardFieldQuery;
             assertTrue(
                 pattern + " was not as slow as we assumed " + formatQuery(wildcardFieldQuery),
                 q.getApproximationQuery() instanceof MatchAllDocsQuery
@@ -672,36 +681,52 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     }
 
-    public void testQueryCachingEquality() throws IOException, ParseException {
+    public void testQueryCachingEqualityFromAutomaton() {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
-        Automaton caseSensitiveAutomaton = WildcardQuery.toAutomaton(new Term("field", pattern));
-        Automaton caseInSensitiveAutomaton = AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("field", pattern));
-        BinaryDvConfirmedAutomatonQuery csQ = new BinaryDvConfirmedAutomatonQuery(
-            new MatchAllDocsQuery(),
-            "field",
-            pattern,
-            caseSensitiveAutomaton
-        );
-        BinaryDvConfirmedAutomatonQuery ciQ = new BinaryDvConfirmedAutomatonQuery(
-            new MatchAllDocsQuery(),
-            "field",
-            pattern,
-            caseInSensitiveAutomaton
-        );
+        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false);
+        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, true);
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Automaton caseSensitiveAutomaton2 = WildcardQuery.toAutomaton(new Term("field", pattern));
-        BinaryDvConfirmedAutomatonQuery csQ2 = new BinaryDvConfirmedAutomatonQuery(
-            new MatchAllDocsQuery(),
-            "field",
-            pattern,
-            caseSensitiveAutomaton2
-        );
+        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false);
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
+    }
+
+    public void testQueryCachingEqualityFromTerms() {
+        Query csQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
+        Query ciQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termB"));
+        assertNotEquals(csQ, ciQ);
+        assertNotEquals(csQ.hashCode(), ciQ.hashCode());
+
+        // Same query should be equal
+        Query csQ2 = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
+        assertEquals(csQ, csQ2);
+        assertEquals(csQ.hashCode(), csQ2.hashCode());
+    }
+
+    public void testVisit() {
+        Query query = wildcardFieldType.fieldType().wildcardQuery("*00363faa-1a2a-af71-8353*", null, MOCK_CONTEXT);
+        int[] totalQueries = new int[] { 0 };
+        query.visit(new QueryVisitor() {
+            @Override
+            public void visitLeaf(Query query) {
+                totalQueries[0]++;
+            }
+
+            @Override
+            public void consumeTerms(Query query, Term... terms) {
+                totalQueries[0]++;
+            }
+
+            @Override
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+                totalQueries[0]++;
+            }
+        });
+        assertThat(totalQueries[0], equalTo(11));
     }
 
     @Override
@@ -717,7 +742,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
-        checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((WildcardFieldMapper) m).ignoreAbove()));
+        checker.registerUpdateCheck(
+            "ignore_above",
+            b -> b.field("ignore_above", 256),
+            m -> assertEquals(256, ((WildcardFieldMapper) m).ignoreAbove().get())
+        );
 
     }
 
@@ -877,7 +906,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     void testExpectedAccelerationQuery(String regex, Query combinedQuery, Query expectedAccelerationQuery) throws ParseException,
         IOException {
-        BinaryDvConfirmedAutomatonQuery cq = (BinaryDvConfirmedAutomatonQuery) unwrapAnyConstantScore(combinedQuery);
+        BinaryDvConfirmedQuery cq = (BinaryDvConfirmedQuery) unwrapAnyConstantScore(combinedQuery);
         Query approximationQuery = cq.getApproximationQuery();
         approximationQuery = getSimplifiedApproximationQuery(approximationQuery);
         String message = "regex: "
@@ -913,11 +942,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         if (q instanceof BooleanQuery bq) {
             BooleanQuery.Builder result = new BooleanQuery.Builder();
             for (BooleanClause cq : bq.clauses()) {
-                Query rewritten = rewriteFiltersToMustsForComparisonPurposes(cq.getQuery());
-                if (cq.getOccur() == Occur.FILTER) {
+                Query rewritten = rewriteFiltersToMustsForComparisonPurposes(cq.query());
+                if (cq.occur() == Occur.FILTER) {
                     result.add(rewritten, Occur.MUST);
                 } else {
-                    result.add(rewritten, cq.getOccur());
+                    result.add(rewritten, cq.occur());
                 }
             }
             return result.build();
@@ -1046,8 +1075,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
 
         // Assert our randomly generated regex actually matches the provided raw input.
-        RegExp regex = new RegExp(result.toString());
-        Automaton automaton = regex.toAutomaton();
+        int includeDeprecatedComplement = RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT;
+        RegExp regex = new RegExp(result.toString(), includeDeprecatedComplement);
+        Automaton automaton = Operations.determinize(regex.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         ByteRunAutomaton bytesMatcher = new ByteRunAutomaton(automaton);
         BytesRef br = new BytesRef(randomValue);
         assertTrue(
@@ -1085,7 +1115,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
         return new SearchExecutionContext(
             0,
             0,
@@ -1105,7 +1135,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -1132,7 +1165,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     private void indexDoc(LuceneDocument parseDoc, Document doc, RandomIndexWriter iw) throws IOException {
-        IndexableField field = parseDoc.getByKey(wildcardFieldType.name());
+        IndexableField field = parseDoc.getByKey(wildcardFieldType.fullPath());
         if (field != null) {
             doc.add(field);
         }
@@ -1211,13 +1244,19 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
-        return new WildcardSyntheticSourceSupport();
+        // createSytheticSourceMapperService uses standard mode, which stores ignored values in stored fields (no sorting)
+        return new WildcardSyntheticSourceSupport(false);
     }
 
     static class WildcardSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
         private final boolean allIgnored = ignoreAbove != null && rarely();
         private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+        private final boolean sortIgnoredValues;
+
+        WildcardSyntheticSourceSupport(boolean sortIgnoredValues) {
+            this.sortIgnoredValues = sortIgnoredValues;
+        }
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
@@ -1228,17 +1267,28 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
             List<String> docValuesValues = new ArrayList<>();
-            List<String> outExtraValues = new ArrayList<>();
+            List<String> ignoredValues = new ArrayList<>();
             values.stream().map(Tuple::v2).forEach(v -> {
                 if (ignoreAbove != null && v.length() > ignoreAbove) {
-                    outExtraValues.add(v);
+                    ignoredValues.add(v);
                 } else {
                     docValuesValues.add(v);
                 }
             });
+
             List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
             Collections.sort(outList);
-            outList.addAll(outExtraValues);
+
+            if (sortIgnoredValues) {
+                // binary doc values deduplicate and sort values
+                List<String> sortedExtraValues = new ArrayList<>(new HashSet<>(ignoredValues));
+                Collections.sort(sortedExtraValues);
+                outList.addAll(sortedExtraValues);
+            } else {
+                // stored fields preserve insertion order
+                outList.addAll(ignoredValues);
+            }
+
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -1271,4 +1321,64 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
     }
 
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, false));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
+    public void testIgnoredFieldStoredInBinaryDocValuesForLogsDbIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong").field("@timestamp", "2025-01-01T00:00:00Z")));
+
+        // then
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    public void testIgnoredFieldStoredInStoredFieldsForStandardIndex() throws IOException {
+        // given
+        Settings settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong")));
+
+        // then
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    public void testIgnoredFieldStoredInStoredFieldsInPreviousIndexVersion() throws IOException {
+        // given
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES),
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong").field("@timestamp", "2025-01-01T00:00:00Z")));
+
+        // then
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
 }

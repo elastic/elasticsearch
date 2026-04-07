@@ -8,30 +8,35 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MaxIntAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MaxIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
-  private final List<Integer> channels;
-
-  public MaxIntAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
-    this.bigArrays = bigArrays;
-    this.channels = channels;
+  public MaxIntAggregatorFunctionSupplier() {
   }
 
   @Override
-  public MaxIntAggregatorFunction aggregator() {
-    return MaxIntAggregatorFunction.create(channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MaxIntAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public MaxIntGroupingAggregatorFunction groupingAggregator() {
-    return MaxIntGroupingAggregatorFunction.create(channels, bigArrays);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MaxIntGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public MaxIntAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+    return new MaxIntAggregatorFunction(driverContext, channels);
+  }
+
+  @Override
+  public MaxIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MaxIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

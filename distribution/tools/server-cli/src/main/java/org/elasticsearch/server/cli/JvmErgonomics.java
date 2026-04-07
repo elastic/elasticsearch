@@ -1,14 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
-import java.io.IOException;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.node.NodeRoleSettings;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -21,6 +27,8 @@ import java.util.regex.Pattern;
  */
 final class JvmErgonomics {
 
+    static final double DIRECT_MEMORY_TO_HEAP_FACTOR = 0.5;
+
     private JvmErgonomics() {
         throw new AssertionError("No instances intended");
     }
@@ -28,16 +36,16 @@ final class JvmErgonomics {
     /**
      * Chooses additional JVM options for Elasticsearch.
      *
-     * @param userDefinedJvmOptions A list of JVM options that have been defined by the user.
+     * @param finalJvmOptions the final JVM options as determined by the JVM
+     * @param heapSize the effective max heap size in bytes
+     * @param nodeSettings the node settings
      * @return A list of additional JVM options to set.
      */
-    static List<String> choose(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
+    static List<String> choose(final Map<String, JvmOption> finalJvmOptions, long heapSize, Settings nodeSettings) {
         final List<String> ergonomicChoices = new ArrayList<>();
-        final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
-        final long heapSize = JvmOption.extractMaxHeapSize(finalJvmOptions);
         final long maxDirectMemorySize = JvmOption.extractMaxDirectMemorySize(finalJvmOptions);
         if (maxDirectMemorySize == 0) {
-            ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
+            ergonomicChoices.add("-XX:MaxDirectMemorySize=" + (long) (DIRECT_MEMORY_TO_HEAP_FACTOR * heapSize));
         }
 
         final boolean tuneG1GCForSmallHeap = tuneG1GCForSmallHeap(heapSize);
@@ -53,6 +61,22 @@ final class JvmErgonomics {
         }
         if (tuneG1GCReservePercent != 0) {
             ergonomicChoices.add("-XX:G1ReservePercent=" + tuneG1GCReservePercent);
+        }
+
+        boolean isSearchTier = NodeRoleSettings.NODE_ROLES_SETTING.get(nodeSettings).contains(DiscoveryNodeRole.SEARCH_ROLE);
+        // override new percentage on small heaps on search tier to increase chance of staying free of the real memory circuit breaker limit
+        if (isSearchTier && heapSize < ByteSizeUnit.GB.toBytes(5)) {
+            ergonomicChoices.add("-XX:+UnlockExperimentalVMOptions");
+            ergonomicChoices.add("-XX:G1NewSizePercent=10");
+        }
+
+        // for dedicated search, using just 1 conc gc thread is not always enough to keep us below real memory breaker limit
+        // jvm use (2+processsors) / 4 (for small processor counts), so only affects 4/5 processors (for now)
+        if (EsExecutors.NODE_PROCESSORS_SETTING.exists(nodeSettings)) {
+            int allocated = EsExecutors.allocatedProcessors(nodeSettings);
+            if (allocated >= 4 && allocated <= 5 && isSearchTier) {
+                ergonomicChoices.add("-XX:ConcGCThreads=2");
+            }
         }
 
         return ergonomicChoices;

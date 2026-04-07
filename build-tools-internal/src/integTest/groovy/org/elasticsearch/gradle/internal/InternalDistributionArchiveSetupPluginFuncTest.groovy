@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -79,11 +80,8 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
     def "registered distribution provides archives and directory variant"() {
         given:
         file('someFile.txt') << "some content"
-
-        settingsFile << """
-            include ':consumer'
-            include ':producer-tar'
-        """
+        subProject("consumer")
+        subProject("producer-tar")
 
         buildFile << """
         import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -153,9 +151,7 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
     def "builds extracted distribution via extractedAssemble"() {
         given:
         file('someFile.txt') << "some content"
-        settingsFile << """
-            include ':producer-tar'
-        """
+        subProject("producer-tar")
 
         buildFile << """
         import org.gradle.api.artifacts.type.ArtifactTypeDefinition;

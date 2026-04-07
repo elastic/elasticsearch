@@ -8,72 +8,115 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentLocation;
-import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.parser.ContentLocation;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_ARRAY;
 
-public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesRequest {
+public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest implements CompositeIndicesRequest {
 
-    private static final ConstructingObjectParser<TypedParamValue, Void> PARAM_PARSER = new ConstructingObjectParser<>(
-        "params",
-        true,
-        objects -> new TypedParamValue((String) objects[1], objects[0])
-    );
-    private static final ParseField VALUE = new ParseField("value");
-    private static final ParseField TYPE = new ParseField("type");
+    public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
 
-    static {
-        PARAM_PARSER.declareField(constructorArg(), (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
-        PARAM_PARSER.declareString(constructorArg(), TYPE);
-    }
-
-    private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
-    private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
-    private static final ParseField FILTER_FIELD = new ParseField("filter");
-    private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
-    private static final ParseField PARAMS_FIELD = new ParseField("params");
-    private static final ParseField LOCALE_FIELD = new ParseField("locale");
-
-    private static final ObjectParser<EsqlQueryRequest, Void> PARSER = objectParser(EsqlQueryRequest::new);
+    private boolean async;
 
     private String query;
     private boolean columnar;
-    private ZoneId zoneId;
+    private boolean profile;
+    private Boolean includeCCSMetadata;
+    private Boolean includeExecutionMetadata;
+    private ZoneId timeZone;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
-    private List<TypedParamValue> params = List.of();
+    private QueryParams params = new QueryParams();
+    private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
+    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    private boolean keepOnCompletion;
+    private boolean onSnapshotBuild = Build.current().isSnapshot();
+    private boolean acceptedPragmaRisks = false;
+    private Boolean allowPartialResults = null;
+    private String projectRouting;
+    private ApproximationSettings approximation;
+
+    /**
+     * "Tables" provided in the request for use with things like {@code LOOKUP}.
+     */
+    private final Map<String, Map<String, Column>> tables = new TreeMap<>();
+
+    public static EsqlQueryRequest syncEsqlQueryRequest(String query) {
+        return new EsqlQueryRequest(false, query);
+    }
+
+    public static EsqlQueryRequest asyncEsqlQueryRequest(String query) {
+        return new EsqlQueryRequest(true, query);
+    }
+
+    EsqlQueryRequest(boolean async, String query) {
+        this.async = async;
+        this.query = query;
+    }
+
+    /**
+     * Copy constructor. Copies all fields from {@code source}. Subclasses that need to override
+     * specific fields (e.g. {@link PreparedEsqlQueryRequest} overrides {@code query}) should do
+     * so after calling this constructor. If a new field is added to this class, it must also be
+     * added here.
+     */
+    EsqlQueryRequest(EsqlQueryRequest source) {
+        this.async = source.async;
+        this.query = source.query;
+        this.columnar = source.columnar;
+        this.profile = source.profile;
+        this.includeCCSMetadata = source.includeCCSMetadata;
+        this.includeExecutionMetadata = source.includeExecutionMetadata;
+        this.timeZone = source.timeZone;
+        this.locale = source.locale;
+        this.filter = source.filter;
+        this.pragmas = source.pragmas;
+        this.params = source.params;
+        this.waitForCompletionTimeout = source.waitForCompletionTimeout;
+        this.keepAlive = source.keepAlive;
+        this.keepOnCompletion = source.keepOnCompletion;
+        this.onSnapshotBuild = source.onSnapshotBuild;
+        this.acceptedPragmaRisks = source.acceptedPragmaRisks;
+        this.allowPartialResults = source.allowPartialResults;
+        this.projectRouting = source.projectRouting;
+        this.approximation = source.approximation;
+        this.tables.putAll(source.tables);
+    }
+
+    public EsqlQueryRequest() {}
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
         super(in);
@@ -81,40 +124,114 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (Strings.hasText(query) == false) {
-            validationException = addValidationError("[query] is required", validationException);
-        }
-        if (Build.current().isSnapshot() == false && pragmas.isEmpty() == false) {
-            validationException = addValidationError("[pragma] only allowed in snapshot builds", validationException);
+        ActionRequestValidationException validationException = validateQuery();
+        if (onSnapshotBuild == false) {
+            if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
+            if (tables.isEmpty() == false) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.TABLES_FIELD + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
         }
         return validationException;
     }
 
-    public EsqlQueryRequest() {}
-
-    public void query(String query) {
-        this.query = query;
+    protected ActionRequestValidationException validateQuery() {
+        if (Strings.hasText(query) == false) {
+            return addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", null);
+        }
+        return null;
     }
 
+    public EsqlQueryRequest query(String query) {
+        this.query = query;
+        return this;
+    }
+
+    @Override
+    @Nullable
     public String query() {
         return query;
     }
 
-    public void columnar(boolean columnar) {
+    /**
+     * Returns a non-null human-readable description of the query for logging, task descriptions, and error messages.
+     * For regular requests this is the same as {@link #query()}. Overridden by {@link PreparedEsqlQueryRequest}
+     * to return a display string when there is no query text.
+     */
+    public String queryDescription() {
+        return query();
+    }
+
+    /**
+     * Parses the query string into an {@link EsqlStatement} and validates its settings.
+     * Overridden by {@link PreparedEsqlQueryRequest} to return a pre-built statement directly.
+     */
+    public EsqlStatement parse(EsqlParser parser, SettingsValidationContext settingsValidationCtx, InferenceSettings inferenceSettings) {
+        EsqlStatement statement = parser.parse(query(), params(), inferenceSettings);
+        QuerySettings.validate(statement, settingsValidationCtx);
+        return statement;
+    }
+
+    public boolean async() {
+        return async;
+    }
+
+    public EsqlQueryRequest columnar(boolean columnar) {
         this.columnar = columnar;
+        return this;
     }
 
     public boolean columnar() {
         return columnar;
     }
 
-    public void zoneId(ZoneId zoneId) {
-        this.zoneId = zoneId;
+    /**
+     * Enable profiling, sacrificing performance to return information about
+     * what operations are taking the most time.
+     */
+    public EsqlQueryRequest profile(boolean profile) {
+        this.profile = profile;
+        return this;
     }
 
-    public ZoneId zoneId() {
-        return zoneId;
+    public EsqlQueryRequest includeCCSMetadata(Boolean include) {
+        this.includeCCSMetadata = include;
+        return this;
+    }
+
+    public Boolean includeCCSMetadata() {
+        return includeCCSMetadata;
+    }
+
+    public EsqlQueryRequest includeExecutionMetadata(Boolean include) {
+        this.includeExecutionMetadata = include;
+        return this;
+    }
+
+    public Boolean includeExecutionMetadata() {
+        return includeExecutionMetadata;
+    }
+
+    /**
+     * Is profiling enabled?
+     */
+    public boolean profile() {
+        return profile;
+    }
+
+    public void timeZone(ZoneId timeZone) {
+        this.timeZone = timeZone;
+    }
+
+    public ZoneId timeZone() {
+        return timeZone;
     }
 
     public void locale(Locale locale) {
@@ -125,134 +242,152 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return locale;
     }
 
-    public void filter(QueryBuilder filter) {
+    public EsqlQueryRequest filter(QueryBuilder filter) {
         this.filter = filter;
+        return this;
     }
 
+    @Override
     public QueryBuilder filter() {
         return filter;
     }
 
-    public void pragmas(QueryPragmas pragmas) {
+    public EsqlQueryRequest pragmas(QueryPragmas pragmas) {
         this.pragmas = pragmas;
+        return this;
     }
 
     public QueryPragmas pragmas() {
         return pragmas;
     }
 
-    public List<TypedParamValue> params() {
+    public QueryParams params() {
         return params;
     }
 
-    public void params(List<TypedParamValue> params) {
+    public void params(QueryParams params) {
         this.params = params;
     }
 
-    public static EsqlQueryRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public TimeValue waitForCompletionTimeout() {
+        return waitForCompletionTimeout;
     }
 
-    private static ObjectParser<EsqlQueryRequest, Void> objectParser(Supplier<EsqlQueryRequest> supplier) {
-        ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
-        parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
-        parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
-        parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE_FIELD);
-        parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
-        parser.declareObject(
-            EsqlQueryRequest::pragmas,
-            (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
-            PRAGMA_FIELD
-        );
-        parser.declareField(EsqlQueryRequest::params, EsqlQueryRequest::parseParams, PARAMS_FIELD, VALUE_ARRAY);
-        parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
-
-        return parser;
+    public EsqlQueryRequest waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
+        return this;
     }
 
-    private static List<TypedParamValue> parseParams(XContentParser p) throws IOException {
-        List<TypedParamValue> result = new ArrayList<>();
-        XContentParser.Token token = p.currentToken();
+    public TimeValue keepAlive() {
+        return keepAlive;
+    }
 
-        if (token == XContentParser.Token.START_ARRAY) {
-            Object value = null;
-            String type = null;
-            TypedParamValue previousParam = null;
-            TypedParamValue currentParam;
+    public EsqlQueryRequest keepAlive(TimeValue keepAlive) {
+        this.keepAlive = keepAlive;
+        return this;
+    }
 
-            while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
-                XContentLocation loc = p.getTokenLocation();
+    public boolean keepOnCompletion() {
+        return keepOnCompletion;
+    }
 
-                if (token == XContentParser.Token.START_OBJECT) {
-                    // we are at the start of a value/type pair... hopefully
-                    currentParam = PARAM_PARSER.apply(p, null);
-                    /*
-                     * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
-                     * that are checked later in validateParams method.
-                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to
-                     * its type being explicitly set or inferred.
-                     */
-                    if ((previousParam != null && previousParam.hasExplicitType() == false) || result.isEmpty()) {
-                        currentParam.tokenLocation(toProto(loc));
-                    }
-                } else {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        value = p.text();
-                        type = "keyword";
-                    } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                        XContentParser.NumberType numberType = p.numberType();
-                        if (numberType == XContentParser.NumberType.INT) {
-                            value = p.intValue();
-                            type = "integer";
-                        } else if (numberType == XContentParser.NumberType.LONG) {
-                            value = p.longValue();
-                            type = "long";
-                        } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                            value = p.doubleValue();
-                            type = "double";
-                        }
-                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                        value = p.booleanValue();
-                        type = "boolean";
-                    } else if (token == XContentParser.Token.VALUE_NULL) {
-                        value = null;
-                        type = "null";
-                    } else {
-                        throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
-                    }
+    public EsqlQueryRequest keepOnCompletion(boolean keepOnCompletion) {
+        this.keepOnCompletion = keepOnCompletion;
+        return this;
+    }
 
-                    currentParam = new TypedParamValue(type, value, false);
-                    if ((previousParam != null && previousParam.hasExplicitType()) || result.isEmpty()) {
-                        currentParam.tokenLocation(toProto(loc));
-                    }
-                }
-
-                result.add(currentParam);
-                previousParam = currentParam;
+    /**
+     * Add a "table" to the request for use with things like {@code LOOKUP}.
+     */
+    public void addTable(String name, Map<String, Column> columns) {
+        for (Column c : columns.values()) {
+            if (false == c.values().blockFactory().breaker() instanceof NoopCircuitBreaker) {
+                throw new AssertionError("block tracking not supported on tables parameter");
             }
         }
-
-        return result;
+        Iterator<Column> itr = columns.values().iterator();
+        if (itr.hasNext()) {
+            int firstSize = itr.next().values().getPositionCount();
+            while (itr.hasNext()) {
+                int size = itr.next().values().getPositionCount();
+                if (size != firstSize) {
+                    throw new IllegalArgumentException("mismatched column lengths: was [" + size + "] but expected [" + firstSize + "]");
+                }
+            }
+        }
+        var prev = tables.put(name, columns);
+        if (prev != null) {
+            Releasables.close(prev.values());
+            throw new IllegalArgumentException("duplicate table for [" + name + "]");
+        }
     }
 
-    static ContentLocation toProto(org.elasticsearch.xcontent.XContentLocation toProto) {
-        if (toProto == null) {
-            return null;
-        }
-        return new ContentLocation(toProto.lineNumber(), toProto.columnNumber());
+    public Map<String, Map<String, Column>> tables() {
+        return tables;
+    }
+
+    public Boolean allowPartialResults() {
+        return allowPartialResults;
+    }
+
+    public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
+        this.allowPartialResults = allowPartialResults;
+        return this;
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        // Pass the query as the description
-        return new CancellableTask(id, type, action, query, parentTaskId, headers);
+    public Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId), keepAlive);
+        return new EsqlQueryRequestTask(queryDescription(), taskId.getId(), type, action, parentTaskId, headers, status);
     }
 
-    static org.elasticsearch.xcontent.XContentLocation fromProto(ContentLocation fromProto) {
-        if (fromProto == null) {
-            return null;
+    private static class EsqlQueryRequestTask extends CancellableTask {
+        private final Status status;
+
+        EsqlQueryRequestTask(
+            String query,
+            long id,
+            String type,
+            String action,
+            TaskId parentTaskId,
+            Map<String, String> headers,
+            EsqlQueryStatus status
+        ) {
+            // Pass the query as the description
+            super(id, type, action, query, parentTaskId, headers);
+            this.status = status;
         }
-        return new org.elasticsearch.xcontent.XContentLocation(fromProto.lineNumber, fromProto.columnNumber);
+
+        @Override
+        public Status getStatus() {
+            return status;
+        }
     }
 
+    // Setter for tests
+    void onSnapshotBuild(boolean onSnapshotBuild) {
+        this.onSnapshotBuild = onSnapshotBuild;
+    }
+
+    void acceptedPragmaRisks(boolean accepted) {
+        this.acceptedPragmaRisks = accepted;
+    }
+
+    public EsqlQueryRequest projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+        return this;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
+    }
+
+    public EsqlQueryRequest approximation(ApproximationSettings approximation) {
+        this.approximation = approximation;
+        return this;
+    }
+
+    public ApproximationSettings approximation() {
+        return approximation;
+    }
 }

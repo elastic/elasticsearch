@@ -7,46 +7,76 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 /**
  * Converts from <a href="https://en.wikipedia.org/wiki/Radian">radians</a>
  * to <a href="https://en.wikipedia.org/wiki/Degree_(angle)">degrees</a>.
  */
 public class ToDegrees extends AbstractConvertFunction implements EvaluatorMapper {
-    private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.of(
-            DOUBLE,
-            ToDegreesEvaluator::new,
-            INTEGER,
-            (field, source) -> new ToDegreesEvaluator(new ToDoubleFromIntEvaluator(field, source), source),
-            LONG,
-            (field, source) -> new ToDegreesEvaluator(new ToDoubleFromLongEvaluator(field, source), source),
-            UNSIGNED_LONG,
-            (field, source) -> new ToDegreesEvaluator(new ToDoubleFromUnsignedLongEvaluator(field, source), source)
-        );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "ToDegrees",
+        ToDegrees::new
+    );
 
-    public ToDegrees(Source source, Expression field) {
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(DOUBLE, ToDegreesEvaluator.Factory::new),
+        Map.entry(INTEGER, (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromIntEvaluator.Factory(source, field))),
+        Map.entry(LONG, (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromLongEvaluator.Factory(source, field))),
+        Map.entry(
+            UNSIGNED_LONG,
+            (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromUnsignedLongEvaluator.Factory(source, field))
+        )
+    );
+
+    @FunctionInfo(
+        returnType = "double",
+        description = "Converts a number in {wikipedia}/Radian[radians] to {wikipedia}/Degree_(angle)[degrees].",
+        examples = @Example(file = "floats", tag = "to_degrees")
+    )
+    public ToDegrees(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 
+    private ToDegrees(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    protected Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators() {
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 
@@ -65,8 +95,8 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         return DOUBLE;
     }
 
-    @ConvertEvaluator
+    @ConvertEvaluator(warnExceptions = { ArithmeticException.class })
     static double process(double deg) {
-        return Math.toDegrees(deg);
+        return NumericUtils.asFiniteNumber(Math.toDegrees(deg));
     }
 }

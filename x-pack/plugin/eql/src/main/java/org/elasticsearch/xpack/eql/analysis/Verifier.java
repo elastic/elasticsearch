@@ -71,6 +71,9 @@ public class Verifier {
 
         // start bottom-up
         plan.forEachUp(p -> {
+            if (p.getClass().equals(Join.class)) {
+                failures.add(fail(p, "JOIN command is not supported"));
+            }
             if (p.analyzed()) {
                 return;
             }
@@ -234,7 +237,7 @@ public class Verifier {
         return failures;
     }
 
-    private void checkJoinKeyTypes(LogicalPlan plan, Set<Failure> localFailures) {
+    private static void checkJoinKeyTypes(LogicalPlan plan, Set<Failure> localFailures) {
         if (plan instanceof Join join) {
             List<KeyedFilter> queries = join.queries();
             KeyedFilter until = join.until();

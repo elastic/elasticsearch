@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests {@link WatcherExistsHttpResource}.
  */
-public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResourceTestCase {
+public final class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResourceTestCase {
 
     private final ClusterService clusterService = mock(ClusterService.class);
     private final MultiHttpResource mockWatches = mock(MultiHttpResource.class);

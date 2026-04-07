@@ -1,7 +1,7 @@
 ---
 "Cluster HTTP Info":
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
       reason: "/_info/http only available from v8.9"
 
   - do:

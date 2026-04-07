@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,20 +43,20 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             includes = randomAllocationRoutingMap(1, 100);
             hasAtLeastOneMap = true;
         } else {
-            includes = randomBoolean() ? null : Collections.emptyMap();
+            includes = randomBoolean() ? null : Map.of();
         }
         Map<String, String> excludes;
         if (randomBoolean()) {
             hasAtLeastOneMap = true;
             excludes = randomAllocationRoutingMap(1, 100);
         } else {
-            excludes = randomBoolean() ? null : Collections.emptyMap();
+            excludes = randomBoolean() ? null : Map.of();
         }
         Map<String, String> requires;
         if (hasAtLeastOneMap == false || randomBoolean()) {
             requires = randomAllocationRoutingMap(1, 100);
         } else {
-            requires = randomBoolean() ? null : Collections.emptyMap();
+            requires = randomBoolean() ? null : Map.of();
         }
         Integer numberOfReplicas = randomBoolean() ? null : randomIntBetween(0, 10);
         Integer totalShardsPerNode = randomBoolean() ? null : randomIntBetween(-1, 10);
@@ -97,9 +96,9 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
     }
 
     public void testAllMapsNullOrEmpty() {
-        Map<String, String> include = randomBoolean() ? null : Collections.emptyMap();
-        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
-        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> include = randomBoolean() ? null : Map.of();
+        Map<String, String> exclude = randomBoolean() ? null : Map.of();
+        Map<String, String> require = randomBoolean() ? null : Map.of();
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new AllocateAction(null, null, include, exclude, require)
@@ -124,8 +123,8 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
 
     public void testInvalidNumberOfReplicas() {
         Map<String, String> include = randomAllocationRoutingMap(1, 5);
-        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
-        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> exclude = randomBoolean() ? null : Map.of();
+        Map<String, String> require = randomBoolean() ? null : Map.of();
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new AllocateAction(randomIntBetween(-1000, -1), randomIntBetween(0, 300), include, exclude, require)
@@ -135,8 +134,8 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
 
     public void testInvalidTotalShardsPerNode() {
         Map<String, String> include = randomAllocationRoutingMap(1, 5);
-        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
-        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> exclude = randomBoolean() ? null : Map.of();
+        Map<String, String> require = randomBoolean() ? null : Map.of();
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new AllocateAction(randomIntBetween(0, 300), randomIntBetween(-1000, -2), include, exclude, require)
@@ -187,7 +186,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             expectedSettings.put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), action.getTotalShardsPerNode());
         }
 
-        assertThat(firstStep.getSettings(), equalTo(expectedSettings.build()));
+        assertThat(firstStep.getSettingsSupplier().apply(null), equalTo(expectedSettings.build()));
         AllocationRoutedStep secondStep = (AllocationRoutedStep) steps.get(1);
         assertEquals(expectedSecondStepKey, secondStep.getKey());
         assertEquals(nextStepKey, secondStep.getNextStepKey());
@@ -205,13 +204,15 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
-        assertEquals(totalShardsPerNode, firstStep.getSettings().getAsInt(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), null));
+        Settings actualSettings = firstStep.getSettingsSupplier().apply(null);
+        assertEquals(totalShardsPerNode, actualSettings.getAsInt(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), null));
 
         totalShardsPerNode = null;
         action = new AllocateAction(numberOfReplicas, totalShardsPerNode, null, null, null);
         steps = action.toSteps(null, phase, nextStepKey);
         firstStep = (UpdateSettingsStep) steps.get(0);
-        assertEquals(null, firstStep.getSettings().get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
+        actualSettings = firstStep.getSettingsSupplier().apply(null);
+        assertNull(actualSettings.get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
 
         // allow an allocate action that only specifies total shards per node (don't expect any exceptions in this case)
         action = new AllocateAction(null, 5, null, null, null);

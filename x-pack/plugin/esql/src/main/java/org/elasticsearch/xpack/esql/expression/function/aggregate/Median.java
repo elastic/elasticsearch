@@ -7,49 +7,118 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 
+import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Median extends AggregateFunction implements SurrogateExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Median", Median::new);
+
     // TODO: Add the compression parameter
-    public Median(Source source, Expression field) {
-        super(source, field);
+    @FunctionInfo(
+        returnType = "double",
+        description = "The value that is greater than half of all values and less than half of all values, "
+            + "also known as the 50% <<esql-percentile>>.",
+        note = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.",
+        appendix = """
+            ::::{warning}
+            `MEDIAN` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
+            This means you can get slightly different results using the same data.
+            ::::""",
+        type = FunctionType.AGGREGATE,
+        examples = {
+            @Example(file = "stats_percentile", tag = "median"),
+            @Example(
+                description = "The expression can use inline functions. For example, to calculate the median of "
+                    + "the maximum values of a multivalued column, first use `MV_MAX` to get the "
+                    + "maximum value per row, and use the result with the `MEDIAN` function",
+                file = "stats_percentile",
+                tag = "docsStatsMedianNestedExpression"
+            ), }
+    )
+    public Median(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "exponential_histogram", "tdigest" },
+            description = "Expression that outputs values to calculate the median of."
+        ) Expression field
+    ) {
+        this(source, field, Literal.TRUE, NO_WINDOW);
+    }
+
+    public Median(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     @Override
     protected Expression.TypeResolution resolveType() {
-        return isNumeric(field(), sourceText(), DEFAULT);
+        return isType(
+            field(),
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == DataType.EXPONENTIAL_HISTOGRAM || dt == DataType.TDIGEST,
+            sourceText(),
+            DEFAULT,
+            "exponential_histogram",
+            "tdigest",
+            "numeric except unsigned_long or counter types"
+        );
+    }
+
+    private Median(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
     public DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 
     @Override
     protected NodeInfo<Median> info() {
-        return NodeInfo.create(this, Median::new, field());
+        return NodeInfo.create(this, Median::new, field(), filter(), window());
     }
 
     @Override
     public Median replaceChildren(List<Expression> newChildren) {
-        return new Median(source(), newChildren.get(0));
+        return new Median(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+    }
+
+    @Override
+    public AggregateFunction withFilter(Expression filter) {
+        return new Median(source(), field(), filter, window());
     }
 
     @Override
     public Expression surrogate() {
-        return new Percentile(source(), field(), new Literal(source(), (int) QuantileStates.MEDIAN, DataTypes.INTEGER));
+        var s = source();
+        var field = field();
+
+        return field.foldable() && field.dataType() != DataType.EXPONENTIAL_HISTOGRAM && field.dataType() != DataType.TDIGEST
+            ? new MvMedian(s, new ToDouble(s, field))
+            : new Percentile(source(), field(), filter(), window(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER));
     }
 }

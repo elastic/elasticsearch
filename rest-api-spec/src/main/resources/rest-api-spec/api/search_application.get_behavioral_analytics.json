@@ -1,11 +1,15 @@
 {
   "search_application.get_behavioral_analytics": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-analytics-collection.html",
-      "description": "Returns the existing behavioral analytics collections."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-get-behavioral-analytics",
+      "description": "Get behavioral analytics collections"
     },
     "stability": "experimental",
     "visibility": "public",
+    "deprecated": {
+      "version": "9.0.0",
+      "description": "Behavioral Analytics has been deprecated and will be removed in a future release."
+    },
     "headers": {
       "accept": [
         "application/json"
@@ -24,10 +28,10 @@
           "methods": [
             "GET"
           ],
-          "parts":{
-            "name":{
-              "type":"list",
-              "description":"A comma-separated list of analytics collections to limit the returned information"
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of analytics collections to limit the returned information"
             }
           }
         }

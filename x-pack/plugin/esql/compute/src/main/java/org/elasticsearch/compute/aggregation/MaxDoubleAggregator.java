@@ -16,7 +16,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 class MaxDoubleAggregator {
 
     public static double init() {
-        return Double.MIN_VALUE;
+        return -Double.MAX_VALUE;
     }
 
     public static double combine(double current, double v) {

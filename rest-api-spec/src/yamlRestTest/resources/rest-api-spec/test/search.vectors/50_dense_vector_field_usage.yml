@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      features: headers
-      version: ' - 7.99.99'
+  - requires:
+      cluster_features: "gte_v8.0.0"
       reason: 'kNN search added in 8.0'
+      test_runner_features: "headers"
   - do:
       indices.create:
         index: futest
@@ -50,11 +50,14 @@ setup:
 
 ---
 "Field usage":
-  - skip:
-      version: ' - 8.0.99'
+  - requires:
+      cluster_features: "gte_v8.1.0"
       reason: 'dense_vector field usage was added in 8.1'
-      features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings"]
   - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:

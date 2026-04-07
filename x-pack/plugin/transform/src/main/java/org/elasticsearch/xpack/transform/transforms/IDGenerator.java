@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.TreeMap;
 
 /**
@@ -72,7 +72,7 @@ public final class IDGenerator {
         MurmurHash3.Hash128 hasher = MurmurHash3.hash128(buffer.bytes(), 0, buffer.length(), SEED, new MurmurHash3.Hash128());
         hashedBytes.append(Numbers.longToBytes(hasher.h1), 0, 8);
         hashedBytes.append(Numbers.longToBytes(hasher.h2), 0, 8);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(hashedBytes.bytes());
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(hashedBytes.bytes());
     }
 
     /**

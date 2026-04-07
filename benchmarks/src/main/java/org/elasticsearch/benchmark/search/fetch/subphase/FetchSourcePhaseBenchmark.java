@@ -63,7 +63,7 @@ public class FetchSourcePhaseBenchmark {
         );
         includesSet = Set.of(fetchContext.includes());
         excludesSet = Set.of(fetchContext.excludes());
-        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(includesSet, excludesSet, false);
+        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, includesSet, excludesSet, false);
     }
 
     private BytesReference read300BytesExample() throws IOException {

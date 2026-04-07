@@ -1,22 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
 
@@ -24,46 +23,47 @@ import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
  * Long array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigLongArray extends AbstractBigArray implements LongArray {
+final class BigLongArray extends AbstractBigByteArray implements LongArray {
 
     private static final BigLongArray ESTIMATOR = new BigLongArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
 
-    private byte[][] pages;
-
     /** Constructor. */
     BigLongArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(LONG_PAGE_SIZE, bigArrays, clearOnResize);
-        this.size = size;
-        pages = new byte[numPages(size)][];
-        for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newBytePage(i);
-        }
+        super(LONG_PAGE_SIZE, bigArrays, clearOnResize, size);
     }
 
     @Override
     public long get(long index) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
         return (long) VH_PLATFORM_NATIVE_LONG.get(pages[pageIndex], indexInPage << 3);
     }
 
     @Override
-    public long set(long index, long value) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
-        final byte[] page = pages[pageIndex];
+    public long getAndSet(long index, long value) {
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
+        final byte[] page = getPageForWriting(pageIndex);
         final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(page, indexInPage << 3);
         VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << 3, value);
         return ret;
     }
 
     @Override
+    public void set(long index, long value) {
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
+        final byte[] page = getPageForWriting(pageIndex);
+        VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << 3, value);
+    }
+
+    @Override
     public long increment(long index, long inc) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
-        final byte[] page = pages[pageIndex];
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
+        final byte[] page = getPageForWriting(pageIndex);
         final long newVal = (long) VH_PLATFORM_NATIVE_LONG.get(page, indexInPage << 3) + inc;
         VH_PLATFORM_NATIVE_LONG.set(page, indexInPage << 3, newVal);
         return newVal;
@@ -74,23 +74,6 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
         return Long.BYTES;
     }
 
-    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
-    @Override
-    public void resize(long newSize) {
-        final int numPages = numPages(newSize);
-        if (numPages > pages.length) {
-            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-        }
-        for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newBytePage(i);
-        }
-        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
-            pages[i] = null;
-            releasePage(i);
-        }
-        this.size = newSize;
-    }
-
     @Override
     public void fill(long fromIndex, long toIndex, long value) {
         if (fromIndex > toIndex) {
@@ -99,16 +82,16 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
         if (fromIndex == toIndex) {
             return; // empty range
         }
-        final int fromPage = pageIndex(fromIndex);
-        final int toPage = pageIndex(toIndex - 1);
+        final int fromPage = pageIdx(fromIndex);
+        final int toPage = pageIdx(toIndex - 1);
         if (fromPage == toPage) {
-            fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+            fill(getPageForWriting(fromPage), idxInPage(fromIndex), idxInPage(toIndex - 1) + 1, value);
         } else {
-            fill(pages[fromPage], indexInPage(fromIndex), pageSize(), value);
+            fill(getPageForWriting(fromPage), idxInPage(fromIndex), LONG_PAGE_SIZE, value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                fill(pages[i], 0, pageSize(), value);
+                fill(getPageForWriting(i), 0, LONG_PAGE_SIZE, value);
             }
-            fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+            fill(getPageForWriting(toPage), 0, idxInPage(toIndex - 1) + 1, value);
         }
     }
 
@@ -126,26 +109,36 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     @Override
     public void set(long index, byte[] buf, int offset, int len) {
-        set(index, buf, offset, len, pages, 3);
+        set(index, buf, offset, len, 3);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writePages(out, Math.toIntExact(size), pages, Long.BYTES, LONG_PAGE_SIZE);
+        writePages(out, size, pages, Long.BYTES);
     }
 
-    static void writePages(StreamOutput out, int size, byte[][] pages, int bytesPerValue, int pageSize) throws IOException {
-        out.writeVInt(size * bytesPerValue);
-        int lastPageEnd = size % pageSize;
-        if (lastPageEnd == 0) {
-            for (byte[] page : pages) {
-                out.write(page);
-            }
-            return;
+    @Override
+    public void fillWith(StreamInput in) throws IOException {
+        readPages(in);
+    }
+
+    static void writePages(StreamOutput out, long size, byte[][] pages, int bytesPerValue) throws IOException {
+        int remainedBytes = Math.toIntExact(size * bytesPerValue);
+        out.writeVInt(remainedBytes);
+        for (int i = 0; i < pages.length && remainedBytes > 0; i++) {
+            int len = Math.min(remainedBytes, pages[i].length);
+            out.writeBytes(pages[i], 0, len);
+            remainedBytes -= len;
         }
-        for (int i = 0; i < pages.length - 1; i++) {
-            out.write(pages[i]);
-        }
-        out.write(pages[pages.length - 1], 0, lastPageEnd * bytesPerValue);
+    }
+
+    private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(LONG_PAGE_SIZE);
+
+    private static int pageIdx(long index) {
+        return (int) (index >>> PAGE_SHIFT);
+    }
+
+    private static int idxInPage(long index) {
+        return (int) (index & LONG_PAGE_SIZE - 1);
     }
 }

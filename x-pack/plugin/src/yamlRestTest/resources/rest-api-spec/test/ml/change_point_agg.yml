@@ -48,11 +48,11 @@ setup:
           {"index":{}}
           {"cost":250,"time":1587501273000,"kind":"changed"}
           {"index":{}}
-          {"cost":580,"time":1587501283000,"kind":"changed"}
+          {"cost":380,"time":1587501283000,"kind":"changed"}
           {"index":{}}
-          {"cost":600,"time":1587501293000,"kind":"changed"}
+          {"cost":450,"time":1587501293000,"kind":"changed"}
           {"index":{}}
-          {"cost":600,"time":1587501303000,"kind":"changed"}
+          {"cost":550,"time":1587501303000,"kind":"changed"}
           {"index":{}}
           {"cost":600,"time":1587501313000,"kind":"changed"}
           {"index":{}}

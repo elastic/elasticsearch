@@ -13,6 +13,7 @@ import java.math.BigInteger;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIntegral;
 import static org.hamcrest.Matchers.equalTo;
@@ -113,6 +114,11 @@ public class NumericUtilsTests extends ESTestCase {
         assertThat(mulExact("1", "1"), equalTo("1"));
         assertThat(mulExact("0", "1"), equalTo("0"));
         assertThat(mulExact("0", "0"), equalTo("0"));
+    }
+
+    public void testRoundTripConversion() {
+        BigInteger b = randomUnsignedLongBetween(BigInteger.ZERO, UNSIGNED_LONG_MAX);
+        assertThat(b, equalTo(unsignedLongAsBigInteger(asLongUnsigned(b))));
     }
 
     private static String addExact(String x, String y) {

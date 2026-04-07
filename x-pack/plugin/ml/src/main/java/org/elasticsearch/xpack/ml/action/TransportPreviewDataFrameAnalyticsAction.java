@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -64,7 +66,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         ThreadPool threadPool,
         ClusterService clusterService
     ) {
-        super(PreviewDataFrameAnalyticsAction.NAME, transportService, actionFilters, Request::new);
+        super(PreviewDataFrameAnalyticsAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
         this.threadPool = threadPool;
@@ -75,10 +77,10 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         this.clusterService = clusterService;
     }
 
-    private static Map<String, Object> mergeRow(DataFrameDataExtractor.Row row, List<String> fieldNames) {
-        return row.getValues() == null
+    private static Map<String, Object> mergeRow(String[] row, List<String> fieldNames) {
+        return row == null
             ? Collections.emptyMap()
-            : IntStream.range(0, row.getValues().length).boxed().collect(Collectors.toMap(fieldNames::get, i -> row.getValues()[i]));
+            : IntStream.range(0, row.length).boxed().collect(Collectors.toMap(fieldNames::get, i -> row[i]));
     }
 
     @Override
@@ -97,7 +99,11 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
                 preview(task, config, listener);
             });
         } else {
-            preview(task, request.getConfig(), listener);
+            preview(
+                task,
+                request.getConfig(),
+                ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext())
+            );
         }
     }
 
@@ -106,18 +112,18 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         final ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(
             new ParentTaskAssigningClient(client, parentTaskId)
         );
-        extractedFieldsDetectorFactory.createFromSource(config, ActionListener.wrap(extractedFieldsDetector -> {
+        extractedFieldsDetectorFactory.createFromSource(config, listener.delegateFailureAndWrap((delegate, extractedFieldsDetector) -> {
             DataFrameDataExtractor extractor = DataFrameDataExtractorFactory.createForSourceIndices(
                 client,
                 parentTaskId.toString(),
                 config,
                 extractedFieldsDetector.detect().v1()
             ).newExtractor(false);
-            extractor.preview(ActionListener.wrap(rows -> {
+            extractor.preview(delegate.delegateFailureAndWrap((l, rows) -> {
                 List<String> fieldNames = extractor.getFieldNames();
-                listener.onResponse(new Response(rows.stream().map((r) -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
-            }, listener::onFailure));
-        }, listener::onFailure));
+                l.onResponse(new Response(rows.stream().map(r -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
+            }));
+        }));
     }
 
 }

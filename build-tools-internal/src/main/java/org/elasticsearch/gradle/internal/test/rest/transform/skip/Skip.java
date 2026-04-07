@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest.transform.skip;
@@ -66,8 +67,7 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
                 ObjectNode skipCandidate = (ObjectNode) arrayEntry;
                 if (skipCandidate.get("skip") != null) {
                     ObjectNode skipNode = (ObjectNode) skipCandidate.get("skip");
-                    skipNode.replace("version", TextNode.valueOf("all"));
-                    skipNode.replace("reason", TextNode.valueOf(skipReason));
+                    skipNode.set("awaits_fix", TextNode.valueOf(skipReason));
                     found = true;
                     break;
                 }
@@ -79,8 +79,7 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
             ObjectNode skipNode = new ObjectNode(jsonNodeFactory);
             skipParent.insert(0, skipNode);
             ObjectNode skipChild = new ObjectNode(jsonNodeFactory);
-            skipChild.set("version", TextNode.valueOf("all"));
-            skipChild.set("reason", TextNode.valueOf(skipReason));
+            skipChild.set("awaits_fix", TextNode.valueOf(skipReason));
             skipNode.set("skip", skipChild);
         }
     }
@@ -88,8 +87,14 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
     @Override
     public void transformTest(ObjectNode parent) {
         if (testName.isBlank() == false) {
-            assert parent.get(testName) instanceof ArrayNode;
-            addSkip((ArrayNode) parent.get(testName));
+            JsonNode value = parent.get(testName);
+            // Only apply skip to test documents where the key is the test name and value is the steps array.
+            // Do not apply to nested keys with the same name (e.g. "do: get: { ... }" request body).
+            // This makes it possible to skip tests where the test name is an overloaded term such as
+            // task.skipTest("tsdb/25_id_generation/delete",...)
+            if (value instanceof ArrayNode) {
+                addSkip((ArrayNode) value);
+            }
         }
     }
 

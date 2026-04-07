@@ -1,0 +1,6 @@
+pr: 142738
+summary: Added service settings update logic for Alibaba Cloud Search provider in the Inference Plugin
+area: Inference
+type: enhancement
+issues:
+  - 122356

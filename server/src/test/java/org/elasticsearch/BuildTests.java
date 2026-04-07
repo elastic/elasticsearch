@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -19,7 +20,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.test.BuildUtils.mutateBuild;
 import static org.elasticsearch.test.BuildUtils.newBuild;
@@ -44,54 +44,24 @@ public class BuildTests extends ESTestCase {
         String version = Math.abs(randomInt()) + "." + Math.abs(randomInt()) + "." + Math.abs(randomInt());
         Build build = Build.current();
         assertTrue(newBuild(build, Map.of("version", version, "isSnapshot", false)).isProductionRelease());
-        assertFalse(newBuild(build, Map.of("version", "7.0.0-SNAPSHOT", "isSnapshot", true)).isProductionRelease());
-        assertFalse(newBuild(build, Map.of("version", "7.0.0-alpha1", "isSnapshot", false)).isProductionRelease());
+        assertFalse(newBuild(build, Map.of("version", "7.0.0", "isSnapshot", true)).isProductionRelease());
+        assertFalse(newBuild(build, Map.of("version", "7.0.0", "qualifier", "alpha1", "isSnapshot", false)).isProductionRelease());
     }
 
-    private static class WriteableBuild implements Writeable {
-        private final Build build;
+    private record WriteableBuild(Build build) implements Writeable {
 
         WriteableBuild(StreamInput in) throws IOException {
-            build = Build.readBuild(in);
-        }
-
-        WriteableBuild(Build build) {
-            this.build = build;
+            this(Build.readBuild(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             Build.writeBuild(build, out);
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            WriteableBuild that = (WriteableBuild) o;
-            return build.equals(that.build);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(build);
-        }
     }
 
     public void testSerialization() {
-        var randomBuild = new WriteableBuild(
-            new Build(
-                randomAlphaOfLength(6),
-                randomFrom(Build.Type.values()),
-                randomAlphaOfLength(6),
-                randomAlphaOfLength(6),
-                randomBoolean(),
-                randomAlphaOfLength(6),
-                randomAlphaOfLength(6),
-                randomAlphaOfLength(6),
-                randomAlphaOfLength(6)
-            )
-        );
+        var randomBuild = new WriteableBuild(randomBuild());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             randomBuild,
             // Note: the cast of the Copy- and MutateFunction is needed for some IDE (specifically Eclipse 4.10.0) to infer the right type
@@ -119,4 +89,18 @@ public class BuildTests extends ESTestCase {
         assertThat(e, hasToString(containsString("unexpected distribution type [" + displayName + "]; your distribution is broken")));
     }
 
+    private static Build randomBuild() {
+        return new Build(
+            randomAlphaOfLength(6),
+            randomFrom(Build.Type.values()),
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(6),
+            randomFrom(random(), null, "alpha1", "beta1", "rc2"),
+            randomBoolean(),
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(6),
+            randomAlphaOfLength(6)
+        );
+    }
 }

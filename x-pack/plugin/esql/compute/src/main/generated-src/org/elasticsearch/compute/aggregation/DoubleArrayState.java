@@ -10,10 +10,9 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -28,7 +27,7 @@ import org.elasticsearch.core.Releasables;
  * call {@link #enableGroupIdTracking} to transition the state into a mode
  * where it'll track which {@code groupIds} have been written.
  * <p>
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayState.java.st} instead.
  * </p>
  */
 final class DoubleArrayState extends AbstractArrayState implements GroupingAggregatorState {
@@ -57,24 +56,32 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         trackGroupId(groupId);
     }
 
-    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected) {
+    void increment(int groupId, double value) {
+        ensureCapacity(groupId);
+        values.increment(groupId, value);
+        trackGroupId(groupId);
+    }
+
+    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            DoubleVector.Builder builder = DoubleVector.newVectorBuilder(selected.getPositionCount());
+            try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    builder.appendDouble(i, values.get(selected.getInt(i)));
+                }
+                return builder.build().asBlock();
+            }
+        }
+        try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
-                builder.appendDouble(values.get(selected.getInt(i)));
+                int group = selected.getInt(i);
+                if (hasValue(group)) {
+                    builder.appendDouble(values.get(group));
+                } else {
+                    builder.appendNull();
+                }
             }
-            return builder.build().asBlock();
+            return builder.build();
         }
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int group = selected.getInt(i);
-            if (hasValue(group)) {
-                builder.appendDouble(values.get(group));
-            } else {
-                builder.appendNull();
-            }
-        }
-        return builder.build();
     }
 
     private void ensureCapacity(int groupId) {
@@ -87,21 +94,37 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
 
     /** Extracts an intermediate view of the contents of this state.  */
     @Override
-    public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+    public void toIntermediate(
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        org.elasticsearch.compute.operator.DriverContext driverContext
+    ) {
         assert blocks.length >= offset + 2;
-        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
-        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int group = selected.getInt(i);
-            if (group < values.size()) {
-                valuesBuilder.appendDouble(values.get(group));
-            } else {
-                valuesBuilder.appendDouble(0); // TODO can we just use null?
+        boolean allHaveValue = true;
+        try (
+            var valuesBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+            var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
+        ) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                if (group < values.size() && hasValue(group)) {
+                    valuesBuilder.appendDouble(i, values.get(group));
+                    hasValueBuilder.appendBoolean(i, true);
+                } else {
+                    allHaveValue = false;
+                    valuesBuilder.appendDouble(i, 0);
+                    hasValueBuilder.appendBoolean(i, false);
+                }
             }
-            hasValueBuilder.appendBoolean(hasValue(group));
+            blocks[offset + 0] = valuesBuilder.build().asBlock();
+            if (allHaveValue) {
+                // switch to a constant block to reduce memory usage and allow fast checks
+                blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selected.getPositionCount());
+            } else {
+                blocks[offset + 1] = hasValueBuilder.build().asBlock();
+            }
         }
-        blocks[offset + 0] = valuesBuilder.build();
-        blocks[offset + 1] = hasValueBuilder.build();
     }
 
     @Override

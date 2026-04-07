@@ -34,10 +34,12 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     // version 3: templates moved to composable templates
     // version 4: add `allow_auto_create` setting
     // version 5: convert to data stream
-    public static final int INDEX_TEMPLATE_VERSION = 5;
+    // version 6: manage by data stream lifecycle
+    // version 7: version the index template name so we can upgrade existing deployments
+    public static final int INDEX_TEMPLATE_VERSION = 7;
 
     public static final String ILM_TEMPLATE_VERSION_VARIABLE = "xpack.ilm_history.template.version";
-    public static final String ILM_TEMPLATE_NAME = "ilm-history";
+    public static final String ILM_TEMPLATE_NAME = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String ILM_POLICY_NAME = "ilm-history-ilm-policy";
 
@@ -59,14 +61,14 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
         this.ilmHistoryEnabled = LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
         new IndexTemplateConfig(ILM_TEMPLATE_NAME, "/ilm-history.json", INDEX_TEMPLATE_VERSION, ILM_TEMPLATE_VERSION_VARIABLE)
     );
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         if (this.ilmHistoryEnabled) {
-            return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+            return composableIndexTemplates;
         } else {
             return Map.of();
         }

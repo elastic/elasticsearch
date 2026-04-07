@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -37,6 +36,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.utils.MlRecoverableErrorClassifier;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -53,20 +53,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
 public class ResultsPersisterService {
-    /**
-     * List of rest statuses that we consider irrecoverable
-     */
-    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Set.of(
-        RestStatus.GONE,
-        RestStatus.NOT_IMPLEMENTED,
-        // Not found is returned when we require an alias but the index is NOT an alias.
-        RestStatus.NOT_FOUND,
-        RestStatus.BAD_REQUEST,
-        RestStatus.UNAUTHORIZED,
-        RestStatus.FORBIDDEN,
-        RestStatus.METHOD_NOT_ALLOWED,
-        RestStatus.NOT_ACCEPTABLE
-    );
 
     private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
 
@@ -192,8 +178,9 @@ public class ResultsPersisterService {
     ) {
         if (isShutdown || isResetMode) {
             finalListener.onFailure(
-                new ElasticsearchException(
+                new ElasticsearchStatusException(
                     "Bulk indexing has failed as {}",
+                    RestStatus.TOO_MANY_REQUESTS,
                     isShutdown ? "node is shutting down." : "machine learning feature is being reset."
                 )
             );
@@ -218,7 +205,7 @@ public class ResultsPersisterService {
                 headers,
                 ClientHelper.ML_ORIGIN,
                 client,
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 providedBulkRequest,
                 listener
             )
@@ -233,12 +220,13 @@ public class ResultsPersisterService {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor
     ) {
         if (isShutdown || isResetMode) {
-            throw new ElasticsearchException(
+            throw new ElasticsearchStatusException(
                 "Bulk indexing has failed as {}",
+                RestStatus.TOO_MANY_REQUESTS,
                 isShutdown ? "node is shutting down." : "machine learning feature is being reset."
             );
         }
-        final PlainActionFuture<BulkResponse> getResponseFuture = PlainActionFuture.newFuture();
+        final PlainActionFuture<BulkResponse> getResponseFuture = new PlainActionFuture<>();
         bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, actionExecutor, getResponseFuture);
         return getResponseFuture.actionGet();
     }
@@ -281,7 +269,7 @@ public class ResultsPersisterService {
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler
     ) {
-        final PlainActionFuture<SearchResponse> getResponse = PlainActionFuture.newFuture();
+        final PlainActionFuture<SearchResponse> getResponse = new PlainActionFuture<>();
         final Object key = new Object();
         final ActionListener<SearchResponse> removeListener = ActionListener.runBefore(
             getResponse,
@@ -293,7 +281,10 @@ public class ResultsPersisterService {
             client,
             () -> (isShutdown == false) && shouldRetry.get(),
             retryMsgHandler,
-            removeListener
+            removeListener.delegateFailure((l, r) -> {
+                r.mustIncRef();
+                l.onResponse(r);
+            })
         );
         onGoingRetryableSearchActions.put(key, mlRetryableAction);
         mlRetryableAction.run();
@@ -316,12 +307,16 @@ public class ResultsPersisterService {
      * @return true when the failure will persist no matter how many times we retry.
      */
     private static boolean isIrrecoverable(Exception ex) {
-        Throwable t = ExceptionsHelper.unwrapCause(ex);
-        return IRRECOVERABLE_REST_STATUSES.contains(status(t));
+        // RecoverableException is our internal retry signal; always treat as recoverable.
+        if (ex instanceof RecoverableException) {
+            return false;
+        }
+        // Delegate to the centralised classifier, which uses an explicit allowlist.
+        return MlRecoverableErrorClassifier.isRecoverable(ex) == false;
     }
 
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
-    private static class BulkRequestRewriter {
+    static class BulkRequestRewriter {
         private volatile BulkRequest bulkRequest;
 
         BulkRequestRewriter(BulkRequest initialRequest) {
@@ -529,7 +524,7 @@ public class ResultsPersisterService {
         }
     }
 
-    private static BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {
+    static BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {
         // If we failed, lets set the bulkRequest to be a collection of the failed requests
         BulkRequest bulkRequestOfFailures = new BulkRequest();
         Set<String> failedDocIds = Arrays.stream(bulkResponse.getItems())
@@ -538,6 +533,9 @@ public class ResultsPersisterService {
             .collect(Collectors.toSet());
         bulkRequest.requests().forEach(docWriteRequest -> {
             if (failedDocIds.contains(docWriteRequest.id())) {
+                if (docWriteRequest instanceof IndexRequest ir) {
+                    ir.reset();
+                }
                 bulkRequestOfFailures.add(docWriteRequest);
             }
         });

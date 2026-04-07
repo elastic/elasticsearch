@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
@@ -76,7 +76,7 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
     }
 
     public void testExtractBucketCount() {
-        Bucket bucket = new TestBucket(emptyMap(), randomLong(), new Aggregations(emptyList()));
+        Bucket bucket = new TestBucket(emptyMap(), randomLong(), InternalAggregations.from(emptyList()));
         CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.COUNT, randomZone(), NULL);
         assertEquals(bucket.getDocCount(), extractor.extract(bucket));
     }
@@ -85,7 +85,7 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
         CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, UTC, NULL);
 
         Object value = new Object();
-        Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), new Aggregations(emptyList()));
+        Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), InternalAggregations.from(emptyList()));
         assertEquals(value, extractor.extract(bucket));
     }
 
@@ -93,7 +93,7 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
         CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomZone(), DATETIME);
 
         long millis = System.currentTimeMillis();
-        Bucket bucket = new TestBucket(singletonMap(extractor.key(), millis), randomLong(), new Aggregations(emptyList()));
+        Bucket bucket = new TestBucket(singletonMap(extractor.key(), millis), randomLong(), InternalAggregations.from(emptyList()));
         assertEquals(DateUtils.asDateTimeWithMillis(millis, extractor.zoneId()), extractor.extract(bucket));
     }
 
@@ -101,7 +101,7 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
         CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomZone(), DATETIME);
 
         Object value = new Object();
-        Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), new Aggregations(emptyList()));
+        Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), InternalAggregations.from(emptyList()));
         SqlIllegalArgumentException exception = expectThrows(SqlIllegalArgumentException.class, () -> extractor.extract(bucket));
         assertEquals("Invalid date key returned: " + value, exception.getMessage());
     }
@@ -109,7 +109,7 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
     public void testExtractUnsignedLong() {
         CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomZone(), UNSIGNED_LONG);
         Long value = randomLong();
-        Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), new Aggregations(emptyList()));
+        Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), InternalAggregations.from(emptyList()));
         assertEquals(BigInteger.valueOf(value).and(UNSIGNED_LONG_MAX), extractor.extract(bucket));
     }
 

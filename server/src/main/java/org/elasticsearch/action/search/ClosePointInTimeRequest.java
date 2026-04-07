@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
@@ -20,28 +22,29 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Base64;
 
-public class ClosePointInTimeRequest extends ActionRequest implements ToXContentObject {
+public class ClosePointInTimeRequest extends LegacyActionRequest implements ToXContentObject {
     private static final ParseField ID = new ParseField("id");
 
-    private final String id;
+    private final BytesReference id;
 
     public ClosePointInTimeRequest(StreamInput in) throws IOException {
         super(in);
-        this.id = in.readString();
+        this.id = in.readBytesReference();
     }
 
-    public ClosePointInTimeRequest(String id) {
+    public ClosePointInTimeRequest(BytesReference id) {
         this.id = id;
     }
 
-    public String getId() {
+    public BytesReference getId() {
         return id;
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        if (Strings.isEmpty(id)) {
+        if (id.length() == 0) {
             return ValidateActions.addValidationError("id is empty", null);
         }
         return null;
@@ -50,7 +53,7 @@ public class ClosePointInTimeRequest extends ActionRequest implements ToXContent
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(id);
+        out.writeBytesReference(id);
     }
 
     @Override
@@ -66,21 +69,21 @@ public class ClosePointInTimeRequest extends ActionRequest implements ToXContent
             throw new IllegalArgumentException("Malformed content, must start with an object");
         } else {
             XContentParser.Token token;
-            String id = null;
+            BytesReference id = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME && parser.currentName().equals(ID.getPreferredName())) {
                     token = parser.nextToken();
                     if (token.isValue() == false) {
                         throw new IllegalArgumentException("the request must contain only [" + ID.getPreferredName() + " field");
                     }
-                    id = parser.text();
+                    id = new BytesArray(Base64.getUrlDecoder().decode(parser.text()));
                 } else {
                     throw new IllegalArgumentException(
                         "Unknown parameter [" + parser.currentName() + "] in request body or parameter is of the wrong type[" + token + "] "
                     );
                 }
             }
-            if (Strings.isNullOrEmpty(id)) {
+            if (id == null || id.length() == 0) {
                 throw new IllegalArgumentException("search context id is is not provided");
             }
             return new ClosePointInTimeRequest(id);

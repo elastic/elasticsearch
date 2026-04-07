@@ -9,20 +9,19 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 public class Aggregator implements Releasable {
-
-    public static final Object[] EMPTY_PARAMS = new Object[] {};
-
     private final AggregatorFunction aggregatorFunction;
 
     private final AggregatorMode mode;
 
-    public interface Factory extends Supplier<Aggregator>, Describable {}
+    public interface Factory extends Function<DriverContext, Aggregator>, Describable {}
 
     public Aggregator(AggregatorFunction aggregatorFunction, AggregatorMode mode) {
         this.aggregatorFunction = aggregatorFunction;
@@ -34,19 +33,22 @@ public class Aggregator implements Releasable {
         return mode.isOutputPartial() ? aggregatorFunction.intermediateBlockCount() : 1;
     }
 
-    public void processPage(Page page) {
+    public void processPage(Page page, BooleanVector mask) {
         if (mode.isInputPartial()) {
+            if (mask.isConstant() == false || mask.getBoolean(0) == false) {
+                throw new IllegalStateException("can't mask intermediate input");
+            }
             aggregatorFunction.addIntermediateInput(page);
         } else {
-            aggregatorFunction.addRawInput(page);
+            aggregatorFunction.addRawInput(page, mask);
         }
     }
 
-    public void evaluate(Block[] blocks, int offset) {
+    public void evaluate(Block[] blocks, int offset, DriverContext driverContext) {
         if (mode.isOutputPartial()) {
-            aggregatorFunction.evaluateIntermediate(blocks, offset);
+            aggregatorFunction.evaluateIntermediate(blocks, offset, driverContext);
         } else {
-            aggregatorFunction.evaluateFinal(blocks, offset);
+            aggregatorFunction.evaluateFinal(blocks, offset, driverContext);
         }
     }
 

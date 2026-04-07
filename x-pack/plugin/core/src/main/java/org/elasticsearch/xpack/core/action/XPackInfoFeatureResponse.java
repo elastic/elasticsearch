@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 
@@ -15,12 +14,7 @@ import java.io.IOException;
 
 public class XPackInfoFeatureResponse extends ActionResponse {
 
-    private FeatureSet info;
-
-    public XPackInfoFeatureResponse(StreamInput in) throws IOException {
-        super(in);
-        info = new FeatureSet(in);
-    }
+    private final FeatureSet info;
 
     public XPackInfoFeatureResponse(FeatureSet info) {
         this.info = info;

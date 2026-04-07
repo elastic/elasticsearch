@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -21,7 +22,7 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
     public InternalTDigestPercentiles(
         String name,
         double[] percents,
-        TDigestState state,
+        HistogramUnionState state,
         boolean keyed,
         DocValueFormat formatter,
         Map<String, Object> metadata
@@ -78,7 +79,7 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
     protected AbstractInternalTDigestPercentiles createReduced(
         String name,
         double[] keys,
-        TDigestState merged,
+        HistogramUnionState merged,
         boolean keyed,
         Map<String, Object> metadata
     ) {
@@ -88,10 +89,10 @@ public class InternalTDigestPercentiles extends AbstractInternalTDigestPercentil
     public static class Iter implements Iterator<Percentile> {
 
         private final double[] percents;
-        private final TDigestState state;
+        private final HistogramUnionState state;
         private int i;
 
-        public Iter(double[] percents, TDigestState state) {
+        public Iter(double[] percents, HistogramUnionState state) {
             this.percents = percents;
             this.state = Objects.requireNonNull(state);
             i = 0;

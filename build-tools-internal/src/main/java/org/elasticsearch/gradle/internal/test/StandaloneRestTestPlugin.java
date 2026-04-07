@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test;
@@ -52,7 +53,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
 
         // only setup tests to build
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        final SourceSet testSourceSet = sourceSets.create("test");
+        final SourceSet testSourceSet = sourceSets.maybeCreate("test");
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             test.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
@@ -60,7 +61,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         });
 
         // create a compileOnly configuration as others might expect it
-        project.getConfigurations().create("compileOnly");
+        project.getConfigurations().maybeCreate("compileOnly");
         RestTestUtil.setupJavaRestTestDependenciesDefaults(project, testSourceSet);
 
         EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -11,6 +12,7 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.search.SearchRequest;
@@ -20,22 +22,28 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.TestRankBuilder;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.is;
@@ -80,9 +88,9 @@ public class QuerySearchResultTests extends ESTestCase {
         result.from(randomInt());
         if (randomBoolean()) {
             int queryCount = randomIntBetween(2, 4);
-            TestRankDoc[] docs = new TestRankDoc[randomIntBetween(5, 20)];
+            RankDoc[] docs = new RankDoc[randomIntBetween(5, 20)];
             for (int di = 0; di < docs.length; ++di) {
-                docs[di] = new TestRankDoc(di, -1, queryCount);
+                docs[di] = new RankDoc(di, -1, queryCount);
             }
             result.setRankShardResult(new TestRankShardResult(docs));
         }
@@ -97,28 +105,38 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
-        boolean delayed = randomBoolean();
-        QuerySearchResult deserialized = copyWriteable(
-            querySearchResult,
-            namedWriteableRegistry,
-            delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
-            TransportVersion.current()
-        );
-        assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
-        assertNull(deserialized.getSearchShardTarget());
-        assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
-        assertEquals(querySearchResult.topDocs().topDocs.totalHits, deserialized.topDocs().topDocs.totalHits);
-        assertEquals(querySearchResult.from(), deserialized.from());
-        assertEquals(querySearchResult.size(), deserialized.size());
-        assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
-        if (deserialized.hasAggs()) {
-            assertThat(deserialized.aggregations().isSerialized(), is(delayed));
-            Aggregations aggs = querySearchResult.consumeAggs();
-            Aggregations deserializedAggs = deserialized.consumeAggs();
-            assertEquals(aggs.asList(), deserializedAggs.asList());
-            assertThat(deserialized.aggregations(), is(nullValue()));
+        try {
+            boolean delayed = randomBoolean();
+            QuerySearchResult deserialized = copyWriteable(
+                querySearchResult,
+                namedWriteableRegistry,
+                delayed ? in -> new QuerySearchResult(in, true) : QuerySearchResult::new,
+                TransportVersion.current()
+            );
+            try {
+                assertEquals(querySearchResult.getContextId().getId(), deserialized.getContextId().getId());
+                assertNull(deserialized.getSearchShardTarget());
+                assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
+                assertEquals(querySearchResult.topDocs().topDocs.totalHits, deserialized.topDocs().topDocs.totalHits);
+                assertEquals(querySearchResult.from(), deserialized.from());
+                assertEquals(querySearchResult.size(), deserialized.size());
+                assertEquals(querySearchResult.hasAggs(), deserialized.hasAggs());
+                if (deserialized.hasAggs()) {
+                    assertThat(deserialized.aggregations().isSerialized(), is(delayed));
+                    InternalAggregations aggs = querySearchResult.getAggs().expand();
+                    querySearchResult.releaseAggs();
+                    InternalAggregations deserializedAggs = deserialized.getAggs().expand();
+                    deserialized.releaseAggs();
+                    assertEquals(aggs.asList(), deserializedAggs.asList());
+                    assertThat(deserialized.aggregations(), is(nullValue()));
+                }
+                assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
+            } finally {
+                deserialized.decRef();
+            }
+        } finally {
+            querySearchResult.decRef();
         }
-        assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
     }
 
     public void testNullResponse() throws Exception {
@@ -130,5 +148,74 @@ public class QuerySearchResultTests extends ESTestCase {
             TransportVersion.current()
         );
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
+    }
+
+    /**
+     * Wire-read (deserialized) QuerySearchResult is ref-counted with initial ref 1, so decRef() releases it and returns true once.
+     */
+    public void testWireReadResultIsRefCounted() throws Exception {
+        QuerySearchResult original = createTestInstance();
+        try {
+            QuerySearchResult deserialized = copyWriteable(
+                original,
+                namedWriteableRegistry,
+                QuerySearchResult::new,
+                TransportVersion.current()
+            );
+            assertTrue("wire-read result should have references", deserialized.hasReferences());
+            assertTrue("single decRef should release", deserialized.decRef());
+            assertFalse("after release should have no references", deserialized.hasReferences());
+        } finally {
+            original.decRef();
+        }
+    }
+
+    /**
+     * Regression: {@link QuerySearchResult#registerTopHitsForRelease} must be safe when called concurrently on the same
+     * result. The queue is eagerly allocated as a {@link java.util.concurrent.ConcurrentLinkedQueue} so lazy init
+     * cannot race; a buggy implementation could drop registrations under parallel {@code add}.
+     */
+    public void testRegisterTopHitsForReleaseConcurrently() throws Exception {
+        int n = randomIntBetween(32, 128);
+        QuerySearchResult result = createTestInstance();
+        try {
+            List<SearchHits> searchHitsList = new ArrayList<>(n);
+            for (int i = 0; i < n; i++) {
+                SearchHit hit = new SearchHit(i, "hit-" + i);
+                hit.score(1.0f);
+                searchHitsList.add(new SearchHits(new SearchHit[] { hit }, new TotalHits(1, Relation.EQUAL_TO), 1.0f));
+            }
+
+            CyclicBarrier barrier = new CyclicBarrier(n + 1);
+            ExecutorService executor = Executors.newFixedThreadPool(n);
+            try {
+                for (int i = 0; i < n; i++) {
+                    final int idx = i;
+                    executor.submit(() -> {
+                        try {
+                            barrier.await(1, TimeUnit.MINUTES);
+                            result.registerTopHitsForRelease(searchHitsList.get(idx));
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+                }
+                barrier.await(1, TimeUnit.MINUTES);
+            } finally {
+                terminate(executor);
+            }
+
+            assertEquals(n, result.topHitsToReleaseCollector().size());
+            assertTrue(result.decRef());
+            for (SearchHits sh : searchHitsList) {
+                assertTrue(sh.hasReferences());
+                assertTrue(sh.decRef());
+                assertFalse(sh.hasReferences());
+            }
+        } finally {
+            if (result.hasReferences()) {
+                result.decRef();
+            }
+        }
     }
 }

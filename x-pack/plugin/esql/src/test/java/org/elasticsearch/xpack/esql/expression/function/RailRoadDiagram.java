@@ -20,8 +20,6 @@ import net.nextencia.rrdiagram.grammar.rrdiagram.RRElement;
 import net.nextencia.rrdiagram.grammar.rrdiagram.RRText;
 
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 
 import java.awt.Font;
 import java.awt.FontFormatException;
@@ -43,29 +41,116 @@ public class RailRoadDiagram {
      */
     private static final LazyInitializable<Font, IOException> FONT = new LazyInitializable<>(() -> loadFont().deriveFont(20.0F));
 
+    /**
+     * Generate a railroad diagram for a function. The output would look like
+     * {@code FOO(a, b, c)}.
+     */
     static String functionSignature(FunctionDefinition definition) throws IOException {
+        return toSvg(svgSequence(definition));
+    }
+
+    /**
+     * Create the internal representation of a function signature.
+     * Useful for unit testing the SVG output without having to parse SVG.
+     */
+    static Sequence svgSequence(FunctionDefinition definition) {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
-        boolean first = true;
-        List<String> args = ShowFunctions.signature(definition);
-        for (String arg : args) {
-            if (arg.endsWith("...")) {
-                expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null));
-            } else {
-                if (first) {
-                    first = false;
+
+        if (definition.name().equals("case")) {
+            // CASE is so weird let's just hack this together manually
+            Sequence seq = new Sequence(new Literal("condition"), new Syntax(","), new Literal("trueValue"));
+            expressions.add(new Repetition(seq, 1, null));
+            expressions.add(new Repetition(new Literal("elseValue"), 0, 1));
+        } else {
+            List<Expression> argExpressions = new ArrayList<>();
+            List<Expression> repetitionExpressions = new ArrayList<>();
+            List<EsqlFunctionRegistry.ArgSignature> args = EsqlFunctionRegistry.description(definition).args();
+            for (int i = 0; i < args.size(); i++) {
+                EsqlFunctionRegistry.ArgSignature arg = args.get(i);
+                String argName = arg.name();
+                if (arg.variadic) {
+                    if (argName.endsWith("...")) {
+                        argName = argName.substring(0, argName.length() - 3);
+                    }
+                    argExpressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(argName)), arg.optional ? 0 : 1, null));
                 } else {
-                    expressions.add(new Syntax(","));
+                    List<Expression> currentExpressions;
+                    if (arg.optional) {
+                        currentExpressions = repetitionExpressions;
+                    } else {
+                        currentExpressions = argExpressions;
+                        if (i > 0 && args.get(i - 1).optional) {
+                            repetitionExpressions.add(new Syntax(","));
+                        }
+                        checkRepetition(argExpressions, repetitionExpressions);
+                    }
+                    if (i > 0 && (arg.optional || args.get(i - 1).optional == false)) {
+                        currentExpressions.add(new Syntax(","));
+                    }
+                    currentExpressions.add(new Literal(argName));
                 }
-                expressions.add(new Literal(arg));
             }
+            checkRepetition(argExpressions, repetitionExpressions);
+            expressions.addAll(argExpressions);
         }
         expressions.add(new Syntax(")"));
-        net.nextencia.rrdiagram.grammar.model.Expression rr = new Sequence(
-            expressions.toArray(net.nextencia.rrdiagram.grammar.model.Expression[]::new)
-        );
-        RRDiagram rrDiagram = new GrammarToRRDiagram().convert(new Rule("test", rr));
+        return new Sequence(expressions.toArray(Expression[]::new));
+    }
+
+    private static void checkRepetition(List<Expression> argExpressions, List<Expression> repetitionExpressions) {
+        if (repetitionExpressions.isEmpty() == false) {
+            // We have collected some optional args, add them as a group
+            argExpressions.add(new Repetition(new Sequence(repetitionExpressions.toArray(Expression[]::new)), 0, 1));
+            repetitionExpressions.clear();
+        }
+    }
+
+    /**
+     * Generate a railroad diagram for an infix operator like the binary operators, search operator or cast operator.
+     * Example output would look like:
+     * <dl>
+     *     <dt>Addition (binary operator)</dt>
+     *     <dd>{@code lhs + rhs}</dd>
+     *     <dt>Search</dt>
+     *     <dd>{@code field : query}</dd>
+     *     <dt>Cast</dt>
+     *     <dd>{@code field :: type}</dd>
+     * </dl>
+     */
+    static String infixOperator(String lhs, String operator, String rhs) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal(lhs));
+        expressions.add(new Syntax(operator));
+        expressions.add(new Literal(rhs));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    /**
+     * Generate a railroad diagram for prefix operators like the unary operators.
+     * For example, for negation the output would look like {@code -v}.
+     */
+    static String prefixOperator(String operator, String suffix) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Syntax(operator));
+        expressions.add(new Literal(suffix));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    /**
+     * Generate a railroad diagram for suffix operators like the NULL predicates.
+     * For example, for null checks the output would look like {@code field IS NOT NULL}.
+     */
+    static String suffixOperator(String prefix, String operator) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal(prefix));
+        expressions.add(new Syntax(operator));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    private static String toSvg(Expression exp) throws IOException {
+        RRDiagram rrDiagram = new GrammarToRRDiagram().convert(new Rule("", exp));
 
         RRDiagramToSVG toSvg = new RRDiagramToSVG();
         toSvg.setSpecialSequenceShape(RRDiagramToSVG.BoxShape.RECTANGLE);
@@ -75,20 +160,15 @@ public class RailRoadDiagram {
         toSvg.setLiteralFont(FONT.getOrCompute());
 
         toSvg.setRuleFont(FONT.getOrCompute());
-        /*
-         * "Tighten" the styles in the SVG so they beat the styles sitting in the
-         * main page. We need this because we're embedding the SVG into the page.
-         * We need to embed the SVG into the page so it can get fonts loaded in the
-         * primary stylesheet. We need to load a font so they images are consistent
-         * on all clients.
-         */
-        return toSvg.convert(rrDiagram).replace(".c", "#guide .c").replace(".k", "#guide .k").replace(".s", "#guide .s");
+        return toSvg.convert(rrDiagram);
     }
 
     /**
      * Like a literal but with light grey text for a more muted appearance for syntax.
      */
     private static class Syntax extends Literal {
+        private static final String LITERAL_CLASS = "l";
+        private static final String SYNTAX_CLASS = "lsyn";
         private static final String LITERAL_TEXT_CLASS = "j";
         private static final String SYNTAX_TEXT_CLASS = "syn";
         private static final String SYNTAX_GREY = "8D8D8D";
@@ -102,13 +182,20 @@ public class RailRoadDiagram {
 
         @Override
         protected RRElement toRRElement(GrammarToRRDiagram grammarToRRDiagram) {
-            // This performs a monumentally rude hack to replace the text color of this element.
+            /*
+             * This performs a monumentally rude hack to replace the text color of this element.
+             * It renders a "literal" element but intercepts the layer that defines it's css class
+             * and replaces it with our own.
+             */
             return new RRText(RRText.Type.LITERAL, text, null) {
                 @Override
                 protected void toSVG(RRDiagramToSVG rrDiagramToSVG, int xOffset, int yOffset, RRDiagram.SvgContent svgContent) {
                     super.toSVG(rrDiagramToSVG, xOffset, yOffset, new RRDiagram.SvgContent() {
                         @Override
                         public String getDefinedCSSClass(String style) {
+                            if (style.equals(LITERAL_CLASS)) {
+                                return svgContent.getDefinedCSSClass(SYNTAX_CLASS);
+                            }
                             if (style.equals(LITERAL_TEXT_CLASS)) {
                                 return svgContent.getDefinedCSSClass(SYNTAX_TEXT_CLASS);
                             }
@@ -117,11 +204,18 @@ public class RailRoadDiagram {
 
                         @Override
                         public String setCSSClass(String cssClass, String definition) {
-                            if (false == cssClass.equals(LITERAL_TEXT_CLASS)) {
-                                return svgContent.setCSSClass(cssClass, definition);
+                            if (cssClass.equals(LITERAL_CLASS)) {
+                                svgContent.setCSSClass(cssClass, definition);
+                                return svgContent.setCSSClass(SYNTAX_CLASS, definition);
                             }
-                            svgContent.setCSSClass(cssClass, definition);
-                            return svgContent.setCSSClass(SYNTAX_TEXT_CLASS, definition.replace("fill:#000000", "fill:#" + SYNTAX_GREY));
+                            if (cssClass.equals(LITERAL_TEXT_CLASS)) {
+                                svgContent.setCSSClass(cssClass, definition);
+                                return svgContent.setCSSClass(
+                                    SYNTAX_TEXT_CLASS,
+                                    definition.replace("fill:#000000", "fill:#" + SYNTAX_GREY)
+                                );
+                            }
+                            return svgContent.setCSSClass(cssClass, definition);
                         }
 
                         @Override

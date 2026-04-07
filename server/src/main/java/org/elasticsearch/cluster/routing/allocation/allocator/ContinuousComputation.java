@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -27,15 +28,15 @@ public abstract class ContinuousComputation<T> {
 
     private static final Logger logger = LogManager.getLogger(ContinuousComputation.class);
 
-    private final ExecutorService executorService;
+    private final Executor executor;
     private final AtomicReference<T> enqueuedInput = new AtomicReference<>();
     private final Processor processor = new Processor();
 
     /**
-     * @param threadPool Each computation runs on a {@code GENERIC} thread from this thread pool. At most one task executes at once.
+     * @param executor the {@link Executor} with which to execute the computation
      */
-    public ContinuousComputation(ThreadPool threadPool) {
-        this.executorService = threadPool.generic();
+    public ContinuousComputation(Executor executor) {
+        this.executor = executor;
     }
 
     /**
@@ -44,8 +45,18 @@ public abstract class ContinuousComputation<T> {
     public void onNewInput(T input) {
         assert input != null;
         if (enqueuedInput.getAndSet(Objects.requireNonNull(input)) == null) {
-            executorService.execute(processor);
+            executor.execute(processor);
         }
+    }
+
+    /**
+     * enqueues {@code input} if {@code expectedLatestKnownInput} is the latest known input.
+     * Neither of the parameters can be null.
+     */
+    protected boolean compareAndEnqueue(T expectedLatestKnownInput, T input) {
+        assert expectedLatestKnownInput != null;
+        assert input != null;
+        return enqueuedInput.compareAndSet(Objects.requireNonNull(expectedLatestKnownInput), Objects.requireNonNull(input));
     }
 
     /**
@@ -66,7 +77,7 @@ public abstract class ContinuousComputation<T> {
     /**
      * Process the given input.
      *
-     * @param input the value that was last received by {@link #onNewInput} before invocation.
+     * @param input the value that was last received by {@link #onNewInput} or {@link #compareAndEnqueue} before invocation.
      */
     protected abstract void processInput(T input);
 
@@ -74,6 +85,7 @@ public abstract class ContinuousComputation<T> {
 
         @Override
         public void onFailure(Exception e) {
+            logger.error(Strings.format("unexpected error processing [%s]", ContinuousComputation.this), e);
             assert false : e;
         }
 
@@ -85,14 +97,16 @@ public abstract class ContinuousComputation<T> {
         }
 
         @Override
-        protected void doRun() throws Exception {
+        protected void doRun() {
             final T input = enqueuedInput.get();
             assert input != null;
 
-            processInput(input);
-
-            if (enqueuedInput.compareAndSet(input, null) == false) {
-                executorService.execute(this);
+            try {
+                processInput(input);
+            } finally {
+                if (enqueuedInput.compareAndSet(input, null) == false) {
+                    executor.execute(this);
+                }
             }
         }
 

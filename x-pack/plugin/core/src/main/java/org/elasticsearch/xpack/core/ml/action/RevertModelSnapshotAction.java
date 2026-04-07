@@ -6,15 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -33,7 +30,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/revert";
 
     private RevertModelSnapshotAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -66,7 +63,9 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         private boolean deleteInterveningResults;
         private boolean force;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -77,6 +76,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         }
 
         public Request(String jobId, String snapshotId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, SNAPSHOT_ID.getPreferredName());
         }
@@ -103,11 +103,6 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
 
         public void setForce(boolean force) {
             this.force = force;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override
@@ -151,13 +146,12 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private static final ParseField MODEL = new ParseField("model");
-        private ModelSnapshot model;
+        private final ModelSnapshot model;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             model = new ModelSnapshot(in);
         }
 
@@ -172,11 +166,6 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             model.writeTo(out);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         @Override

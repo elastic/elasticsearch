@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -83,12 +83,12 @@ public class Recall extends AbstractConfusionMatrixMetric {
     }
 
     @Override
-    public EvaluationMetricResult evaluate(Aggregations aggs) {
+    public EvaluationMetricResult evaluate(InternalAggregations aggs) {
         double[] recalls = new double[thresholds.length];
         for (int i = 0; i < thresholds.length; i++) {
             double threshold = thresholds[i];
-            Filter tpAgg = aggs.get(aggName(threshold, Condition.TP));
-            Filter fnAgg = aggs.get(aggName(threshold, Condition.FN));
+            SingleBucketAggregation tpAgg = aggs.get(aggName(threshold, Condition.TP));
+            SingleBucketAggregation fnAgg = aggs.get(aggName(threshold, Condition.FN));
             long tp = tpAgg.getDocCount();
             long fn = fnAgg.getDocCount();
             recalls[i] = tp + fn == 0 ? 0.0 : (double) tp / (tp + fn);

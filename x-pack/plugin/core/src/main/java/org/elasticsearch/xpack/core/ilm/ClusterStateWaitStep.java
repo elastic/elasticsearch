@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Checks whether a condition has been met based on the cluster state.
- *
+ * <p>
  * If checking a condition not based on the cluster state, or which may take time to evaluate, use {@link AsyncWaitStep}.
  */
 public abstract class ClusterStateWaitStep extends Step {
@@ -21,7 +21,7 @@ public abstract class ClusterStateWaitStep extends Step {
         super(key, nextStepKey);
     }
 
-    public abstract Result isConditionMet(Index index, ClusterState clusterState);
+    public abstract Result isConditionMet(Index index, ProjectState currentState);
 
     /**
      * Whether the step can be completed at all. This only affects the
@@ -33,22 +33,6 @@ public abstract class ClusterStateWaitStep extends Step {
         return true;
     }
 
-    public static class Result {
-        private final boolean complete;
-        private final ToXContentObject infomationContext;
-
-        public Result(boolean complete, ToXContentObject infomationContext) {
-            this.complete = complete;
-            this.infomationContext = infomationContext;
-        }
-
-        public boolean isComplete() {
-            return complete;
-        }
-
-        public ToXContentObject getInfomationContext() {
-            return infomationContext;
-        }
-    }
+    public record Result(boolean complete, ToXContentObject informationContext) {}
 
 }

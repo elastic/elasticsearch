@@ -1,6 +1,0 @@
-pr: 99310
-summary: "ESQL: \"params\" correctly parses the values including an optional \"type\""
-area: ES|QL
-type: bug
-issues:
- - 99294

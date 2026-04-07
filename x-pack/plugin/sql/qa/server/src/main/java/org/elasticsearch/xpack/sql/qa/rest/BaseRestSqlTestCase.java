@@ -9,16 +9,19 @@ package org.elasticsearch.xpack.sql.qa.rest;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
@@ -53,6 +56,11 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
 
     private static final String TEST_INDEX = "test";
     private static final String DATA_STREAM_TEMPLATE = "test-ds-index-template";
+    /**
+     * What's the version of the server that the clients should be compatible with?
+     * This will be either the stack version, or SqlVersions.getLatestVersion() if the stack version is not available.
+     */
+    private static final SqlVersion SERVER_COMPAT_VERSION = getServerCompatVersion();
 
     public static class RequestObjectBuilder {
         private StringBuilder request;
@@ -82,7 +90,7 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             if (isQuery) {
                 Mode mode = (m instanceof Mode) ? (Mode) m : Mode.fromString(modeString);
                 if (Mode.isDedicatedClient(mode)) {
-                    version(Version.CURRENT.toString());
+                    version(SERVER_COMPAT_VERSION.toString());
                 }
             }
             return this;
@@ -221,24 +229,32 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
         deleteIndexWithProvisioningClient(TEST_INDEX);
     }
 
-    protected static void deleteIndexWithProvisioningClient(String name) throws IOException {
+    protected void deleteIndexWithProvisioningClient(String name) throws IOException {
         deleteIndex(provisioningClient(), name);
     }
 
-    public static void createDataStream(String dataStreamName) throws IOException {
+    public static void createDataStream(String dataStreamName, RestClient provisioningClient) throws IOException {
         Request request = new Request("PUT", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName);
         request.setJsonEntity("{\"index_patterns\": [\"" + dataStreamName + "*\"], \"data_stream\": {}}");
-        assertOK(provisioningClient().performRequest(request));
+        assertOK(provisioningClient.performRequest(request));
 
         request = new Request("PUT", "/_data_stream/" + dataStreamName);
-        assertOK(provisioningClient().performRequest(request));
+        assertOK(provisioningClient.performRequest(request));
     }
 
-    public static void deleteDataStream(String dataStreamName) throws IOException {
+    public void createDataStream(String dataStreamName) throws IOException {
+        createDataStream(dataStreamName, provisioningClient());
+    }
+
+    public static void deleteDataStream(String dataStreamName, RestClient provisioningClient) throws IOException {
         Request request = new Request("DELETE", "_data_stream/" + dataStreamName);
-        provisioningClient().performRequest(request);
+        provisioningClient.performRequest(request);
         request = new Request("DELETE", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName);
-        provisioningClient().performRequest(request);
+        provisioningClient.performRequest(request);
+    }
+
+    public void deleteDataStream(String dataStreamName) throws IOException {
+        deleteDataStream(dataStreamName, provisioningClient());
     }
 
     public static RequestObjectBuilder query(String query) {
@@ -291,5 +307,13 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
             response.getHeader("Cursor")
         );
+    }
+
+    private static SqlVersion getServerCompatVersion() {
+        try {
+            return SqlVersion.fromString(Build.current().version());
+        } catch (Exception e) {
+            return SqlVersions.getLatestVersion();
+        }
     }
 }

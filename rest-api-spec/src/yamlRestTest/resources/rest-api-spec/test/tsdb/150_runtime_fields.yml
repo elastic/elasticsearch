@@ -1,0 +1,192 @@
+---
+tsdb_execute_painless_api:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: fixed in 8.12.0 and later
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                          rx:
+                            type: long
+
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['k8s.pod.network.tx'].value < 1000);"
+          context: "boolean_field"
+          context_setup:
+            index: test_index
+            document:
+              "@timestamp": "2021-04-28T18:51:03.142Z"
+              metricset: pod
+              k8s:
+                pod:
+                  name: dog
+                  uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+                  ip: 10.10.55.3
+                  network:
+                    tx: 111434595272
+                    rx: 430605511
+
+  - match: { result: [false] }
+
+---
+can't shadow dimensions:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 2
+              mode: time_series
+              # we use a different routing dimension to ensure that we test the shadowing logic
+              routing_path: [routing_dim]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              dim:
+                type: keyword
+                time_series_dimension: true
+              routing_dim:
+                type: keyword
+                time_series_dimension: true
+              deep:
+                properties:
+                  deeper:
+                    properties:
+                      deepest:
+                        type: keyword
+                        time_series_dimension: true
+
+  - do:
+      catch: /Field \[dim\] attempted to shadow a time_series_dimension/
+      indices.put_mapping:
+        index: test
+        body:
+          runtime:
+            dim:
+              type: keyword
+
+  - do:
+      catch: /Field \[dim\] attempted to shadow a time_series_dimension/
+      search:
+        index: test
+        body:
+          runtime_mappings:
+            dim:
+              type: keyword
+
+  - do:
+      catch: /Field \[deep.deeper.deepest\] attempted to shadow a time_series_dimension/
+      indices.put_mapping:
+        index: test
+        body:
+          runtime:
+            deep.deeper.deepest:
+              type: keyword
+
+  - do:
+      catch: /Field \[deep.deeper.deepest\] attempted to shadow a time_series_dimension/
+      search:
+        index: test
+        body:
+          runtime_mappings:
+            deep.deeper.deepest:
+              type: keyword
+
+
+---
+can't shadow metrics:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 2
+              mode: time_series
+              routing_path: [dim]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              dim:
+                type: keyword
+                time_series_dimension: true
+              metric:
+                type: long
+                time_series_metric: gauge
+              deep:
+                properties:
+                  deeper:
+                    properties:
+                      deepest:
+                        type: long
+                        time_series_metric: gauge
+
+  - do:
+      catch: /Field \[metric\] attempted to shadow a time_series_metric/
+      indices.put_mapping:
+        index: test
+        body:
+          runtime:
+            metric:
+              type: keyword
+
+  - do:
+      catch: /Field \[metric\] attempted to shadow a time_series_metric/
+      search:
+        index: test
+        body:
+          runtime_mappings:
+            metric:
+              type: keyword
+
+  - do:
+      catch: /Field \[deep.deeper.deepest\] attempted to shadow a time_series_metric/
+      indices.put_mapping:
+        index: test
+        body:
+          runtime:
+            deep.deeper.deepest:
+              type: keyword
+
+  - do:
+      catch: /Field \[deep.deeper.deepest\] attempted to shadow a time_series_metric/
+      search:
+        index: test
+        body:
+          runtime_mappings:
+            deep.deeper.deepest:
+              type: keyword

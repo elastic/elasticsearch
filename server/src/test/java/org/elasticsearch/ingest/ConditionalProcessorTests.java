@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.MockScriptEngine;
@@ -23,9 +26,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -60,9 +64,9 @@ public class ConditionalProcessorTests extends ESTestCase {
                 )
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
-        Map<String, Object> document = new HashMap<>();
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
         ConditionalProcessor processor = new ConditionalProcessor(
@@ -101,7 +105,7 @@ public class ConditionalProcessorTests extends ESTestCase {
 
         // false, never call processor never increments metrics
         String falseValue = "falsy";
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(conditionalField, falseValue);
         execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(falseValue));
@@ -109,21 +113,21 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertStats(processor, 0, 0, 0);
         assertEquals(scriptName, processor.getCondition());
 
-        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(conditionalField, falseValue);
         ingestDocument.setFieldValue("error", true);
         execProcessor(processor, ingestDocument, (result, e) -> {});
         assertStats(processor, 0, 0, 0);
 
         // true, always call processor and increments metrics
-        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(conditionalField, trueValue);
         execProcessor(processor, ingestDocument, (result, e) -> {});
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(trueValue));
         assertThat(ingestDocument.getSourceAndMetadata().get("foo"), is("bar"));
         assertStats(processor, 1, 0, 1);
 
-        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(conditionalField, trueValue);
         ingestDocument.setFieldValue("error", true);
         IngestDocument finalIngestDocument = ingestDocument;
@@ -139,54 +143,14 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertMutatingCtxThrows(ctx -> ctx.put("foo", "bar"));
         assertMutatingCtxThrows(ctx -> ((List<Object>) ctx.get("listField")).add("bar"));
         assertMutatingCtxThrows(ctx -> ((List<Object>) ctx.get("listField")).remove("bar"));
-    }
-
-    public void testTypeDeprecation() throws Exception {
-
-        ScriptService scriptService = new ScriptService(
-            Settings.builder().build(),
-            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
-                ctx.get("_type");
-                return true;
-            }), Map.of())),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+        assertMutatingCtxThrows(ctx -> ((Map<String, Object>) ctx.get("mapField")).put("bar", "baz"));
+        assertMutatingCtxThrows(ctx -> ((Map<?, ?>) ctx.get("mapField")).remove("bar"));
+        assertMutatingCtxThrows(ctx -> ((Set<Object>) ctx.get("setField")).add("bar"));
+        assertMutatingCtxThrows(ctx -> ((Set<Object>) ctx.get("setField")).remove("bar"));
+        assertMutatingCtxThrows(ctx -> ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).add("bar"));
+        assertMutatingCtxThrows(
+            ctx -> ((List<Object>) ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).iterator().next()).add("bar")
         );
-
-        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
-        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
-        ConditionalProcessor processor = new ConditionalProcessor(
-            randomAlphaOfLength(10),
-            "description",
-            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of()),
-            scriptService,
-            new Processor() {
-                @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) {
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return null;
-                }
-
-                @Override
-                public String getTag() {
-                    return null;
-                }
-
-                @Override
-                public String getDescription() {
-                    return null;
-                }
-            },
-            relativeTimeProvider
-        );
-
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
-        execProcessor(processor, ingestDocument, (result, e) -> {});
-        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
     }
 
     public void testPrecompiledError() {
@@ -206,9 +170,9 @@ public class ConditionalProcessorTests extends ESTestCase {
             if (fail.get()) {
                 throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null);
             } else {
-                return params -> new IngestConditionalScript(params) {
+                return (params, ctxMap) -> new IngestConditionalScript(params, ctxMap) {
                     @Override
-                    public boolean execute(Map<String, Object> ctx) {
+                    public boolean execute() {
                         return false;
                     }
                 };
@@ -226,9 +190,9 @@ public class ConditionalProcessorTests extends ESTestCase {
     public void testRuntimeError() {
         ScriptService scriptService = MockScriptService.singleContext(
             IngestConditionalScript.CONTEXT,
-            code -> params -> new IngestConditionalScript(params) {
+            code -> (params, ctxMapWrapper) -> new IngestConditionalScript(params, ctxMapWrapper) {
                 @Override
-                public boolean execute(Map<String, Object> ctx) {
+                public boolean execute() {
                     throw new IllegalArgumentException("runtime problem");
                 }
             },
@@ -240,21 +204,23 @@ public class ConditionalProcessorTests extends ESTestCase {
         execProcessor(processor, ingestDoc, (doc, e) -> { assertThat(e.getMessage(), equalTo("runtime problem")); });
     }
 
+    @SuppressWarnings("unchecked")
     private static void assertMutatingCtxThrows(Consumer<Map<String, Object>> mutation) throws Exception {
         String scriptName = "conditionalScript";
-        CompletableFuture<Exception> expectedException = new CompletableFuture<>();
+        PlainActionFuture<Exception> expectedException = new PlainActionFuture<>();
         ScriptService scriptService = new ScriptService(
             Settings.builder().build(),
             Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
                 try {
                     mutation.accept(ctx);
                 } catch (Exception e) {
-                    expectedException.complete(e);
+                    expectedException.onResponse(e);
                 }
                 return false;
             }), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         Map<String, Object> document = new HashMap<>();
         ConditionalProcessor processor = new ConditionalProcessor(
@@ -266,8 +232,13 @@ public class ConditionalProcessorTests extends ESTestCase {
         );
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue("listField", new ArrayList<>());
+        ingestDocument.setFieldValue("mapField", new HashMap<>());
+        ingestDocument.setFieldValue("setField", new HashSet<>());
+        List<Object> listWithinSet = new ArrayList<>();
+        listWithinSet.add(new ArrayList<>());
+        ingestDocument.getFieldValue("setField", Set.class).add(listWithinSet);
         execProcessor(processor, ingestDocument, (result, e) -> {});
-        Exception e = expectedException.get();
+        Exception e = safeGet(expectedException);
         assertThat(e, instanceOf(UnsupportedOperationException.class));
         assertEquals("Mutating ingest documents in conditionals is not supported", e.getMessage());
         assertStats(processor, 0, 0, 0);

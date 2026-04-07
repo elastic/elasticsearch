@@ -53,11 +53,6 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path truststore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
         assertThat(Files.exists(truststore), CoreMatchers.is(true));
@@ -70,7 +65,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             }
         }
 
-        final String address = "https://" + webServer.getHostName() + ":" + webServer.getPort();
+        final String address = "https://" + webServer.getHttpAddress();
         final Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.monitoring.exporters.plaintext.type", "http")
@@ -142,7 +137,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         updateClusterSettings(
             Settings.builder()
                 .put("xpack.monitoring.exporters._new.type", "http")
-                .put("xpack.monitoring.exporters._new.host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters._new.host", "https://" + webServer.getHttpAddress())
                 .put("xpack.monitoring.exporters._new.ssl.truststore.path", truststore)
                 .put("xpack.monitoring.exporters._new.ssl.truststore.password", "testnode")
                 .put("xpack.monitoring.exporters._new.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
@@ -165,11 +160,11 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     private ActionFuture<ClusterUpdateSettingsResponse> setVerificationMode(String name, SslVerificationMode mode) {
-        final ClusterUpdateSettingsRequest updateSettings = new ClusterUpdateSettingsRequest();
+        final ClusterUpdateSettingsRequest updateSettings = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         final String verificationModeName = randomBoolean() ? mode.name() : mode.name().toLowerCase(Locale.ROOT);
         final Settings settings = Settings.builder()
             .put("xpack.monitoring.exporters." + name + ".type", HttpExporter.TYPE)
-            .put("xpack.monitoring.exporters." + name + ".host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
+            .put("xpack.monitoring.exporters." + name + ".host", "https://" + webServer.getHttpAddress())
             .put("xpack.monitoring.exporters." + name + ".ssl.verification_mode", verificationModeName)
             .build();
         updateSettings.persistentSettings(settings);

@@ -1,7 +1,7 @@
 setup:
 
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "unsigned_long was added in 7.10"
 
   - do:
@@ -302,8 +302,8 @@ setup:
 
 ---
 "Composite aggregations":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "unsigned_long support for composite aggs was fixed in 7.11"
 
   - do:
@@ -379,9 +379,9 @@ setup:
 
 ---
 "Decay":
-  - skip:
-      features: close_to
-      version: " - 8.8.99"
+  - requires:
+      test_runner_features: close_to
+      cluster_features: ["gte_v8.9.0"]
       reason: "decay functions not supported for unsigned_long"
 
   - do:

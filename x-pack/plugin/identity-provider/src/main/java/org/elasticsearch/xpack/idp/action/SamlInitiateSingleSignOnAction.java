@@ -17,6 +17,6 @@ public class SamlInitiateSingleSignOnAction extends ActionType<SamlInitiateSingl
     public static final SamlInitiateSingleSignOnAction INSTANCE = new SamlInitiateSingleSignOnAction();
 
     private SamlInitiateSingleSignOnAction() {
-        super(NAME, SamlInitiateSingleSignOnResponse::new);
+        super(NAME);
     }
 }

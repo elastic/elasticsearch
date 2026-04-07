@@ -13,12 +13,12 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 
 import java.nio.file.Path;
@@ -56,16 +56,9 @@ public class LdapTestUtils {
         options.setConnectTimeoutMillis(Math.toIntExact(DEFAULT_LDAP_TIMEOUT.millis()));
         options.setResponseTimeoutMillis(DEFAULT_LDAP_TIMEOUT.millis());
 
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.authc.realms.ldap.foo.ssl");
+        final SslProfile profile = sslService.profile("xpack.security.authc.realms.ldap.foo.ssl");
         return LdapUtils.privilegedConnect(
-            () -> new LDAPConnection(
-                sslService.sslSocketFactory(sslConfiguration),
-                options,
-                ldapurl.getHost(),
-                ldapurl.getPort(),
-                bindDN,
-                bindPassword
-            )
+            () -> new LDAPConnection(profile.socketFactory(), options, ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword)
         );
     }
 }

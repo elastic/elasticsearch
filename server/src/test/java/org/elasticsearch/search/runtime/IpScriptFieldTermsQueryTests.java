@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -15,17 +16,32 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
+
+import java.net.InetAddress;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
-public class IpScriptFieldTermsQueryTests extends AbstractIpScriptFieldQueryTestCase<IpScriptFieldTermsQuery> {
+public class IpScriptFieldTermsQueryTests extends AbstractScriptFieldQueryTestCase<IpScriptFieldTermsQuery> {
     @Override
     protected IpScriptFieldTermsQuery createTestInstance() {
         return createTestInstance(between(1, 100));
+    }
+
+    protected final IpFieldScript.LeafFactory leafFactory = mock(IpFieldScript.LeafFactory.class);
+
+    @Override
+    public final void testVisit() {
+        assertEmptyVisit();
+    }
+
+    protected static BytesRef encode(InetAddress addr) {
+        return new BytesRef(InetAddressPoint.encode(addr));
     }
 
     private IpScriptFieldTermsQuery createTestInstance(int size) {
@@ -80,12 +96,13 @@ public class IpScriptFieldTermsQueryTests extends AbstractIpScriptFieldQueryTest
         terms.add(ip1);
         terms.add(ip2);
         IpScriptFieldTermsQuery query = new IpScriptFieldTermsQuery(randomScript(), leafFactory, "test", terms);
-        assertTrue(query.matches(new BytesRef[] { ip1 }, 1));
-        assertTrue(query.matches(new BytesRef[] { ip2 }, 1));
-        assertTrue(query.matches(new BytesRef[] { ip1, notIp }, 2));
-        assertTrue(query.matches(new BytesRef[] { notIp, ip1 }, 2));
-        assertFalse(query.matches(new BytesRef[] { notIp }, 1));
-        assertFalse(query.matches(new BytesRef[] { notIp, ip1 }, 1));
+        BytesRefHash.Finder finder = terms.newFinder();
+        assertTrue(query.matches(new BytesRef[] { ip1 }, 1, finder));
+        assertTrue(query.matches(new BytesRef[] { ip2 }, 1, finder));
+        assertTrue(query.matches(new BytesRef[] { ip1, notIp }, 2, finder));
+        assertTrue(query.matches(new BytesRef[] { notIp, ip1 }, 2, finder));
+        assertFalse(query.matches(new BytesRef[] { notIp }, 1, finder));
+        assertFalse(query.matches(new BytesRef[] { notIp, ip1 }, 1, finder));
     }
 
     @Override

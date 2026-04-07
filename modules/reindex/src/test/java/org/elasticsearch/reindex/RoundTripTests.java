@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,13 +33,14 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 /**
  * Round trip tests for all {@link Writeable} things declared in this plugin.
@@ -58,8 +61,8 @@ public class RoundTripTests extends ESTestCase {
             while (headers.size() < headersCount) {
                 headers.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
-            TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
-            TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
+            TimeValue socketTimeout = randomPositiveTimeValue();
+            TimeValue connectTimeout = randomPositiveTimeValue();
             reindex.setRemoteInfo(
                 new RemoteInfo(
                     randomAlphaOfLength(5),
@@ -121,12 +124,17 @@ public class RoundTripTests extends ESTestCase {
         }
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());
-        request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));
+        request.setTimeout(randomTimeValue());
         request.setWaitForActiveShards(randomIntBetween(0, 10));
         request.setRequestsPerSecond(between(0, Integer.MAX_VALUE));
 
         int slices = ReindexTestCase.randomSlices(1, Integer.MAX_VALUE);
         request.setSlices(slices);
+
+        if (randomBoolean()) {
+            request.setSourceIndicesForDescription(new String[] { "idx1", "idx2" });
+            request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        }
     }
 
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
@@ -144,7 +152,7 @@ public class RoundTripTests extends ESTestCase {
             assertNotNull(tripped.getRemoteInfo());
             assertEquals(request.getRemoteInfo().getScheme(), tripped.getRemoteInfo().getScheme());
             assertEquals(request.getRemoteInfo().getHost(), tripped.getRemoteInfo().getHost());
-            assertEquals(request.getRemoteInfo().getQuery(), tripped.getRemoteInfo().getQuery());
+            assertThat(tripped.getRemoteInfo().getQuery(), equalBytes(request.getRemoteInfo().getQuery()));
             assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
             assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
             assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());
@@ -168,6 +176,36 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.getRetryBackoffInitialTime(), tripped.getRetryBackoffInitialTime());
         assertEquals(request.getMaxRetries(), tripped.getMaxRetries());
         assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0d);
+        assertArrayEquals(
+            "sourceIndicesForDescription should round-trip",
+            request.getSourceIndicesForDescription(),
+            tripped.getSourceIndicesForDescription()
+        );
+    }
+
+    /**
+     * Verifies backward compatibility: when reading a ReindexRequest from a node version that predates
+     * sourceIndicesForDescription, the field is null.
+     */
+    public void testReindexRequestSourceIndicesForDescriptionBwc() throws IOException {
+        ReindexRequest reindex = new ReindexRequest();
+        reindex.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        reindex.setSourceIndicesForDescription(new String[] { "source_idx" });
+        reindex.setDestIndex("dest");
+        reindex.getSearchRequest().source().size(100);
+
+        TransportVersion sourceIndicesForDescriptionVersion = TransportVersion.fromName("bulk_by_scroll_source_indices_for_description");
+        TransportVersion versionBeforeFeature = TransportVersionUtils.getPreviousVersion(sourceIndicesForDescriptionVersion);
+        assumeTrue(
+            "minimumCompatible must not support sourceIndicesForDescription for this BWC test",
+            versionBeforeFeature.supports(sourceIndicesForDescriptionVersion) == false
+        );
+
+        ReindexRequest tripped = new ReindexRequest(toInputByteStream(versionBeforeFeature, reindex));
+        assertNull(
+            "sourceIndicesForDescription should be null when reading from version before the feature",
+            tripped.getSourceIndicesForDescription()
+        );
     }
 
     public void testRethrottleRequest() throws IOException {

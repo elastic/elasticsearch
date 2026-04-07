@@ -11,19 +11,18 @@ import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSource;
 
 import java.io.IOException;
@@ -126,17 +125,21 @@ public final class CartesianShapeCentroidAggregator extends MetricsAggregator {
         if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        final long bucketCount = counts.get(bucket);
+        final double bucketXSum = lonSum.get(bucket);  // x-coordinate sum (named "lon" for historical reasons)
+        final double bucketYSum = latSum.get(bucket);  // y-coordinate sum (named "lat" for historical reasons)
         final double bucketWeight = weightSum.get(bucket);
-        final CartesianPoint bucketCentroid = (bucketWeight > 0)
-            ? new CartesianPoint(lonSum.get(bucket) / bucketWeight, latSum.get(bucket) / bucketWeight)
+        final long bucketCount = counts.get(bucket);
+        final DimensionalShapeType bucketShapeType = DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket));
+        final CartesianPoint bucketCentroid = bucketWeight > 0
+            ? new CartesianPoint(bucketXSum / bucketWeight, bucketYSum / bucketWeight)
             : null;
-        return new InternalCartesianCentroid(name, bucketCentroid, bucketCount, metadata());
+        var shapeData = new InternalCartesianCentroid.ShapeData(bucketXSum, bucketYSum, bucketWeight, bucketShapeType);
+        return new InternalCartesianCentroid(name, bucketCentroid, bucketCount, shapeData, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return InternalGeoCentroid.empty(name, metadata());
+        return InternalCartesianCentroid.empty(name, metadata());
     }
 
     @Override

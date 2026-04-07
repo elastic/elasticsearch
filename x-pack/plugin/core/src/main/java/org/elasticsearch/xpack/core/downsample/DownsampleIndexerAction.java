@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.downsample;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.downsample.DownsampleAction;
@@ -37,7 +36,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
     public static final String NAME = "indices:admin/xpack/downsample_indexer";
 
     private DownsampleIndexerAction() {
-        super(NAME, DownsampleIndexerAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -69,7 +68,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_030) && in.readBoolean()) {
+            if (in.readBoolean()) {
                 this.indexStartTimeMillis = in.readVLong();
                 this.indexEndTimeMillis = in.readVLong();
             } else {
@@ -132,13 +131,9 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_030)) {
-                out.writeBoolean(true);
-                out.writeVLong(indexStartTimeMillis);
-                out.writeVLong(indexEndTimeMillis);
-            } else {
-                out.writeBoolean(false);
-            }
+            out.writeBoolean(true);
+            out.writeVLong(indexStartTimeMillis);
+            out.writeVLong(indexEndTimeMillis);
             downsampleRequest.writeTo(out);
             out.writeStringArray(dimensionFields);
             out.writeStringArray(metricFields);

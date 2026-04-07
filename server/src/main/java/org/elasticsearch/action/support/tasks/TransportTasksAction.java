@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.tasks;
@@ -29,8 +30,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -56,7 +57,6 @@ public abstract class TransportTasksAction<
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Writeable.Reader<TasksRequest> requestReader;
-    protected final Writeable.Reader<TasksResponse> responsesReader;
     protected final Writeable.Reader<TaskResponse> responseReader;
 
     protected final String transportNodeAction;
@@ -67,7 +67,6 @@ public abstract class TransportTasksAction<
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<TasksRequest> requestReader,
-        Writeable.Reader<TasksResponse> responsesReader,
         Writeable.Reader<TaskResponse> responseReader,
         Executor nodeExecutor
     ) {
@@ -77,7 +76,6 @@ public abstract class TransportTasksAction<
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
         this.requestReader = requestReader;
-        this.responsesReader = responsesReader;
         this.responseReader = responseReader;
 
         transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
@@ -134,7 +132,7 @@ public abstract class TransportTasksAction<
 
             @Override
             protected void onItemFailure(String nodeId, Exception e) {
-                logger.debug(() -> Strings.format("failed to execute on node [{}]", nodeId), e);
+                logger.debug(() -> Strings.format("failed to execute on node [%s]", nodeId), e);
                 synchronized (failedNodeExceptions) {
                     failedNodeExceptions.add(new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", e));
                 }
@@ -216,7 +214,7 @@ public abstract class TransportTasksAction<
         if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
             Task task = taskManager.getTask(request.getTargetTaskId().getId());
-            if (task != null) {
+            if (task != null && match(task)) {
                 if (request.match(task)) {
                     return List.of((OperationTask) task);
                 } else {
@@ -228,12 +226,17 @@ public abstract class TransportTasksAction<
         } else {
             final var tasks = new ArrayList<OperationTask>();
             for (Task task : taskManager.getTasks().values()) {
-                if (request.match(task)) {
+                if (match(task) && request.match(task)) {
                     tasks.add((OperationTask) task);
                 }
             }
             return tasks;
         }
+    }
+
+    // Determine if a task should be processed, allows subclass to extend filtering of tasks
+    protected boolean match(Task task) {
+        return true;
     }
 
     protected abstract TasksResponse newResponse(
@@ -245,10 +248,11 @@ public abstract class TransportTasksAction<
 
     /**
      * Perform the required operation on the task. It is OK start an asynchronous operation or to throw an exception but not both.
+     *
      * @param actionTask The related transport action task. Can be used to create a task ID to handle upstream transport cancellations.
-     * @param request the original transport request
-     * @param task the task on which the operation is taking place
-     * @param listener the listener to signal.
+     * @param request    the original transport request
+     * @param task       the task on which the operation is taking place
+     * @param listener   the listener to signal.
      */
     protected abstract void taskOperation(
         CancellableTask actionTask,
@@ -273,7 +277,7 @@ public abstract class TransportTasksAction<
         }
     }
 
-    private class NodeTaskRequest extends TransportRequest {
+    private class NodeTaskRequest extends AbstractTransportRequest {
         private final TasksRequest tasksRequest;
 
         protected NodeTaskRequest(StreamInput in) throws IOException {
@@ -290,7 +294,7 @@ public abstract class TransportTasksAction<
 
         protected NodeTaskRequest(TasksRequest tasksRequest) {
             super();
-            tasksRequest.incRef();
+            tasksRequest.mustIncRef();
             this.tasksRequest = tasksRequest;
         }
 
@@ -331,7 +335,6 @@ public abstract class TransportTasksAction<
         protected List<TaskResponse> results;
 
         NodeTasksResponse(StreamInput in) throws IOException {
-            super(in);
             nodeId = in.readString();
             int resultsSize = in.readVInt();
             results = new ArrayList<>(resultsSize);
@@ -354,14 +357,6 @@ public abstract class TransportTasksAction<
             this.nodeId = nodeId;
             this.results = results;
             this.exceptions = exceptions;
-        }
-
-        public String getNodeId() {
-            return nodeId;
-        }
-
-        public List<TaskOperationFailure> getExceptions() {
-            return exceptions;
         }
 
         @Override

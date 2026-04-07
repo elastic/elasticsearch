@@ -8,30 +8,35 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MinIntAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MinIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
-  private final List<Integer> channels;
-
-  public MinIntAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
-    this.bigArrays = bigArrays;
-    this.channels = channels;
+  public MinIntAggregatorFunctionSupplier() {
   }
 
   @Override
-  public MinIntAggregatorFunction aggregator() {
-    return MinIntAggregatorFunction.create(channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MinIntAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public MinIntGroupingAggregatorFunction groupingAggregator() {
-    return MinIntGroupingAggregatorFunction.create(channels, bigArrays);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MinIntGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public MinIntAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+    return new MinIntAggregatorFunction(driverContext, channels);
+  }
+
+  @Override
+  public MinIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MinIntGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

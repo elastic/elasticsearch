@@ -11,7 +11,6 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.MvEvaluator;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -21,11 +20,10 @@ import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
+import javax.tools.Diagnostic;
 
 /**
  * Glues the {@link EvaluatorImplementer} into the jdk's annotation
@@ -46,7 +44,7 @@ public class EvaluatorProcessor implements Processor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.RELEASE_17;
+        return SourceVersion.RELEASE_21;
     }
 
     @Override
@@ -68,70 +66,76 @@ public class EvaluatorProcessor implements Processor {
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
         for (TypeElement ann : set) {
             for (Element evaluatorMethod : roundEnvironment.getElementsAnnotatedWith(ann)) {
+                var warnExceptionsTypes = Annotations.listAttributeValues(
+                    evaluatorMethod,
+                    Set.of(Evaluator.class, MvEvaluator.class, ConvertEvaluator.class),
+                    "warnExceptions"
+                );
                 Evaluator evaluatorAnn = evaluatorMethod.getAnnotation(Evaluator.class);
                 if (evaluatorAnn != null) {
-                    AggregatorProcessor.write(
-                        evaluatorMethod,
-                        "evaluator",
-                        new EvaluatorImplementer(
-                            env.getElementUtils(),
-                            (ExecutableElement) evaluatorMethod,
-                            evaluatorAnn.extraName(),
-                            warnExceptions(evaluatorMethod)
-                        ).sourceFile(),
-                        env
-                    );
+                    try {
+                        AggregatorProcessor.write(
+                            evaluatorMethod,
+                            "evaluator",
+                            new EvaluatorImplementer(
+                                env.getElementUtils(),
+                                env.getTypeUtils(),
+                                (ExecutableElement) evaluatorMethod,
+                                evaluatorAnn.extraName(),
+                                warnExceptionsTypes,
+                                evaluatorAnn.allNullsIsNull()
+                            ).sourceFile(),
+                            env
+                        );
+                    } catch (Exception e) {
+                        env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed to build " + evaluatorMethod.getEnclosingElement());
+                        throw e;
+                    }
                 }
                 MvEvaluator mvEvaluatorAnn = evaluatorMethod.getAnnotation(MvEvaluator.class);
                 if (mvEvaluatorAnn != null) {
-                    AggregatorProcessor.write(
-                        evaluatorMethod,
-                        "evaluator",
-                        new MvEvaluatorImplementer(
-                            env.getElementUtils(),
-                            (ExecutableElement) evaluatorMethod,
-                            mvEvaluatorAnn.extraName(),
-                            mvEvaluatorAnn.finish(),
-                            mvEvaluatorAnn.single(),
-                            mvEvaluatorAnn.ascending(),
-                            warnExceptions(evaluatorMethod)
-                        ).sourceFile(),
-                        env
-                    );
+                    try {
+                        AggregatorProcessor.write(
+                            evaluatorMethod,
+                            "evaluator",
+                            new MvEvaluatorImplementer(
+                                env.getElementUtils(),
+                                (ExecutableElement) evaluatorMethod,
+                                mvEvaluatorAnn.extraName(),
+                                mvEvaluatorAnn.finish(),
+                                mvEvaluatorAnn.single(),
+                                mvEvaluatorAnn.ascending(),
+                                warnExceptionsTypes
+                            ).sourceFile(),
+                            env
+                        );
+                    } catch (Exception e) {
+                        env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed to build " + evaluatorMethod.getEnclosingElement());
+                        throw e;
+                    }
                 }
                 ConvertEvaluator convertEvaluatorAnn = evaluatorMethod.getAnnotation(ConvertEvaluator.class);
                 if (convertEvaluatorAnn != null) {
-                    AggregatorProcessor.write(
-                        evaluatorMethod,
-                        "evaluator",
-                        new ConvertEvaluatorImplementer(
-                            env.getElementUtils(),
-                            (ExecutableElement) evaluatorMethod,
-                            convertEvaluatorAnn.extraName()
-                        ).sourceFile(),
-                        env
-                    );
+                    try {
+                        AggregatorProcessor.write(
+                            evaluatorMethod,
+                            "evaluator",
+                            new ConvertEvaluatorImplementer(
+                                env.getElementUtils(),
+                                env.getTypeUtils(),
+                                (ExecutableElement) evaluatorMethod,
+                                convertEvaluatorAnn.extraName(),
+                                warnExceptionsTypes
+                            ).sourceFile(),
+                            env
+                        );
+                    } catch (Exception e) {
+                        env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed to build " + evaluatorMethod.getEnclosingElement());
+                        throw e;
+                    }
                 }
             }
         }
         return true;
-    }
-
-    private static List<TypeMirror> warnExceptions(Element evaluatorMethod) {
-        List<TypeMirror> result = new ArrayList<>();
-        for (var mirror : evaluatorMethod.getAnnotationMirrors()) {
-            String annotationType = mirror.getAnnotationType().toString();
-            if (annotationType.equals(Evaluator.class.getName()) || annotationType.equals(MvEvaluator.class.getName())) {
-                for (var e : mirror.getElementValues().entrySet()) {
-                    if (false == e.getKey().getSimpleName().toString().equals("warnExceptions")) {
-                        continue;
-                    }
-                    for (var v : (List<?>) e.getValue().getValue()) {
-                        result.add((TypeMirror) ((AnnotationValue) v).getValue());
-                    }
-                }
-            }
-        }
-        return result;
     }
 }

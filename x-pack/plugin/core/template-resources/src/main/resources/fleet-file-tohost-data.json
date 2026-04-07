@@ -10,6 +10,9 @@
     "managed": true
   },
   "template" : {
+    "lifecycle": {
+      "data_retention": "24d"
+    },
     "settings": {
       "index.auto_expand_replicas": "0-1",
       "index.hidden": true,
@@ -24,6 +27,9 @@
         "properties": {
           "@timestamp": {
             "type": "date"
+          },
+          "namespaces": {
+            "type": "keyword"
           },
           "data": {
             "type": "binary",

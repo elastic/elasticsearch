@@ -56,7 +56,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
                 cs,
                 resolver,
                 true,
-                ".ml-anomalies-shared",
+                ".ml-anomalies-shared-000001",
                 AnomalyDetectorsIndex.jobStateIndexPattern(),
                 MlMetaIndex.indexName(),
                 MlConfigIndex.indexName()
@@ -69,7 +69,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
             resolver.concreteIndexNames(
                 cs,
                 IndicesOptions.lenientExpandOpen(),
-                ".ml-anomalies-shared",
+                ".ml-anomalies-shared-000001",
                 AnomalyDetectorsIndex.jobStateIndexPattern(),
                 MlMetaIndex.indexName(),
                 MlConfigIndex.indexName()
@@ -100,7 +100,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
             csBuilder.build(),
             resolver,
             true,
-            ".ml-anomalies-shared",
+            ".ml-anomalies-shared-000001",
             AnomalyDetectorsIndex.jobStateIndexPattern(),
             MlMetaIndex.indexName(),
             MlConfigIndex.indexName()
@@ -123,6 +123,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
             );
             if (indexName.equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
                 indexMetadata.putAlias(new AliasMetadata.Builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));

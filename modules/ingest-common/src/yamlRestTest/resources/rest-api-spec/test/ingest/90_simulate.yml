@@ -714,18 +714,9 @@ teardown:
 - do:
     ingest.simulate:
       verbose: true
+      id: "outer"
       body: >
         {
-          "pipeline": {
-            "processors" : [
-            {
-              "pipeline" : {
-                "name": "outer"
-              }
-            }
-            ]
-          }
-          ,
           "docs": [
           {
             "_index": "index",
@@ -990,3 +981,50 @@ teardown:
   - match: { docs.0.processor_results.0.status: "error" }
   - match: { docs.0.processor_results.0.error.root_cause.0.type: "illegal_argument_exception" }
   - match: { docs.0.processor_results.0.error.root_cause.0.reason: "Pipeline processor configured for non-existent pipeline [____pipeline_doesnot_exist___]" }
+
+---
+"Test verbose simulate with Pipeline Processor and ignore_missing_pipeline":
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "description": "outer pipeline",
+              "processors": [
+              {
+                "pipeline": {
+                  "name": "missing-inner",
+                  "ignore_missing_pipeline": true
+                }
+              },
+              {
+                "set": {
+                  "field": "outer-field",
+                  "value": true
+                }
+              }
+              ]
+            },
+            "docs": [
+            {
+              "_index": "index",
+              "_id": "id",
+              "_source": {
+                "field1": "123.42 400 <foo>"
+              }
+            }
+            ]
+          }
+  - length: { docs: 1 }
+  - length: { docs.0.processor_results: 2 }
+  - match: { docs.0.processor_results.0.doc._source.field1: "123.42 400 <foo>" }
+  - match: { docs.0.processor_results.0.status: "error_ignored" }
+  - match: { docs.0.processor_results.0.processor_type: "pipeline" }
+  - match: { docs.0.processor_results.0.ignored_error.error.type: "illegal_argument_exception" }
+  - match: { docs.0.processor_results.0.ignored_error.error.reason: "Pipeline processor configured for non-existent pipeline [missing-inner]" }
+  - match: { docs.0.processor_results.1.doc._source.outer-field: true }
+  - match: { docs.0.processor_results.1.status: "success" }
+  - match: { docs.0.processor_results.1.processor_type: "set" }
+
+

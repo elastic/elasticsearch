@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -49,8 +50,13 @@ public enum ValueType implements Writeable {
     final ValuesSourceType valuesSourceType;
     final DocValueFormat defaultFormat;
     private final byte id;
-    private String preferredName;
+    private final String preferredName;
 
+    /**
+     * Name of the {@code value_type} field in the JSON. The name {@code valueType} has
+     * been deprecated since before #22160, but we have no plans to remove it so we don't
+     * break anyone that might be using it.
+     */
     public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
     ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType, DocValueFormat defaultFormat) {
@@ -69,7 +75,7 @@ public enum ValueType implements Writeable {
         return valuesSourceType;
     }
 
-    private static Set<ValueType> numericValueTypes = Set.of(
+    private static final Set<ValueType> numericValueTypes = Set.of(
         ValueType.DOUBLE,
         ValueType.DATE,
         ValueType.LONG,
@@ -77,7 +83,7 @@ public enum ValueType implements Writeable {
         ValueType.NUMERIC,
         ValueType.BOOLEAN
     );
-    private static Set<ValueType> stringValueTypes = Set.of(ValueType.STRING, ValueType.IP);
+    private static final Set<ValueType> stringValueTypes = Set.of(ValueType.STRING, ValueType.IP);
 
     /**
      * This is a bit of a hack to mirror the old {@link ValueType} behavior, which would allow a rough compatibility between types.  This
@@ -99,10 +105,6 @@ public enum ValueType implements Writeable {
 
     public boolean isNotA(ValueType valueType) {
         return isA(valueType) == false;
-    }
-
-    public DocValueFormat defaultFormat() {
-        return defaultFormat;
     }
 
     public static ValueType lenientParse(String type) {

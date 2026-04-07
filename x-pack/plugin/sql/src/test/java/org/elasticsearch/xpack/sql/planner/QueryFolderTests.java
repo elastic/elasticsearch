@@ -114,6 +114,23 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(0).toString(), startsWith("test.keyword{f}#"));
     }
 
+    /**
+     * Verifies the fix for https://github.com/elastic/elasticsearch/issues/137365
+     * DATE_ADD with a field as the third argument is not foldable; when used as a range bound
+     * the planner falls back to a script query instead of throwing an exception.
+     */
+    public void testDateAddWithFieldInRangeBoundUsesScriptQuery() {
+        // WHERE date BETWEEN DATE_ADD('days', -30, date) AND CURRENT_TIMESTAMP
+        // produces a Range with non-foldable lower bound, which should fall back to a script query
+        PhysicalPlan p = plan("SELECT * FROM test WHERE date BETWEEN DATE_ADD('days', -30, date) AND CURRENT_TIMESTAMP");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        String query = ee.queryContainer().query().asBuilder().toString().replaceAll("\\s+", "");
+        // Verify it generates a script query with the dateAdd function
+        assertThat(query, containsString("\"script\""));
+        assertThat(query, containsString("InternalSqlScriptUtils.dateAdd"));
+    }
+
     public void testLocalExecWithPrunedFilterWithFunction() {
         PhysicalPlan p = plan("SELECT E() FROM test WHERE PI() = 5");
         assertEquals(LocalExec.class, p.getClass());

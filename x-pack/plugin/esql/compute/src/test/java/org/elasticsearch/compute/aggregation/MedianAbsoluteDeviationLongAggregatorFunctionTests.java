@@ -8,11 +8,12 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,15 +23,15 @@ import static org.hamcrest.Matchers.equalTo;
 public class MedianAbsoluteDeviationLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<Long> values = Arrays.asList(12L, 125L, 20L, 20L, 43L, 60L, 90L);
         Randomness.shuffle(values);
-        return new SequenceLongBlockSourceOperator(values);
+        return new SequenceLongBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier();
     }
 
     @Override
@@ -39,7 +40,7 @@ public class MedianAbsoluteDeviationLongAggregatorFunctionTests extends Aggregat
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
+    protected void assertSimpleOutput(List<Page> input, Block result) {
         assertThat(((DoubleBlock) result).getDouble(0), equalTo(23.0));
     }
 }

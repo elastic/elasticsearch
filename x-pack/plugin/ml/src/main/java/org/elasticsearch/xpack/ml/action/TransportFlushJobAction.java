@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -66,10 +66,17 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
             timeRangeBuilder.endTime(request.getEnd());
         }
         paramsBuilder.forTimeRange(timeRangeBuilder.build());
-        processManager.flushJob(task, paramsBuilder.build(), ActionListener.wrap(flushAcknowledgement -> {
-            listener.onResponse(
-                new FlushJobAction.Response(true, flushAcknowledgement == null ? null : flushAcknowledgement.getLastFinalizedBucketEnd())
-            );
-        }, listener::onFailure));
+        processManager.flushJob(
+            task,
+            paramsBuilder.build(),
+            listener.delegateFailureAndWrap(
+                (l, flushAcknowledgement) -> l.onResponse(
+                    new FlushJobAction.Response(
+                        true,
+                        flushAcknowledgement == null ? null : flushAcknowledgement.getLastFinalizedBucketEnd()
+                    )
+                )
+            )
+        );
     }
 }

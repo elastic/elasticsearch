@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -19,22 +20,22 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         given:
         someLibProject()
         subProject("some-depending-lib") {
-            buildFile << """               
+            buildFile << """
                 plugins {
                     id 'elasticsearch.java-doc'
                     id 'java'
                 }
                 group = 'org.acme.depending'
-                
+
                 dependencies {
                     implementation project(':some-lib')
                 }
             """
             classFile('org.acme.depending.SomeDepending') << """
                 package org.acme.depending;
-                
+
                 import org.acme.Something;
-                
+
                 public class SomeDepending {
                     public Something createSomething() {
                         return new Something();
@@ -56,7 +57,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
         options.contains('-notimestamp')
         options.contains('-quiet')
-        options.contains("-linkoffline '$expectedLink' './some-lib/build/docs/javadoc/'")
+        options.contains("-linkoffline '$expectedLink' '../some-lib/build/docs/javadoc/'")
 
         where:
         version        | versionType | expectedLink
@@ -66,16 +67,17 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
 
     def "sources of shadowed dependencies are added to projects javadoc"() {
         given:
+        settingsFile.text = ""
         someLibProject() << """version = 1.0"""
         subProject("some-depending-lib") {
-            buildFile << """               
+            buildFile << """
                 plugins {
                     id 'elasticsearch.java-doc'
-                    id 'com.github.johnrengelman.shadow' version '7.1.2'
+                    id 'com.gradleup.shadow'
                     id 'java'
                 }
                 group = 'org.acme.depending'
-                
+
                 dependencies {
                     implementation project(':some-lib')
                     shadow project(':some-shadowed-lib')
@@ -83,9 +85,9 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
             """
             classFile('org.acme.depending.SomeDepending') << """
                 package org.acme.depending;
-                
+
                 import org.acme.Something;
-                
+
                 public class SomeDepending {
                     public Something createSomething() {
                         return new Something();
@@ -94,9 +96,9 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
             """
             classFile('org.acme.depending.SomeShadowedDepending') << """
                 package org.acme.depending;
-                
+
                 import org.acme.shadowed.Shadowed;
-                
+
                 public class SomeShadowedDepending {
                     public Shadowed createShadowed() {
                         return new Shadowed();
@@ -114,7 +116,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
             """
             classFile('org.acme.shadowed.Shadowed') << """
                 package org.acme.shadowed;
-                
+
                 public class Shadowed {
                 }
             """
@@ -129,7 +131,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
 
         // normal dependencies handles as usual
         result.task(":some-lib:javadoc").outcome == TaskOutcome.SUCCESS
-        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' './some-lib/build/docs/javadoc/'")
+        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' '../some-lib/build/docs/javadoc/'")
         file('some-depending-lib/build/docs/javadoc/org/acme/Something.html').exists() == false
 
         // source of shadowed dependencies are inlined
@@ -145,22 +147,22 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
             tasks.named("javadoc").configure { enabled = false }
         """
         subProject("some-depending-lib") {
-            buildFile << """               
+            buildFile << """
                 plugins {
                     id 'elasticsearch.java-doc'
                     id 'java'
                 }
                 group = 'org.acme.depending'
-                
+
                 dependencies {
                     implementation project(':some-lib')
                 }
             """
             classFile('org.acme.depending.SomeDepending') << """
                 package org.acme.depending;
-                
+
                 import org.acme.Something;
-                
+
                 public class SomeDepending {
                     public Something createSomething() {
                         return new Something();
@@ -177,7 +179,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
         def options = normalized(file('some-depending-lib/build/tmp/javadoc/javadoc.options').text)
         options.contains('-notimestamp')
         options.contains('-quiet')
-        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' './some-lib/build/docs/javadoc'") == false
+        options.contains("-linkoffline 'https://artifacts.elastic.co/javadoc/org/acme/some-lib/1.0' '../some-lib/build/docs/javadoc'") == false
     }
 
     def "ensures module dependency in javadoc of projects"() {
@@ -264,7 +266,7 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleFuncTest {
 
             classFile('org.acme.Something') << """
                 package org.acme;
-                
+
                 public class Something {
                 }
             """

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
@@ -12,25 +13,23 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
-import java.util.Map;
 
 public class SearchTemplateResponse extends ActionResponse implements ChunkedToXContentObject {
-    public static ParseField TEMPLATE_OUTPUT_FIELD = new ParseField("template_output");
+    public static final ParseField TEMPLATE_OUTPUT_FIELD = new ParseField("template_output");
 
     /** Contains the source of the rendered template **/
     private BytesReference source;
@@ -38,13 +37,16 @@ public class SearchTemplateResponse extends ActionResponse implements ChunkedToX
     /** Contains the search response, if any **/
     private SearchResponse response;
 
-    SearchTemplateResponse() {}
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            if (response != null) {
+                response.decRef();
+            }
+        }
+    });
 
-    SearchTemplateResponse(StreamInput in) throws IOException {
-        super(in);
-        source = in.readOptionalBytesReference();
-        response = in.readOptionalWriteable(SearchResponse::new);
-    }
+    SearchTemplateResponse() {}
 
     public BytesReference getSource() {
         return source;
@@ -77,24 +79,24 @@ public class SearchTemplateResponse extends ActionResponse implements ChunkedToX
         out.writeOptionalWriteable(response);
     }
 
-    public static SearchTemplateResponse fromXContent(XContentParser parser) throws IOException {
-        SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-        Map<String, Object> contentAsMap = parser.map();
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
 
-        if (contentAsMap.containsKey(TEMPLATE_OUTPUT_FIELD.getPreferredName())) {
-            Object source = contentAsMap.get(TEMPLATE_OUTPUT_FIELD.getPreferredName());
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).value(source);
-            searchTemplateResponse.setSource(BytesReference.bytes(builder));
-        } else {
-            XContentType contentType = parser.contentType();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
-            XContentParser searchResponseParser = contentType.xContent()
-                .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput());
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
 
-            SearchResponse searchResponse = SearchResponse.fromXContent(searchResponseParser);
-            searchTemplateResponse.setResponse(searchResponse);
-        }
-        return searchTemplateResponse;
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 
     @Override
@@ -107,7 +109,7 @@ public class SearchTemplateResponse extends ActionResponse implements ChunkedToX
             return response.innerToXContentChunked(params);
         } else {
             // we can assume the template is always json as we convert it before compiling it
-            return ChunkedToXContentHelper.singleChunk((b, p) -> {
+            return ChunkedToXContentHelper.chunk((b, p) -> {
                 try (InputStream stream = source.streamInput()) {
                     return b.rawField(TEMPLATE_OUTPUT_FIELD.getPreferredName(), stream, XContentType.JSON);
                 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -12,6 +13,7 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.function.LongSupplier;
 
 /**
  * {@link ValuesSourceType} represents a collection of fields that share a common set of operations, for example all numeric fields.
@@ -64,13 +66,13 @@ public interface ValuesSourceType {
      * Apply the given missing value to an already-constructed {@link ValuesSource}.  Types which do not support missing values should throw
      * {@link org.elasticsearch.search.aggregations.AggregationExecutionException}
      *
-     * @param valuesSource - The original {@link ValuesSource}
-     * @param rawMissing - The missing value we got from the parser, typically a string or number
+     * @param valuesSource   - The original {@link ValuesSource}
+     * @param rawMissing     - The missing value we got from the parser, typically a string or number
      * @param docValueFormat - The format to use for further parsing the user supplied value, e.g. a date format
-     * @param context - Context for this aggregation used to handle {@link AggregationContext#nowInMillis() "now"}
+     * @param nowInMillis    - supplier of current time and date in milliseconds
      * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
      */
-    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, AggregationContext context);
+    ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier nowInMillis);
 
     /**
      * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a

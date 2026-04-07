@@ -11,21 +11,47 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
+import org.elasticsearch.xpack.security.metric.SecurityMetricType;
+import org.elasticsearch.xpack.security.metric.SecurityMetrics;
+
+import java.util.Map;
+import java.util.function.LongSupplier;
 
 class ServiceAccountAuthenticator implements Authenticator {
+
+    public static final String ATTRIBUTE_SERVICE_ACCOUNT_ID = "es_security_service_account_id";
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountAuthenticator.class);
     private final ServiceAccountService serviceAccountService;
     private final String nodeName;
 
-    ServiceAccountAuthenticator(ServiceAccountService serviceAccountService, String nodeName) {
+    private final SecurityMetrics<ServiceAccountToken> authenticationMetrics;
+
+    ServiceAccountAuthenticator(ServiceAccountService serviceAccountService, String nodeName, MeterRegistry meterRegistry) {
+        this(serviceAccountService, nodeName, meterRegistry, System::nanoTime);
+    }
+
+    ServiceAccountAuthenticator(
+        ServiceAccountService serviceAccountService,
+        String nodeName,
+        MeterRegistry meterRegistry,
+        LongSupplier nanoTimeSupplier
+    ) {
         this.serviceAccountService = serviceAccountService;
         this.nodeName = nodeName;
+        this.authenticationMetrics = new SecurityMetrics<>(
+            SecurityMetricType.AUTHC_SERVICE_ACCOUNT,
+            meterRegistry,
+            serviceAccountToken -> Map.of(ATTRIBUTE_SERVICE_ACCOUNT_ID, serviceAccountToken.getAccountId().asPrincipal()),
+            nanoTimeSupplier
+        );
     }
 
     @Override
@@ -50,6 +76,18 @@ class ServiceAccountAuthenticator implements Authenticator {
             return;
         }
         final ServiceAccountToken serviceAccountToken = (ServiceAccountToken) authenticationToken;
+        doAuthenticate(
+            context,
+            serviceAccountToken,
+            InstrumentedSecurityActionListener.wrapForAuthc(authenticationMetrics, serviceAccountToken, listener)
+        );
+    }
+
+    private void doAuthenticate(
+        Context context,
+        ServiceAccountToken serviceAccountToken,
+        ActionListener<AuthenticationResult<Authentication>> listener
+    ) {
         serviceAccountService.authenticateToken(serviceAccountToken, nodeName, ActionListener.wrap(authentication -> {
             assert authentication != null : "service account authenticate should return either authentication or call onFailure";
             listener.onResponse(AuthenticationResult.success(authentication));

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.persistence;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.ToXContent;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDocTests;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -76,12 +79,14 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
     @Before
     public void createComponents() {
-        clusterService = mock(ClusterService.class);
+        clusterService = mock();
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         transformConfigManager = new IndexBasedTransformConfigManager(
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),
             client(),
-            xContentRegistry()
+            xContentRegistry(),
+            new TransformParsingContext(false)
         );
     }
 
@@ -495,10 +500,17 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.putOrUpdateTransformStoredDoc(updated, firstIndex, listener),
             (SeqNoPrimaryTermAndIndex) null,
             r -> fail("did not fail with version conflict."),
-            e -> assertThat(
-                e.getMessage(),
-                equalTo("Failed to persist transform statistics for transform [transform_test_stored_doc_create_read_update]")
-            )
+            e -> {
+                assertThat(
+                    e.getMessage(),
+                    equalTo("Failed to persist transform statistics for transform [transform_test_stored_doc_create_read_update]")
+                );
+                assertThat(
+                    "Consumers utilize ExceptionsHelper to check if there was a Version Conflict",
+                    ExceptionsHelper.unwrapCause(e),
+                    instanceOf(VersionConflictEngineException.class)
+                );
+            }
         );
     }
 

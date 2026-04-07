@@ -182,7 +182,9 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
         );
         assertEquals("query must be rewritten first", e.getMessage());
         QueryBuilder rewrite = rewriteAndFetch(query, createSearchExecutionContext());
-        ShapeQueryBuilder geoShapeQueryBuilder = new ShapeQueryBuilder(fieldName(), indexedShapeToReturn);
+        ShapeQueryBuilder geoShapeQueryBuilder = new ShapeQueryBuilder(fieldName(), indexedShapeToReturn).ignoreUnmapped(
+            query.ignoreUnmapped()
+        );
         geoShapeQueryBuilder.relation(query.relation());
         assertEquals(geoShapeQueryBuilder, rewrite);
     }
@@ -193,7 +195,7 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
 
         builder = rewriteAndFetch(builder, createSearchExecutionContext());
 
-        ShapeQueryBuilder expectedShape = new ShapeQueryBuilder(fieldName(), indexedShapeToReturn);
+        ShapeQueryBuilder expectedShape = new ShapeQueryBuilder(fieldName(), indexedShapeToReturn).ignoreUnmapped(shape.ignoreUnmapped());
         expectedShape.relation(shape.relation());
         QueryBuilder expected = new BoolQueryBuilder().should(expectedShape).should(expectedShape);
         assertEquals(expected, builder);

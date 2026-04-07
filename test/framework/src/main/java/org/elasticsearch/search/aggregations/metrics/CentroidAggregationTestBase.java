@@ -1,24 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -34,99 +34,105 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
     protected abstract ValuesSourceAggregationBuilder<?> centroidAgg(String name);
 
     public void testEmptyAggregation() {
-        SearchResponse response = client().prepareSearch(EMPTY_IDX_NAME)
-            .setQuery(matchAllQuery())
-            .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
-            .get();
-        assertSearchResponse(response);
+        assertNoFailuresAndResponse(
+            client().prepareSearch(EMPTY_IDX_NAME)
+                .setQuery(matchAllQuery())
+                .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)),
+            response -> {
+                CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
+                assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
+                assertThat(geoCentroid, notNullValue());
+                assertThat(geoCentroid.getName(), equalTo(aggName()));
+                assertThat(geoCentroid.centroid(), equalTo(null));
+                assertEquals(0, geoCentroid.count());
+            }
+        );
 
-        CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
-        assertThat(response.getHits().getTotalHits().value, equalTo(0L));
-        assertThat(geoCentroid, notNullValue());
-        assertThat(geoCentroid.getName(), equalTo(aggName()));
-        assertThat(geoCentroid.centroid(), equalTo(null));
-        assertEquals(0, geoCentroid.count());
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
-            .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
-            .get();
-        assertSearchResponse(response);
-
-        CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
-        assertThat(geoCentroid, notNullValue());
-        assertThat(geoCentroid.getName(), equalTo(aggName()));
-        assertThat(geoCentroid.centroid(), equalTo(null));
-        assertEquals(0, geoCentroid.count());
+        assertNoFailuresAndResponse(
+            client().prepareSearch(UNMAPPED_IDX_NAME).addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)),
+            response -> {
+                CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
+                assertThat(geoCentroid, notNullValue());
+                assertThat(geoCentroid.getName(), equalTo(aggName()));
+                assertThat(geoCentroid.centroid(), equalTo(null));
+                assertEquals(0, geoCentroid.count());
+            }
+        );
     }
 
     public void testPartiallyUnmapped() {
-        SearchResponse response = client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME)
-            .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
-            .get();
-        assertSearchResponse(response);
+        assertNoFailuresAndResponse(
+            client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME).addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)),
+            response -> {
+                CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
+                assertThat(geoCentroid, notNullValue());
+                assertThat(geoCentroid.getName(), equalTo(aggName()));
+                assertSameCentroid(geoCentroid.centroid(), singleCentroid);
+                assertEquals(numDocs, geoCentroid.count());
+            }
+        );
 
-        CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
-        assertThat(geoCentroid, notNullValue());
-        assertThat(geoCentroid.getName(), equalTo(aggName()));
-        assertSameCentroid(geoCentroid.centroid(), singleCentroid);
-        assertEquals(numDocs, geoCentroid.count());
     }
 
     public void testSingleValuedField() {
-        SearchResponse response = client().prepareSearch(IDX_NAME)
-            .setQuery(matchAllQuery())
-            .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
-            .get();
-        assertSearchResponse(response);
-
-        CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
-        assertThat(geoCentroid, notNullValue());
-        assertThat(geoCentroid.getName(), equalTo(aggName()));
-        assertSameCentroid(geoCentroid.centroid(), singleCentroid);
-        assertEquals(numDocs, geoCentroid.count());
+        assertNoFailuresAndResponse(
+            client().prepareSearch(IDX_NAME)
+                .setQuery(matchAllQuery())
+                .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)),
+            response -> {
+                CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
+                assertThat(geoCentroid, notNullValue());
+                assertThat(geoCentroid.getName(), equalTo(aggName()));
+                assertSameCentroid(geoCentroid.centroid(), singleCentroid);
+                assertEquals(numDocs, geoCentroid.count());
+            }
+        );
     }
 
     public void testSingleValueFieldGetProperty() {
-        SearchResponse response = client().prepareSearch(IDX_NAME)
-            .setQuery(matchAllQuery())
-            .addAggregation(global("global").subAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)))
-            .get();
-        assertSearchResponse(response);
+        assertNoFailuresAndResponse(
+            client().prepareSearch(IDX_NAME)
+                .setQuery(matchAllQuery())
+                .addAggregation(global("global").subAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))),
+            response -> {
+                SingleBucketAggregation global = response.getAggregations().get("global");
+                assertThat(global, notNullValue());
+                assertThat(global.getName(), equalTo("global"));
+                assertThat(global.getDocCount(), equalTo((long) numDocs));
+                assertThat(global.getAggregations(), notNullValue());
+                assertThat(global.getAggregations().asList().size(), equalTo(1));
 
-        Global global = response.getAggregations().get("global");
-        assertThat(global, notNullValue());
-        assertThat(global.getName(), equalTo("global"));
-        assertThat(global.getDocCount(), equalTo((long) numDocs));
-        assertThat(global.getAggregations(), notNullValue());
-        assertThat(global.getAggregations().asMap().size(), equalTo(1));
-
-        CentroidAggregation geoCentroid = global.getAggregations().get(aggName());
-        InternalAggregation agg = (InternalAggregation) global;
-        assertThat(geoCentroid, notNullValue());
-        assertThat(geoCentroid.getName(), equalTo(aggName()));
-        assertThat((CentroidAggregation) agg.getProperty(aggName()), sameInstance(geoCentroid));
-        assertSameCentroid(geoCentroid.centroid(), singleCentroid);
-        assertSimilarValue(((SpatialPoint) agg.getProperty(aggName() + ".value")).getY(), singleCentroid.getY());
-        assertSimilarValue(((SpatialPoint) agg.getProperty(aggName() + ".value")).getX(), singleCentroid.getX());
-        assertSimilarValue((double) agg.getProperty(aggName() + "." + coordinateName("y")), singleCentroid.getY());
-        assertSimilarValue((double) agg.getProperty(aggName() + "." + coordinateName("x")), singleCentroid.getX());
-        assertEquals(numDocs, (long) ((InternalAggregation) global).getProperty(aggName() + ".count"));
+                CentroidAggregation geoCentroid = global.getAggregations().get(aggName());
+                InternalAggregation agg = (InternalAggregation) global;
+                assertThat(geoCentroid, notNullValue());
+                assertThat(geoCentroid.getName(), equalTo(aggName()));
+                assertThat((CentroidAggregation) agg.getProperty(aggName()), sameInstance(geoCentroid));
+                assertSameCentroid(geoCentroid.centroid(), singleCentroid);
+                assertSimilarValue(((SpatialPoint) agg.getProperty(aggName() + ".value")).getY(), singleCentroid.getY());
+                assertSimilarValue(((SpatialPoint) agg.getProperty(aggName() + ".value")).getX(), singleCentroid.getX());
+                assertSimilarValue((double) agg.getProperty(aggName() + "." + coordinateName("y")), singleCentroid.getY());
+                assertSimilarValue((double) agg.getProperty(aggName() + "." + coordinateName("x")), singleCentroid.getX());
+                assertEquals(numDocs, (long) ((InternalAggregation) global).getProperty(aggName() + ".count"));
+            }
+        );
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch(IDX_NAME)
-            .setQuery(matchAllQuery())
-            .addAggregation(centroidAgg(aggName()).field(MULTI_VALUED_FIELD_NAME))
-            .get();
-        assertSearchResponse(searchResponse);
-
-        CentroidAggregation geoCentroid = searchResponse.getAggregations().get(aggName());
-        assertThat(geoCentroid, notNullValue());
-        assertThat(geoCentroid.getName(), equalTo(aggName()));
-        assertSameCentroid(geoCentroid.centroid(), multiCentroid);
-        assertEquals(2 * numDocs, geoCentroid.count());
+        assertNoFailuresAndResponse(
+            client().prepareSearch(IDX_NAME)
+                .setQuery(matchAllQuery())
+                .addAggregation(centroidAgg(aggName()).field(MULTI_VALUED_FIELD_NAME)),
+            response -> {
+                CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
+                assertThat(geoCentroid, notNullValue());
+                assertThat(geoCentroid.getName(), equalTo(aggName()));
+                assertSameCentroid(geoCentroid.centroid(), multiCentroid);
+                assertEquals(2 * numDocs, geoCentroid.count());
+            }
+        );
     }
 
     /** Override this if the spatial data uses different coordinate names (eg. Geo uses lon/at instead of x/y */

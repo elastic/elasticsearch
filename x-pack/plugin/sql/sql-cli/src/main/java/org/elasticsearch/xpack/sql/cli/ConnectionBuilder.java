@@ -24,8 +24,8 @@ import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
  * Connection Builder. Can interactively ask users for the password if it is not provided
  */
 public class ConnectionBuilder {
-    public static String DEFAULT_CONNECTION_STRING = "http://localhost:9200/";
-    public static URI DEFAULT_URI = URI.create(DEFAULT_CONNECTION_STRING);
+    public static final String DEFAULT_CONNECTION_STRING = "http://localhost:9200/";
+    public static final URI DEFAULT_URI = URI.create(DEFAULT_CONNECTION_STRING);
 
     private CliTerminal cliTerminal;
 
@@ -43,6 +43,24 @@ public class ConnectionBuilder {
      */
     public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation, boolean binaryCommunication)
         throws UserException {
+        return buildConnection(connectionStringArg, keystoreLocation, binaryCommunication, null);
+    }
+
+    /**
+     * Build the connection.
+     *
+     * @param connectionStringArg the connection string to connect to
+     * @param keystoreLocation    the location of the keystore to configure. If null then use the system keystore.
+     * @param binaryCommunication should the communication between the CLI and server be binary (CBOR)
+     * @param apiKey              the API key to use for authentication. If null, basic auth will be used if credentials are provided.
+     * @throws UserException if there is a problem with the information provided by the user
+     */
+    public ConnectionConfiguration buildConnection(
+        String connectionStringArg,
+        String keystoreLocation,
+        boolean binaryCommunication,
+        String apiKey
+    ) throws UserException {
         final URI uri;
         final String connectionString;
         Properties properties = new Properties();
@@ -87,7 +105,13 @@ public class ConnectionBuilder {
             properties.put("ssl", "true");
         }
 
-        if (user != null) {
+        // API key authentication takes precedence over basic auth
+        if (apiKey != null) {
+            if (user != null) {
+                throw new UserException(ExitCodes.USAGE, "Cannot use both API key and basic authentication");
+            }
+            properties.setProperty(ConnectionConfiguration.AUTH_API_KEY, apiKey);
+        } else if (user != null) {
             if (password == null) {
                 password = cliTerminal.readPassword("password: ");
             }
@@ -101,7 +125,7 @@ public class ConnectionBuilder {
     }
 
     @SuppressForbidden(reason = "cli application shouldn't depend on ES")
-    private Path getKeystorePath(String keystoreLocation) {
+    private static Path getKeystorePath(String keystoreLocation) {
         return Paths.get(keystoreLocation);
     }
 

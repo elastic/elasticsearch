@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -66,6 +67,14 @@ public interface LocalClusterSpecBuilder<T extends ElasticsearchCluster> extends
      * Register a roles file with cluster via the supplied {@link Resource}.
      */
     LocalClusterSpecBuilder<T> rolesFile(Resource rolesFile);
+
+    /**
+     * Configure whether this cluster should be shared across test suites (classes). If set to {@code true} then the cluster will not be
+     * shut down or recreated before the next test suite begins execution. This setting is {@code false} by default.
+     *
+     * @param isShared whether the cluster should be shared
+     */
+    LocalClusterSpecBuilder<T> shared(Boolean isShared);
 
     T build();
 }

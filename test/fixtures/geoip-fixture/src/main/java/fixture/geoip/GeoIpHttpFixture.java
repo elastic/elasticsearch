@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package fixture.geoip;
@@ -11,6 +12,7 @@ package fixture.geoip;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.geoip.GeoIpCli;
 import org.junit.rules.ExternalResource;
 
@@ -25,6 +27,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 public class GeoIpHttpFixture extends ExternalResource {
 
@@ -44,7 +47,8 @@ public class GeoIpHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/";
+        String host = InetAddresses.toUriString(server.getAddress().getAddress());
+        return "http://" + host + ":" + server.getAddress().getPort() + "/";
     }
 
     @Override
@@ -106,15 +110,25 @@ public class GeoIpHttpFixture extends ExternalResource {
     }
 
     private void copyFiles() throws Exception {
-        Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-ASN.tgz"), source.resolve("GeoLite2-ASN.tgz"));
-        Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-City.mmdb"), source.resolve("GeoLite2-City.mmdb"));
+        Files.copy(
+            GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-ASN.tgz"),
+            source.resolve("GeoLite2-ASN.tgz"),
+            StandardCopyOption.REPLACE_EXISTING
+        );
+        Files.copy(
+            GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-City.mmdb"),
+            source.resolve("GeoLite2-City.mmdb"),
+            StandardCopyOption.REPLACE_EXISTING
+        );
         Files.copy(
             GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/GeoLite2-Country.mmdb"),
-            source.resolve("GeoLite2-Country.mmdb")
+            source.resolve("GeoLite2-Country.mmdb"),
+            StandardCopyOption.REPLACE_EXISTING
         );
         Files.copy(
             GeoIpHttpFixture.class.getResourceAsStream("/geoip-fixture/MyCustomGeoLite2-City.mmdb"),
-            source.resolve("MyCustomGeoLite2-City.mmdb")
+            source.resolve("MyCustomGeoLite2-City.mmdb"),
+            StandardCopyOption.REPLACE_EXISTING
         );
 
         new GeoIpCli().main(

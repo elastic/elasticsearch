@@ -1,5 +1,0 @@
-pr: 97409
-summary: Trim stored fields for `_id` field in tsdb
-area: TSDB
-type: enhancement
-issues: []

@@ -58,9 +58,10 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
             }
         };
         FakeRestRequest fakeRestRequest = new FakeRestRequest();
-        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), securityEnabled ? 0 : 1);
+        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean());
 
-        try (NodeClient client = new NoOpNodeClient(this.getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpNodeClient(threadPool);
             assertFalse(consumerCalled.get());
             verifyNoMoreInteractions(licenseState);
             handler.handleRequest(fakeRestRequest, fakeRestChannel, client);

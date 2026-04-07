@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -60,6 +60,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
     }
 
     public void testRemove_GivenNoJobs() {
@@ -134,6 +135,22 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         verify(listener).onFailure(any());
     }
 
+    public void testRemove_GivenIndexNotWritable_ShouldHandleGracefully() {
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
+
+        // Prepare one job with a retention policy
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(20L).build()
+        );
+
+        createExpiredResultsRemover(jobs.iterator(), false).remove(1.0f, listener, () -> false);
+
+        // Assert: success callback invoked, no DBQ requests
+        verify(listener).onResponse(true);
+        assertThat(capturedDeleteByQueryRequests.size(), equalTo(0));
+    }
+
     @SuppressWarnings("unchecked")
     public void testCalcCutoffEpochMs() {
         String jobId = "calc-cutoff";
@@ -143,6 +160,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         List<Job> jobs = Collections.singletonList(JobTests.buildJobBuilder(jobId).setResultsRetentionDays(1L).build());
 
         ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
+        when(cutoffListener.delegateFailureAndWrap(any())).thenCallRealMethod();
         createExpiredResultsRemover(jobs.iterator()).calcCutoffEpochMs(jobId, 1L, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;
@@ -180,10 +198,14 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
             listener.onResponse(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket)));
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
     }
 
     private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator) {
+        return createExpiredResultsRemover(jobIterator, true);
+    }
+
+    private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator, boolean isResultsIndexWritable) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -194,6 +216,8 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             run.run();
             return null;
         }).when(executor).execute(any());
+
+        MockWritableIndexExpander.create(isResultsIndexWritable);
 
         return new ExpiredResultsRemover(
             originSettingClient,

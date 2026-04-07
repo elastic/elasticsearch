@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search;
 
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,31 +17,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
@@ -57,18 +49,13 @@ import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
-import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
-import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
-import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -309,7 +296,6 @@ public class SearchModuleTests extends ESTestCase {
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
-        Collections.addAll(allSupportedQueries, REST_COMPATIBLE_QUERIES);
 
         SearchModule module = new SearchModule(Settings.EMPTY, emptyList());
 
@@ -434,6 +420,7 @@ public class SearchModuleTests extends ESTestCase {
         "combined_fields",
         "dis_max",
         "exists",
+        "exact_knn",
         "function_score",
         "fuzzy",
         "geo_bounding_box",
@@ -456,6 +443,7 @@ public class SearchModuleTests extends ESTestCase {
         "range",
         "regexp",
         "knn_score_doc",
+        "random_sampling",
         "script",
         "script_score",
         "simple_query_string",
@@ -474,15 +462,11 @@ public class SearchModuleTests extends ESTestCase {
         "terms_set",
         "wildcard",
         "wrapper",
-        "distance_feature" };
+        "distance_feature",
+        "to_child_block_join" };
 
     // add here deprecated queries to make sure we log a deprecation warnings when they are used
     private static final String[] DEPRECATED_QUERIES = new String[] { "field_masking_span", "geo_polygon" };
-    private static final String[] REST_COMPATIBLE_QUERIES = new String[] {
-        TypeQueryV7Builder.NAME_V7.getPreferredName(),
-        CommonTermsQueryBuilder.NAME_V7.getPreferredName() };
-    private static final String[] REST_COMPATIBLE_AGGREGATIONS = new String[] {
-        MovAvgPipelineAggregationBuilder.NAME_V7.getPreferredName() };
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.
@@ -515,11 +499,6 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-            return ValuesSourceRegistry.UNREGISTERED_KEY;
-        }
-
-        @Override
         protected void innerWriteTo(StreamOutput out) throws IOException {}
 
         @Override
@@ -548,7 +527,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 
@@ -596,30 +575,12 @@ public class SearchModuleTests extends ESTestCase {
             return null;
         }
 
-        private static TestPipelineAggregationBuilder fromXContent(String name, XContentParser p) {
-            return null;
-        }
-
         @Override
         protected void validate(ValidationContext context) {}
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
-        }
-    }
-
-    /**
-     * Dummy test {@link PipelineAggregator} used to test registering aggregation builders.
-     */
-    private static class TestPipelineAggregator extends PipelineAggregator {
-        TestPipelineAggregator() {
-            super("test", new String[] {}, null);
-        }
-
-        @Override
-        public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-            return null;
+            return TransportVersion.zero();
         }
     }
 
@@ -655,29 +616,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
-        }
-    }
-
-    private static class TestSuggester extends Suggester<SuggestionSearchContext.SuggestionContext> {
-
-        @Override
-        protected Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> innerExecute(
-            String name,
-            SuggestionSearchContext.SuggestionContext suggestion,
-            IndexSearcher searcher,
-            CharsRefBuilder spare
-        ) throws IOException {
-            return null;
-        }
-
-        @Override
-        protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(
-            String name,
-            SuggestionContext suggestion,
-            CharsRefBuilder spare
-        ) throws IOException {
-            return null;
+            return TransportVersion.zero();
         }
     }
 
@@ -723,7 +662,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 
@@ -742,58 +681,6 @@ public class SearchModuleTests extends ESTestCase {
         public String getWriteableName() {
             return "test";
         }
-    }
-
-    static class CompatQueryBuilder extends DummyQueryBuilder {
-        public static final String NAME = "compat_name";
-        public static final ParseField NAME_OLD = new ParseField(NAME).forRestApiVersion(
-            RestApiVersion.equalTo(RestApiVersion.minimumSupported())
-        );
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-    }
-
-    public void testRegisterRestApiCompatibleQuery() {
-        SearchPlugin registerCompatQuery = new SearchPlugin() {
-            @Override
-            public List<SearchPlugin.QuerySpec<?>> getQueries() {
-                return singletonList(
-                    new QuerySpec<>(
-                        CompatQueryBuilder.NAME_OLD,
-                        (streamInput) -> new CompatQueryBuilder(),
-                        CompatQueryBuilder::fromXContent
-                    )
-                );
-            }
-        };
-
-        final SearchModule searchModule = new SearchModule(Settings.EMPTY, singletonList(registerCompatQuery));
-
-        // all entries can be used for current and previous versions except for compatible entry
-        assertThat(searchModule.getNamedXContents().stream().filter(e ->
-        // filter out compatible entry
-        e.name.match(CompatQueryBuilder.NAME_OLD.getPreferredName(), LoggingDeprecationHandler.INSTANCE) == false)
-            .filter(e -> RestApiVersion.minimumSupported().matches(e.restApiCompatibility))
-            .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
-            .collect(toSet()),
-            // -1 because of the registered in the test
-            hasSize(searchModule.getNamedXContents().size() - REST_COMPATIBLE_QUERIES.length - REST_COMPATIBLE_AGGREGATIONS.length - 1)
-        );
-
-        final List<NamedXContentRegistry.Entry> compatEntry = searchModule.getNamedXContents()
-            .stream()
-            .filter(
-                e -> e.categoryClass.equals(QueryBuilder.class)
-                    && RestApiVersion.minimumSupported().matches(e.name.getForRestApiVersion()) // v7 compatbile
-                    && RestApiVersion.current().matches(e.name.getForRestApiVersion()) == false
-            ) // but not v8 compatible
-            .collect(toList());
-        assertThat(compatEntry, hasSize(REST_COMPATIBLE_QUERIES.length + 1));// +1 because of registered in the test
-        assertTrue(RestApiVersion.minimumSupported().matches(compatEntry.get(0).restApiCompatibility));
-        assertFalse(RestApiVersion.current().matches(compatEntry.get(0).restApiCompatibility));
     }
 
     public void testDefaultMaxNestedDepth() {

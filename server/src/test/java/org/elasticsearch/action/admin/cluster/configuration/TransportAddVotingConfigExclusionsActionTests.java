@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -31,7 +34,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -130,7 +132,6 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             clusterService,
             threadPool,
             new ActionFilters(emptySet()),
-            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
             reconfigurator
         ); // registers action
 
@@ -177,8 +178,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions());
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest("other1"),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "other1"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 final var state = clusterService.getClusterApplierService().state();
@@ -195,8 +196,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions());
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest("other1", "other2"),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "other1", "other2"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 final var state = clusterService.getClusterApplierService().state();
@@ -228,8 +229,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         // no observer to reconfigure
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest("other1"),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "other1"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 final var finalState = clusterService.getClusterApplierService().state();
@@ -245,8 +246,13 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final var countDownLatch = new CountDownLatch(1);
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(new String[] { "absent_id" }, Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30)),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { "absent_id" },
+                Strings.EMPTY_ARRAY,
+                TimeValue.timeValueSeconds(30)
+            ),
             expectSuccess(r -> {
                 final var state = clusterService.getClusterApplierService().state();
                 assertEquals(
@@ -265,8 +271,13 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions());
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(new String[] { "other1", "other2" }, Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30)),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { "other1", "other2" },
+                Strings.EMPTY_ARRAY,
+                TimeValue.timeValueSeconds(30)
+            ),
             expectSuccess(r -> {
                 assertNotNull(r);
                 final var state = clusterService.getClusterApplierService().state();
@@ -282,8 +293,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final var countDownLatch = new CountDownLatch(1);
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest("absent_node"),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "absent_node"),
             expectSuccess(r -> {
                 final var state = clusterService.getClusterApplierService().state();
                 assertEquals(
@@ -302,8 +313,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions());
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest("other1", "other2"),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "other1", "other2"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 final var state = clusterService.getClusterApplierService().state();
@@ -330,10 +341,15 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions());
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
             randomFrom(
-                new AddVotingConfigExclusionsRequest("other1"),
-                new AddVotingConfigExclusionsRequest(new String[] { "other1" }, Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30))
+                new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "other1"),
+                new AddVotingConfigExclusionsRequest(
+                    TEST_REQUEST_TIMEOUT,
+                    new String[] { "other1" },
+                    Strings.EMPTY_ARRAY,
+                    TimeValue.timeValueSeconds(30)
+                )
             ),
             expectSuccess(r -> {
                 assertNotNull(r);
@@ -362,11 +378,15 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         setState(clusterService, builder);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions());
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(new String[] { "other1" }, Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30)),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { "other1" },
+                Strings.EMPTY_ARRAY,
+                TimeValue.timeValueSeconds(30)
+            ),
             expectSuccess(r -> {
                 assertNotNull(r);
                 final var finalState = clusterService.getClusterApplierService().state();
@@ -397,8 +417,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest("other1"),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "other1"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 final var finalState = clusterService.getClusterApplierService().state();
@@ -454,8 +474,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest("other1", "other2"),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, "other1", "other2"),
             expectError(e -> {
                 final Throwable rootCause = e.getRootCause();
                 assertThat(rootCause, instanceOf(IllegalArgumentException.class));
@@ -482,8 +502,13 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { "other1" }, TimeValue.timeValueMillis(100)),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(
+                TEST_REQUEST_TIMEOUT,
+                Strings.EMPTY_ARRAY,
+                new String[] { "other1" },
+                TimeValue.timeValueMillis(100)
+            ),
             expectError(e -> {
                 final Throwable rootCause = e.getRootCause();
                 assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
@@ -501,8 +526,13 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
         transportService.sendRequest(
             localNode,
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[] { "other1" }, TimeValue.timeValueMillis(100)),
+            TransportAddVotingConfigExclusionsAction.TYPE.name(),
+            new AddVotingConfigExclusionsRequest(
+                TEST_REQUEST_TIMEOUT,
+                Strings.EMPTY_ARRAY,
+                new String[] { "other1" },
+                TimeValue.timeValueMillis(100)
+            ),
             expectError(e -> {
                 final Throwable rootCause = e.getRootCause();
                 assertThat(rootCause, instanceOf(IllegalStateException.class));
@@ -514,17 +544,14 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {
-        return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
+        return new ActionListenerResponseHandler<>(
+            ActionTestUtils.assertNoFailureListener(onResponse::accept),
+            in -> ActionResponse.Empty.INSTANCE,
+            TransportResponseHandler.TRANSPORT_WORKER
+        );
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectError(Consumer<TransportException> onException) {
-        return responseHandler(r -> { assert false : r; }, onException);
-    }
-
-    private TransportResponseHandler<ActionResponse.Empty> responseHandler(
-        Consumer<ActionResponse.Empty> onResponse,
-        Consumer<TransportException> onException
-    ) {
         return new TransportResponseHandler<>() {
             @Override
             public ActionResponse.Empty read(StreamInput in) {
@@ -532,13 +559,13 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
             @Override
             public void handleResponse(ActionResponse.Empty response) {
-                onResponse.accept(response);
+                assert false : response;
             }
 
             @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -28,12 +29,12 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     CreateIndexResponse,
     CreateIndexRequestBuilder> {
 
-    public CreateIndexRequestBuilder(ElasticsearchClient client, CreateIndexAction action) {
-        super(client, action, new CreateIndexRequest());
+    public CreateIndexRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportCreateIndexAction.TYPE, new CreateIndexRequest());
     }
 
-    public CreateIndexRequestBuilder(ElasticsearchClient client, CreateIndexAction action, String index) {
-        super(client, action, new CreateIndexRequest(index));
+    public CreateIndexRequestBuilder(ElasticsearchClient client, String index) {
+        super(client, TransportCreateIndexAction.TYPE, new CreateIndexRequest(index));
     }
 
     /**
@@ -245,5 +246,13 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
      */
     public CreateIndexRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
         return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+    /**
+     * Set whether this request requires a data stream. The data stream may be pre-existing or to-be-created.
+     */
+    public CreateIndexRequestBuilder setRequireDataStream(final boolean requireDataStream) {
+        request.requireDataStream(requireDataStream);
+        return this;
     }
 }

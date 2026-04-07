@@ -17,11 +17,11 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 
 import java.util.Collection;
 import java.util.List;
@@ -73,7 +73,7 @@ class MlAutoscalingContext {
     }
 
     MlAutoscalingContext(ClusterState clusterState) {
-        persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        persistentTasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
 
         anomalyDetectionTasks = anomalyDetectionTasks(persistentTasks);
         snapshotUpgradeTasks = snapshotUpgradeTasks(persistentTasks);
@@ -177,7 +177,7 @@ class MlAutoscalingContext {
         return anomalyDetectionTasks.isEmpty()
             && snapshotUpgradeTasks.isEmpty()
             && dataframeAnalyticsTasks.isEmpty()
-            && modelAssignments.isEmpty();
+            && modelAssignments.values().stream().allMatch(assignment -> assignment.getTaskParams().getNumberOfAllocations() == 0);
     }
 
     public List<String> findPartiallyAllocatedModels() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.phase;
@@ -11,6 +12,7 @@ package org.elasticsearch.painless.phase;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.PainlessError;
 import org.elasticsearch.painless.PainlessExplainError;
+import org.elasticsearch.painless.PainlessWrappedException;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 import org.elasticsearch.painless.ir.BinaryImplNode;
@@ -262,7 +264,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
     // requires the gets method name be modified from "getExample" to "example"
     // if a get method variable isn't used it's declaration node is removed from
     // the ir tree permanently so there is no frivolous variable slotting
-    protected void injectGetsDeclarations(BlockNode irBlockNode, ScriptScope scriptScope) {
+    protected static void injectGetsDeclarations(BlockNode irBlockNode, ScriptScope scriptScope) {
         Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectGetsDeclarations", 0);
 
         for (int i = 0; i < scriptScope.getScriptClassInfo().getGetMethods().size(); ++i) {
@@ -345,7 +347,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
      * }
      *
      */
-    protected void injectSandboxExceptions(FunctionNode irFunctionNode) {
+    protected static void injectSandboxExceptions(FunctionNode irFunctionNode) {
         try {
             Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectSandboxExceptions", 0);
             BlockNode irBlockNode = irFunctionNode.getBlockNode();
@@ -414,6 +416,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             for (Class<? extends Throwable> throwable : List.of(
                 PainlessError.class,
+                PainlessWrappedException.class,
                 LinkageError.class,
                 OutOfMemoryError.class,
                 StackOverflowError.class,
@@ -513,7 +516,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         injectConverter(userReturnNode, scriptScope);
     }
 
-    public void injectConverter(AStatement userStatementNode, ScriptScope scriptScope) {
+    public static void injectConverter(AStatement userStatementNode, ScriptScope scriptScope) {
         Converter converter = scriptScope.getDecoration(userStatementNode, Converter.class);
         if (converter == null) {
             return;

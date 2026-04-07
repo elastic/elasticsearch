@@ -7,11 +7,12 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -20,14 +21,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MinLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         long max = randomLongBetween(1, Long.MAX_VALUE / size);
-        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> randomLongBetween(-max, max)));
+        return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> randomLongBetween(-max, max)));
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MinLongAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MinLongAggregatorFunctionSupplier();
     }
 
     @Override
@@ -36,8 +37,8 @@ public class MinLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        long min = input.stream().flatMapToLong(b -> allLongs(b)).min().getAsLong();
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        long min = input.stream().flatMapToLong(p -> allLongs(p.getBlock(0))).min().getAsLong();
         assertThat(((LongBlock) result).getLong(0), equalTo(min));
     }
 }

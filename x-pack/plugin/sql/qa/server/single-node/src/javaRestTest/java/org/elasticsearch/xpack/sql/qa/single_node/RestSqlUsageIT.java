@@ -7,6 +7,16 @@
 
 package org.elasticsearch.xpack.sql.qa.single_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlUsageTestCase;
+import org.junit.ClassRule;
 
-public class RestSqlUsageIT extends RestSqlUsageTestCase {}
+public class RestSqlUsageIT extends RestSqlUsageTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+}

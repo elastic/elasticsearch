@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -22,15 +22,19 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -82,6 +86,7 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -112,6 +117,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(
@@ -125,7 +131,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         PersistentTasksService persistentTasksService,
         DataFrameAnalyticsConfigProvider configProvider,
         MlMemoryTracker memoryTracker,
-        DataFrameAnalyticsAuditor auditor
+        DataFrameAnalyticsAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             StartDataFrameAnalyticsAction.NAME,
@@ -134,9 +141,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             StartDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.client = client;
@@ -153,6 +159,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -160,7 +167,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delegating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
@@ -209,6 +216,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 taskParams,
+                request.masterNodeTimeout(),
                 waitForAnalyticsToStart
             );
         }, listener::onFailure);
@@ -220,7 +228,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         );
 
         // Get start context
-        getStartContext(request.getId(), task, startContextListener);
+        getStartContext(request.getId(), task, startContextListener, request.masterNodeTimeout());
     }
 
     private void estimateMemoryUsageAndUpdateMemoryTracker(StartContext startContext, ActionListener<StartContext> listener) {
@@ -261,7 +269,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
 
     }
 
-    private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener) {
+    private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener, TimeValue masterTimeout) {
 
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
 
@@ -317,6 +325,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             .<StartContext>andThen(
                 (l, startContext) -> MappingsMerger.mergeMappings(
                     parentTaskClient,
+                    masterTimeout,
                     startContext.config.getHeaders(),
                     startContext.config.getSource(),
                     l.map(ignored -> startContext)
@@ -339,7 +348,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         validateSourceIndexHasAtLeastOneAnalyzedField(startContext, validateAtLeastOneAnalyzedFieldListener);
     }
 
-    private void validateSourceIndexHasAtLeastOneAnalyzedField(StartContext startContext, ActionListener<Void> listener) {
+    private static void validateSourceIndexHasAtLeastOneAnalyzedField(StartContext startContext, ActionListener<Void> listener) {
         Set<String> requiredFields = startContext.config.getAnalysis()
             .getRequiredFields()
             .stream()
@@ -382,7 +391,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                         Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
                     )
                 );
-            } else if (Math.floor(startContext.config.getAnalysis().getTrainingPercent() * dataSummary.rows) >= Math.pow(2, 32)) {
+            } else if (tooManyDocumentsForAnalysis(dataSummary.rows, startContext.config.getAnalysis().getTrainingPercent())) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "Unable to start because too many documents "
@@ -393,6 +402,10 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 listener.onResponse(startContext);
             }
         }, listener::onFailure));
+    }
+
+    static boolean tooManyDocumentsForAnalysis(long rows, double trainingPercent) {
+        return Math.floor(rows * trainingPercent / 100.0) >= Math.pow(2, 32);
     }
 
     private void getProgress(DataFrameAnalyticsConfig config, ActionListener<List<PhaseProgress>> listener) {
@@ -414,7 +427,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         );
     }
 
-    private void checkDestIndexIsEmptyIfExists(
+    private static void checkDestIndexIsEmptyIfExists(
         ParentTaskAssigningClient parentTaskClient,
         StartContext startContext,
         ActionListener<StartContext> listener
@@ -427,10 +440,10 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             startContext.config.getHeaders(),
             ClientHelper.ML_ORIGIN,
             parentTaskClient,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             destEmptySearch,
             ActionListener.wrap(searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value > 0) {
+                if (searchResponse.getHits().getTotalHits().value() > 0) {
                     listener.onFailure(ExceptionsHelper.badRequestException("dest index [{}] must be empty", destIndex));
                 } else {
                     listener.onResponse(startContext);
@@ -600,7 +613,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     ) {
         persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
-            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
+            MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+            new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                     // We succeeded in cancelling the persistent task, but the
@@ -682,10 +696,11 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
             TaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            @SuppressWarnings("HiddenField") ClusterState clusterState
+            @SuppressWarnings("HiddenField") ClusterState clusterState,
+            @Nullable ProjectId projectId
         ) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
             Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(
@@ -787,7 +802,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(
                 DataFrameAnalyticsState.STARTED,
                 task.getAllocationId(),
-                null
+                null,
+                Instant.now()
             );
             task.updatePersistentTaskState(
                 startedState,
@@ -806,21 +822,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                     + id
                     + "] on node ["
                     + JobNodeSelector.nodeNameAndVersion(node)
-                    + "], because the data frame analytics requires a node of version ["
+                    + "], because the data frame analytics requires a node with ML config version ["
                     + TaskParams.VERSION_INTRODUCED
-                    + "] or higher";
-            }
-            if (node.getVersion().before(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)
-                && params.getVersion().onOrAfter(MlConfigVersion.fromVersion(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED))) {
-                return "Not opening job ["
-                    + id
-                    + "] on node ["
-                    + JobNodeSelector.nodeNameAndVersion(node)
-                    + "], because the data frame analytics created for version ["
-                    + params.getVersion()
-                    + "] requires a node of version "
-                    + "["
-                    + TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED
                     + "] or higher";
             }
 

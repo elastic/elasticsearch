@@ -73,7 +73,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
                 throw samlException("Logout request is not signed");
             }
         } else {
-            validateSignature(signature);
+            validateSignature(signature, logoutRequest.getIssuer());
         }
 
         checkIssuer(logoutRequest.getIssuer(), logoutRequest);
@@ -116,7 +116,7 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
         }
     }
 
-    private String getSessionIndex(LogoutRequest logoutRequest) {
+    private static String getSessionIndex(LogoutRequest logoutRequest) {
         return logoutRequest.getSessionIndexes().stream().map(as -> as.getValue()).filter(Objects::nonNull).findFirst().orElse(null);
     }
 

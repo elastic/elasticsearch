@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
@@ -53,9 +55,14 @@ class RoundingValuesSource extends ValuesSource.Numeric {
     }
 
     @Override
-    public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
-        SortedNumericDocValues values = vs.longValues(context);
-        return new SortedNumericDocValues() {
+    public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
+        final SortedNumericLongValues values = vs.longValues(context);
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
+        return singleton != null ? SortedNumericLongValues.singleton(longSingleValues(singleton)) : longMultiValues(values);
+    }
+
+    private SortedNumericLongValues longMultiValues(SortedNumericLongValues values) {
+        return new SortedNumericLongValues() {
             @Override
             public long nextValue() throws IOException {
                 return round(values.nextValue());
@@ -70,25 +77,19 @@ class RoundingValuesSource extends ValuesSource.Numeric {
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);
             }
+        };
+    }
 
+    private LongValues longSingleValues(LongValues values) {
+        return new LongValues() {
             @Override
-            public int docID() {
-                return values.docID();
+            public long longValue() throws IOException {
+                return round(values.longValue());
             }
 
             @Override
-            public int nextDoc() throws IOException {
-                return values.nextDoc();
-            }
-
-            @Override
-            public int advance(int target) throws IOException {
-                return values.advance(target);
-            }
-
-            @Override
-            public long cost() {
-                return values.cost();
+            public boolean advanceExact(int target) throws IOException {
+                return values.advanceExact(target);
             }
         };
     }

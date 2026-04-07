@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -17,16 +18,19 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
@@ -44,6 +48,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
@@ -63,17 +69,24 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
+        final ProjectId projectId = randomProjectIdOrDefault();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+                    .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            )
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
-            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.getProject(projectId).index("test"))
+            .addAsNew(metadata.getProject(projectId).index("test1"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, initialRoutingTable))
+            .build();
 
         logger.info("Adding three node and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -129,17 +142,24 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
+        final ProjectId projectId = randomProjectIdOrDefault();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+                    .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            )
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
-            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.getProject(projectId).index("test"))
+            .addAsNew(metadata.getProject(projectId).index("test1"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, initialRoutingTable))
+            .build();
 
         logger.info("Adding node-1 and performing reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -160,8 +180,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         logger.info("Await all shards reallocate");
         clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
 
-        assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
-        assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
+        assertThat(clusterState.routingTable(projectId).index("test").size(), equalTo(3));
+        assertThat(clusterState.routingTable(projectId).index("test1").size(), equalTo(3));
 
         assertThat(clusterState.getRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(4));
         assertThat(clusterState.getRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(4));
@@ -189,15 +209,22 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
+        final ProjectId projectId = randomProjectIdOrDefault();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            )
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject(projectId).index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, initialRoutingTable))
+            .build();
 
         logger.info("Adding three node and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -262,14 +289,18 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         logger.info("Add new index 3 shards 1 replica");
 
-        metadata = Metadata.builder(clusterState.metadata())
+        ProjectMetadata updatedProject = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
             .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), 3, 1)))
             .build();
+        metadata = Metadata.builder(clusterState.metadata()).put(updatedProject).build();
         RoutingTable updatedRoutingTable = RoutingTable.builder(
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            clusterState.routingTable()
-        ).addAsNew(metadata.index("test1")).build();
-        clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(updatedRoutingTable).build();
+            clusterState.routingTable(projectId)
+        ).addAsNew(metadata.getProject(projectId).index("test1")).build();
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, updatedRoutingTable))
+            .build();
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(assertShardStats(routingNodes), equalTo(true));
@@ -277,7 +308,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         assertThat(routingNodes.hasInactivePrimaries(), equalTo(false));
         assertThat(routingNodes.hasUnassignedPrimaries(), equalTo(true));
 
-        assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
+        assertThat(clusterState.routingTable(projectId).index("test1").size(), equalTo(3));
 
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
@@ -319,7 +350,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").shardsWithState("test1", STARTED).count(), equalTo(2L));
 
         logger.info("kill one node");
-        IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable(projectId).index("test").shard(0);
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId()))
             .build();
@@ -353,12 +384,13 @@ public class RoutingNodesTests extends ESAllocationTestCase {
     }
 
     public void testNodeInterleavedShardIterator() {
+        final var projectId = randomProjectIdOrDefault();
         final var numberOfShards = between(1, 5);
         final var numberOfReplicas = between(0, 4);
         final var indexMetadata = IndexMetadata.builder("index")
             .settings(indexSettings(IndexVersion.current(), numberOfShards, numberOfReplicas))
             .build();
-        final var metadata = Metadata.builder().put(indexMetadata, true).build();
+        final var metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, true)).build();
         final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build();
 
         final var nodeCount = between(numberOfReplicas + 1, 6);
@@ -378,7 +410,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(metadata)
-            .routingTable(routingTable)
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, routingTable))
             .build();
         boolean changed;
         do {
@@ -388,7 +420,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         } while (changed);
 
         final Map<String, Set<ShardId>> shardsByNode = Maps.newMapWithExpectedSize(nodeCount);
-        for (final var indexRoutingTable : clusterState.routingTable()) {
+        for (final var indexRoutingTable : clusterState.routingTable(projectId)) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
                 for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
@@ -416,6 +448,57 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         assertTrue(shardsByNode.values().stream().allMatch(Set::isEmpty));
     }
 
+    public void testBuildRoutingNodesForMultipleProjects() {
+        final Metadata.Builder mb = Metadata.builder();
+        final int numberOfProjects = randomIntBetween(2, 10);
+        int shardCount = 0;
+        for (int i = 1; i <= numberOfProjects; i++) {
+            var projectId = ProjectId.fromId("p" + i);
+            mb.put(
+                ProjectMetadata.builder(projectId)
+                    .put(
+                        IndexMetadata.builder("test")
+                            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+                            .numberOfShards(i)
+                            .numberOfReplicas(1)
+                    )
+                    .put(
+                        IndexMetadata.builder("test-" + i)
+                            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+                            .numberOfShards(1)
+                            .numberOfReplicas(i)
+                    )
+            );
+            shardCount += 2 * i;
+            shardCount += 1 + i;
+        }
+        Metadata metadata = mb.build();
+        assertThat(metadata.projects(), aMapWithSize(numberOfProjects));
+
+        final GlobalRoutingTable initialRoutingTable = GlobalRoutingTableTestHelper.buildRoutingTable(
+            metadata,
+            RoutingTable.Builder::addAsNew
+        );
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
+
+        final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        final int numberOfNodes = randomIntBetween(1, 5);
+        for (int i = 1; i <= numberOfNodes; i++) {
+            nodesBuilder.add(newNode("node" + i));
+        }
+        clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+
+        assertThat(assertShardStats(routingNodes), equalTo(true));
+        assertThat(routingNodes.hasInactiveShards(), equalTo(false));
+        assertThat(routingNodes.hasInactivePrimaries(), equalTo(false));
+        assertThat(routingNodes.hasUnassignedPrimaries(), equalTo(true));
+
+        assertThat(routingNodes.size(), equalTo(numberOfNodes));
+        assertThat(routingNodes.unassigned().size(), equalTo(shardCount));
+        assertThat(routingNodes.getAssignedShards(), aMapWithSize(0));
+    }
+
     public void testMoveShardWithDefaultRole() {
         runMoveShardRolesTest(ShardRouting.Role.DEFAULT, ShardRouting.Role.DEFAULT);
     }
@@ -425,6 +508,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
     }
 
     private void runMoveShardRolesTest(ShardRouting.Role primaryRole, ShardRouting.Role replicaRole) {
+        var projectId = randomProjectIdOrDefault();
         var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
         var indexMetadata = IndexMetadata.builder("index")
             .settings(indexSettings(IndexVersion.current(), 1, 1))
@@ -434,8 +518,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
         var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-1", null, true, STARTED, primaryRole))
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-2", null, false, STARTED, replicaRole))
+            .addShard(shardRoutingBuilder(shardId, "node-1", true, STARTED).withRole(primaryRole).build())
+            .addShard(shardRoutingBuilder(shardId, "node-2", false, STARTED).withRole(replicaRole).build())
             .build();
 
         var node1 = newNode("node-1");
@@ -443,15 +527,14 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         var node3 = newNode("node-3");
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).build())
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build()))
             .build();
 
         var routingNodes = clusterState.getRoutingNodes().mutableCopy();
 
-        routingNodes.relocateShard(routingNodes.node("node-1").getByShardId(shardId), "node-3", 0L, new RoutingChangesObserver() {
-        });
+        routingNodes.relocateShard(routingNodes.node("node-1").getByShardId(shardId), "node-3", 0L, "test", RoutingChangesObserver.NOOP);
 
         assertThat(routingNodes.node("node-1").getByShardId(shardId).state(), equalTo(RELOCATING));
         assertThat(routingNodes.node("node-2").getByShardId(shardId).state(), equalTo(STARTED));

@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -22,7 +23,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 
@@ -126,12 +126,14 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
         if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        final long bucketCount = counts.get(bucket);
+        final double bucketLatSum = latSum.get(bucket);
+        final double bucketLonSum = lonSum.get(bucket);
         final double bucketWeight = weightSum.get(bucket);
-        final GeoPoint bucketCentroid = (bucketWeight > 0)
-            ? new GeoPoint(latSum.get(bucket) / bucketWeight, lonSum.get(bucket) / bucketWeight)
-            : null;
-        return new InternalGeoCentroid(name, bucketCentroid, bucketCount, metadata());
+        final long bucketCount = counts.get(bucket);
+        final DimensionalShapeType bucketShapeType = DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket));
+        final GeoPoint bucketCentroid = bucketWeight > 0 ? new GeoPoint(bucketLatSum / bucketWeight, bucketLonSum / bucketWeight) : null;
+        var shapeData = new InternalGeoCentroid.ShapeData(bucketLatSum, bucketLonSum, bucketWeight, bucketShapeType);
+        return new InternalGeoCentroid(name, bucketCentroid, bucketCount, shapeData, metadata());
     }
 
     @Override

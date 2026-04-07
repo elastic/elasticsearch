@@ -7,40 +7,38 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.function.Function;
+import java.io.IOException;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
 /**
  * Common base for trigonometric functions.
  */
-abstract class AbstractTrigonometricFunction extends UnaryScalarFunction implements EvaluatorMapper {
+abstract class AbstractTrigonometricFunction extends UnaryScalarFunction {
     AbstractTrigonometricFunction(Source source, Expression field) {
         super(source, field);
     }
 
-    protected abstract EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext dvrDtx);
-
-    @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var fieldEval = Cast.cast(field().dataType(), DataTypes.DOUBLE, toEvaluator.apply(field()));
-        return dvrCtx -> doubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+    protected AbstractTrigonometricFunction(StreamInput in) throws IOException {
+        super(in);
     }
 
+    /**
+     * Build an evaluator for this function given the evaluator for it’s input.
+     */
+    protected abstract ExpressionEvaluator.Factory doubleEvaluator(ExpressionEvaluator.Factory field);
+
     @Override
-    public final Object fold() {
-        return EvaluatorMapper.super.fold();
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        return doubleEvaluator(Cast.cast(source(), field().dataType(), DataType.DOUBLE, toEvaluator.apply(field())));
     }
 
     @Override
@@ -54,6 +52,6 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction impleme
 
     @Override
     public final DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 }

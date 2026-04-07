@@ -8,16 +8,21 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 
+/**
+ * Builds the resulting {@link $Type$Block} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderFor$Type$ implements ResultBuilder {
     private final $Type$Block.Builder builder;
 
     private final boolean inKey;
 
-$if(BytesRef)$
     private final TopNEncoder encoder;
 
+$if(BytesRef)$
     private final BytesRef scratch = new BytesRef();
 $endif$
 
@@ -26,23 +31,19 @@ $endif$
      */
     private $type$ key;
 
-    ResultBuilderFor$Type$(TopNEncoder encoder, boolean inKey, int initialSize) {
-$if(BytesRef)$
+    ResultBuilderFor$Type$(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         this.encoder = encoder;
-$else$
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
-$endif$
         this.inKey = inKey;
-        this.builder = $Type$Block.newBlockBuilder(initialSize);
+        this.builder = blockFactory.new$Type$BlockBuilder(initialSize);
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
 $if(BytesRef)$
-        key = encoder.toSortable().decodeBytesRef(keys, scratch);
+        key = encoder.toSortable(asc).decodeBytesRef(keys, scratch);
 $else$
-        key = TopNEncoder.DEFAULT_SORTABLE.decode$Type$(keys);
+        key = encoder.toSortable(asc).decode$Type$(keys);
 $endif$
     }
 
@@ -78,7 +79,17 @@ $endif$
     }
 
     @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
+    }
+
+    @Override
     public String toString() {
         return "ResultBuilderFor$Type$[inKey=" + inKey + "]";
+    }
+
+    @Override
+    public void close() {
+        builder.close();
     }
 }

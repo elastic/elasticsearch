@@ -14,7 +14,7 @@ public class DeleteLifecycleRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLengthBetween(1, 20));
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override
@@ -24,7 +24,7 @@ public class DeleteLifecycleRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected Request mutateInstance(Request request) {
-        return new Request(request.getPolicyName() + randomAlphaOfLengthBetween(1, 10));
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, request.getPolicyName() + randomAlphaOfLengthBetween(1, 10));
     }
 
 }

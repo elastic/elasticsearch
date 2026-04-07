@@ -1508,10 +1508,17 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
 
     static final String TARGET_FIELD = "CentralAir";
 
+    /**
+     * Fixed seed for boosted-tree training in {@link #testFeatureImportanceValues}. A random seed can rarely
+     * produce empty per-document feature importance; in that case {@code feature_importance} is omitted from
+     * inference results (see {@code ClassificationInferenceResults#addSupportingFieldsToMap}), failing the test.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/124341">#124341</a>.
+     */
+    private static final long FEATURE_IMPORTANCE_RANDOMIZE_SEED = 42L;
+
     private String jobId;
     private String sourceIndex;
     private String destIndex;
-    private long randomizeSeed;
 
     @Before
     public void setupLogging() {
@@ -1520,11 +1527,6 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
                 .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG")
                 .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
         );
-    }
-
-    @Before
-    public void setUpTests() {
-        randomizeSeed = randomLong();
     }
 
     @After
@@ -1551,7 +1553,7 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
                 null,
                 null,
                 35.0,
-                randomizeSeed,
+                FEATURE_IMPORTANCE_RANDOMIZE_SEED,
                 null,
                 null
             )
@@ -1566,37 +1568,39 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
         waitUntilAnalyticsIsStopped(jobId);
 
         client().admin().indices().refresh(new RefreshRequest(destIndex));
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
-
-        // obtain addition information for investigation of #90599
-        String modelId = getModelId(jobId);
-        TrainedModelMetadata modelMetadata = getModelMetadata(modelId);
-        assertThat(modelMetadata.getHyperparameters().size(), greaterThan(0));
-        StringBuilder hyperparameters = new StringBuilder(); // used to investigate #90019
-        for (Hyperparameters hyperparameter : modelMetadata.getHyperparameters()) {
-            hyperparameters.append(hyperparameter.hyperparameterName).append(": ").append(hyperparameter.value).append("\n");
+        SearchResponse sourceData = prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        try {
+            // obtain addition information for investigation of #90599
+            String modelId = getModelId(jobId);
+            TrainedModelMetadata modelMetadata = getModelMetadata(modelId);
+            assertThat(modelMetadata.getHyperparameters().size(), greaterThan(0));
+            StringBuilder hyperparameters = new StringBuilder(); // used to investigate #90019
+            for (Hyperparameters hyperparameter : modelMetadata.getHyperparameters()) {
+                hyperparameters.append(hyperparameter.hyperparameterName).append(": ").append(hyperparameter.value).append("\n");
+            }
+            TrainedModelDefinition modelDefinition = getModelDefinition(modelId);
+            Ensemble ensemble = (Ensemble) modelDefinition.getTrainedModel();
+            int numberTrees = ensemble.getModels().size();
+            String str = "Failure: failed for inferenceEntityId %s numberTrees %d\n";
+            for (SearchHit hit : sourceData.getHits()) {
+                Map<String, Object> destDoc = getDestDoc(config, hit);
+                assertNotNull(destDoc);
+                Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
+                assertThat(resultsObject.containsKey(predictionField), is(true));
+                String predictionValue = (String) resultsObject.get(predictionField);
+                assertNotNull(predictionValue);
+                assertThat(resultsObject.containsKey("feature_importance"), is(true));
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
+                assertThat(
+                    Strings.format(str, modelId, numberTrees) + predictionValue + hyperparameters + modelDefinition,
+                    importanceArray,
+                    hasSize(greaterThan(0))
+                );
+            }
+        } finally {
+            sourceData.decRef();
         }
-        TrainedModelDefinition modelDefinition = getModelDefinition(modelId);
-        Ensemble ensemble = (Ensemble) modelDefinition.getTrainedModel();
-        int numberTrees = ensemble.getModels().size();
-        String str = "Failure: failed for modelId %s numberTrees %d\n";
-        for (SearchHit hit : sourceData.getHits()) {
-            Map<String, Object> destDoc = getDestDoc(config, hit);
-            assertNotNull(destDoc);
-            Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
-            assertThat(resultsObject.containsKey(predictionField), is(true));
-            String predictionValue = (String) resultsObject.get(predictionField);
-            assertNotNull(predictionValue);
-            assertThat(resultsObject.containsKey("feature_importance"), is(true));
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
-            assertThat(
-                Strings.format(str, modelId, numberTrees) + predictionValue + hyperparameters + modelDefinition,
-                importanceArray,
-                hasSize(greaterThan(0))
-            );
-        }
-
     }
 
     static void indexData(String sourceIndex) {

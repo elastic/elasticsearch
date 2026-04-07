@@ -1,42 +1,52 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
-
-import java.util.Stack;
 
 public final class ContentPath {
 
     private static final char DELIMITER = '.';
 
     private final StringBuilder sb;
-    private final Stack<Integer> delimiterIndexes;
+
+    private int index = 0;
+
+    private String[] path = new String[10];
+
     private boolean withinLeafObject = false;
 
     public ContentPath() {
         this.sb = new StringBuilder();
-        this.delimiterIndexes = new Stack<>();
+    }
+
+    String[] getPath() {
+        // used for testing
+        return path;
     }
 
     public void add(String name) {
-        // Store the location of the previous final delimiter onto the stack,
-        // which will be the index of the 2nd last delimiter after appending the new name
-        delimiterIndexes.add(sb.length() - 1);
-        sb.append(name).append(DELIMITER);
+        path[index++] = name;
+        if (index == path.length) { // expand if needed
+            expand();
+        }
     }
 
-    public void remove() {
-        if (delimiterIndexes.isEmpty()) {
-            throw new IllegalStateException("Content path is empty");
-        }
+    private void expand() {
+        String[] newPath = new String[path.length + 10];
+        System.arraycopy(path, 0, newPath, 0, path.length);
+        path = newPath;
+    }
 
-        // Deletes the last node added to the stringbuilder by deleting from the 2nd last delimiter onwards
-        sb.setLength(delimiterIndexes.pop() + 1);
+    public String remove() {
+        var ret = path[--index];
+        path[index] = null;
+        return ret;
     }
 
     public void setWithinLeafObject(boolean withinLeafObject) {
@@ -48,16 +58,18 @@ public final class ContentPath {
     }
 
     public String pathAsText(String name) {
-        // If length is 0 we know that we are at the root, so return the provided string directly
-        if (length() == 0) {
+        if (index == 0) {
             return name;
         }
-
-        return sb + name;
+        sb.setLength(0);
+        for (int i = 0; i < index; i++) {
+            sb.append(path[i]).append(DELIMITER);
+        }
+        sb.append(name);
+        return sb.toString();
     }
 
     public int length() {
-        // The amount of delimiters we've added tells us the amount of nodes that have been added to the path
-        return delimiterIndexes.size();
+        return index;
     }
 }

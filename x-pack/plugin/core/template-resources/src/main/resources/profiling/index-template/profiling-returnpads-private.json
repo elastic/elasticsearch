@@ -5,7 +5,6 @@
   "template": {
     "settings": {
       "index": {
-        "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
         "refresh_interval": "10s",
         "hidden": true
@@ -21,7 +20,9 @@
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
-        "index-version": ${xpack.profiling.index.returnpads.private.version}
+        "index-version": ${xpack.profiling.index.returnpads.private.version},
+        "description": "Index template for .profiling-returnpads-private",
+        "managed": true
       },
       "dynamic": false,
       "properties": {

@@ -33,7 +33,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
     public static final String NAME = "cluster:monitor/xpack/ml/inference/get";
 
     private GetTrainedModelsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Includes implements Writeable {
@@ -123,7 +123,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         }
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField INCLUDE = new ParseField("include");
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");

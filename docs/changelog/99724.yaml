@@ -1,5 +1,0 @@
-pr: 99724
-summary: Upgrade bundled JDK to Java 21
-area: Packaging
-type: upgrade
-issues: []

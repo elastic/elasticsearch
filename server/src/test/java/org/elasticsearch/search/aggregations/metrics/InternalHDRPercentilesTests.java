@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -69,11 +70,6 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
         }
     }
 
-    @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedHDRPercentiles.class;
-    }
-
     public void testIterator() {
         final double[] percents = randomPercents(false);
         final double[] values = new double[frequently() ? randomIntBetween(1, 10) : 0];
@@ -101,10 +97,10 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
             String percentileName = nameIterator.next();
 
             assertEquals(percent, Double.valueOf(percentileName), 0.0d);
-            assertEquals(percent, percentile.getPercent(), 0.0d);
+            assertEquals(percent, percentile.percent(), 0.0d);
 
-            assertEquals(aggregation.percentile(percent), percentile.getValue(), 0.0d);
-            assertEquals(aggregation.value(String.valueOf(percent)), percentile.getValue(), 0.0d);
+            assertEquals(aggregation.percentile(percent), percentile.value(), 0.0d);
+            assertEquals(aggregation.value(String.valueOf(percent)), percentile.value(), 0.0d);
         }
         assertFalse(iterator.hasNext());
         assertFalse(nameIterator.hasNext());

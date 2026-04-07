@@ -86,11 +86,16 @@ public enum QueryRuleCriteriaType {
         }
     };
 
-    public void validateInput(Object input) {
+    public boolean validateInput(Object input, boolean throwOnInvalidInput) {
         boolean isValid = isValidForInput(input);
-        if (isValid == false) {
+        if (isValid == false && throwOnInvalidInput) {
             throw new IllegalArgumentException("Input [" + input + "] is not valid for CriteriaType [" + this + "]");
         }
+        return isValid;
+    }
+
+    public boolean validateInput(Object input) {
+        return validateInput(input, true);
     }
 
     public abstract boolean isMatch(Object input, Object criteriaValue);

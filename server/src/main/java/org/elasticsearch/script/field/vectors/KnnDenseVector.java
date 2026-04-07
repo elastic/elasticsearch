@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
 
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
 import java.util.List;
@@ -16,9 +17,16 @@ import java.util.List;
 public class KnnDenseVector implements DenseVector {
 
     protected final float[] docVector;
+    private float magnitude;
 
     public KnnDenseVector(float[] docVector) {
         this.docVector = docVector;
+        this.magnitude = Float.NaN;
+    }
+
+    public KnnDenseVector(float[] docVector, float magnitude) {
+        this.docVector = docVector;
+        this.magnitude = magnitude;
     }
 
     @Override
@@ -30,17 +38,20 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public float getMagnitude() {
-        return DenseVector.getMagnitude(docVector);
+        if (Float.isNaN(magnitude)) {
+            magnitude = DenseVector.getMagnitude(docVector);
+        }
+        return magnitude;
     }
 
     @Override
-    public int dotProduct(byte[] queryVector) {
+    public double dotProduct(byte[] queryVector) {
         throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector)] instead");
     }
 
     @Override
     public double dotProduct(float[] queryVector) {
-        return VectorUtil.dotProduct(docVector, queryVector);
+        return ESVectorUtil.dotProduct(docVector, queryVector);
     }
 
     @Override
@@ -76,13 +87,23 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
+    public int hamming(byte[] queryVector) {
+        throw new UnsupportedOperationException("hamming distance is not supported for float vectors");
+    }
+
+    @Override
+    public int hamming(List<Number> queryVector) {
+        throw new UnsupportedOperationException("hamming distance is not supported for float vectors");
+    }
+
+    @Override
     public double l2Norm(byte[] queryVector) {
         throw new UnsupportedOperationException("use [double l2Norm(float[] queryVector)] instead");
     }
 
     @Override
     public double l2Norm(float[] queryVector) {
-        return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
+        return Math.sqrt(ESVectorUtil.squareDistance(docVector, queryVector));
     }
 
     @Override

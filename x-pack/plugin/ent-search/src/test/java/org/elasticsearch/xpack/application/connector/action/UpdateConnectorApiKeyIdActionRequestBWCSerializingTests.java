@@ -1,0 +1,59 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.application.connector.action;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.io.IOException;
+
+public class UpdateConnectorApiKeyIdActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<
+    UpdateConnectorApiKeyIdAction.Request> {
+
+    private String connectorId;
+
+    @Override
+    protected Writeable.Reader<UpdateConnectorApiKeyIdAction.Request> instanceReader() {
+        return UpdateConnectorApiKeyIdAction.Request::new;
+    }
+
+    @Override
+    protected UpdateConnectorApiKeyIdAction.Request createTestInstance() {
+        this.connectorId = randomUUID();
+        return new UpdateConnectorApiKeyIdAction.Request(connectorId, randomAlphaOfLengthBetween(5, 15), randomAlphaOfLengthBetween(5, 15));
+    }
+
+    @Override
+    protected UpdateConnectorApiKeyIdAction.Request mutateInstance(UpdateConnectorApiKeyIdAction.Request instance) throws IOException {
+        String originalConnectorId = instance.getConnectorId();
+        String apiKeyId = instance.getApiKeyId();
+        String apiKeySecretId = instance.getApiKeySecretId();
+        switch (between(0, 2)) {
+            case 0 -> originalConnectorId = randomValueOtherThan(originalConnectorId, () -> randomUUID());
+            case 1 -> apiKeyId = randomValueOtherThan(apiKeyId, () -> randomAlphaOfLengthBetween(5, 15));
+            case 2 -> apiKeySecretId = randomValueOtherThan(apiKeySecretId, () -> randomAlphaOfLengthBetween(5, 15));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UpdateConnectorApiKeyIdAction.Request(originalConnectorId, apiKeyId, apiKeySecretId);
+    }
+
+    @Override
+    protected UpdateConnectorApiKeyIdAction.Request doParseInstance(XContentParser parser) throws IOException {
+        return UpdateConnectorApiKeyIdAction.Request.fromXContent(parser, this.connectorId);
+    }
+
+    @Override
+    protected UpdateConnectorApiKeyIdAction.Request mutateInstanceForVersion(
+        UpdateConnectorApiKeyIdAction.Request instance,
+        TransportVersion version
+    ) {
+        return instance;
+    }
+}

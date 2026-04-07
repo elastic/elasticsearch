@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
+import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -27,15 +28,15 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.Map;
 
-public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleValue {
+public final class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleValue {
 
-    protected final ValuesSource.Numeric valuesSource;
+    private final ValuesSource.Numeric valuesSource;
 
-    protected DoubleArray startValues;
-    protected DoubleArray endValues;
-    protected LongArray startTimes;
-    protected LongArray endTimes;
-    protected DoubleArray resetCompensations;
+    private DoubleArray startValues;
+    private DoubleArray endValues;
+    private LongArray startTimes;
+    private LongArray endTimes;
+    private DoubleArray resetCompensations;
 
     private long currentBucket = -1;
     private long currentEndTime = -1;
@@ -48,7 +49,7 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
     private final Rounding.DateTimeUnit rateUnit;
 
     // Unused parameters are so that the constructor implements `RateAggregatorSupplier`
-    protected TimeSeriesRateAggregator(
+    TimeSeriesRateAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,
@@ -65,6 +66,18 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
         this.endTimes = bigArrays().newLongArray(1, true);
         this.resetCompensations = bigArrays().newDoubleArray(1, true);
         this.rateUnit = rateUnit;
+
+        Aggregator parentIterator = parent;
+        while (parentIterator != null) {
+            if (parentIterator instanceof DeferableBucketAggregator) {
+                throw new IllegalArgumentException(
+                    "Wrapping a time-series rate aggregation within a DeferableBucketAggregator is not "
+                        + "supported. Consider using an alternative outer aggregation type to avoid this, e.g. date_histogram instead of "
+                        + "auto_date_histogram."
+                );
+            }
+            parentIterator = parentIterator.parent();
+        }
     }
 
     @Override
@@ -94,7 +107,7 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
 
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        NumericDoubleValues leafValues = MultiValueMode.MAX.select(valuesSource.doubleValues(aggCtx.getLeafReaderContext()));
+        DoubleValues leafValues = MultiValueMode.MAX.select(valuesSource.doubleValues(aggCtx.getLeafReaderContext()));
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -107,10 +120,10 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
                     startTimes = bigArrays().grow(startTimes, bucket + 1);
                     endTimes = bigArrays().grow(endTimes, bucket + 1);
                     resetCompensations = bigArrays().grow(resetCompensations, bucket + 1);
-                    if (currentTsid != aggCtx.getTsidOrd()) {
+                    if (currentTsid != aggCtx.getTsidHashOrd()) {
                         // if we're on a new tsid then we need to calculate the last bucket
                         calculateLastBucket();
-                        currentTsid = aggCtx.getTsidOrd();
+                        currentTsid = aggCtx.getTsidHashOrd();
                     } else {
                         // if we're in a new bucket but in the same tsid then we update the
                         // timestamp and last value before we calculate the last bucket

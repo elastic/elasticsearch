@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli;
@@ -18,6 +19,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.Reader;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Locale;
@@ -71,6 +74,13 @@ public abstract class Terminal {
     }
 
     /**
+     * Constructs a terminal instance from a delegate instance.
+     */
+    protected Terminal(Terminal delegate) {
+        this(delegate.reader, delegate.outWriter, delegate.errWriter);
+    }
+
+    /**
      * Sets the verbosity of the terminal.
      *
      * <p> Defaults to {@link Verbosity#NORMAL}.
@@ -111,14 +121,12 @@ public abstract class Terminal {
         return reader;
     }
 
-    /** Returns a Writer which can be used to write to the terminal directly using standard output. */
-    public final PrintWriter getWriter() {
-        return outWriter;
-    }
-
-    /** Returns a Writer which can be used to write to the terminal directly using standard error. */
-    public final PrintWriter getErrorWriter() {
-        return errWriter;
+    /**
+     * Returns a line based OutputStream wrapping this Terminal's println.
+     * Note, this OutputStream is not thread-safe!
+     */
+    public final OutputStream asLineOutputStream(Charset charset) {
+        return new LineOutputStream(charset);
     }
 
     /**
@@ -136,7 +144,7 @@ public abstract class Terminal {
      * Returns an OutputStream which can be used to write to the terminal directly using standard output.
      *
      * <p> May return {@code null} if this Terminal is not capable of binary output.
-     * This corresponds with the underlying stream of bytes written to by {@link #getWriter()}.
+     * This corresponds with the underlying stream of bytes written to by {@link #println(CharSequence)}.
       */
     @Nullable
     public OutputStream getOutputStream() {
@@ -150,12 +158,12 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal at {@code verbosity} level. */
     public final void println(Verbosity verbosity, CharSequence msg) {
-        print(verbosity, outWriter, msg, true);
+        print(verbosity, outWriter, msg, true, true);
     }
 
     /** Prints message to the terminal's standard output at {@code verbosity} level, without a newline. */
     public final void print(Verbosity verbosity, String msg) {
-        print(verbosity, outWriter, msg, false);
+        print(verbosity, outWriter, msg, false, true);
     }
 
     /**
@@ -163,30 +171,49 @@ public abstract class Terminal {
      *
      * Subclasses may override if the writers are not implemented.
      */
-    protected void print(Verbosity verbosity, PrintWriter writer, CharSequence msg, boolean newline) {
+    protected void print(Verbosity verbosity, PrintWriter writer, CharSequence msg, boolean newline, boolean flush) {
         if (isPrintable(verbosity)) {
             if (newline) {
                 writer.println(msg);
             } else {
                 writer.print(msg);
             }
-            writer.flush();
+            if (flush) {
+                writer.flush();
+            }
         }
     }
 
     /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, without a newline. */
     public final void errorPrint(Verbosity verbosity, String msg) {
-        print(verbosity, errWriter, msg, false);
+        print(verbosity, errWriter, msg, false, true);
     }
 
     /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level. */
     public final void errorPrintln(String msg) {
-        errorPrintln(Verbosity.NORMAL, msg);
+        print(Verbosity.NORMAL, errWriter, msg, true, true);
     }
 
     /** Prints a line to the terminal's standard error at {@code verbosity} level. */
     public final void errorPrintln(Verbosity verbosity, String msg) {
-        print(verbosity, errWriter, msg, true);
+        print(verbosity, errWriter, msg, true, true);
+    }
+
+    /** Prints a line to the terminal's standard error at {@code verbosity} level, with an optional flush */
+    public final void errorPrintln(Verbosity verbosity, String msg, boolean flush) {
+        print(verbosity, errWriter, msg, true, flush);
+    }
+
+    /** Prints a stacktrace to the terminal's standard error at {@code verbosity} level. */
+    public void errorPrintln(Verbosity verbosity, Throwable throwable) {
+        if (isPrintable(verbosity)) {
+            throwable.printStackTrace(errWriter);
+        }
+    }
+
+    /** Prints a stacktrace to the terminal's standard error at {@link Verbosity#SILENT} verbosity level. */
+    public void errorPrintln(Throwable throwable) {
+        errorPrintln(Verbosity.SILENT, throwable);
     }
 
     /** Checks if is enough {@code verbosity} level to be printed */
@@ -274,8 +301,8 @@ public abstract class Terminal {
     }
 
     private static class ConsoleTerminal extends Terminal {
-
-        private static final Console CONSOLE = System.console();
+        private static final int JDK_VERSION_WITH_IS_TERMINAL = 22;
+        private static final Console CONSOLE = detectTerminal();
 
         ConsoleTerminal() {
             super(CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER);
@@ -283,6 +310,23 @@ public abstract class Terminal {
 
         static boolean isSupported() {
             return CONSOLE != null;
+        }
+
+        static Console detectTerminal() {
+            // JDK >= 22 returns a console even if the terminal is redirected unless using -Djdk.console=java.base
+            // https://bugs.openjdk.org/browse/JDK-8308591
+            Console console = System.console();
+            if (console != null && Runtime.version().feature() >= JDK_VERSION_WITH_IS_TERMINAL) {
+                try {
+                    // verify the console is a terminal using isTerminal() on JDK >= 22
+                    // TODO: Remove reflection once Java 22 sources are supported, e.g. using a MRJAR
+                    Method isTerminal = Console.class.getMethod("isTerminal");
+                    return Boolean.TRUE.equals(isTerminal.invoke(console)) ? console : null;
+                } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            return console;
         }
 
         @Override
@@ -318,6 +362,56 @@ public abstract class Terminal {
         @Override
         public OutputStream getOutputStream() {
             return System.out;
+        }
+    }
+
+    /** A line based OutputStream wrapping this Terminal's println, not thread-safe! */
+    private class LineOutputStream extends OutputStream {
+        static final int DEFAULT_BUFFER_LENGTH = 1024;
+        static final int MAX_BUFFER_LENGTH = DEFAULT_BUFFER_LENGTH * 8;
+
+        private final Charset charset;
+        private byte[] bytes = new byte[DEFAULT_BUFFER_LENGTH];
+        private int count = 0;
+
+        LineOutputStream(Charset charset) {
+            this.charset = charset;
+        }
+
+        @Override
+        public void write(int b) {
+            if (b == 0) return;
+            if (b == '\n') {
+                flush(true);
+                return;
+            }
+            if (count == bytes.length) {
+                if (count >= MAX_BUFFER_LENGTH) {
+                    flush(false);
+                } else {
+                    bytes = Arrays.copyOf(bytes, 2 * bytes.length);
+                }
+            }
+            bytes[count++] = (byte) b;
+        }
+
+        private void flush(boolean newline) {
+            if (newline && count > 0 && bytes[count - 1] == '\r') {
+                --count; // drop CR on windows as well
+            }
+            String msg = count > 0 ? new String(bytes, 0, count, charset) : "";
+            print(Verbosity.NORMAL, outWriter, msg, newline, true);
+            count = 0;
+            if (bytes.length > DEFAULT_BUFFER_LENGTH) {
+                bytes = new byte[DEFAULT_BUFFER_LENGTH];
+            }
+        }
+
+        @Override
+        public void flush() {
+            if (count > 0) {
+                flush(false);
+            }
         }
     }
 }

@@ -10,20 +10,25 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -42,6 +47,9 @@ import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
+import org.elasticsearch.xpack.eql.logging.EqlLogContext;
+import org.elasticsearch.xpack.eql.logging.EqlLogContextBuilder;
+import org.elasticsearch.xpack.eql.logging.EqlLogProducer;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
@@ -59,9 +67,8 @@ import java.util.StringJoiner;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 
-public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
+public final class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> {
 
@@ -69,9 +76,9 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
-    private final ThreadPool threadPool;
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
+    private final ActivityLogger<EqlLogContext> activityLogger;
 
     @Inject
     public TransportEqlSearchAction(
@@ -83,16 +90,17 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         PlanExecutor planExecutor,
         NamedWriteableRegistry registry,
         Client client,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        ActionLoggingFieldsProvider fieldProvider,
+        ActivityLogWriterProvider logWriterProvider
     ) {
-        super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
+        super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
-        this.threadPool = threadPool;
         this.transportService = transportService;
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
@@ -107,6 +115,12 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             clusterService,
             threadPool,
             bigArrays
+        );
+        this.activityLogger = new QueryLogger<>(
+            clusterService.getClusterSettings(),
+            new EqlLogProducer(),
+            logWriterProvider,
+            fieldProvider
         );
     }
 
@@ -136,7 +150,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
     @Override
     public void execute(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
-        operation(planExecutor, task, request, username(securityContext), transportService, clusterService, listener);
+        operation(planExecutor, task, request, username(securityContext), transportService, clusterService, activityLogger, listener);
     }
 
     @Override
@@ -147,7 +161,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             false,
             task.getExecutionId().getEncoded(),
             true,
-            true
+            true,
+            ShardSearchFailure.EMPTY_ARRAY
         );
     }
 
@@ -167,7 +182,16 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                 listener
             );
         } else {
-            operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), transportService, clusterService, listener);
+            operation(
+                planExecutor,
+                (EqlSearchTask) task,
+                request,
+                username(securityContext),
+                transportService,
+                clusterService,
+                activityLogger,
+                listener
+            );
         }
     }
 
@@ -178,8 +202,10 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         String username,
         TransportService transportService,
         ClusterService clusterService,
-        ActionListener<EqlSearchResponse> listener
+        ActivityLogger<EqlLogContext> activityLogger,
+        ActionListener<EqlSearchResponse> operationListener
     ) {
+        final ActionListener<EqlSearchResponse> listener = activityLogger.wrap(operationListener, new EqlLogContextBuilder(task, request));
         String nodeId = clusterService.localNode().getId();
         String clusterName = clusterName(clusterService);
         // TODO: these should be sent by the client
@@ -194,7 +220,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             request.indicesOptions()
         );
         Set<String> clusterAliases = remoteClusterRegistry.clusterAliases(request.indices(), false);
-        if (canMinimizeRountrips(request, clusterAliases)) {
+        if (canMinimizeRountrips(request, clusterAliases, transportService.getRemoteClusterService().crossProjectEnabled())) {
             String clusterAlias = clusterAliases.iterator().next();
             String[] remoteIndices = new String[request.indices().length];
             for (int i = 0; i < request.indices().length; i++) {
@@ -210,7 +236,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                         r -> listener.onResponse(qualifyHits(r, clusterAlias)),
                         e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
                     ),
-                    EqlSearchAction.INSTANCE.getResponseReader(),
+                    EqlSearchResponse::new,
                     TransportResponseHandler.TRANSPORT_WORKER
                 )
             );
@@ -224,6 +250,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
             EqlConfiguration cfg = new EqlConfiguration(
                 request.indices(),
+                request.originalIndices(),
                 zoneId,
                 username,
                 clusterName,
@@ -234,36 +261,56 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                 request.indicesOptions(),
                 request.fetchSize(),
                 request.maxSamplesPerKey(),
+                request.allowPartialSearchResults() == null
+                    ? defaultAllowPartialSearchResults(clusterService)
+                    : request.allowPartialSearchResults(),
+                request.allowPartialSequenceResults() == null
+                    ? defaultAllowPartialSequenceResults(clusterService)
+                    : request.allowPartialSequenceResults(),
+                request.getProjectRouting(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
-                task
+                task,
+                transportService.getRemoteClusterService().crossProjectEnabled(),
+                request.getResolvedIndexExpressions()
             );
-            executeRequestWithRetryAttempt(
-                clusterService,
-                listener::onFailure,
-                onFailure -> planExecutor.eql(
-                    cfg,
-                    request.query(),
-                    params,
-                    wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), onFailure)
-                ),
-                node -> transportService.sendRequest(
-                    node,
-                    EqlSearchAction.NAME,
-                    request,
-                    new ActionListenerResponseHandler<>(listener, EqlSearchResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-                ),
-                log
+            planExecutor.eql(
+                cfg,
+                request.query(),
+                params,
+                wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), listener::onFailure)
             );
         }
+    }
+
+    private static boolean defaultAllowPartialSearchResults(ClusterService clusterService) {
+        if (clusterService.getClusterSettings() == null) {
+            return EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getDefault(Settings.EMPTY);
+        }
+        return clusterService.getClusterSettings().get(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS);
+    }
+
+    private static boolean defaultAllowPartialSequenceResults(ClusterService clusterService) {
+        if (clusterService.getClusterSettings() == null) {
+            return EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getDefault(Settings.EMPTY);
+        }
+        return clusterService.getClusterSettings().get(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS);
     }
 
     static EqlSearchResponse createResponse(Results results, AsyncExecutionId id) {
         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(results.events(), results.sequences(), results.totalHits());
         if (id != null) {
-            return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut(), id.getEncoded(), false, false);
+            return new EqlSearchResponse(
+                hits,
+                results.tookTime().getMillis(),
+                results.timedOut(),
+                id.getEncoded(),
+                false,
+                false,
+                results.shardFailures()
+            );
         } else {
-            return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut());
+            return new EqlSearchResponse(hits, results.tookTime().getMillis(), results.timedOut(), results.shardFailures());
         }
     }
 
@@ -272,7 +319,10 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     }
 
     // can the request be proxied to the remote cluster?
-    private static boolean canMinimizeRountrips(EqlSearchRequest request, Set<String> clusterAliases) {
+    private static boolean canMinimizeRountrips(EqlSearchRequest request, Set<String> clusterAliases, boolean crossProjectEnabled) {
+        if (crossProjectEnabled) {
+            return false;
+        }
         // Has minimizing the round trips been (explicitly) disabled?
         if (request.ccsMinimizeRoundtrips() == false) {
             return false;
@@ -302,7 +352,10 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     private static void qualifyEvents(List<EqlSearchResponse.Event> events, String clusterAlias) {
         if (events != null) {
             for (EqlSearchResponse.Event e : events) {
-                e.index(buildRemoteIndexName(clusterAlias, e.index()));
+                // missing events don't have an index, we dont' have to
+                if (e.missing() == false) {
+                    e.index(buildRemoteIndexName(clusterAlias, e.index()));
+                }
             }
         }
     }

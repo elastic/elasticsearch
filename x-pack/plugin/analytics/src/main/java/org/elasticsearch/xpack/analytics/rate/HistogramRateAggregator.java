@@ -42,10 +42,11 @@ public class HistogramRateAggregator extends AbstractRateAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                sums = bigArrays().grow(sums, bucket + 1);
-                compensations = bigArrays().grow(compensations, bucket + 1);
-
                 if (values.advanceExact(doc)) {
+
+                    sums = bigArrays().grow(sums, bucket + 1);
+                    compensations = bigArrays().grow(compensations, bucket + 1);
+
                     final HistogramValue sketch = values.histogram();
                     while (sketch.next()) {
                         double sum = sums.get(bucket);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
@@ -16,27 +17,36 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
-public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
+public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
+    IndicesStatsRequest,
+    IndicesStatsResponse,
+    ShardStats,
+    Supplier<IndicesQueryCache.CacheTotals>> {
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportIndicesStatsAction(
@@ -44,6 +54,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -56,6 +67,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indicesService;
+        this.projectResolver = projectResolver;
     }
 
     /**
@@ -63,7 +75,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, IndicesStatsRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allShards(concreteIndices);
+        return clusterState.routingTable(projectResolver.getProjectId()).allShards(concreteIndices);
     }
 
     @Override
@@ -73,7 +85,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, IndicesStatsRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
     @Override
@@ -85,7 +97,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     protected ResponseFactory<IndicesStatsResponse, ShardStats> getResponseFactory(IndicesStatsRequest request, ClusterState clusterState) {
         // NB avoid capture of full cluster state
         final var metadata = clusterState.getMetadata();
-        final var routingTable = clusterState.routingTable();
+        final var routingTable = clusterState.routingTable(projectResolver.getProjectId());
 
         return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new IndicesStatsResponse(
             responses.toArray(new ShardStats[0]),
@@ -104,12 +116,31 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
+    protected Supplier<IndicesQueryCache.CacheTotals> createNodeContext() {
+        return CachedSupplier.wrap(() -> IndicesQueryCache.getCacheTotalsForAllShards(indicesService));
+    }
+
+    @Override
+    protected void shardOperation(
+        IndicesStatsRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        Supplier<IndicesQueryCache.CacheTotals> context,
+        ActionListener<ShardStats> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            CommonStats commonStats = CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
+            CommonStats commonStats = CommonStats.getShardLevelStats(
+                indicesService.getIndicesQueryCache(),
+                indexShard,
+                request.flags(),
+                () -> {
+                    final IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
+                    return (queryCache == null) ? 0L : queryCache.getSharedRamSizeForShard(indexShard.shardId(), context.get());
+                }
+            );
             CommitStats commitStats;
             SeqNoStats seqNoStats;
             RetentionLeaseStats retentionLeaseStats;

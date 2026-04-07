@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry.utils;
@@ -24,6 +25,7 @@ import org.elasticsearch.geometry.ShapeType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -40,10 +42,13 @@ public class WellKnownBinary {
     /**
      * Converts the given {@link Geometry} to WKB with the provided {@link ByteOrder}
      */
-    public static byte[] toWKB(Geometry geometry, ByteOrder byteOrder) throws IOException {
+    public static byte[] toWKB(Geometry geometry, ByteOrder byteOrder) {
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             toWKB(geometry, outputStream, ByteBuffer.allocate(8).order(byteOrder));
             return outputStream.toByteArray();
+        } catch (IOException ioe) {
+            // Should never happen as the only method throwing IOException is ByteArrayOutputStream#close and it is a NOOP
+            throw new UncheckedIOException(ioe);
         }
     }
 

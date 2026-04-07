@@ -21,13 +21,18 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ECSJsonLayout;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.RateLimitingFilter;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -46,6 +51,13 @@ import static org.elasticsearch.xpack.deprecation.Deprecation.WRITE_DEPRECATION_
  * It also starts and stops the appender
  */
 public class DeprecationIndexingComponent extends AbstractLifecycleComponent implements ClusterStateListener {
+
+    public static final Setting<TimeValue> DEPRECATION_INDEXING_FLUSH_INTERVAL = Setting.timeSetting(
+        "cluster.deprecation_indexing.flush_interval",
+        TimeValue.timeValueSeconds(5),
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(DeprecationIndexingComponent.class);
 
     private final DeprecationIndexingAppender appender;
@@ -83,7 +95,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         final Configuration configuration = context.getConfiguration();
 
         final EcsLayout ecsLayout = ECSJsonLayout.newBuilder()
-            .setDataset("deprecation.elasticsearch")
+            .setDataset("elasticsearch.deprecation")
             .setConfiguration(configuration)
             .build();
 
@@ -127,9 +139,10 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         if (event.metadataChanged() == false) {
             return;
         }
-        final IndexLifecycleMetadata indexLifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+        final var project = getDefaultDeprecationProject(event.state());
+        final IndexLifecycleMetadata indexLifecycleMetadata = project.custom(IndexLifecycleMetadata.TYPE);
 
-        if (event.state().getMetadata().templatesV2().containsKey(".deprecation-indexing-template")
+        if (project.templatesV2().containsKey(".deprecation-indexing-template-9")
             && indexLifecycleMetadata != null
             && indexLifecycleMetadata.getPolicies().containsKey(".deprecation-indexing-ilm-policy")) {
             flushEnabled.set(true);
@@ -137,6 +150,15 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
             logger.debug("Deprecation log indexing started, because both template and ilm policy are loaded");
             clusterService.removeListener(this);
         }
+    }
+
+    /**
+     * This method solely exists because we are not making the deprecation plugin properly project-aware and it's not worth the investment
+     * of altering this feature to be project-aware.
+     */
+    @NotMultiProjectCapable
+    private static ProjectMetadata getDefaultDeprecationProject(ClusterState state) {
+        return state.metadata().getProject(ProjectId.DEFAULT);
     }
 
     /**
@@ -190,6 +212,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
      * @return an initialised bulk processor
      */
     private BulkProcessor2 getBulkProcessor(Client client, Settings settings) {
+        TimeValue flushInterval = DEPRECATION_INDEXING_FLUSH_INTERVAL.get(settings);
         BulkProcessor2.Listener listener = new DeprecationBulkListener();
         return BulkProcessor2.builder((bulkRequest, actionListener) -> {
             /*
@@ -198,13 +221,16 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
              * in-flight-bytes limit has been exceeded. This means that we don't have to worry about bounding pendingRequestsBuffer.
              */
             if (flushEnabled.get()) {
+                logger.trace("Flush is enabled, sending a bulk request");
                 client.bulk(bulkRequest, actionListener);
                 flushBuffer(); // just in case something was missed after the first flush
             } else {
+                logger.trace("Flush is disabled, scheduling a bulk request");
+
                 // this is an unbounded queue, so the entry will always be accepted
                 pendingRequestsBuffer.offer(() -> client.bulk(bulkRequest, actionListener));
             }
-        }, listener, client.threadPool()).setMaxNumberOfRetries(3).setFlushInterval(TimeValue.timeValueSeconds(5)).build();
+        }, listener, client.threadPool()).setMaxNumberOfRetries(3).setFlushInterval(flushInterval).build();
     }
 
     private static class DeprecationBulkListener implements BulkProcessor2.Listener {

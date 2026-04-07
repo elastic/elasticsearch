@@ -1,49 +1,49 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node.selection;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 
-/**
- * Persistent task executor that is managing the {@link HealthNode}.
- */
+/// [PersistentTasksExecutor] responsible for the lifecycle of the [HealthNode] persistent task.
+///
+/// The task lifecycle (start / stop) is managed externally by the [PersistentTaskLifecycleManager],
+/// which reconciles the desired state on every cluster state update based on [HealthNodeTaskExecutor#ENABLED_SETTING].
+///
+/// Once the persistent task framework assigns the task to a node, that node becomes the health node. The
+/// [LocalHealthMonitor][org.elasticsearch.health.node.LocalHealthMonitor] and
+/// [HealthInfoCache][org.elasticsearch.health.node.HealthInfoCache] use [HealthNode#findHealthNode]
+/// to discover it.
+///
+/// @see HealthNode
+/// @see org.elasticsearch.health.node.LocalHealthMonitor
+/// @see org.elasticsearch.health.metadata.HealthMetadataService
+///
 public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<HealthNodeTaskParams> {
 
     private static final Logger logger = LogManager.getLogger(HealthNodeTaskExecutor.class);
@@ -56,58 +56,21 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     );
 
     private final ClusterService clusterService;
-    private final PersistentTasksService persistentTasksService;
-    private final AtomicReference<HealthNode> currentTask = new AtomicReference<>();
-    private final ClusterStateListener taskStarter;
-    private final ClusterStateListener shutdownListener;
-    private volatile boolean enabled;
 
-    private HealthNodeTaskExecutor(ClusterService clusterService, PersistentTasksService persistentTasksService, Settings settings) {
-        super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
+    public HealthNodeTaskExecutor(ClusterService clusterService) {
+        super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
-        this.persistentTasksService = persistentTasksService;
-        this.taskStarter = this::startTask;
-        this.shutdownListener = this::shuttingDown;
-        this.enabled = ENABLED_SETTING.get(settings);
     }
 
-    public static HealthNodeTaskExecutor create(
-        ClusterService clusterService,
-        PersistentTasksService persistentTasksService,
-        Settings settings,
-        ClusterSettings clusterSettings
-    ) {
-        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService, persistentTasksService, settings);
-        healthNodeTaskExecutor.registerListeners(clusterSettings);
-        return healthNodeTaskExecutor;
-    }
-
-    private void registerListeners(ClusterSettings clusterSettings) {
-        if (this.enabled) {
-            clusterService.addListener(taskStarter);
-            clusterService.addListener(shutdownListener);
-        }
-        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
-    }
-
-    private void enable(boolean enabled) {
-        this.enabled = enabled;
-        if (enabled) {
-            clusterService.addListener(taskStarter);
-            clusterService.addListener(shutdownListener);
-        } else {
-            clusterService.removeListener(taskStarter);
-            clusterService.removeListener(shutdownListener);
-            abortTaskIfApplicable("disabling health node via '" + ENABLED_SETTING.getKey() + "'");
-        }
+    @Override
+    public Scope scope() {
+        return Scope.CLUSTER;
     }
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, HealthNodeTaskParams params, PersistentTaskState state) {
-        HealthNode healthNode = (HealthNode) task;
-        currentTask.set(healthNode);
         DiscoveryNode node = clusterService.localNode();
-        logger.info("Node [{{}}{{}}] is selected as the current health node.", node.getName(), node.getId());
+        logger.info("Node [{}] is selected as the current health node.", node.getShortNodeDescription());
     }
 
     @Override
@@ -120,74 +83,6 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         Map<String, String> headers
     ) {
         return new HealthNode(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
-    }
-
-    /**
-     * Returns the node id from the eligible health nodes
-     */
-    @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
-        HealthNodeTaskParams params,
-        Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState
-    ) {
-        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
-        if (discoveryNode == null) {
-            return NO_NODE_FOUND;
-        } else {
-            return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
-        }
-    }
-
-    // visible for testing
-    void startTask(ClusterChangedEvent event) {
-        // Wait until every node in the cluster is upgraded to 8.5.0 or later
-        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
-            boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
-            boolean isElectedMaster = event.localNodeMaster();
-            if (isElectedMaster || healthNodeTaskExists) {
-                clusterService.removeListener(taskStarter);
-            }
-            if (isElectedMaster && healthNodeTaskExists == false) {
-                persistentTasksService.sendStartRequest(
-                    TASK_NAME,
-                    TASK_NAME,
-                    new HealthNodeTaskParams(),
-                    ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
-                        Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                        if (t instanceof ResourceAlreadyExistsException == false) {
-                            logger.error("Failed to create the health node task", e);
-                            if (enabled) {
-                                clusterService.addListener(taskStarter);
-                            }
-                        }
-                    })
-                );
-            }
-        }
-    }
-
-    // visible for testing
-    void shuttingDown(ClusterChangedEvent event) {
-        DiscoveryNode node = clusterService.localNode();
-        if (isNodeShuttingDown(event, node.getId())) {
-            abortTaskIfApplicable("node [{" + node.getName() + "}{" + node.getId() + "}] shutting down");
-        }
-    }
-
-    // visible for testing
-    void abortTaskIfApplicable(String reason) {
-        HealthNode task = currentTask.get();
-        if (task != null && task.isCancelled() == false) {
-            logger.info("Aborting health node task due to {}.", reason);
-            task.markAsLocallyAborted(reason);
-            currentTask.set(null);
-        }
-    }
-
-    private boolean isNodeShuttingDown(ClusterChangedEvent event, String nodeId) {
-        return event.previousState().metadata().nodeShutdowns().contains(nodeId) == false
-            && event.state().metadata().nodeShutdowns().contains(nodeId);
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

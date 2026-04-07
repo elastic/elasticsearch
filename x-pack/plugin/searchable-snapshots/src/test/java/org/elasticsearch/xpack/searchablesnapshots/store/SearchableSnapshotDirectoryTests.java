@@ -25,7 +25,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -41,6 +40,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
@@ -50,6 +50,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -81,9 +82,9 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -232,7 +233,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 try (DirectoryReader snapshotReader = DirectoryReader.open(snapshotDirectory)) {
                     final IndexSearcher snapshotSearcher = newSearcher(snapshotReader);
                     {
-                        Query query = new MatchAllDocsQuery();
+                        Query query = Queries.ALL_DOCS_INSTANCE;
                         assertThat(snapshotSearcher.count(query), equalTo(searcher.count(query)));
                         CheckHits.checkEqual(query, snapshotSearcher.search(query, 10).scoreDocs, searcher.search(query, 10).scoreDocs);
                     }
@@ -401,9 +402,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             false, // no prewarming in this test because we want to ensure that files are accessed on purpose
             (directory, snapshotDirectory) -> {
                 for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
-                    final long checksum;
-                    try (IndexInput input = directory.openInput(fileName, Store.READONCE_CHECKSUM)) {
-                        checksum = CodecUtil.checksumEntireFile(input);
+                    final long expectedChecksum;
+                    try (IndexInput input = directory.openInput(fileName, IOContext.READONCE)) {
+                        expectedChecksum = CodecUtil.checksumEntireFile(input);
                     }
 
                     final long snapshotChecksum;
@@ -418,9 +419,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     }
 
                     assertThat(
-                        "Expected checksum [" + checksum + "] but got [" + snapshotChecksum + ']',
+                        "Expected checksum [" + expectedChecksum + "] but got [" + snapshotChecksum + ']',
                         snapshotChecksum,
-                        equalTo(checksum)
+                        equalTo(expectedChecksum)
                     );
                     assertThat(
                         "File [" + fileName + "] should have been read from heap",
@@ -592,7 +593,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     repositorySettings.build()
                 );
 
+                final ProjectId projectId = randomProjectIdOrDefault();
                 final BlobStoreRepository repository = new FsRepository(
+                    projectId,
                     repositoryMetadata,
                     new Environment(
                         Settings.builder()
@@ -603,27 +606,24 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         null
                     ),
                     NamedXContentRegistry.EMPTY,
-                    BlobStoreTestUtil.mockClusterService(repositoryMetadata),
+                    BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata),
                     MockBigArrays.NON_RECYCLING_INSTANCE,
                     new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-                ) {
-
-                    @Override
-                    protected void assertSnapshotOrGenericThread() {
-                        // eliminate thread name check as we create repo manually on test/main threads
-                    }
-                };
+                );
                 repository.start();
                 releasables.add(repository::stop);
 
                 final SnapshotId snapshotId = new SnapshotId("_snapshot", UUIDs.randomBase64UUID(random()));
                 final IndexId indexId = new IndexId(indexSettings.getIndex().getName(), UUIDs.randomBase64UUID(random()));
 
-                final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+                final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
                 threadPool.generic().submit(() -> {
-                    IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
+                    IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                        null,
+                        randomLongBetween(1, Long.MAX_VALUE)
+                    );
                     repository.snapshotShard(
-                        new SnapshotShardContext(
+                        new LocalPrimarySnapshotShardContext(
                             store,
                             null,
                             snapshotId,
@@ -674,7 +674,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         sharedBlobCacheService
                     )
                 ) {
-                    final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
+                    final PlainActionFuture<Void> f = new PlainActionFuture<>();
                     final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, store::isClosing, f);
                     try {
                         f.get();
@@ -698,7 +698,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
     private void testIndexInputs(final CheckedBiConsumer<IndexInput, IndexInput, Exception> consumer) throws Exception {
         testDirectories((directory, snapshotDirectory) -> {
             for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
-                final IOContext context = randomIOContext();
+                final IOContext context = fileName.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : randomIOContext();
                 try (IndexInput indexInput = directory.openInput(fileName, context)) {
                     final List<Closeable> closeables = new ArrayList<>();
                     try {
@@ -779,7 +779,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 )
             ) {
                 final RecoveryState recoveryState = createRecoveryState(randomBoolean());
-                final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
+                final PlainActionFuture<Void> f = new PlainActionFuture<>();
                 final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, f);
                 f.get();
                 assertThat("Failed to load snapshot", loaded, is(true));

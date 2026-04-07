@@ -1,16 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -262,7 +268,6 @@ public class SystemIndicesTests extends ESTestCase {
         SystemIndexDescriptor managed = SystemIndexDescriptor.builder()
             .setIndexPattern(".managed-*")
             .setPrimaryIndex(".managed-primary")
-            .setVersionMetaKey("version")
             .setOrigin("system")
             .setSettings(Settings.EMPTY)
             .setMappings("""
@@ -290,4 +295,78 @@ public class SystemIndicesTests extends ESTestCase {
         assertThat(mappingsVersions.get(".managed-primary").version(), equalTo(3));
         assertThat(mappingsVersions.keySet(), not(contains("unmanaged")));
     }
+
+    public void testSystemDataStreamPattern() {
+        String dataStreamName = ".my-data-stream";
+        SystemDataStreamDescriptor dataStreamDescriptor = new SystemDataStreamDescriptor(
+            dataStreamName,
+            "",
+            SystemDataStreamDescriptor.Type.EXTERNAL,
+            ComposableIndexTemplate.builder().build(),
+            Map.of(),
+            Collections.singletonList("origin"),
+            "origin",
+            ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+        );
+
+        final SystemIndices systemIndices = new SystemIndices(
+            List.of(
+                new SystemIndices.Feature("test", "test feature", Collections.emptyList(), Collections.singletonList(dataStreamDescriptor))
+            )
+        );
+        assertThat(
+            systemIndices.isSystemIndexBackingDataStream(DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-2025.03.07-000001"),
+            equalTo(true)
+        );
+        assertThat(
+            systemIndices.isSystemIndexBackingDataStream(DataStream.FAILURE_STORE_PREFIX + dataStreamName + "-2025.03.07-000001"),
+            equalTo(true)
+        );
+        assertThat(systemIndices.isSystemIndexBackingDataStream(".migrated-ds-" + dataStreamName + "-2025.03.07-000001"), equalTo(true));
+        assertThat(
+            systemIndices.isSystemIndexBackingDataStream(".migrated-migrated-ds-" + dataStreamName + "-2025.03.07-000001"),
+            equalTo(true)
+        );
+        assertThat(systemIndices.isSystemIndexBackingDataStream(".migrated-" + dataStreamName + "-2025.03.07-000001"), equalTo(false));
+        assertThat(systemIndices.isSystemIndexBackingDataStream(dataStreamName), equalTo(false));
+        assertThat(systemIndices.isSystemIndexBackingDataStream(dataStreamName + "-2025.03.07-000001"), equalTo(false));
+    }
+
+    public void testBuildAssociatedIndicesAutomaton() {
+        List<String> patterns = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(10, 20); i++) {
+            patterns.add(randomIdentifier("."));
+        }
+
+        List<SystemIndices.Feature> features = patterns.stream()
+            .map(pattern -> newFeature(List.of(new AssociatedIndexDescriptor(pattern + "*", "Description"))))
+            .toList();
+        SystemIndices systemIndices = new SystemIndices(features);
+
+        for (int i = 0; i < randomIntBetween(20, 30); i++) {
+            assertThat(systemIndices.isFeatureAssociatedIndex(randomFrom(patterns) + randomIndexName()), equalTo(true));
+            // with prefix "index-"
+            assertThat(systemIndices.isFeatureAssociatedIndex(randomIndexName()), equalTo(false));
+        }
+    }
+
+    public static SystemIndices.Feature newFeature(List<AssociatedIndexDescriptor> associatedIndexDescriptors) {
+        return SystemIndices.Feature.fromSystemIndexPlugin(new SystemIndexPlugin() {
+            @Override
+            public String getFeatureName() {
+                return randomIdentifier();
+            }
+
+            @Override
+            public String getFeatureDescription() {
+                return "Silicone";
+            }
+
+            @Override
+            public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+                return associatedIndexDescriptors;
+            }
+        }, Settings.EMPTY);
+    }
+
 }

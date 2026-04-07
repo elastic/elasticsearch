@@ -1,0 +1,6 @@
+pr: 140515
+summary: "Ids Query: Use max result window as upper limit"
+area: Search
+type: enhancement
+issues:
+ - 138758

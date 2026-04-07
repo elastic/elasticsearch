@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -19,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.NUMBER_OF_TEST_RUNS;
 import static org.elasticsearch.test.AbstractXContentTestCase.chunkedXContentTester;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,11 +40,9 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
             int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
-            InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
             SearchResponse.Clusters clusters = randomClusters();
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-            SearchResponse searchResponse = new SearchResponse(
-                internalSearchResponse,
+            SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                 null,
                 totalShards,
                 successfulShards,
@@ -74,11 +75,9 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
-                InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
                 SearchResponse.Clusters clusters = randomClusters();
                 SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-                SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     totalShards,
                     successfulShards,
@@ -96,8 +95,26 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
     }
 
-    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
-        return MultiSearchTemplateResponse.fromXContext(parser);
+    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) {
+        // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
+        MultiSearchResponse mSearchResponse = SearchResponseUtils.parseMultiSearchResponse(parser);
+        try {
+            org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
+            MultiSearchTemplateResponse.Item[] templateResponses = new MultiSearchTemplateResponse.Item[responses.length];
+            int i = 0;
+            for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
+                SearchTemplateResponse stResponse = null;
+                if (item.getResponse() != null) {
+                    stResponse = new SearchTemplateResponse();
+                    stResponse.setResponse(item.getResponse());
+                    item.getResponse().incRef();
+                }
+                templateResponses[i++] = new MultiSearchTemplateResponse.Item(stResponse, item.getFailure());
+            }
+            return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
+        } finally {
+            mSearchResponse.decRef();
+        }
     }
 
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
@@ -125,6 +142,7 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
             .numberOfTestRuns(20)
             .supportsUnknownFields(true)
             .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(MultiSearchTemplateResponse::decRef)
             .test();
     }
 
@@ -135,7 +153,7 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
      */
     public void testFromXContentWithFailures() throws IOException {
         chunkedXContentTester(this::createParser, t -> createTestInstanceWithFailures(), ToXContent.EMPTY_PARAMS, this::doParseInstance)
-            .numberOfTestRuns(20)
+            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilterWhenResultHasErrors())
             // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
             // but that does not bother our assertions, as we only want to test that we don't break.
@@ -143,6 +161,7 @@ public class MultiSearchTemplateResponseTests extends ESTestCase {
             // exceptions are not of the same type whenever parsed back
             .assertToXContentEquivalence(false)
             .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(MultiSearchTemplateResponse::decRef)
             .test();
     }
 }

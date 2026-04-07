@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -23,6 +22,7 @@ import org.junit.After;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -95,57 +95,58 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-            .setSource(
+        assertResponse(
+            prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(
                 searchSource().aggregation(terms("from").field("result.actions.email.message.from"))
                     .aggregation(terms("to").field("result.actions.email.message.to"))
                     .aggregation(terms("cc").field("result.actions.email.message.cc"))
                     .aggregation(terms("bcc").field("result.actions.email.message.bcc"))
                     .aggregation(terms("reply_to").field("result.actions.email.message.reply_to"))
-            )
-            .get();
+            ),
+            response -> {
+                assertThat(response, notNullValue());
+                assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
+                InternalAggregations aggs = response.getAggregations();
+                assertThat(aggs, notNullValue());
 
-        assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
-        Aggregations aggs = response.getAggregations();
-        assertThat(aggs, notNullValue());
+                Terms terms = aggs.get("from");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getBuckets().size(), is(1));
+                assertThat(terms.getBucketByKey("from@example.com"), notNullValue());
+                assertThat(terms.getBucketByKey("from@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
-        Terms terms = aggs.get("from");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getBuckets().size(), is(1));
-        assertThat(terms.getBucketByKey("from@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("from@example.com").getDocCount(), greaterThanOrEqualTo(1L));
+                terms = aggs.get("to");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getBuckets().size(), is(2));
+                assertThat(terms.getBucketByKey("to1@example.com"), notNullValue());
+                assertThat(terms.getBucketByKey("to1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
+                assertThat(terms.getBucketByKey("to2@example.com"), notNullValue());
+                assertThat(terms.getBucketByKey("to2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
-        terms = aggs.get("to");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getBuckets().size(), is(2));
-        assertThat(terms.getBucketByKey("to1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("to1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
-        assertThat(terms.getBucketByKey("to2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("to2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
+                terms = aggs.get("cc");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getBuckets().size(), is(2));
+                assertThat(terms.getBucketByKey("cc1@example.com"), notNullValue());
+                assertThat(terms.getBucketByKey("cc1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
+                assertThat(terms.getBucketByKey("cc2@example.com"), notNullValue());
+                assertThat(terms.getBucketByKey("cc2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
-        terms = aggs.get("cc");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getBuckets().size(), is(2));
-        assertThat(terms.getBucketByKey("cc1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("cc1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
-        assertThat(terms.getBucketByKey("cc2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("cc2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
+                terms = aggs.get("bcc");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getBuckets().size(), is(2));
+                assertThat(terms.getBucketByKey("bcc1@example.com"), notNullValue());
+                assertThat(terms.getBucketByKey("bcc1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
+                assertThat(terms.getBucketByKey("bcc2@example.com"), notNullValue());
+                assertThat(terms.getBucketByKey("bcc2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
-        terms = aggs.get("bcc");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getBuckets().size(), is(2));
-        assertThat(terms.getBucketByKey("bcc1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("bcc1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
-        assertThat(terms.getBucketByKey("bcc2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("bcc2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
-
-        terms = aggs.get("reply_to");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getBuckets().size(), is(2));
-        assertThat(terms.getBucketByKey("rt1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("rt1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
-        assertThat(terms.getBucketByKey("rt2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("rt2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
+                terms = aggs.get("reply_to");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getBuckets().size(), is(2));
+                assertThat(terms.getBucketByKey("rt1@example.com"), notNullValue());
+                assertThat(terms.getBucketByKey("rt1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
+                assertThat(terms.getBucketByKey("rt2@example.com"), notNullValue());
+                assertThat(terms.getBucketByKey("rt2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
+            }
+        );
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -36,7 +37,7 @@ import java.util.function.Function;
  */
 public class FeatureFlag {
 
-    private final Logger logger = LogManager.getLogger(FeatureFlag.class);
+    private static final Logger logger = LogManager.getLogger(FeatureFlag.class);
 
     private final String name;
     private final boolean enabled;
@@ -70,12 +71,7 @@ public class FeatureFlag {
         final String propertyName = "es." + name + "_feature_flag_" + suffix;
         if (build.isSnapshot()) {
             enabled = parseSystemProperty(getSystemProperty, propertyName, true);
-            if (enabled == false) {
-                throw new IllegalArgumentException(
-                    "Feature flag " + name + " (via system property '" + propertyName + "') cannot be disabled in snapshot builds"
-                );
-            }
-            logger.info("The current build is a snapshot, feature flag [{}] is enabled", name);
+            logger.info("The current build is a snapshot, feature flag [{}] is {}", name, enabled ? "enabled" : "disabled");
         } else {
             enabled = parseSystemProperty(getSystemProperty, propertyName, false);
             logger.debug("The current build is a not snapshot, feature flag [{}] is {}", name, enabled ? "enabled" : "disabled");

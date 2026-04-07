@@ -14,6 +14,6 @@ public class SqlClearCursorAction extends ActionType<SqlClearCursorResponse> {
     public static final String NAME = "indices:data/read/sql/close_cursor";
 
     private SqlClearCursorAction() {
-        super(NAME, SqlClearCursorResponse::new);
+        super(NAME);
     }
 }

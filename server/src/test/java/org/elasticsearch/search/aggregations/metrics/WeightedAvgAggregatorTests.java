@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -12,14 +13,13 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
@@ -41,7 +41,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             // Intentionally not writing any docs
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
@@ -54,7 +54,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
         }, avg -> {
@@ -68,7 +68,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("value_field", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("value_field", 3)));
         }, avg -> {
@@ -82,7 +82,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("weight_field", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("weight_field", 3)));
         }, avg -> {
@@ -96,7 +96,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             iw.addDocument(
                 Arrays.asList(new SortedNumericDocValuesField("value_field", 7), new SortedNumericDocValuesField("weight_field", 1))
             );
@@ -117,7 +117,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             iw.addDocument(
                 Arrays.asList(new SortedNumericDocValuesField("value_field", 7), new SortedNumericDocValuesField("weight_field", 2))
             );
@@ -272,7 +272,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("weight_field", 2)));
             iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("weight_field", 3)));
             iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("weight_field", 4)));
@@ -290,7 +290,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
             .build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 2)));
             iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 3)));
             iw.addDocument(Collections.singletonList(new SortedNumericDocValuesField("value_field", 4)));
@@ -311,7 +311,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            () -> testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
                 iw.addDocument(
                     Arrays.asList(new SortedNumericDocValuesField("value_field", 2), new SortedNumericDocValuesField("weight_field", 1))
                 );
@@ -336,7 +336,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            () -> testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
                 iw.addDocument(
                     Arrays.asList(new SortedNumericDocValuesField("value_field", 2), new SortedNumericDocValuesField("weight_field", 1))
                 );
@@ -357,7 +357,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
 
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             iw.addDocument(
                 Arrays.asList(
                     new SortedNumericDocValuesField("value_field", 2),
@@ -392,9 +392,9 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
 
-        AggregationExecutionException e = expectThrows(
-            AggregationExecutionException.class,
-            () -> testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
                 iw.addDocument(
                     Arrays.asList(
                         new SortedNumericDocValuesField("value_field", 2),
@@ -433,7 +433,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig)
             .format("0.00%");
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             iw.addDocument(
                 Arrays.asList(new SortedNumericDocValuesField("value_field", 7), new SortedNumericDocValuesField("weight_field", 1))
             );
@@ -486,7 +486,7 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name").value(valueConfig)
             .weight(weightConfig);
-        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, aggregationBuilder, iw -> {
             for (double value : values) {
                 iw.addDocument(
                     Arrays.asList(

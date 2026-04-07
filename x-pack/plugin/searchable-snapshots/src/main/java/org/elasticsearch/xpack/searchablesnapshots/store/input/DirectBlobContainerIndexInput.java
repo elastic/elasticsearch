@@ -14,6 +14,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
@@ -71,7 +72,6 @@ public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexI
     private final FileInfo fileInfo;
     private final IndexInputStats stats;
     private final long offset;
-    private final long length;
 
     // the following are only mutable so they can be adjusted after cloning/slicing
     private volatile boolean isClone;
@@ -100,7 +100,7 @@ public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexI
         long length,
         long sequentialReadSize
     ) {
-        super(name, bufferSize); // TODO should use blob cache
+        super(name, bufferSize, length); // TODO should use blob cache
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
@@ -110,7 +110,6 @@ public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexI
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
-        this.length = length;
         this.closed = new AtomicBoolean(false);
         this.isClone = false;
     }
@@ -286,7 +285,11 @@ public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexI
     }
 
     @Override
-    public DirectBlobContainerIndexInput clone() {
+    public IndexInput clone() {
+        var bufferClone = tryCloneBuffer();
+        if (bufferClone != null) {
+            return bufferClone;
+        }
         final DirectBlobContainerIndexInput clone = (DirectBlobContainerIndexInput) super.clone();
         // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
         // solution: do not optimize sequential reads on clones.
@@ -299,6 +302,10 @@ public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexI
     @Override
     public IndexInput slice(String sliceName, long offset, long length) throws IOException {
         BlobCacheUtils.ensureSlice(sliceName, offset, length, this);
+        var bufferSlice = trySliceBuffer(sliceName, offset, length);
+        if (bufferSlice != null) {
+            return bufferSlice;
+        }
         final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
             sliceName,
             blobContainer,
@@ -328,11 +335,6 @@ public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexI
     }
 
     @Override
-    public long length() {
-        return length;
-    }
-
-    @Override
     public String toString() {
         return super.toString() + "[read seq=" + (streamForSequentialReads != null ? "yes" : "no") + ']';
     }
@@ -340,7 +342,7 @@ public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexI
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {
         assert MetadataCachingIndexInput.assertCurrentThreadMayAccessBlobStore();
         stats.addBlobStoreBytesRequested(length);
-        return blobContainer.readBlob(fileInfo.partName(part), pos, length);
+        return blobContainer.readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(part), pos, length);
     }
 
     private static class StreamForSequentialReads implements Closeable {

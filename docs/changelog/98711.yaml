@@ -1,5 +1,0 @@
-pr: 98711
-summary: Support unsigned long in sqrt and log10 for ESQL
-area: ES|QL
-type: enhancement
-issues: []

@@ -14,25 +14,26 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.FieldCardinalityConstraint;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -112,11 +113,6 @@ public class ExtractedFieldsDetectorFactory {
             return;
         }
 
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(
-            searchResponse -> buildFieldCardinalitiesMap(config, searchResponse, listener),
-            listener::onFailure
-        );
-
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
             .query(config.getSource().getParsedQuery())
             .runtimeMappings(config.getSource().getRuntimeMappings());
@@ -141,15 +137,22 @@ public class ExtractedFieldsDetectorFactory {
             );
         }
         SearchRequest searchRequest = new SearchRequest(index).source(searchSourceBuilder);
-        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, searchListener);
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(),
+            ML_ORIGIN,
+            client,
+            TransportSearchAction.TYPE,
+            searchRequest,
+            listener.delegateFailureAndWrap((l, searchResponse) -> buildFieldCardinalitiesMap(config, searchResponse, l))
+        );
     }
 
-    private void buildFieldCardinalitiesMap(
+    private static void buildFieldCardinalitiesMap(
         DataFrameAnalyticsConfig config,
         SearchResponse searchResponse,
         ActionListener<Map<String, Long>> listener
     ) {
-        Aggregations aggs = searchResponse.getAggregations();
+        InternalAggregations aggs = searchResponse.getAggregations();
         if (aggs == null) {
             listener.onFailure(ExceptionsHelper.serverError("Unexpected null response when gathering field cardinalities"));
             return;
@@ -175,7 +178,7 @@ public class ExtractedFieldsDetectorFactory {
         fieldCapabilitiesRequest.runtimeFields(config.getSource().getRuntimeMappings());
         LOGGER.debug(() -> format("[%s] Requesting field caps for index %s", config.getId(), Arrays.toString(index)));
         ClientHelper.executeWithHeaders(config.getHeaders(), ML_ORIGIN, client, () -> {
-            client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, listener);
+            client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapabilitiesRequest, listener);
             // This response gets discarded - the listener handles the real response
             return null;
         });
@@ -206,7 +209,7 @@ public class ExtractedFieldsDetectorFactory {
             }
         });
 
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT);
         getSettingsRequest.indices(index);
         getSettingsRequest.includeDefaults(true);
         getSettingsRequest.names(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());

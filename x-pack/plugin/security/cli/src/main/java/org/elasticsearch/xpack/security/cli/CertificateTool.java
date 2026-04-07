@@ -15,6 +15,7 @@ import joptsimple.OptionSpecBuilder;
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PEMEncryptor;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
@@ -57,6 +58,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyStore;
@@ -109,6 +111,7 @@ class CertificateTool extends MultiCommand {
         "[a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]{1," + MAX_FILENAME_LENGTH + "}"
     );
     private static final int DEFAULT_KEY_SIZE = 2048;
+    static final List<String> DEFAULT_CA_KEY_USAGE = List.of("keyCertSign", "cRLSign");
 
     // Older versions of OpenSSL had a max internal password length.
     // We issue warnings when writing files with passwords that would not be usable in those versions of OpenSSL.
@@ -201,6 +204,7 @@ class CertificateTool extends MultiCommand {
         final OptionSpec<String> outputPathSpec;
         final OptionSpec<String> outputPasswordSpec;
         final OptionSpec<Integer> keysizeSpec;
+        OptionSpec<String> caKeyUsageSpec;
 
         OptionSpec<Void> pemFormatSpec;
         OptionSpec<Integer> daysSpec;
@@ -273,6 +277,16 @@ class CertificateTool extends MultiCommand {
             inputFileSpec = parser.accepts("in", "file containing details of the instances in yaml format").withRequiredArg();
         }
 
+        final void acceptCertificateAuthorityKeyUsage() {
+            caKeyUsageSpec = parser.accepts(
+                "keyusage",
+                "comma separated key usages to use for the generated CA. "
+                    + "defaults to '"
+                    + Strings.collectionToCommaDelimitedString(DEFAULT_CA_KEY_USAGE)
+                    + "'"
+            ).withRequiredArg();
+        }
+
         // For testing
         OptionParser getParser() {
             return parser;
@@ -305,6 +319,23 @@ class CertificateTool extends MultiCommand {
                 return keysizeSpec.value(options);
             } else {
                 return DEFAULT_KEY_SIZE;
+            }
+        }
+
+        final List<String> getCaKeyUsage(OptionSet options) {
+            if (options.has(caKeyUsageSpec)) {
+                final Function<String, Stream<? extends String>> splitByComma = v -> Stream.of(Strings.splitStringByCommaToArray(v));
+                final List<String> caKeyUsage = caKeyUsageSpec.values(options)
+                    .stream()
+                    .flatMap(splitByComma)
+                    .filter(v -> false == Strings.isNullOrEmpty(v))
+                    .toList();
+                if (caKeyUsage.isEmpty()) {
+                    return DEFAULT_CA_KEY_USAGE;
+                }
+                return caKeyUsage;
+            } else {
+                return DEFAULT_CA_KEY_USAGE;
             }
         }
 
@@ -395,7 +426,8 @@ class CertificateTool extends MultiCommand {
             }
             X500Principal x500Principal = new X500Principal(dn);
             KeyPair keyPair = CertGenUtils.generateKeyPair(getKeySize(options));
-            X509Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, getDays(options));
+            final KeyUsage caKeyUsage = CertGenUtils.buildKeyUsage(getCaKeyUsage(options));
+            X509Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, getDays(options), caKeyUsage);
 
             if (options.hasArgument(caPasswordSpec)) {
                 char[] password = getChars(caPasswordSpec.value(options));
@@ -570,6 +602,48 @@ class CertificateTool extends MultiCommand {
                 }
             });
         }
+
+        /**
+         * Verify that the provided certificate is validly signed by the provided CA
+         */
+        static void verifyIssuer(Certificate certificate, CAInfo caInfo, Terminal terminal) throws UserException {
+            try {
+                certificate.verify(caInfo.certAndKey.cert.getPublicKey());
+            } catch (GeneralSecurityException e) {
+                terminal.errorPrintln("");
+                terminal.errorPrintln("* ERROR *");
+                terminal.errorPrintln("Verification of generated certificate failed.");
+                terminal.errorPrintln("This usually occurs if the provided CA certificate does not match with the CA key.");
+                terminal.errorPrintln("Cause: " + e);
+                for (var c = e.getCause(); c != null; c = c.getCause()) {
+                    terminal.errorPrintln("     - " + c);
+                }
+                throw new UserException(ExitCodes.CONFIG, "Certificate verification failed");
+            }
+        }
+
+        protected void writePemPrivateKey(
+            Terminal terminal,
+            OptionSet options,
+            ZipOutputStream outputStream,
+            JcaPEMWriter pemWriter,
+            String keyFileName,
+            PrivateKey privateKey
+        ) throws IOException {
+            final boolean usePassword = useOutputPassword(options);
+            final char[] outputPassword = getOutputPassword(options);
+            outputStream.putNextEntry(new ZipEntry(keyFileName));
+            if (usePassword) {
+                withPassword(keyFileName, outputPassword, terminal, true, password -> {
+                    pemWriter.writeObject(privateKey, getEncrypter(password));
+                    return null;
+                });
+            } else {
+                pemWriter.writeObject(privateKey);
+            }
+            pemWriter.flush();
+            outputStream.closeEntry();
+        }
     }
 
     static class SigningRequestCommand extends CertificateCommand {
@@ -601,9 +675,7 @@ class CertificateTool extends MultiCommand {
             terminal.println("");
 
             final Path output = resolveOutputPath(terminal, options, DEFAULT_CSR_ZIP);
-            final int keySize = getKeySize(options);
-            Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, options);
-            generateAndWriteCsrs(output, keySize, certificateInformations);
+            generateAndWriteCsrs(terminal, options, output);
 
             terminal.println("");
             terminal.println("Certificate signing requests have been written to " + output);
@@ -619,12 +691,25 @@ class CertificateTool extends MultiCommand {
             terminal.println("follow the SSL configuration instructions in the product guide.");
         }
 
+        // For testing
+        void generateAndWriteCsrs(Terminal terminal, OptionSet options, Path output) throws Exception {
+            final int keySize = getKeySize(options);
+            Collection<CertificateInformation> certificateInformations = getCertificateInformationList(terminal, options);
+            generateAndWriteCsrs(terminal, options, output, keySize, certificateInformations);
+        }
+
         /**
          * Generates certificate signing requests and writes them out to the specified file in zip format
          *
          * @param certInfo the details to use in the certificate signing requests
          */
-        void generateAndWriteCsrs(Path output, int keySize, Collection<CertificateInformation> certInfo) throws Exception {
+        void generateAndWriteCsrs(
+            Terminal terminal,
+            OptionSet options,
+            Path output,
+            int keySize,
+            Collection<CertificateInformation> certInfo
+        ) throws Exception {
             fullyWriteZipFile(output, (outputStream, pemWriter) -> {
                 for (CertificateInformation certificateInformation : certInfo) {
                     KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
@@ -647,10 +732,14 @@ class CertificateTool extends MultiCommand {
                     outputStream.closeEntry();
 
                     // write private key
-                    outputStream.putNextEntry(new ZipEntry(dirName + certificateInformation.name.filename + ".key"));
-                    pemWriter.writeObject(keyPair.getPrivate());
-                    pemWriter.flush();
-                    outputStream.closeEntry();
+                    super.writePemPrivateKey(
+                        terminal,
+                        options,
+                        outputStream,
+                        pemWriter,
+                        dirName + certificateInformation.name.filename + ".key",
+                        keyPair.getPrivate()
+                    );
                 }
             });
         }
@@ -782,13 +871,11 @@ class CertificateTool extends MultiCommand {
 
             final int keySize = getKeySize(options);
             final int days = getDays(options);
-            final char[] outputPassword = super.getOutputPassword(options);
             if (writeZipFile) {
                 final boolean usePem = usePemFormat(options);
-                final boolean usePassword = super.useOutputPassword(options);
                 fullyWriteZipFile(output, (outputStream, pemWriter) -> {
                     for (CertificateInformation certificateInformation : certs) {
-                        CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days);
+                        CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days, terminal);
 
                         final String dirName = certificateInformation.name.filename + "/";
                         ZipEntry zipEntry = new ZipEntry(dirName);
@@ -805,20 +892,10 @@ class CertificateTool extends MultiCommand {
                             outputStream.closeEntry();
 
                             // write private key
-                            final String keyFileName = entryBase + ".key";
-                            outputStream.putNextEntry(new ZipEntry(keyFileName));
-                            if (usePassword) {
-                                withPassword(keyFileName, outputPassword, terminal, true, password -> {
-                                    pemWriter.writeObject(pair.key, getEncrypter(password));
-                                    return null;
-                                });
-                            } else {
-                                pemWriter.writeObject(pair.key);
-                            }
-                            pemWriter.flush();
-                            outputStream.closeEntry();
+                            writePemPrivateKey(terminal, options, outputStream, pemWriter, entryBase + ".key", pair.key);
                         } else {
                             final String fileName = entryBase + ".p12";
+                            final char[] outputPassword = super.getOutputPassword(options);
                             outputStream.putNextEntry(new ZipEntry(fileName));
                             writePkcs12(
                                 fileName,
@@ -835,8 +912,9 @@ class CertificateTool extends MultiCommand {
                 });
             } else {
                 assert certs.size() == 1;
+                final char[] outputPassword = super.getOutputPassword(options);
                 CertificateInformation certificateInformation = certs.iterator().next();
-                CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days);
+                CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days, terminal);
                 fullyWriteFile(
                     output,
                     stream -> writePkcs12(
@@ -852,11 +930,12 @@ class CertificateTool extends MultiCommand {
             }
         }
 
-        private CertificateAndKey generateCertificateAndKey(
+        private static CertificateAndKey generateCertificateAndKey(
             CertificateInformation certificateInformation,
             CAInfo caInfo,
             int keySize,
-            int days
+            int days,
+            Terminal terminal
         ) throws Exception {
             KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
             Certificate certificate;
@@ -873,6 +952,7 @@ class CertificateTool extends MultiCommand {
                     caInfo.certAndKey.key,
                     days
                 );
+                verifyIssuer(certificate, caInfo, terminal);
             } else {
                 certificate = CertGenUtils.generateSignedCertificate(
                     certificateInformation.name.x500Principal,
@@ -884,9 +964,7 @@ class CertificateTool extends MultiCommand {
                     keyPair,
                     null,
                     null,
-                    false,
-                    days,
-                    null
+                    days
                 );
             }
             return new CertificateAndKey((X509Certificate) certificate, keyPair.getPrivate());
@@ -900,6 +978,7 @@ class CertificateTool extends MultiCommand {
             super("generate a new local certificate authority");
             acceptCertificateGenerationOptions();
             acceptsCertificateAuthorityName();
+            acceptCertificateAuthorityKeyUsage();
             super.caPasswordSpec = super.outputPasswordSpec;
         }
 
@@ -940,6 +1019,7 @@ class CertificateTool extends MultiCommand {
                 );
             }
         }
+
     }
 
     @SuppressForbidden(reason = "resolve paths against CWD for a CLI tool")

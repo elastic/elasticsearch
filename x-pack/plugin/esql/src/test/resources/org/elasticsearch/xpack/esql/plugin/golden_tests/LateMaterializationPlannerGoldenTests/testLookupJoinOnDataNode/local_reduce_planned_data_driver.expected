@@ -1,0 +1,9 @@
+ExchangeSinkExec[[_doc{f}#0, emp_no{f}#1, languages{f}#2, language_code{r}#3, language_name{f}#4],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#0, emp_no{f}#1, languages{f}#2, language_code{r}#3, language_name{f}#4]]
+\_TopN[[Order[emp_no{f}#1,ASC,LAST]],20[INTEGER],false]
+  \_Join[LEFT,[language_code{r}#3],[language_code{f}#5],null]
+    |_Eval[[languages{f}#2 AS language_code#3]]
+    | \_Filter[emp_no{f}#1 >= 10091[INTEGER] AND emp_no{f}#1 < 10094[INTEGER]]
+    |   \_EsRelation[employees][_doc{f}#0, avg_worked_seconds{f}#6, birth_date{f}#7, emp_no{f}#1, first_name{f}#8, gender{f}#9, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#14, is_rehired{f}#15, job_positions{f}#16, languages{f}#2, languages.byte{f}#17, languages.long{f}#18, languages.short{f}#19, last_name{f}#20, salary{f}#21, salary_change{f}#22, salary_change.int{f}#23, salary_change.keyword{f}#24, salary_change.long{f}#25, still_hired{f}#26]
+    \_EsRelation[languages_lookup][LOOKUP][language_code{f}#5, language_name{f}#4]<>]]

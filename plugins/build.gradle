@@ -1,14 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
-subprojects {
-  apply plugin: 'elasticsearch.internal-testclusters'
-}
 
 configurations {
   allPlugins
@@ -21,12 +18,10 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
 
   esplugin {
     // for local ES plugins, the name of the plugin is the same as the directory
-    name project.name
-
-    licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-    noticeFile rootProject.file('NOTICE.txt')
+    name = project.name
+    licenseFile = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+    noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
   }
-
 
   parent.artifacts.add('allPlugins', tasks.named('bundlePlugin'))
 }

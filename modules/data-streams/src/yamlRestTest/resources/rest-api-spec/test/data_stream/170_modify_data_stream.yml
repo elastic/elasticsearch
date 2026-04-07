@@ -1,9 +1,9 @@
 ---
 "Modify a data stream":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: "this API was released in 7.16.0"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -87,4 +87,315 @@
   - do:
       indices.delete_data_stream:
         name: data-stream-for-modification
+  - is_true: acknowledged
+
+---
+"Modify a data stream's failure store":
+  - requires:
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [data-*]
+          data_stream: {}
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-for-modification
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-for-modification2
+  - is_true: acknowledged
+
+  # Initialize failure store
+  - do:
+      index:
+        index: data-stream-for-modification
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+  # Initialize failure store
+  - do:
+      index:
+        index: data-stream-for-modification2
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+
+  # rollover data stream to create new failure store index
+  - do:
+      indices.rollover:
+        alias: "data-stream-for-modification::failures"
+  - is_true: acknowledged
+
+  # save index names for later use
+  - do:
+      indices.get_data_stream:
+        name: data-stream-for-modification
+  - set: { data_streams.0.indices.0.index_name: write_index }
+  - set: { data_streams.0.failure_store.indices.0.index_name: first_failure_index }
+  - set: { data_streams.0.failure_store.indices.1.index_name: write_failure_index }
+
+  - do:
+      indices.get_data_stream:
+        name: data-stream-for-modification2
+  - set: { data_streams.0.indices.0.index_name: second_write_index }
+  - set: { data_streams.0.failure_store.indices.0.index_name: second_write_failure_index }
+
+  - do:
+      index:
+        index:  test_index1
+        body:   { "foo": "bar1", "@timestamp": "2009-11-15T14:12:12" }
+  - do:
+      index:
+        index: test_index2
+        body: { "foo": "bar1", "@timestamp": "2009-11-15T14:12:12" }
+
+  # add alias to test_index2
+  - do:
+      indices.put_alias:
+        index: test_index2
+        name: test_index_alias
+  - is_true: acknowledged
+
+  - do:
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: "test_index1"
+                failure_store: true
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "data-stream-for-modification"
+  - match: { data_streams.0.name: data-stream-for-modification }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 4 }
+  - length: { data_streams.0.indices: 1 }
+  - length: { data_streams.0.failure_store.indices: 3 }
+  - match: { data_streams.0.indices.0.index_name: $write_index }
+  - match: { data_streams.0.failure_store.indices.0.index_name: 'test_index1' }
+  - match: { data_streams.0.failure_store.indices.1.index_name: $first_failure_index }
+  - match: { data_streams.0.failure_store.indices.2.index_name: $write_failure_index }
+
+  # An index that has an alias is not allowed to be added to failure store
+  - do:
+      catch: /cannot add index \[test_index2\] to data stream \[data-stream-for-modification\] until its alias \[test_index_alias\] is removed/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: test_index2
+                failure_store: true
+
+  # We will not accept an index that is already part of the data stream's backing indices
+  - do:
+      catch: /cannot add index \[.*\] to data stream \[data-stream-for-modification\] because it is already a backing index on data stream \[data-stream-for-modification\]/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $write_index
+                failure_store: true
+
+  # We will not accept an index that is already part of a different data stream's backing indices
+  - do:
+      catch: /cannot add index \[.*\] to data stream \[data-stream-for-modification\] because it is already a backing index on data stream \[data-stream-for-modification2\]/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $second_write_index
+                failure_store: true
+
+  # We will not accept an index that is already part of a different data stream's failure store
+  - do:
+      catch: /cannot add index \[.*\] to data stream \[data-stream-for-modification\] because it is already a failure store index on data stream \[data-stream-for-modification2\]/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $second_write_failure_index
+                failure_store: true
+
+  # We will not accept an index into the backing indices that is already part of a different data stream's failure store
+  - do:
+      catch: /cannot add index \[.*\] to data stream \[data-stream-for-modification\] because it is already a failure store index on data stream \[data-stream-for-modification2\]/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $second_write_failure_index
+
+  # We will return a failed response if we try to remove an index from the failure store that is not present
+  - do:
+      catch: /index \[.*\] not found/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - remove_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $write_index
+                failure_store: true
+
+  # Remove existing index successfully
+  - do:
+      indices.modify_data_stream:
+        body:
+          actions:
+            - remove_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: "test_index1"
+                failure_store: true
+
+  - do:
+      indices.get_data_stream:
+        name: "data-stream-for-modification"
+  - match: { data_streams.0.name: data-stream-for-modification }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 5 }
+  - length: { data_streams.0.indices: 1 }
+  - length: { data_streams.0.failure_store.indices: 2 }
+  - match: { data_streams.0.indices.0.index_name: $write_index }
+  - match: { data_streams.0.failure_store.indices.0.index_name: $first_failure_index }
+  - match: { data_streams.0.failure_store.indices.1.index_name: $write_failure_index }
+
+  # Remove write index of the failure store
+  - do:
+      indices.modify_data_stream:
+        body:
+          actions:
+            - remove_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $write_failure_index
+                failure_store: true
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "data-stream-for-modification"
+  - match: { data_streams.0.name: data-stream-for-modification }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 6 }
+  - length: { data_streams.0.indices: 1 }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: $write_index }
+  - match: { data_streams.0.failure_store.indices.0.index_name: $first_failure_index }
+
+  # Remove the last write index of the failure store
+  - do:
+      indices.modify_data_stream:
+        body:
+          actions:
+            - remove_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $first_failure_index
+                failure_store: true
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "data-stream-for-modification"
+  - match: { data_streams.0.name: data-stream-for-modification }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 7 }
+  - length: { data_streams.0.indices: 1 }
+  - length: { data_streams.0.failure_store.indices: 0 }
+  - match: { data_streams.0.indices.0.index_name: $write_index }
+
+  # Doing these checks again to make sure we still return the same error with  an empty failure store
+  # We will not accept an index that is already part of the data stream's backing indices
+  - do:
+      catch: /cannot add index \[.*\] to data stream \[data-stream-for-modification\] because it is already a backing index on data stream \[data-stream-for-modification\]/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $write_index
+                failure_store: true
+
+  # We will not accept an index that is already part of a different data stream's backing indices
+  - do:
+      catch: /cannot add index \[.*\] to data stream \[data-stream-for-modification\] because it is already a backing index on data stream \[data-stream-for-modification2\]/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $second_write_index
+                failure_store: true
+
+  # We will not accept an index that is already part of a different data stream's failure store
+  - do:
+      catch: /cannot add index \[.*\] to data stream \[data-stream-for-modification\] because it is already a failure store index on data stream \[data-stream-for-modification2\]/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $second_write_failure_index
+                failure_store: true
+
+  # We will return a failed response if we try to remove an index from the failure store that is not present
+  - do:
+      catch: /index \[.*\] not found/
+      indices.modify_data_stream:
+        body:
+          actions:
+            - remove_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: $write_index
+                failure_store: true
+
+  # Add index to empty failure store
+  - do:
+      indices.modify_data_stream:
+        body:
+          actions:
+            - add_backing_index:
+                data_stream: "data-stream-for-modification"
+                index: "test_index1"
+                failure_store: true
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: data-stream-for-modification
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: data-stream-for-modification2
   - is_true: acknowledged

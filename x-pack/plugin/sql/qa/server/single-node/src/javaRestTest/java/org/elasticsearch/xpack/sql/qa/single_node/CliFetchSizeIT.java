@@ -6,6 +6,16 @@
  */
 package org.elasticsearch.xpack.sql.qa.single_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.cli.FetchSizeTestCase;
+import org.junit.ClassRule;
 
-public class CliFetchSizeIT extends FetchSizeTestCase {}
+public class CliFetchSizeIT extends FetchSizeTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+}

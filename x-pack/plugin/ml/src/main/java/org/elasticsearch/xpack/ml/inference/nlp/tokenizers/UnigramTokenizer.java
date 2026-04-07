@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
@@ -30,7 +31,6 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.numUtf8Bytes;
 import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.splitOutNeverSplit;
 
 /**
@@ -50,7 +50,13 @@ public final class UnigramTokenizer extends Tokenizer {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
 
-    static UnigramTokenizer build(List<String> neverSplit, List<String> dictionary, double[] scores, String unknownToken) {
+    static UnigramTokenizer build(
+        List<String> neverSplit,
+        List<String> dictionary,
+        double[] scores,
+        String unknownToken,
+        boolean byteFallback
+    ) {
         if (dictionary.isEmpty()) {
             throw new IllegalArgumentException("vocab empty");
         }
@@ -85,7 +91,8 @@ public final class UnigramTokenizer extends Tokenizer {
             Optional.ofNullable(tokenToId.get(new BytesRef(unknownToken)))
                 .orElseThrow(
                     () -> new IllegalArgumentException("provided vocabulary does not contain the unknown token of [" + unknownToken + "]")
-                )
+                ),
+            byteFallback
         );
     }
 
@@ -95,7 +102,7 @@ public final class UnigramTokenizer extends Tokenizer {
 
     private final double minScore;
     // This may be configurable in the future
-    private final boolean fuseUnk = true;
+    private boolean fuseUnk = true;
     private final double[] vocabScores;
     private final CharTrie neverSplit;
     private final CharArraySet neverSplitHash;
@@ -105,6 +112,7 @@ public final class UnigramTokenizer extends Tokenizer {
     // This is a buffer that is reused per token for decoding the normalized char-sequence into utf-8 bytes
     // It's usage is NOT thread safe
     private byte[] normalizedByteBuffer = new byte[128];
+    private boolean byteFallback = false; // If true, decompose unknown pieces into UTF-8 byte pieces
 
     public UnigramTokenizer(
         double minScore,
@@ -126,6 +134,31 @@ public final class UnigramTokenizer extends Tokenizer {
         this.unknownTokenId = unknownTokenId;
         this.vocabScores = vocabScores;
         this.whitespaceTokenizer = new SimpleWhitespaceTokenizer();
+    }
+
+    public UnigramTokenizer(
+        double minScore,
+        double[] vocabScores,
+        CharTrie neverSplit,
+        CharArraySet neverSplitHash,
+        Map<BytesRef, Integer> vocabToId,
+        BytesTrie vocabTrie,
+        int unknownTokenId,
+        boolean byteFallback
+    ) {
+        super();
+        this.tokens = new LinkedList<>();
+        this.tokenizedValues = new ArrayList<>();
+        this.minScore = minScore;
+        this.neverSplit = neverSplit;
+        this.neverSplitHash = neverSplitHash;
+        this.vocabToId = vocabToId;
+        this.vocabTrie = vocabTrie;
+        this.unknownTokenId = unknownTokenId;
+        this.vocabScores = vocabScores;
+        this.whitespaceTokenizer = new SimpleWhitespaceTokenizer();
+        this.byteFallback = byteFallback;
+        this.fuseUnk = byteFallback == false;
     }
 
     List<DelimitedToken.Encoded> getTokenizedValues() {
@@ -232,6 +265,21 @@ public final class UnigramTokenizer extends Tokenizer {
         return false;
     }
 
+    private int[] decomposeBytePieces(byte[] bytes) {
+        assert this.byteFallback;
+
+        int[] pieces = new int[bytes.length];
+        for (int i = 0; i < bytes.length; i++) {
+            BytesRef decomposedToken = new BytesRef(Strings.format("<0x%02X>", bytes[i]));
+            Integer piece = vocabToId.get(decomposedToken);
+            if (piece == null) {
+                piece = unknownTokenId;
+            }
+            pieces[i] = piece;
+        }
+        return pieces;
+    }
+
     /**
      * This algorithm does the following:
      *
@@ -256,9 +304,14 @@ public final class UnigramTokenizer extends Tokenizer {
         BestPathNode[] bestPathNodes = new BestPathNode[numBytes + 1];
         int bytePos = 0;
         int charPos = 0;
-        while (bytePos < numBytes) {
+        while (charPos < inputSequence.length()) {
             double bestScoreTillHere = bestPathNodes[bytePos] == null ? 0 : bestPathNodes[bytePos].score;
-            int mblen = numUtf8Bytes(inputSequence.charAt(charPos));
+
+            boolean isSurrogatePair = (charPos + 1 < inputSequence.length()
+                && Character.isSurrogatePair(inputSequence.charAt(charPos), inputSequence.charAt(charPos + 1)));
+            int numUtf16Chars = isSurrogatePair ? 2 : 1;
+            int mblen = UnicodeUtil.calcUTF16toUTF8Length(inputSequence, charPos, numUtf16Chars);
+
             boolean hasSingleNode = false;
             // Find the matching prefixes, incrementing by the chars, each time
             for (BytesRef prefix : vocabTrie.matchingPrefixes(new BytesRef(normalizedByteBuffer, bytePos, numBytes - bytePos))) {
@@ -295,7 +348,7 @@ public final class UnigramTokenizer extends Tokenizer {
             }
             // Move our prefix search to the next char
             bytePos += mblen;
-            ++charPos;
+            charPos = charPos + numUtf16Chars;
         }
         int endsAtBytes = numBytes;
         int endsAtChars = inputSequence.length();
@@ -305,7 +358,23 @@ public final class UnigramTokenizer extends Tokenizer {
         while (endsAtBytes > 0) {
             BestPathNode node = bestPathNodes[endsAtBytes];
             int startsAtBytes = node.startsAtBytePos;
-            if (node.id == unknownTokenId && fuseUnk) {
+            if (node.id == unknownTokenId && byteFallback) {
+                CharSequence multiByteSequence = inputSequence.subSequence(node.startsAtCharPos, endsAtChars);
+                byte[] bytes = multiByteSequence.toString().getBytes(StandardCharsets.UTF_8);
+                int[] pieces = decomposeBytePieces(bytes);
+                for (int i = pieces.length - 1; i >= 0; i--) {
+                    results.add(
+                        new DelimitedToken.Encoded(
+                            Strings.format("<0x%02X>", bytes[i]),
+                            pieces[i],
+                            // even though we are changing the number of characters in the output, we don't
+                            // need to change the offsets. The offsets refer to the input characters
+                            offsetCorrection.apply(node.startsAtCharPos),
+                            offsetCorrection.apply(endsAtChars)
+                        )
+                    );
+                }
+            } else if (node.id == unknownTokenId && fuseUnk) {
                 unknownTokens.add(
                     new DelimitedToken.Encoded(
                         new String(normalizedByteBuffer, startsAtBytes, endsAtBytes - startsAtBytes, StandardCharsets.UTF_8),

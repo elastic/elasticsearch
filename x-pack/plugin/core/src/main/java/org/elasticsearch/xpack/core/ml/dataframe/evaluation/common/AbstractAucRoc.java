@@ -58,13 +58,13 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
     protected static double[] percentilesArray(Percentiles percentiles) {
         double[] result = new double[99];
         percentiles.forEach(percentile -> {
-            if (Double.isNaN(percentile.getValue())) {
+            if (Double.isNaN(percentile.value())) {
                 throw ExceptionsHelper.badRequestException(
                     "[{}] requires at all the percentiles values to be finite numbers",
                     NAME.getPreferredName()
                 );
             }
-            result[((int) percentile.getPercent()) - 1] = percentile.getValue();
+            result[((int) percentile.percent()) - 1] = percentile.value();
         });
         return result;
     }
@@ -162,7 +162,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
     private record RateThresholdCurve(double[] percentiles, boolean isTp) {
 
-        private double getRate(int index) {
+        private static double getRate(int index) {
             return 1 - 0.01 * (index + 1);
         }
 

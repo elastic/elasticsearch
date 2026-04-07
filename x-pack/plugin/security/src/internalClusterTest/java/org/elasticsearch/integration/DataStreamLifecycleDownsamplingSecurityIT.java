@@ -13,11 +13,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -25,6 +26,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -33,8 +35,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -56,6 +58,10 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,6 +73,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.metadata.ClusterChangedEventUtils.indicesCreated;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
@@ -113,35 +120,25 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     public void testDownsamplingAuthorized() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
-            .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        ),
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueSeconds(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
-                    )
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .downsamplingMethod(randomSamplingMethod())
+            .downsamplingRounds(
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
                 )
             )
-            .build();
+            .buildTemplate();
 
-        setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, 10_000);
-        waitAndAssertDownsamplingCompleted(dataStreamName);
-    }
-
-    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
-    public void testSystemDataStreamConfigurationWithDownsampling() throws Exception {
-        String dataStreamName = SystemDataStreamWithDownsamplingConfigurationPlugin.SYSTEM_DATA_STREAM_NAME;
-        indexDocuments(client(), dataStreamName, 10_000);
-        waitAndAssertDownsamplingCompleted(dataStreamName);
-    }
-
-    private void waitAndAssertDownsamplingCompleted(String dataStreamName) throws Exception {
+        setupDataStreamAndIngestDocs(
+            client(),
+            dataStreamName,
+            "1986-01-08T23:40:53.384Z",
+            "2022-01-08T23:40:53.384Z",
+            lifecycle,
+            10_000,
+            "1990-09-09T18:00:00"
+        );
         List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
         String firstGenerationBackingIndex = backingIndices.get(0).getName();
         String firstRoundDownsamplingIndex = "downsample-5m-" + firstGenerationBackingIndex;
@@ -149,15 +146,18 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(firstRoundDownsamplingIndex)
+            if (indicesCreated(event).contains(firstRoundDownsamplingIndex)
                 || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(firstRoundDownsamplingIndex))) {
                 witnessedDownsamplingIndices.add(firstRoundDownsamplingIndex);
             }
-            if (event.indicesCreated().contains(secondRoundDownsamplingIndex)) {
+            if (indicesCreated(event).contains(secondRoundDownsamplingIndex)) {
                 witnessedDownsamplingIndices.add(secondRoundDownsamplingIndex);
             }
         });
 
+        // before we rollover we update the index template to remove the start/end time boundaries (they're there just to ease with
+        // testing so DSL doesn't have to wait for the end_time to lapse)
+        putTSDBIndexTemplate(client(), dataStreamName, null, null, lifecycle);
         client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
 
         assertBusy(() -> {
@@ -188,21 +188,73 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         }, 30, TimeUnit.SECONDS);
     }
 
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
+    public void testSystemDataStreamConfigurationWithDownsampling() throws Exception {
+        String dataStreamName = SystemDataStreamWithDownsamplingConfigurationPlugin.SYSTEM_DATA_STREAM_NAME;
+        indexDocuments(client(), dataStreamName, 10_000, Instant.now().toEpochMilli());
+        List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
+        String firstGenerationBackingIndex = backingIndices.get(0).getName();
+        String secondRoundDownsamplingIndex = "downsample-10m-" + firstGenerationBackingIndex;
+
+        Set<String> witnessedDownsamplingIndices = new HashSet<>();
+        clusterService().addListener(event -> {
+            if (indicesCreated(event).contains(secondRoundDownsamplingIndex)) {
+                witnessedDownsamplingIndices.add(secondRoundDownsamplingIndex);
+            }
+        });
+
+        DataStreamLifecycleService masterDataStreamLifecycleService = internalCluster().getCurrentMasterNodeInstance(
+            DataStreamLifecycleService.class
+        );
+        try {
+            // we can't update the index template backing a system data stream, so we run DSL "in the future"
+            // this means that only one round of downsampling will execute due to an optimisation we have in DSL to execute the last
+            // matching round
+            masterDataStreamLifecycleService.setNowSupplier(() -> Instant.now().plus(50, ChronoUnit.DAYS).toEpochMilli());
+            client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
+
+            assertBusy(() -> {
+                assertNoAuthzErrors();
+                assertThat(witnessedDownsamplingIndices.contains(secondRoundDownsamplingIndex), is(true));
+            }, 30, TimeUnit.SECONDS);
+
+            assertBusy(() -> {
+                assertNoAuthzErrors();
+                List<Index> dsBackingIndices = getDataStreamBackingIndices(dataStreamName);
+
+                assertThat(dsBackingIndices.size(), is(2));
+                String writeIndex = dsBackingIndices.get(1).getName();
+                assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+                // the last downsampling round must remain in the data stream
+                assertThat(dsBackingIndices.get(0).getName(), is(secondRoundDownsamplingIndex));
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            // restore a real nowSupplier so other tests running against this cluster succeed
+            masterDataStreamLifecycleService.setNowSupplier(() -> Instant.now().toEpochMilli());
+        }
+    }
+
     private Map<String, String> collectErrorsFromStoreAsMap() {
         Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
         Map<String, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            List<String> allIndices = errorStore.getAllIndices();
+            Set<String> allIndices = errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID);
             for (var index : allIndices) {
-                indicesAndErrors.put(index, errorStore.getError(index));
+                ErrorEntry error = errorStore.getError(Metadata.DEFAULT_PROJECT_ID, index);
+                if (error != null) {
+                    indicesAndErrors.put(index, error.error());
+                }
             }
         }
         return indicesAndErrors;
     }
 
     private List<Index> getDataStreamBackingIndices(String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName }
+        );
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -221,15 +273,36 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         }
     }
 
-    private void setupDataStreamAndIngestDocs(Client client, String dataStreamName, DataStreamLifecycle lifecycle, int docCount)
-        throws IOException {
-        putTSDBIndexTemplate(client, dataStreamName + "*", lifecycle);
-        indexDocuments(client, dataStreamName, docCount);
+    private void setupDataStreamAndIngestDocs(
+        Client client,
+        String dataStreamName,
+        @Nullable String startTime,
+        @Nullable String endTime,
+        DataStreamLifecycle.Template lifecycle,
+        int docCount,
+        String firstDocTimestamp
+    ) throws IOException {
+        putTSDBIndexTemplate(client, dataStreamName + "*", startTime, endTime, lifecycle);
+        long startTimestamp = LocalDateTime.parse(firstDocTimestamp).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
+        indexDocuments(client, dataStreamName, docCount, startTimestamp);
     }
 
-    private void putTSDBIndexTemplate(Client client, String pattern, DataStreamLifecycle lifecycle) throws IOException {
+    private void putTSDBIndexTemplate(
+        Client client,
+        String pattern,
+        @Nullable String startTime,
+        @Nullable String endTime,
+        DataStreamLifecycle.Template lifecycle
+    ) throws IOException {
         Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
+        if (Strings.hasText(startTime)) {
+            settings.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime);
+        }
+
+        if (Strings.hasText(endTime)) {
+            settings.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime);
+        }
         CompressedXContent mapping = getTSDBMappings();
         putComposableIndexTemplate(client, "id1", mapping, List.of(pattern), settings.build(), null, lifecycle);
     }
@@ -257,27 +330,23 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle
+        @Nullable DataStreamLifecycle.Template lifecycle
     ) {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(settings, mappings, null, lifecycle),
-                null,
-                null,
-                null,
-                metadata,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(Template.builder().settings(settings).mappings(mappings).lifecycle(lifecycle))
+                .metadata(metadata)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
-        client.execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client.execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
-    private void indexDocuments(Client client, String dataStreamName, int docCount) {
+    private void indexDocuments(Client client, String dataStreamName, int docCount, long startTime) {
         final Supplier<XContentBuilder> sourceSupplier = () -> {
-            final String ts = randomDateForInterval(new DateHistogramInterval("1s"), System.currentTimeMillis());
+            final String ts = randomDateForInterval(new DateHistogramInterval("1s"), startTime);
             double counterValue = DATE_FORMATTER.parseMillis(ts);
             final List<String> dimensionValues = new ArrayList<>(5);
             for (int j = 0; j < randomIntBetween(1, 5); j++) {
@@ -334,29 +403,29 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         logger.info("-> Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
     }
 
+    private static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
+    }
+
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
 
+        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
+            .downsamplingMethod(randomSamplingMethod())
+            .downsamplingRounds(
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
+                )
+            )
+            .buildTemplate();
         static final String SYSTEM_DATA_STREAM_NAME = ".fleet-actions-results";
 
         @Override
         public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
-            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
-                .downsampling(
-                    new DataStreamLifecycle.Downsampling(
-                        List.of(
-                            new DataStreamLifecycle.Downsampling.Round(
-                                TimeValue.timeValueMillis(0),
-                                new DownsampleConfig(new DateHistogramInterval("5m"))
-                            ),
-                            new DataStreamLifecycle.Downsampling.Round(
-                                TimeValue.timeValueSeconds(10),
-                                new DownsampleConfig(new DateHistogramInterval("10m"))
-                            )
-                        )
-                    )
-                )
-                .build();
-
             Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
 
@@ -366,17 +435,14 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                         SYSTEM_DATA_STREAM_NAME,
                         "a system data stream for testing",
                         SystemDataStreamDescriptor.Type.EXTERNAL,
-                        new ComposableIndexTemplate(
-                            List.of(SYSTEM_DATA_STREAM_NAME),
-                            new Template(settings.build(), getTSDBMappings(), null, lifecycle),
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        ),
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
+                            .template(Template.builder().settings(settings).mappings(getTSDBMappings()).lifecycle(LIFECYCLE))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
                         Map.of(),
                         Collections.singletonList("test"),
+                        "test",
                         new ExecutorNames(
                             ThreadPool.Names.SYSTEM_CRITICAL_READ,
                             ThreadPool.Names.SYSTEM_READ,

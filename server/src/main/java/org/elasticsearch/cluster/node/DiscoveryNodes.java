@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,11 +64,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     private final String localNodeId;
     @Nullable
     private final DiscoveryNode localNode;
-    private final Version minNonClientNodeVersion;
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
     private final IndexVersion maxDataNodeCompatibleIndexVersion;
     private final IndexVersion minSupportedIndexVersion;
+    private final IndexVersion minReadOnlySupportedIndexVersion;
 
     private final Map<String, Set<String>> tiersToNodeIds;
 
@@ -79,11 +80,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         Map<String, DiscoveryNode> ingestNodes,
         @Nullable String masterNodeId,
         @Nullable String localNodeId,
-        Version minNonClientNodeVersion,
         Version maxNodeVersion,
         Version minNodeVersion,
         IndexVersion maxDataNodeCompatibleIndexVersion,
         IndexVersion minSupportedIndexVersion,
+        IndexVersion minReadOnlySupportedIndexVersion,
         Map<String, Set<String>> tiersToNodeIds
     ) {
         this.nodeLeftGeneration = nodeLeftGeneration;
@@ -96,11 +97,12 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         assert (masterNodeId == null) == (masterNode == null);
         this.localNodeId = localNodeId;
         this.localNode = localNodeId == null ? null : nodes.get(localNodeId);
-        this.minNonClientNodeVersion = minNonClientNodeVersion;
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
         this.maxDataNodeCompatibleIndexVersion = maxDataNodeCompatibleIndexVersion;
         this.minSupportedIndexVersion = minSupportedIndexVersion;
+        this.minReadOnlySupportedIndexVersion = minReadOnlySupportedIndexVersion;
+        assert minReadOnlySupportedIndexVersion.onOrBefore(minSupportedIndexVersion);
         assert (localNodeId == null) == (localNode == null);
         this.tiersToNodeIds = tiersToNodeIds;
     }
@@ -115,11 +117,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             ingestNodes,
             masterNodeId,
             localNodeId,
-            minNonClientNodeVersion,
             maxNodeVersion,
             minNodeVersion,
             maxDataNodeCompatibleIndexVersion,
             minSupportedIndexVersion,
+            minReadOnlySupportedIndexVersion,
             tiersToNodeIds
         );
     }
@@ -222,9 +224,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         return filteredNodes(nodes, n -> n.canContainData() == false && n.isMasterNode() == false && n.isIngestNode() == false);
     }
 
-    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR
-    // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, remove the sorting by ephemeral ID here
-        = Comparator.<DiscoveryNode>comparingInt(n -> n.isMasterNode() ? 0 : 1).thenComparing(DiscoveryNode::getEphemeralId);
+    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR = Comparator.comparingInt(n -> n.isMasterNode() ? 0 : 1);
 
     /**
      * Returns a stream of all nodes, with master nodes at the front
@@ -338,14 +338,10 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
-     * Returns the version of the node with the oldest version in the cluster that is not a client node
-     *
-     * If there are no non-client nodes, Version.CURRENT will be returned.
-     *
-     * @return the oldest version in the cluster
+     * {@code true} if this cluster consists of nodes with several release versions
      */
-    public Version getSmallestNonClientNodeVersion() {
-        return minNonClientNodeVersion;
+    public boolean isMixedVersionCluster() {
+        return minNodeVersion.equals(maxNodeVersion) == false;
     }
 
     /**
@@ -378,6 +374,13 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      */
     public IndexVersion getMinSupportedIndexVersion() {
         return minSupportedIndexVersion;
+    }
+
+    /**
+     * Returns the minimum index version for read-only indices supported by all nodes in the cluster
+     */
+    public IndexVersion getMinReadOnlySupportedIndexVersion() {
+        return minReadOnlySupportedIndexVersion;
     }
 
     /**
@@ -526,6 +529,9 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
      * Returns the changes comparing this nodes to the provided nodes.
      */
     public Delta delta(DiscoveryNodes other) {
+        if (this == other) {
+            return new Delta(this.masterNode, this.masterNode, localNodeId, List.of(), List.of());
+        }
         final List<DiscoveryNode> removed = new ArrayList<>();
         final List<DiscoveryNode> added = new ArrayList<>();
         for (DiscoveryNode node : other) {
@@ -623,6 +629,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             return added;
         }
 
+        @Override
+        public String toString() {
+            return shortSummary();
+        }
+
         public String shortSummary() {
             final StringBuilder summary = new StringBuilder();
             if (masterNodeChanged()) {
@@ -666,9 +677,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(masterNodeId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
-            out.writeVLong(nodeLeftGeneration);
-        } // else nodeLeftGeneration is zero, or we're sending this to a remote cluster which does not care about the nodeLeftGeneration
+        out.writeVLong(nodeLeftGeneration);
         out.writeCollection(nodes.values());
     }
 
@@ -681,9 +690,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             builder.localNodeId(localNode.getId());
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
-            builder.nodeLeftGeneration(in.readVLong());
-        } // else nodeLeftGeneration is zero, or we're receiving this from a remote cluster so the nodeLeftGeneration does not matter to us
+        builder.nodeLeftGeneration(in.readVLong());
 
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -836,19 +843,19 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
              */
             Version minNodeVersion = null;
             Version maxNodeVersion = null;
-            Version minNonClientNodeVersion = null;
             IndexVersion maxDataNodeCompatibleIndexVersion = null;
             IndexVersion minSupportedIndexVersion = null;
+            IndexVersion minReadOnlySupportedIndexVersion = null;
             for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.entrySet()) {
                 DiscoveryNode discoNode = nodeEntry.getValue();
                 Version version = discoNode.getVersion();
                 if (discoNode.canContainData() || discoNode.isMasterNode()) {
-                    minNonClientNodeVersion = min(minNonClientNodeVersion, version);
                     maxDataNodeCompatibleIndexVersion = min(maxDataNodeCompatibleIndexVersion, discoNode.getMaxIndexVersion());
                 }
                 minNodeVersion = min(minNodeVersion, version);
                 maxNodeVersion = max(maxNodeVersion, version);
                 minSupportedIndexVersion = max(minSupportedIndexVersion, discoNode.getMinIndexVersion());
+                minReadOnlySupportedIndexVersion = max(minReadOnlySupportedIndexVersion, discoNode.getMinReadOnlyIndexVersion());
             }
 
             final long newNodeLeftGeneration;
@@ -877,11 +884,11 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 filteredNodes(nodes, DiscoveryNode::isIngestNode),
                 masterNodeId,
                 localNodeId,
-                Objects.requireNonNullElse(minNonClientNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(maxNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
                 Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
-                Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersion.MINIMUM_COMPATIBLE),
+                Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersions.MINIMUM_COMPATIBLE),
+                Objects.requireNonNullElse(minReadOnlySupportedIndexVersion, IndexVersions.MINIMUM_READONLY_COMPATIBLE),
                 computeTiersToNodesMap(dataNodes)
             );
         }

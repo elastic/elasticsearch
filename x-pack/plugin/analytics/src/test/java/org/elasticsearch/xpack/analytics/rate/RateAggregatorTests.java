@@ -16,16 +16,18 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -37,7 +39,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -108,11 +109,17 @@ public class RateAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), "month", true, "month", "val", iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "month", true, "month", "val", iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("wrong_val", 102)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("wrong_val", 103)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("wrong_val", 103)));
@@ -129,7 +136,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSortedNumericDocValuesMonthToMonth() throws IOException {
-        testCase(new MatchAllDocsQuery(), "month", true, "month", "val", iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "month", true, "month", "val", iw -> {
             iw.addDocument(
                 doc("2010-03-12T01:07:45", new SortedNumericDocValuesField("val", 1), new SortedNumericDocValuesField("val", 2))
             );
@@ -145,7 +152,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDocValuesMonthToMonth() throws IOException {
-        testCase(new MatchAllDocsQuery(), "month", true, "month", "val", iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "month", true, "month", "val", iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
@@ -181,7 +188,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDocValuesMonthToMonthDefaultRate() throws IOException {
-        testCase(new MatchAllDocsQuery(), "month", true, null, "val", iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "month", true, null, "val", iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
@@ -193,7 +200,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDocValuesYearToMonth() throws IOException {
-        testCase(new MatchAllDocsQuery(), "year", true, "month", "val", iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "year", true, "month", "val", iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 8)));
@@ -204,7 +211,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDocValuesMonthToYear() throws IOException {
-        testCase(new MatchAllDocsQuery(), "month", true, "year", "val", iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "month", true, "year", "val", iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 8)));
@@ -216,7 +223,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDocValues50DaysToDays() throws IOException {
-        testCase(new MatchAllDocsQuery(), "50d", false, "day", "val", iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "50d", false, "day", "val", iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 8)));
@@ -232,7 +239,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
         String rate = randomFrom("month", "quarter", "year", "1M", "1q", "1y");
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(new MatchAllDocsQuery(), interval, true, rate, "val", iw -> {
+            () -> testCase(Queries.ALL_DOCS_INSTANCE, interval, true, rate, "val", iw -> {
                 iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
                 iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
                 iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 8)));
@@ -253,7 +260,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
         String rate = randomFrom("month", "quarter", "year", "1M", "1q", "1y");
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(new MatchAllDocsQuery(), interval, false, rate, "val", iw -> {
+            () -> testCase(Queries.ALL_DOCS_INSTANCE, interval, false, rate, "val", iw -> {
                 iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
                 iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
                 iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 8)));
@@ -268,7 +275,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoFieldMonthToDay() throws IOException {
-        testCase(new MatchAllDocsQuery(), "month", true, "day", null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "month", true, "day", null, iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
@@ -309,7 +316,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
 
         CompositeAggregationBuilder compositeAggregationBuilder = new CompositeAggregationBuilder("my_buckets", valuesSourceBuilders)
             .subAggregation(rateAggregationBuilder);
-        AggregationExecutionException ex = expectThrows(AggregationExecutionException.class, () -> testCase(iw -> {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
@@ -645,7 +652,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
 
     public void testScriptMonthToDay() throws IOException {
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             "month",
             true,
             "day",
@@ -720,7 +727,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToMonth() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
@@ -743,7 +750,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToYear() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
         if (randomBoolean()) {
@@ -763,7 +770,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToMonthValueCount() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .rateMode("value_count")
@@ -785,7 +792,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testHistogramFieldMonthToYearValueCount() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month")
             .rateMode("value_count")
@@ -806,7 +813,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFilterWithHistogramField() throws IOException {
-        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap());
+        MappedFieldType histType = new HistogramFieldMapper.HistogramFieldType("val", Collections.emptyMap(), null);
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         MappedFieldType keywordType = new KeywordFieldMapper.KeywordFieldType("term");
         RateAggregationBuilder rateAggregationBuilder = new RateAggregationBuilder("my_rate").rateUnit("month").field("val");
@@ -858,7 +865,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     }
 
     public void testWithCustomDocCount() throws IOException {
-        testCase(new MatchAllDocsQuery(), "month", true, "month", null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, "month", true, "month", null, iw -> {
             iw.addDocument(doc("2010-03-12T01:07:45", new CustomTermFreqField("_doc_count", "_doc_count", 10)));
             iw.addDocument(doc("2010-04-01T03:43:34"));
             iw.addDocument(doc("2010-04-27T03:43:34", new CustomTermFreqField("_doc_count", "_doc_count", 5)));
@@ -923,7 +930,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
     private DateFieldMapper.DateFieldType dateFieldType(String name) {
         return new DateFieldMapper.DateFieldType(
             name,
-            true,
+            IndexType.points(true, true),
             false,
             true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,

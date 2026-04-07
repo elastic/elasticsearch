@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
@@ -36,6 +37,9 @@ public interface CloseableChannel extends Closeable {
      * this listener is added, the listener will be executed by the thread that eventually closes the
      * channel. If the channel is already closed when the listener is added the listener will immediately be
      * executed by the thread that is attempting to add the listener.
+     *
+     * When the close completes but an exception prompted the closure, the exception will be passed to the
+     * listener's onFailure method.
      *
      * @param listener to be executed
      */
@@ -83,7 +87,7 @@ public interface CloseableChannel extends Closeable {
         if (blocking) {
             ArrayList<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
             for (final C channel : channels) {
-                PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+                PlainActionFuture<Void> closeFuture = new PlainActionFuture<>();
                 channel.addCloseListener(closeFuture);
                 futures.add(closeFuture);
             }

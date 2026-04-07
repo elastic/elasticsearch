@@ -18,6 +18,6 @@ public class DeleteSamlServiceProviderAction extends ActionType<DeleteSamlServic
     public static final DeleteSamlServiceProviderAction INSTANCE = new DeleteSamlServiceProviderAction(NAME);
 
     public DeleteSamlServiceProviderAction(String name) {
-        super(name, DeleteSamlServiceProviderResponse::new);
+        super(name);
     }
 }

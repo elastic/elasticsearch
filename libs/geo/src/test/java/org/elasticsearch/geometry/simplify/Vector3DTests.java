@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry.simplify;
 
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import static java.lang.Math.toRadians;
 import static org.elasticsearch.geometry.simplify.SimplificationErrorCalculator.Point3D.from;
@@ -238,7 +239,7 @@ public class Vector3DTests extends ESTestCase {
         return new TestPoint3DMatcher(expected, 1e-15);
     }
 
-    private static class TestPoint3DMatcher extends BaseMatcher<SimplificationErrorCalculator.Point3D> {
+    private static class TestPoint3DMatcher extends TypeSafeMatcher<SimplificationErrorCalculator.Point3D> {
         private final Matcher<Double> xMatcher;
         private final Matcher<Double> yMatcher;
         private final Matcher<Double> zMatcher;
@@ -252,11 +253,8 @@ public class Vector3DTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object actual) {
-            if (actual instanceof SimplificationErrorCalculator.Point3D point3D) {
-                return xMatcher.matches(point3D.x()) && yMatcher.matches(point3D.y()) && zMatcher.matches(point3D.z());
-            }
-            return false;
+        public boolean matchesSafely(SimplificationErrorCalculator.Point3D point3D) {
+            return xMatcher.matches(point3D.x()) && yMatcher.matches(point3D.y()) && zMatcher.matches(point3D.z());
         }
 
         @Override

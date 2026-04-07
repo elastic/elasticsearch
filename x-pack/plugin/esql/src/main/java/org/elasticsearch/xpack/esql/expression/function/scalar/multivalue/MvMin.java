@@ -8,42 +8,82 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.MvEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndHistogram;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
-public class MvMin extends AbstractMultivalueFunction {
-    public MvMin(Source source, Expression field) {
+public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpression {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMin", MvMin::new);
+
+    @FunctionInfo(
+        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "unsigned_long", "version" },
+        description = "Converts a multivalued expression into a single valued column containing the minimum value.",
+        examples = {
+            @Example(file = "math", tag = "mv_min"),
+            @Example(
+                description = "It can be used by any column type, including `keyword` columns. "
+                    + "In that case, it picks the first string, comparing their utf-8 representation byte by byte:",
+                file = "string",
+                tag = "mv_min"
+            ) }
+    )
+    public MvMin(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression field
+    ) {
         super(source, field);
+    }
+
+    private MvMin(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), EsqlDataTypes::isRepresentable, sourceText(), null, "representable");
+        return isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case BOOLEAN -> dvrCtx -> new MvMinBooleanEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case BYTES_REF -> dvrCtx -> new MvMinBytesRefEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case DOUBLE -> dvrCtx -> new MvMinDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvMinIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case LONG -> dvrCtx -> new MvMinLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+        return switch (PlannerUtils.toSortableElementType(field().dataType())) {
+            case BOOLEAN -> new MvMinBooleanEvaluator.Factory(fieldEval);
+            case BYTES_REF -> new MvMinBytesRefEvaluator.Factory(fieldEval);
+            case DOUBLE -> new MvMinDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvMinIntEvaluator.Factory(fieldEval);
+            case LONG -> new MvMinLongEvaluator.Factory(fieldEval);
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
@@ -92,5 +132,13 @@ public class MvMin extends AbstractMultivalueFunction {
      */
     static int ascendingIndex(int count) {
         return 0;
+    }
+
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (field instanceof FieldAttribute f) {
+            return new PushedBlockLoaderExpression(f, BlockLoaderFunctionConfig.Function.MV_MIN);
+        }
+        return null;
     }
 }

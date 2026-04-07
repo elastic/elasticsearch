@@ -17,6 +17,6 @@ public final class PutPrivilegesAction extends ActionType<PutPrivilegesResponse>
     public static final String NAME = "cluster:admin/xpack/security/privilege/put";
 
     private PutPrivilegesAction() {
-        super(NAME, PutPrivilegesResponse::new);
+        super(NAME);
     }
 }

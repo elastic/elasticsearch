@@ -1,36 +1,47 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.EstimatedHeapUsage;
+import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
+import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -48,9 +59,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.TestTranslog;
@@ -59,12 +73,14 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
@@ -79,6 +95,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -87,15 +104,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -104,13 +127,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
+    private static final Logger logger = LogManager.getLogger(IndexShardIT.class);
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, BogusEstimatedHeapUsagePlugin.class);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -119,7 +145,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
 
         ClusterService cs = getInstanceFromNode(ClusterService.class);
-        final Index index = cs.state().metadata().index("test").getIndex();
+        final Index index = cs.state().metadata().getProject().index("test").getIndex();
         Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
         logger.info("--> paths: [{}]", (Object) shardPaths);
         // Should not be able to acquire the lock because it's already open
@@ -147,7 +173,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testDurableFlagHasEffect() {
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
+        prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
@@ -160,7 +186,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             try {
                 // the lastWriteLocaltion has a Integer.MAX_VALUE size so we have to create a new one
                 return tlog.ensureSynced(
-                    new Translog.Location(lastWriteLocation.generation, lastWriteLocation.translogLocation, 0),
+                    new Translog.Location(lastWriteLocation.generation(), lastWriteLocation.translogLocation(), 0),
                     SequenceNumbers.UNASSIGNED_SEQ_NO
                 );
             } catch (IOException e) {
@@ -168,13 +194,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             }
         };
         setDurability(shard, Translog.Durability.REQUEST);
-        assertFalse(needsSync.test(translog));
+        assertThat(needsSync, falseWith(translog));
         setDurability(shard, Translog.Durability.ASYNC);
-        client().prepareIndex("test").setId("2").setSource("{}", XContentType.JSON).get();
-        assertTrue(needsSync.test(translog));
+        prepareIndex("test").setId("2").setSource("{}", XContentType.JSON).get();
+        assertThat(needsSync, trueWith(translog));
         setDurability(shard, Translog.Durability.REQUEST);
         client().prepareDelete("test", "1").get();
-        assertFalse(needsSync.test(translog));
+        assertThat(needsSync, falseWith(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
         client().prepareDelete("test", "2").get();
@@ -182,21 +208,21 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         setDurability(shard, Translog.Durability.REQUEST);
         assertNoFailures(
             client().prepareBulk()
-                .add(client().prepareIndex("test").setId("3").setSource("{}", XContentType.JSON))
+                .add(prepareIndex("test").setId("3").setSource("{}", XContentType.JSON))
                 .add(client().prepareDelete("test", "1"))
                 .get()
         );
-        assertFalse(needsSync.test(translog));
+        assertThat(needsSync, falseWith(translog));
 
         setDurability(shard, Translog.Durability.ASYNC);
         assertNoFailures(
             client().prepareBulk()
-                .add(client().prepareIndex("test").setId("4").setSource("{}", XContentType.JSON))
+                .add(prepareIndex("test").setId("4").setSource("{}", XContentType.JSON))
                 .add(client().prepareDelete("test", "3"))
                 .get()
         );
         setDurability(shard, Translog.Durability.REQUEST);
-        assertTrue(needsSync.test(translog));
+        assertThat(needsSync, trueWith(translog));
     }
 
     private void setDurability(IndexShard shard, Translog.Durability durability) {
@@ -216,15 +242,15 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testIndexDirIsDeletedWhenShardRemoved() throws Exception {
         Environment env = getInstanceFromNode(Environment.class);
-        Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
+        Path idxPath = env.sharedDataDir().resolve(randomAlphaOfLength(10));
         logger.info("--> idxPath: [{}]", idxPath);
         Settings idxSettings = Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, idxPath).build();
         createIndex("test", idxSettings);
         ensureGreen("test");
-        client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse response = client().prepareSearch("test").get();
-        assertHitCount(response, 1L);
+        prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        assertHitCount(client().prepareSearch("test"), 1L);
         indicesAdmin().prepareDelete("test").get();
+        awaitIndexShardCloseAsyncTasks();
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
         assertPathHasBeenCleared(idxPath);
     }
@@ -232,7 +258,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     public void testExpectedShardSizeIsPresent() throws InterruptedException {
         assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0)));
         for (int i = 0; i < 50; i++) {
-            client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }
         ensureGreen("test");
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
@@ -248,17 +274,189 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertThat(dataSetSize.get(), greaterThan(0L));
     }
 
+    public void testHeapUsageEstimateIsPresent() {
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        Map<String, EstimatedHeapUsage> estimatedHeapUsages = clusterInfoService.getClusterInfo().getEstimatedHeapUsages();
+        assertNotNull(estimatedHeapUsages);
+        // Not collecting yet because it is disabled
+        assertTrue(estimatedHeapUsages.isEmpty());
+
+        // Enable collection for estimated heap usages
+        updateClusterSettings(
+            Settings.builder()
+                .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
+                .build()
+        );
+        try {
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            ClusterState state = getInstanceFromNode(ClusterService.class).state();
+            estimatedHeapUsages = clusterInfoService.getClusterInfo().getEstimatedHeapUsages();
+            assertEquals(state.nodes().size(), estimatedHeapUsages.size());
+            for (DiscoveryNode node : state.nodes()) {
+                assertTrue(estimatedHeapUsages.containsKey(node.getId()));
+                EstimatedHeapUsage estimatedHeapUsage = estimatedHeapUsages.get(node.getId());
+                assertThat(estimatedHeapUsage.estimatedFreeBytes(), lessThanOrEqualTo(estimatedHeapUsage.totalBytes()));
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey())
+                    .build()
+            );
+        }
+    }
+
+    public void testShardHeapUsagesArePresent() {
+        // Create some indices so we can later expect a precise number of (random) shard-level heap usage reports.
+        final int numIndices = randomIntBetween(1, 5);
+        final int numShards = randomIntBetween(1, 3);
+        final String indexPrefix = randomIdentifier();
+        IntStream.range(0, numIndices).forEach(i -> {
+            final String indexName = indexPrefix + "_" + i;
+            createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build());
+        });
+
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+
+        Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = clusterInfoService.getClusterInfo().getEstimatedShardHeapUsages();
+        assertNotNull(estimatedShardHeapUsages);
+        // No shard heap usage is reported because it is not yet enabled.
+        assertTrue(estimatedShardHeapUsages.isEmpty());
+
+        // Enable collection of heap usages for ClusterInfo.
+        updateClusterSettings(
+            Settings.builder()
+                .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
+                .build()
+        );
+
+        try {
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            estimatedShardHeapUsages = clusterInfoService.getClusterInfo().getEstimatedShardHeapUsages();
+            assertNotNull(estimatedShardHeapUsages);
+            assertEquals(estimatedShardHeapUsages.size(), numIndices * numShards);
+            for (var entry : estimatedShardHeapUsages.entrySet()) {
+                assertThat(entry.getValue().shardHeapUsageBytes(), greaterThanOrEqualTo(0L));
+                assertThat(entry.getValue().indexHeapUsageBytes(), greaterThanOrEqualTo(0L));
+            }
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey())
+                    .build()
+            );
+        }
+    }
+
+    public void testNodeWriteLoadsArePresent() {
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+
+        // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
+            .getNodeUsageStatsForThreadPools();
+        assertNotNull(nodeThreadPoolStats);
+
+        /** Verify that each node has usage stats reported. */
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
+        for (DiscoveryNode node : state.nodes()) {
+            assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
+            NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
+            assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap()
+                .get(ThreadPool.Names.WRITE);
+            assertNotNull(writeThreadPoolStats);
+            assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
+            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
+            assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+        }
+    }
+
+    public void testShardWriteLoadsArePresent() {
+        // Create some indices and some write-load
+        final int numIndices = randomIntBetween(1, 5);
+        final String indexPrefix = randomIdentifier();
+        IntStream.range(0, numIndices).forEach(i -> {
+            final String indexName = indexPrefix + "_" + i;
+            createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3)).build());
+            IntStream.range(0, randomIntBetween(1, 500))
+                .forEach(j -> prepareIndex(indexName).setSource("foo", randomIdentifier(), "bar", randomIdentifier()).get());
+        });
+
+        final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+
+        try {
+            // Explicitly disable write load decider
+            setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED);
+
+            // Stats should not be collected when the decider is disabled
+            {
+                ClusterInfoServiceUtils.refresh(clusterInfoService);
+                final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
+                assertNotNull(shardWriteLoads);
+                assertTrue(shardWriteLoads.isEmpty());
+            }
+
+            // Turn on collection of write-load stats.
+            setWriteLoadDeciderEnablement(
+                randomBoolean()
+                    ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                    : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
+            );
+
+            // Force a ClusterInfo refresh to run collection of the write-load stats.
+            ClusterInfoServiceUtils.refresh(clusterInfoService);
+            final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
+
+            // Verify that each shard has write-load reported.
+            final ClusterState state = getInstanceFromNode(ClusterService.class).state();
+            assertEquals(state.projectState(ProjectId.DEFAULT).metadata().getTotalNumberOfShards(), shardWriteLoads.size());
+            for (IndexMetadata indexMetadata : state.projectState(ProjectId.DEFAULT).metadata()) {
+                double maximumLoadRecorded = 0;
+                for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
+                    final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
+                    assertTrue(shardWriteLoads.containsKey(shardId));
+                    maximumLoadRecorded = Math.max(shardWriteLoads.get(shardId), maximumLoadRecorded);
+                }
+                // Each index should have seen some write-load
+                assertThat(maximumLoadRecorded, greaterThan(0.0));
+            }
+        } finally {
+            clearWriteLoadDeciderEnablementSetting();
+        }
+    }
+
+    private void clearWriteLoadDeciderEnablementSetting() {
+        updateClusterSettings(Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build());
+    }
+
+    public void testMaxHeapPerNodeIsPresent() {
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        Map<String, ByteSizeValue> maxHeapSizePerNode = clusterInfoService.getClusterInfo().getMaxHeapSizePerNode();
+        assertNotNull(maxHeapSizePerNode);
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        assertEquals(state.nodes().size(), maxHeapSizePerNode.size());
+        for (DiscoveryNode node : state.nodes()) {
+            assertTrue(maxHeapSizePerNode.containsKey(node.getId()));
+            assertThat(maxHeapSizePerNode.get(node.getId()), greaterThan(ByteSizeValue.ZERO));
+        }
+    }
+
     public void testIndexCanChangeCustomDataPath() throws Exception {
         final String index = "test-custom-data-path";
-        final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataFile().resolve(randomAsciiLettersOfLength(10));
+        final Path sharedDataPath = getInstanceFromNode(Environment.class).sharedDataDir().resolve(randomAsciiLettersOfLength(10));
         final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
         logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
         createIndex(index, Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
-        client().prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen(index);
 
-        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
+        assertHitCount(client().prepareSearch(index).setSize(0), 1L);
 
         logger.info("--> closing the index [{}]", index);
         assertAcked(indicesAdmin().prepareClose(index));
@@ -267,11 +465,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         logger.info("--> index re-opened");
         ensureGreen(index);
 
-        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
+        assertHitCount(client().prepareSearch(index).setSize(0), 1L);
 
         // Now, try closing and changing the settings
         logger.info("--> closing the index [{}] before updating data_path", index);
         assertAcked(indicesAdmin().prepareClose(index));
+        awaitIndexShardCloseAsyncTasks();
 
         final Path newIndexDataPath = sharedDataPath.resolve("end-" + randomAlphaOfLength(10));
         IOUtils.rm(newIndexDataPath);
@@ -303,9 +502,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         logger.info("--> index re-opened");
         ensureGreen(index);
 
-        assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
+        assertHitCount(client().prepareSearch(index).setSize(0), 1L);
 
         assertAcked(indicesAdmin().prepareDelete(index));
+        awaitIndexShardCloseAsyncTasks();
         assertAllIndicesRemovedAndDeletionCompleted(Collections.singleton(getInstanceFromNode(IndicesService.class)));
         assertPathHasBeenCleared(newIndexDataPath.toAbsolutePath());
     }
@@ -325,16 +525,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Settings.builder()
                     .put(
                         IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                        new ByteSizeValue(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)
+                        ByteSizeValue.of(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)
                     )
                     .build()
             )
             .get();
-        client().prepareIndex("test")
-            .setId("0")
-            .setSource("{}", XContentType.JSON)
-            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
-            .get();
+        prepareIndex("test").setId("0").setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
         shard.applyIndexOperationOnPrimary(
             Versions.MATCH_ANY,
@@ -349,11 +545,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
         assertThat(shard.flushStats().getTotal(), equalTo(0L));
-        client().prepareIndex("test")
-            .setId("2")
-            .setSource("{}", XContentType.JSON)
-            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
-            .get();
+        prepareIndex("test").setId("2").setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertThat(shard.getLastKnownGlobalCheckpoint(), equalTo(2L));
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
@@ -373,7 +565,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         indicesAdmin().prepareUpdateSettings("test")
             .setSettings(
                 Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(size, ByteSizeUnit.BYTES))
                     .build()
             )
             .get();
@@ -391,7 +583,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             logger.info(
                 "--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
                 Strings.toString(translogStats),
-                translog.getGeneration().translogFileGeneration,
+                translog.getGeneration().translogFileGeneration(),
                 commitStats.getUserData(),
                 flushStats.getPeriodic(),
                 flushStats.getTotal()
@@ -408,7 +600,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             .put("index.number_of_shards", 1)
             .put("index.translog.generation_threshold_size", generationThreshold + "b")
             .build();
-        createIndex("test", settings, "test");
+        createIndex("test", settings);
         ensureGreen("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -430,7 +622,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             );
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
-            if (location.translogLocation + location.size > generationThreshold) {
+            if (location.translogLocation() + location.size() > generationThreshold) {
                 // wait until the roll completes
                 assertBusy(() -> assertFalse(shard.shouldRollTranslogGeneration()));
                 rolls++;
@@ -456,11 +648,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             settings = Settings.builder().put("index.translog.generation_threshold_size", "117b").build();
         }
         indicesAdmin().prepareUpdateSettings("test").setSettings(settings).get();
-        client().prepareIndex("test")
-            .setId("0")
-            .setSource("{}", XContentType.JSON)
-            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
-            .get();
+        prepareIndex("test").setId("0").setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
         final AtomicBoolean running = new AtomicBoolean(true);
         final int numThreads = randomIntBetween(2, 4);
@@ -483,7 +671,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final CheckedRunnable<Exception> check;
         if (flush) {
             final FlushStats initialStats = shard.flushStats();
-            client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
             check = () -> {
                 assertFalse(shard.shouldPeriodicallyFlush());
                 final FlushStats currentStats = shard.flushStats();
@@ -508,7 +696,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             };
         } else {
             final long generation = getTranslog(shard).currentFileGeneration();
-            client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
             check = () -> {
                 assertFalse(shard.shouldRollTranslogGeneration());
                 assertEquals(generation + 1, getTranslog(shard).currentFileGeneration());
@@ -529,7 +717,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         indicesAdmin().prepareUpdateSettings("test").setSettings(settings).get();
         final int numDocs = between(10, 100);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
         // A flush stats may include the new total count but the old period count - assert eventually.
         assertBusy(() -> {
@@ -540,7 +728,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         settings = Settings.builder().put("index.translog.flush_threshold_size", (String) null).build();
         indicesAdmin().prepareUpdateSettings("test").setSettings(settings).get();
 
-        client().prepareIndex("test").setId(UUIDs.randomBase64UUID()).setSource("{}", XContentType.JSON).get();
+        prepareIndex("test").setId(UUIDs.randomBase64UUID()).setSource("{}", XContentType.JSON).get();
         indicesAdmin().prepareFlush("test").setForce(randomBoolean()).setWaitIfOngoing(true).get();
         final FlushStats flushStats = indicesAdmin().prepareStats("test").clear().setFlush(true).get().getTotal().flush;
         assertThat(flushStats.getTotal(), greaterThan(flushStats.getPeriodic()));
@@ -552,12 +740,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = indexService.getShardOrNull(0);
-        client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         client().prepareDelete("test", "0").get();
-        client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
-        shard.close("simon says", false);
+        closeShardNoCheck(shard);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         List<Exception> failures = new ArrayList<>();
         IndexingOperationListener listener = new IndexingOperationListener() {
@@ -595,8 +783,14 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         try {
             ExceptionsHelper.rethrowAndSuppress(failures);
         } finally {
-            newShard.close("just do it", randomBoolean());
+            closeShardNoCheck(newShard, randomBoolean());
         }
+    }
+
+    private void setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus status) {
+        updateClusterSettings(
+            Settings.builder().put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), status).build()
+        );
     }
 
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {
@@ -631,6 +825,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             indexService.getIndexEventListener(),
             wrapper,
             indexService.getThreadPool(),
+            indexService.getThreadPoolMergeExecutorService(),
             indexService.getBigArrays(),
             null,
             Collections.emptyList(),
@@ -640,19 +835,21 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             cbs,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             System::nanoTime,
-            null
+            null,
+            MapperMetrics.NOOP,
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP
         );
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {
-        ShardRouting shardRouting = newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             existingShardRouting.shardId(),
             existingShardRouting.currentNodeId(),
-            null,
             existingShardRouting.primary(),
-            ShardRoutingState.INITIALIZING,
-            existingShardRouting.allocationId()
-        );
+            ShardRoutingState.INITIALIZING
+        ).withAllocationId(existingShardRouting.allocationId()).build();
         shardRouting = shardRouting.updateUnassigned(
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "fake recovery"),
             RecoverySource.ExistingStoreRecoverySource.INSTANCE
@@ -668,19 +865,19 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final SearchRequest countRequest = new SearchRequest("test").source(new SearchSourceBuilder().size(0));
         final long numDocs = between(10, 20);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
             if (randomBoolean()) {
                 shard.refresh("test");
             }
         }
         shard.refresh("test");
-        assertThat(client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs));
+        assertHitCount(client().search(countRequest), numDocs);
         assertThat(shard.getLocalCheckpoint(), equalTo(shard.seqNoStats().getMaxSeqNo()));
 
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
         shard.acquireAllPrimaryOperationsPermits(ActionListener.wrap(r -> {
             try {
-                shard.resetEngineToGlobalCheckpoint();
+                shard.rollbackEngineToGlobalCheckpoint();
             } finally {
                 r.close();
                 engineResetLatch.countDown();
@@ -690,7 +887,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         final long moreDocs = between(10, 20);
         for (int i = 0; i < moreDocs; i++) {
-            client().prepareIndex("test").setId(Long.toString(i + numDocs)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Long.toString(i + numDocs)).setSource("{}", XContentType.JSON).get();
             if (randomBoolean()) {
                 shard.refresh("test");
             }
@@ -703,29 +900,33 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 equalTo(numDocs + moreDocs)
             );
         }
-        assertThat(
-            "numDocs=" + numDocs + " moreDocs=" + moreDocs,
-            client().search(countRequest).actionGet().getHits().getTotalHits().value,
-            equalTo(numDocs + moreDocs)
-        );
+        assertHitCount(client().search(countRequest), numDocs + moreDocs);
     }
 
     public void testShardChangesWithDefaultDocType() throws Exception {
         Settings settings = indexSettings(1, 0).put("index.translog.flush_threshold_size", "512mb") // do not flush
             .put("index.soft_deletes.enabled", true)
             .build();
-        IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
+        IndexService indexService = createIndex("index", settings, "title", "type=keyword");
         int numOps = between(1, 10);
         for (int i = 0; i < numOps; i++) {
             if (randomBoolean()) {
-                client().prepareIndex("index").setId(randomFrom("1", "2")).setSource("{}", XContentType.JSON).get();
+                prepareIndex("index").setId(randomFrom("1", "2")).setSource("{}", XContentType.JSON).get();
             } else {
                 client().prepareDelete("index", randomFrom("1", "2")).get();
             }
         }
         IndexShard shard = indexService.getShard(0);
         try (
-            Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true, randomBoolean(), randomBoolean());
+            Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot(
+                "test",
+                0,
+                numOps - 1,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            );
             Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()
         ) {
             List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
@@ -748,7 +949,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState clusterState = clusterService.state();
 
-        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 
@@ -793,6 +994,75 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (IndicesService indicesService : indicesServices) {
             assertBusy(() -> assertFalse(indicesService.iterator().hasNext()), 1, TimeUnit.MINUTES);
             assertBusy(() -> assertFalse(indicesService.hasUncompletedPendingDeletes()), 1, TimeUnit.MINUTES);
+        }
+    }
+
+    public static class BogusEstimatedEstimatedHeapUsageCollector implements EstimatedHeapUsageCollector {
+
+        private final BogusEstimatedHeapUsagePlugin plugin;
+
+        public BogusEstimatedEstimatedHeapUsageCollector(BogusEstimatedHeapUsagePlugin plugin) {
+            this.plugin = plugin;
+        }
+
+        @Override
+        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+            ActionListener.completeWith(
+                listener,
+                () -> plugin.getClusterService()
+                    .state()
+                    .nodes()
+                    .stream()
+                    .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> randomNonNegativeLong()))
+            );
+        }
+
+        @Override
+        public void collectShardHeapUsage(ActionListener<ShardHeapUsageEstimates> listener) {
+            ActionListener.completeWith(listener, () -> {
+                var perShard = plugin.getClusterService()
+                    .state()
+                    .getRoutingNodes()
+                    .stream()
+                    .map(node -> node.started())
+                    .flatMap(nodeIt -> StreamSupport.stream(nodeIt.spliterator(), false))
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            ShardRouting::shardId,
+                            shardRouting -> new ShardAndIndexHeapUsage(randomShardHeapUsage(), randomIndexHeapUsage())
+                        )
+                    );
+                return new ShardHeapUsageEstimates(perShard, new ShardAndIndexHeapUsage(randomShardHeapUsage(), randomIndexHeapUsage()));
+            });
+        }
+    }
+
+    /**
+     * Reasonable shard heap usage estimate (to prevent overflow)
+     */
+    private static long randomShardHeapUsage() {
+        return randomLong(1_000_000);
+    }
+
+    /**
+     * Reasonable index heap usage estimate (to prevent overflow)
+     */
+    private static long randomIndexHeapUsage() {
+        return randomLong(400_000);
+    }
+
+    public static class BogusEstimatedHeapUsagePlugin extends Plugin implements ClusterPlugin {
+
+        private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            clusterService.set(services.clusterService());
+            return List.of();
+        }
+
+        public ClusterService getClusterService() {
+            return clusterService.get();
         }
     }
 }

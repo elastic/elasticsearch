@@ -7,50 +7,46 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
-    public static final String DOWSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
+    public static final String DOWNSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
     private static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final FixedExecutorBuilder downsample = new FixedExecutorBuilder(
             settings,
-            DOWSAMPLE_TASK_THREAD_POOL_NAME,
+            DOWNSAMPLE_TASK_THREAD_POOL_NAME,
             ThreadPool.oneEighthAllocatedProcessors(EsExecutors.allocatedProcessors(settings)),
             DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE,
             "xpack.downsample.thread_pool",
@@ -60,11 +56,10 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(DownsampleIndexerAction.INSTANCE, TransportDownsampleIndexerAction.class),
-            new ActionHandler<>(DownsampleAction.INSTANCE, TransportDownsampleAction.class),
-            new ActionHandler<>(
+            new ActionHandler(DownsampleAction.INSTANCE, TransportDownsampleAction.class),
+            new ActionHandler(
                 DownsampleShardPersistentTaskExecutor.DelegatingAction.INSTANCE,
                 DownsampleShardPersistentTaskExecutor.DelegatingAction.TA.class
             )
@@ -73,13 +68,9 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        RestHandlersServices restHandlersServices,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(new RestDownsampleAction());
     }
@@ -92,7 +83,14 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(new DownsampleShardPersistentTaskExecutor(client, DownsampleShardTask.TASK_NAME, DOWSAMPLE_TASK_THREAD_POOL_NAME));
+        return List.of(
+            new DownsampleShardPersistentTaskExecutor(
+                client,
+                DownsampleShardTask.TASK_NAME,
+                clusterService.getSettings(),
+                threadPool.executor(DOWNSAMPLE_TASK_THREAD_POOL_NAME)
+            )
+        );
     }
 
     @Override
@@ -121,5 +119,10 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
             ),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, DownsampleShardTaskParams.NAME, DownsampleShardTaskParams::new)
         );
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        return List.of(DownsampleMetrics.class);
     }
 }

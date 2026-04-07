@@ -10,7 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
@@ -32,7 +33,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
         JobManager jobManager,
         Client client
     ) {
-        super(GetBucketsAction.NAME, transportService, actionFilters, GetBucketsAction.Request::new);
+        super(GetBucketsAction.NAME, transportService, actionFilters, GetBucketsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;
@@ -40,7 +41,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
 
     @Override
     protected void doExecute(Task task, GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
-        jobManager.jobExists(request.getJobId(), null, ActionListener.wrap(ok -> {
+        jobManager.jobExists(request.getJobId(), null, listener.delegateFailureAndWrap((delegate, ok) -> {
             BucketsQueryBuilder query = new BucketsQueryBuilder().expand(request.isExpand())
                 .includeInterim(request.isExcludeInterim() == false)
                 .start(request.getStart())
@@ -61,14 +62,10 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
             jobResultsProvider.buckets(
                 request.getJobId(),
                 query,
-                q -> listener.onResponse(new GetBucketsAction.Response(q)),
-                listener::onFailure,
+                q -> delegate.onResponse(new GetBucketsAction.Response(q)),
+                delegate::onFailure,
                 client
             );
-
-        },
-            listener::onFailure
-
-        ));
+        }));
     }
 }

@@ -38,7 +38,8 @@ public final class SamlServiceProviderFactory {
             document.attributeNames.principal,
             document.attributeNames.name,
             document.attributeNames.email,
-            document.attributeNames.roles
+            document.attributeNames.roles,
+            document.attributeNames.extensions
         );
         final Set<X509Credential> credentials = document.certificates.getServiceProviderX509SigningCertificates()
             .stream()
@@ -89,7 +90,7 @@ public final class SamlServiceProviderFactory {
         return new ServiceProviderPrivileges(defaults.applicationName, resource, roleMapping);
     }
 
-    private URL parseUrl(SamlServiceProviderDocument document) {
+    private static URL parseUrl(SamlServiceProviderDocument document) {
         final URL acs;
         try {
             acs = new URL(document.acs);

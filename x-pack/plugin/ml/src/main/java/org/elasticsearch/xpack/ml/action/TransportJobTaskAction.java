@@ -46,7 +46,7 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         Executor nodeExecutor,
         AutodetectProcessManager processManager
     ) {
-        super(actionName, clusterService, transportService, actionFilters, requestReader, responseReader, responseReader, nodeExecutor);
+        super(actionName, clusterService, transportService, actionFilters, requestReader, responseReader, nodeExecutor);
         this.processManager = processManager;
     }
 
@@ -55,7 +55,7 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         String jobId = request.getJobId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
         if (jobTask == null || jobTask.isAssigned() == false) {
             String message = "Cannot perform requested action because job [" + jobId + "] is not open";

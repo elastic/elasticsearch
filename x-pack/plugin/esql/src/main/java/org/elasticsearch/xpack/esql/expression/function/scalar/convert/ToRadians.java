@@ -7,46 +7,75 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 /**
  * Converts from <a href="https://en.wikipedia.org/wiki/Degree_(angle)">degrees</a>
  * to <a href="https://en.wikipedia.org/wiki/Radian">radians</a>.
  */
 public class ToRadians extends AbstractConvertFunction implements EvaluatorMapper {
-    private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.of(
-            DOUBLE,
-            ToRadiansEvaluator::new,
-            INTEGER,
-            (field, source) -> new ToRadiansEvaluator(new ToDoubleFromIntEvaluator(field, source), source),
-            LONG,
-            (field, source) -> new ToRadiansEvaluator(new ToDoubleFromLongEvaluator(field, source), source),
-            UNSIGNED_LONG,
-            (field, source) -> new ToRadiansEvaluator(new ToDoubleFromUnsignedLongEvaluator(field, source), source)
-        );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "ToRadians",
+        ToRadians::new
+    );
 
-    public ToRadians(Source source, Expression field) {
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(DOUBLE, ToRadiansEvaluator.Factory::new),
+        Map.entry(INTEGER, (source, field) -> new ToRadiansEvaluator.Factory(source, new ToDoubleFromIntEvaluator.Factory(source, field))),
+        Map.entry(LONG, (source, field) -> new ToRadiansEvaluator.Factory(source, new ToDoubleFromLongEvaluator.Factory(source, field))),
+        Map.entry(
+            UNSIGNED_LONG,
+            (source, field) -> new ToRadiansEvaluator.Factory(source, new ToDoubleFromUnsignedLongEvaluator.Factory(source, field))
+        )
+    );
+
+    @FunctionInfo(
+        returnType = "double",
+        description = "Converts a number in {wikipedia}/Degree_(angle)[degrees] to {wikipedia}/Radian[radians].",
+        examples = @Example(file = "floats", tag = "to_radians")
+    )
+    public ToRadians(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 
+    private ToRadians(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    protected Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators() {
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 

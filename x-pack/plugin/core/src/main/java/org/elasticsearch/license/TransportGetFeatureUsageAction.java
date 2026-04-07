@@ -11,7 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -24,16 +25,13 @@ import java.util.Map;
 
 public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFeatureUsageRequest, GetFeatureUsageResponse> {
 
-    public static final ActionType<GetFeatureUsageResponse> TYPE = new ActionType<>(
-        "cluster:admin/xpack/license/feature_usage",
-        GetFeatureUsageResponse::new
-    );
+    public static final ActionType<GetFeatureUsageResponse> TYPE = new ActionType<>("cluster:admin/xpack/license/feature_usage");
 
     private final XPackLicenseState licenseState;
 
     @Inject
     public TransportGetFeatureUsageAction(TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
-        super(TYPE.name(), transportService, actionFilters, GetFeatureUsageRequest::new);
+        super(TYPE.name(), transportService, actionFilters, GetFeatureUsageRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.licenseState = licenseState;
     }
 

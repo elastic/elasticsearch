@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -18,11 +19,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-import java.util.stream.Stream;
-
-import static java.util.Collections.emptyList;
-
 public class FieldNamesFieldTypeTests extends ESTestCase {
 
     public void testTermQuery() {
@@ -34,8 +30,6 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
             new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
             settings
         );
-        List<FieldMapper> mappers = Stream.of(fieldNamesFieldType, fieldType).<FieldMapper>map(MockFieldMapper::new).toList();
-        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
         SearchExecutionContext searchExecutionContext = SearchExecutionContextHelper.createSimple(indexSettings, null, null);
         Query termQuery = fieldNamesFieldType.termQuery("field_name", searchExecutionContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);

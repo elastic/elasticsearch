@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
@@ -28,7 +27,7 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/update";
 
     private UpdateDataFrameAnalyticsAction() {
-        super(NAME, PutDataFrameAnalyticsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -58,6 +57,7 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
         }
 
         public Request(DataFrameAnalyticsConfigUpdate update) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.update = update;
         }
 
@@ -69,11 +69,6 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
 
         public DataFrameAnalyticsConfigUpdate getUpdate() {
             return update;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

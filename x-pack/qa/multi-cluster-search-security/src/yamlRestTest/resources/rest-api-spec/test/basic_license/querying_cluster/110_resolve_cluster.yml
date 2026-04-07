@@ -1,0 +1,14 @@
+---
+"Resolve cluster with indices, aliases, and data streams":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "resolve cluster added in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: 'my_remote_cluster:*'
+
+  - match: {my_remote_cluster.connected: true}
+  - match: {my_remote_cluster.skip_unavailable: false}
+  - match: {my_remote_cluster.matching_indices: true}
+  - exists: my_remote_cluster.version.number

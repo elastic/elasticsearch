@@ -18,19 +18,43 @@ public class TopNRowTests extends ESTestCase {
     private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
 
     public void testRamBytesUsedEmpty() {
-        TopNOperator.Row row = new TopNOperator.Row(breaker);
+        TopNRow row = new TopNRow(breaker, 0, 0);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedSmall() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        TopNRow row = new TopNRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), 0, 0);
         row.keys.append(randomByte());
         row.values.append(randomByte());
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
+    /**
+     * Tests the row size as measured by MAT in a heap dump from a failing test. All the
+     * magic numbers come from the heap dump. They came from the running {@link TopNOperator}'s
+     * size estimates from previous rows.
+     */
+    public void testFromHeapDump1() {
+        TopNRow row = new TopNRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), 56, 24);
+        assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
+        // 304 was measured debugging a heap dump and we've since shrunk
+        assertThat(row.ramBytesUsed(), equalTo(240L));
+    }
+
+    /**
+     * Tests the row size as measured by MAT in a heap dump from a failing test. All the
+     * magic numbers come from the heap dump. They came from the running {@link TopNOperator}'s
+     * size estimates from previous rows.
+     */
+    public void testFromHeapDump2() {
+        TopNRow row = new TopNRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1160, 1_153_096);
+        assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
+        // 1,154,464 is measured debugging a heap dump and we've since shrunk
+        assertThat(row.ramBytesUsed(), equalTo(1_154_416L));
+    }
+
     public void testRamBytesUsedBig() {
-        TopNOperator.Row row = new TopNOperator.Row(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        TopNRow row = new TopNRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), 0, 0);
         for (int i = 0; i < 10000; i++) {
             row.keys.append(randomByte());
             row.values.append(randomByte());
@@ -38,7 +62,12 @@ public class TopNRowTests extends ESTestCase {
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
-    private long expectedRamBytesUsed(TopNOperator.Row row) {
+    public void testRamBytesUsedPreAllocated() {
+        TopNRow row = new TopNRow(new NoopCircuitBreaker(CircuitBreaker.REQUEST), 64, 128);
+        assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
+    }
+
+    private long expectedRamBytesUsed(TopNRow row) {
         long expected = RamUsageTester.ramUsed(row);
         if (row.values.bytes().length == 0) {
             // We double count the shared empty array for empty rows. This overcounting is *fine*, but throws off the test.

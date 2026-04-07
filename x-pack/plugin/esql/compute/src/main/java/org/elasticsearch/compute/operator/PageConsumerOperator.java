@@ -40,7 +40,7 @@ public class PageConsumerOperator extends SinkOperator {
     }
 
     @Override
-    public void addInput(Page page) {
+    protected void doAddInput(Page page) {
         pageConsumer.accept(page);
     }
 

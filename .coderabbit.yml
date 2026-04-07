@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+inheritance: true
+reviews:
+  # those have been configured on the root level already
+  # review_status: false
+  # poem: false
+  auto_review:
+    labels:
+      - "Team:Delivery"
+      - "Team:Core/Infra"

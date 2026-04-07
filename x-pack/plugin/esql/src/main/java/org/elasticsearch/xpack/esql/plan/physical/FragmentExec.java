@@ -7,16 +7,26 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 public class FragmentExec extends LeafExec implements EstimatesRowSize {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "FragmentExec",
+        FragmentExec::new
+    );
 
     private final LogicalPlan fragment;
     private final QueryBuilder esFilter;
@@ -25,17 +35,37 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
      * Estimate of the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
      */
-    private final Integer estimatedRowSize;
+    private final int estimatedRowSize;
 
     public FragmentExec(LogicalPlan fragment) {
-        this(fragment.source(), fragment, null, null);
+        this(fragment.source(), fragment, null, 0);
     }
 
-    public FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, Integer estimatedRowSize) {
+    public FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, int estimatedRowSize) {
         super(source);
         this.fragment = fragment;
         this.esFilter = esFilter;
         this.estimatedRowSize = estimatedRowSize;
+    }
+
+    private FragmentExec(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in));
+        this.fragment = in.readNamedWriteable(LogicalPlan.class);
+        this.esFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        this.estimatedRowSize = in.readVInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(fragment());
+        out.writeOptionalNamedWriteable(esFilter());
+        out.writeVInt(estimatedRowSize);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public LogicalPlan fragment() {
@@ -68,6 +98,14 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
             : new FragmentExec(source(), fragment, esFilter, estimatedRowSize);
     }
 
+    public FragmentExec withFragment(LogicalPlan fragment) {
+        return Objects.equals(fragment, this.fragment) ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize);
+    }
+
+    public FragmentExec withFilter(QueryBuilder filter) {
+        return Objects.equals(filter, this.esFilter) ? this : new FragmentExec(source(), fragment, filter, estimatedRowSize);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(fragment, esFilter, estimatedRowSize);
@@ -90,15 +128,16 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
         sb.append("[filter=");
         sb.append(esFilter);
         sb.append(", estimatedRowSize=");
         sb.append(estimatedRowSize);
-        sb.append(", fragment=[<>\n");
-        sb.append(fragment.toString());
+        sb.append(", reducer=[");
+        sb.append("], fragment=[<>\n");
+        sb.append(fragment.toString(format));
         sb.append("<>]]");
         return sb.toString();
     }

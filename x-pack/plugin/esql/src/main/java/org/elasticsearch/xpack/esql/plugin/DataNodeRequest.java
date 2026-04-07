@@ -7,59 +7,165 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
+import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-final class DataNodeRequest extends TransportRequest implements IndicesRequest {
-    private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
+import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY;
+
+final class DataNodeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
+    private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
+    private static final TransportVersion EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST = TransportVersion.fromName(
+        "esql_external_splits_in_data_node_request"
+    );
+
+    private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
+
     private final String sessionId;
-    private final EsqlConfiguration configuration;
-    private final List<ShardId> shardIds;
+    private final Configuration configuration;
+    private final String clusterAlias;
     private final Map<Index, AliasFilter> aliasFilters;
     private final PhysicalPlan plan;
+    private List<Shard> shards;
+    private String[] indices;
+    private final IndicesOptions indicesOptions;
+    private final boolean runNodeLevelReduction;
+    private final boolean reductionLateMaterialization;
+    private final List<ExternalSplit> externalSplits;
 
-    private String[] indices; // lazily computed
-
+    /**
+     * Constructor with all parameters including externalSplits.
+     */
     DataNodeRequest(
         String sessionId,
-        EsqlConfiguration configuration,
-        List<ShardId> shardIds,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
         Map<Index, AliasFilter> aliasFilters,
-        PhysicalPlan plan
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        List<ExternalSplit> externalSplits
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
-        this.shardIds = shardIds;
+        this.clusterAlias = clusterAlias;
+        this.shards = shards;
         this.aliasFilters = aliasFilters;
         this.plan = plan;
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
+        this.runNodeLevelReduction = runNodeLevelReduction;
+        this.reductionLateMaterialization = reductionLateMaterialization;
+        this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
+    }
+
+    /**
+     * Constructor without externalSplits (defaults to empty list).
+     */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization
+    ) {
+        this(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            List.of()
+        );
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
+        this(in, null);
+    }
+
+    /**
+     * @param idMapper should always be null in production! Custom mappers are only used in tests to force ID values to be the same after
+     *                 serialization and deserialization, which is not the case when they are generated as usual.
+     */
+    DataNodeRequest(StreamInput in, PlanStreamInput.NameIdMapper idMapper) throws IOException {
         super(in);
         this.sessionId = in.readString();
-        this.configuration = new EsqlConfiguration(in);
-        this.shardIds = in.readCollectionAsList(ShardId::new);
+        this.configuration = new Configuration(
+            // TODO make EsqlConfiguration Releasable
+            new BlockStreamInput(
+                in,
+                BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build()
+            )
+        );
+        this.clusterAlias = in.readString();
+        if (in.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)) {
+            this.shards = in.readCollectionAsList(Shard::new);
+        } else {
+            this.shards = in.readCollectionAsList(i -> new Shard(new ShardId(i), SplitShardCountSummary.UNSET));
+        }
         this.aliasFilters = in.readMap(Index::new, AliasFilter::readFrom);
-        this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration).readPhysicalPlanNode();
+        PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration, idMapper);
+        this.plan = pin.readNamedWriteable(PhysicalPlan.class);
+        this.indices = in.readStringArray();
+        this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+        this.runNodeLevelReduction = in.readBoolean();
+        if (in.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
+            this.reductionLateMaterialization = in.readBoolean();
+        } else {
+            this.reductionLateMaterialization = false;
+        }
+        if (in.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
+            this.externalSplits = in.readNamedWriteableCollectionAsList(ExternalSplit.class);
+        } else {
+            this.externalSplits = List.of();
+        }
     }
 
     @Override
@@ -67,22 +173,48 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         super.writeTo(out);
         out.writeString(sessionId);
         configuration.writeTo(out);
-        out.writeCollection(shardIds);
+        out.writeString(clusterAlias);
+        if (out.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)) {
+            out.writeCollection(shards);
+        } else {
+            out.writeCollection(shards, (o, s) -> s.shardId().writeTo(o));
+        }
         out.writeMap(aliasFilters);
-        new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
+        new PlanStreamOutput(out, configuration).writeNamedWriteable(plan);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeBoolean(runNodeLevelReduction);
+        if (out.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
+            out.writeBoolean(reductionLateMaterialization);
+        }
+        if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
+            out.writeNamedWriteableCollection(externalSplits);
+        }
     }
 
     @Override
     public String[] indices() {
-        if (indices == null) {
-            indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
-        }
         return indices;
     }
 
     @Override
+    public IndicesRequest indices(String... indices) {
+        this.indices = indices;
+        if (Arrays.equals(NO_INDICES_OR_ALIASES_ARRAY, indices) || Arrays.asList(indices).contains(NO_INDEX_PLACEHOLDER)) {
+            logger.trace(() -> format("Indices empty after index resolution, also clearing shardIds %s", shards));
+            this.shards = Collections.emptyList();
+        }
+        return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return indicesOptions;
     }
 
     @Override
@@ -103,7 +235,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return sessionId;
     }
 
-    EsqlConfiguration configuration() {
+    Configuration configuration() {
         return configuration;
     }
 
@@ -111,8 +243,12 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return configuration.pragmas();
     }
 
-    List<ShardId> shardIds() {
-        return shardIds;
+    String clusterAlias() {
+        return clusterAlias;
+    }
+
+    List<Shard> shards() {
+        return shards;
     }
 
     /**
@@ -126,9 +262,25 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         return plan;
     }
 
+    boolean runNodeLevelReduction() {
+        return runNodeLevelReduction;
+    }
+
+    boolean reductionLateMaterialization() {
+        return reductionLateMaterialization;
+    }
+
+    List<ExternalSplit> externalSplits() {
+        return externalSplits;
+    }
+
     @Override
     public String getDescription() {
-        return "shards=" + shardIds + " plan=" + plan;
+        String desc = "shards=" + shards + " plan=" + plan;
+        if (externalSplits.isEmpty() == false) {
+            desc += " externalSplits=" + externalSplits.size();
+        }
+        return desc;
     }
 
     @Override
@@ -143,14 +295,60 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         DataNodeRequest request = (DataNodeRequest) o;
         return sessionId.equals(request.sessionId)
             && configuration.equals(request.configuration)
-            && shardIds.equals(request.shardIds)
+            && clusterAlias.equals(request.clusterAlias)
+            && shards.equals(request.shards)
             && aliasFilters.equals(request.aliasFilters)
             && plan.equals(request.plan)
-            && getParentTask().equals(request.getParentTask());
+            && getParentTask().equals(request.getParentTask())
+            && Arrays.equals(indices, request.indices)
+            && indicesOptions.equals(request.indicesOptions)
+            && runNodeLevelReduction == request.runNodeLevelReduction
+            && reductionLateMaterialization == request.reductionLateMaterialization
+            && externalSplits.equals(request.externalSplits);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, configuration, shardIds, aliasFilters, plan);
+        return Objects.hash(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            Arrays.hashCode(indices),
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            externalSplits
+        );
+    }
+
+    public DataNodeRequest withPlan(ExchangeSinkExec newPlan) {
+        return new DataNodeRequest(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            newPlan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            externalSplits
+        );
+    }
+
+    public record Shard(ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) implements Writeable {
+        Shard(StreamInput in) throws IOException {
+            this(new ShardId(in), new SplitShardCountSummary(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            shardId.writeTo(out);
+            reshardSplitShardCountSummary.writeTo(out);
+        }
     }
 }

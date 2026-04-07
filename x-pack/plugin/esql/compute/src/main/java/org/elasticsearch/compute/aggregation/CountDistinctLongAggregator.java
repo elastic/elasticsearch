@@ -8,41 +8,37 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator({ @IntermediateState(name = "hll", type = "BYTES_REF") })
 @GroupingAggregator
 public class CountDistinctLongAggregator {
 
-    public static HllStates.SingleState initSingle(BigArrays bigArrays, int precision) {
-        return new HllStates.SingleState(bigArrays, precision);
+    public static HllStates.SingleState initSingle(DriverContext driverContext, int precision) {
+        return new HllStates.SingleState(driverContext, precision);
     }
 
     public static void combine(HllStates.SingleState current, long v) {
         current.collect(v);
     }
 
-    public static void combineStates(HllStates.SingleState current, HllStates.SingleState state) {
-        current.merge(0, state.hll, 0);
-    }
-
     public static void combineIntermediate(HllStates.SingleState current, BytesRef inValue) {
         current.merge(0, inValue, 0);
     }
 
-    public static Block evaluateFinal(HllStates.SingleState state) {
+    public static Block evaluateFinal(HllStates.SingleState state, DriverContext driverContext) {
         long result = state.cardinality();
-        return LongBlock.newConstantBlockWith(result, 1);
+        return driverContext.blockFactory().newConstantLongBlockWith(result, 1);
     }
 
-    public static HllStates.GroupingState initGrouping(BigArrays bigArrays, int precision) {
-        return new HllStates.GroupingState(bigArrays, precision);
+    public static HllStates.GroupingState initGrouping(DriverContext driverContext, int precision) {
+        return new HllStates.GroupingState(driverContext, precision);
     }
 
     public static void combine(HllStates.GroupingState current, int groupId, long v) {
@@ -53,22 +49,14 @@ public class CountDistinctLongAggregator {
         current.merge(groupId, inValue, 0);
     }
 
-    public static void combineStates(
-        HllStates.GroupingState current,
-        int currentGroupId,
-        HllStates.GroupingState state,
-        int statePosition
-    ) {
-        current.merge(currentGroupId, state.hll, statePosition);
-    }
-
-    public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected) {
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int group = selected.getInt(i);
-            long count = state.cardinality(group);
-            builder.appendLong(count);
+    public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        try (LongBlock.Builder builder = ctx.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                long count = state.cardinality(group);
+                builder.appendLong(count);
+            }
+            return builder.build();
         }
-        return builder.build();
     }
 }

@@ -108,10 +108,14 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
         }
 
         SearchResponse searchResponse = doSearch(searchAfterFields());
-        if (trackTotalHits && totalHits.get() == 0) {
-            totalHits.set(searchResponse.getHits().getTotalHits().value);
+        try {
+            if (trackTotalHits && totalHits.get() == 0) {
+                totalHits.set(searchResponse.getHits().getTotalHits().value());
+            }
+            return mapHits(searchResponse);
+        } finally {
+            searchResponse.decRef();
         }
-        return mapHits(searchResponse);
     }
 
     private SearchResponse doSearch(Object[] searchAfterValues) {

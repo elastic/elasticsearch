@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform;
 
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xcontent.ParseField;
 
 /*
@@ -26,6 +27,7 @@ public final class TransformField {
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
     public static final ParseField WAIT_FOR_CHECKPOINT = new ParseField("wait_for_checkpoint");
     public static final ParseField STATS_FIELD = new ParseField("stats");
+    public static final ParseField BASIC_STATS = new ParseField("basic");
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESCRIPTION = new ParseField("description");
@@ -57,6 +59,8 @@ public final class TransformField {
     public static final ParseField MAX_AGE = new ParseField("max_age");
 
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    public static final ParseField CHECK_FOR_DANGLING_TASKS = new ParseField("check_dangling_tasks");
+    public static final ParseField PREVIEW_AS_INDEX_REQUEST = new ParseField("as_index_request");
     /**
      * Fields for checkpointing
      */
@@ -98,7 +102,18 @@ public final class TransformField {
     public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     // internal document id
-    public static String DOCUMENT_ID_FIELD = "_id";
+    public static final String DOCUMENT_ID_FIELD = "_id";
+    // internal document source
+    public static final String DOCUMENT_SOURCE_FIELD = "_source";
+
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE = new PersistentTasksCustomMetadata.Assignment(
+        null,
+        "Transform task will not be assigned while upgrade mode is enabled."
+    );
+    public static final PersistentTasksCustomMetadata.Assignment RESET_IN_PROGRESS = new PersistentTasksCustomMetadata.Assignment(
+        null,
+        "Transform task will not be assigned as a feature reset is in progress."
+    );
 
     private TransformField() {}
 }

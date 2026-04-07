@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,6 +14,7 @@ import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentSubParser;
 
 import java.io.IOException;
@@ -47,9 +49,16 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         @Override
+        public XContentParser switchParser(XContentParser parser) throws IOException {
+            return new WrappingParser(parser, contentPath);
+        }
+
+        @Override
         public Token nextToken() throws IOException {
             Token token;
             XContentParser delegate;
+            // cache object field (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+            var parsers = this.parsers;
             while ((token = (delegate = parsers.peek()).nextToken()) == null) {
                 parsers.pop();
                 if (parsers.isEmpty()) {
@@ -172,34 +181,60 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             return parsers.peek();
         }
 
+        /*
+        The following methods (map* and list*) are known not be called by DocumentParser when parsing documents, but we support indexing
+        percolator queries which are also parsed through DocumentParser, and their parsing code is completely up to each query, which are
+        also pluggable. That means that this parser needs to fully support parsing arbitrary content, when dots expansion is turned off.
+        We do throw UnsupportedOperationException when dots expansion is enabled as we don't expect such methods to be ever called in
+        those circumstances.
+         */
+
         @Override
         public Map<String, Object> map() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.map();
+            }
             throw new UnsupportedOperationException();
         }
 
         @Override
         public Map<String, Object> mapOrdered() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.mapOrdered();
+            }
             throw new UnsupportedOperationException();
         }
 
         @Override
         public Map<String, String> mapStrings() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.mapStrings();
+            }
             throw new UnsupportedOperationException();
         }
 
         @Override
         public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
             throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.map(mapFactory, mapValueParser);
+            }
             throw new UnsupportedOperationException();
         }
 
         @Override
         public List<Object> list() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.list();
+            }
             throw new UnsupportedOperationException();
         }
 
         @Override
         public List<Object> listOrderedMap() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.listOrderedMap();
+            }
             throw new UnsupportedOperationException();
         }
     }
@@ -305,6 +340,14 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     @Override
+    public XContentLocation getCurrentLocation() {
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
+            return super.getCurrentLocation();
+        }
+        return currentLocation;
+    }
+
+    @Override
     public Token currentToken() {
         return switch (state) {
             case EXPANDING_START_OBJECT -> expandedTokens % 2 == 1 ? Token.START_OBJECT : Token.FIELD_NAME;
@@ -347,11 +390,35 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     @Override
+    public XContentString optimizedTextOrNull() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.optimizedTextOrNull();
+    }
+
+    @Override
+    public XContentString optimizedText() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.optimizedText();
+    }
+
+    @Override
     public String textOrNull() throws IOException {
         if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
         }
         return super.textOrNull();
+    }
+
+    @Override
+    public String text() throws IOException {
+        if (state == State.EXPANDING_START_OBJECT) {
+            throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        }
+        return super.text();
     }
 
     @Override

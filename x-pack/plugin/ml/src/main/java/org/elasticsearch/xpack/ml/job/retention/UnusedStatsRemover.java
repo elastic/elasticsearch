@@ -102,13 +102,21 @@ public class UnusedStatsRemover implements MlDataRemover {
     }
 
     private void executeDeleteUnusedStatsDocs(QueryBuilder dbq, float requestsPerSec, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(MlStatsIndex.indexPattern()).setIndicesOptions(
+        var indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(MlStatsIndex.indexPattern());
+
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable indices found for unused stats documents");
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setIndicesOptions(
             IndicesOptions.lenientExpandOpen()
         ).setAbortOnVersionConflict(false).setRequestsPerSecond(requestsPerSec).setTimeout(DEFAULT_MAX_DURATION).setQuery(dbq);
         deleteByQueryRequest.setParentTask(parentTaskId);
 
         client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
-            if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
+            if (response.getBulkFailures().isEmpty() == false || response.getSearchFailures().isEmpty() == false) {
                 LOGGER.error(
                     "Some unused stats documents could not be deleted due to failures: {}",
                     Strings.collectionToCommaDelimitedString(response.getBulkFailures())
@@ -124,4 +132,5 @@ public class UnusedStatsRemover implements MlDataRemover {
             listener.onFailure(e);
         }));
     }
+
 }

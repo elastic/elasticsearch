@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -30,7 +31,13 @@ public class ThreadedActionListenerTests extends ESTestCase {
 
     public void testRejectionHandling() throws InterruptedException {
         final var listenerCount = between(1, 1000);
-        final var countdownLatch = new CountDownLatch(listenerCount);
+
+        // await the completion of some number of listeners before starting to shut the threadpool down ...
+        final var startLatch = new CountDownLatch(between(1, listenerCount));
+
+        // ... but ensure that all the submitted listeners are completed somehow, even the ones submitted after the threadpool closes
+        final var finishLatch = new CountDownLatch(listenerCount);
+
         final var threadPool = new TestThreadPool(
             "test",
             Settings.EMPTY,
@@ -63,9 +70,10 @@ public class ThreadedActionListenerTests extends ESTestCase {
             threadPool.generic().execute(() -> {
                 for (int i = 0; i < listenerCount; i++) {
                     final var pool = randomFrom(pools);
+                    final var forceExecution = (pool.equals("fixed-bounded-queue") || pool.startsWith("scaling")) && randomBoolean();
                     final var listener = new ThreadedActionListener<Void>(
                         threadPool.executor(pool),
-                        (pool.equals("fixed-bounded-queue") || pool.startsWith("scaling")) && rarely(),
+                        forceExecution,
                         ActionListener.runAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(Void ignored) {}
@@ -74,7 +82,9 @@ public class ThreadedActionListenerTests extends ESTestCase {
                             public void onFailure(Exception e) {
                                 assertNull(e.getCause());
                                 if (e instanceof EsRejectedExecutionException esRejectedExecutionException) {
-                                    assertTrue(esRejectedExecutionException.isExecutorShutdown());
+                                    if (pool.equals("fixed-bounded-queue") == false || forceExecution) {
+                                        assertTrue(esRejectedExecutionException.isExecutorShutdown());
+                                    } // else we might have been rejected because of the queue bound and that's ok too
                                     if (e.getSuppressed().length == 0) {
                                         return;
                                     }
@@ -83,7 +93,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
                                         e = elasticsearchException;
                                         assertNull(e.getCause());
                                     } else {
-                                        throw new AssertionError("unexpected", e);
+                                        fail(e);
                                     }
                                 }
 
@@ -91,16 +101,18 @@ public class ThreadedActionListenerTests extends ESTestCase {
                                     assertEquals("simulated", e.getMessage());
                                     assertEquals(0, e.getSuppressed().length);
                                 } else {
-                                    throw new AssertionError("unexpected", e);
+                                    fail(e);
                                 }
 
                             }
-                        }, countdownLatch::countDown)
+                        }, finishLatch::countDown)
                     );
+                    startLatch.countDown();
+                    Thread.yield();
                     synchronized (closeFlag) {
                         if (closeFlag.get() && shutdownUnsafePools.contains(pool)) {
                             // closing, so tasks submitted to this pool may just be dropped
-                            countdownLatch.countDown();
+                            finishLatch.countDown();
                         } else if (randomBoolean()) {
                             listener.onResponse(null);
                         } else {
@@ -110,6 +122,8 @@ public class ThreadedActionListenerTests extends ESTestCase {
                     Thread.yield();
                 }
             });
+            startLatch.countDown(); // sometimes shut down before the first listener
+            safeAwait(startLatch);
         } finally {
             synchronized (closeFlag) {
                 assertTrue(closeFlag.compareAndSet(false, true));
@@ -117,7 +131,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
             }
             assertTrue(threadPool.awaitTermination(10, TimeUnit.SECONDS));
         }
-        assertTrue(countdownLatch.await(10, TimeUnit.SECONDS));
+        safeAwait(finishLatch);
     }
 
     public void testToString() {
@@ -131,16 +145,16 @@ public class ThreadedActionListenerTests extends ESTestCase {
 
         assertEquals(
             "ThreadedActionListener[DeterministicTaskQueue/forkingExecutor/NoopActionListener]/onResponse",
-            PlainActionFuture.get(future -> new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool(s -> {
-                future.onResponse(s.toString());
+            safeAwait(listener -> new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool(s -> {
+                listener.onResponse(s.toString());
                 return s;
             }).generic(), randomBoolean(), ActionListener.noop()).onResponse(null))
         );
 
         assertEquals(
             "ThreadedActionListener[DeterministicTaskQueue/forkingExecutor/NoopActionListener]/onFailure",
-            PlainActionFuture.get(future -> new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool(s -> {
-                future.onResponse(s.toString());
+            safeAwait(listener -> new ThreadedActionListener<Void>(deterministicTaskQueue.getThreadPool(s -> {
+                listener.onResponse(s.toString());
                 return s;
             }).generic(), randomBoolean(), ActionListener.noop()).onFailure(new ElasticsearchException("test")))
         );

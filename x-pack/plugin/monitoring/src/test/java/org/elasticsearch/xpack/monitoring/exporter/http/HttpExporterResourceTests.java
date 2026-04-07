@@ -397,9 +397,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         assertWarnings(
             "[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be "
-                + "removed in a future release.",
+                + "removed in a future release. See the deprecation documentation for the next major version.",
             "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch and "
-                + "will be removed in a future release."
+                + "will be removed in a future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -469,7 +469,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         assertWarnings(
             "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch "
-                + "and will be removed in a future release."
+                + "and will be removed in a future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -691,13 +691,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private void verifyGetTemplates(final int called) {
         verify(client, times(called)).performRequestAsync(
             argThat(new RequestMatcher(is("GET"), startsWith("/_template/"))::matches),
-            any(ResponseListener.class)
-        );
-    }
-
-    private void verifyPutTemplates(final int called) {
-        verify(client, times(called)).performRequestAsync(
-            argThat(new RequestMatcher(is("PUT"), startsWith("/_template/"))::matches),
             any(ResponseListener.class)
         );
     }

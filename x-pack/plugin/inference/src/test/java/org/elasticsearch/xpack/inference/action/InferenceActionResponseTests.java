@@ -7,19 +7,29 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultTests;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class InferenceActionResponseTests extends AbstractWireSerializingTestCase<InferenceAction.Response> {
+public class InferenceActionResponseTests extends AbstractBWCWireSerializationTestCase<InferenceAction.Response> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(InferenceNamedWriteablesProvider.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
+        return new NamedWriteableRegistry(entries);
     }
 
     @Override
@@ -29,11 +39,22 @@ public class InferenceActionResponseTests extends AbstractWireSerializingTestCas
 
     @Override
     protected InferenceAction.Response createTestInstance() {
-        return new InferenceAction.Response(SparseEmbeddingResultTests.createRandomResult());
+        return new InferenceAction.Response(getRandomResults());
+    }
+
+    private InferenceServiceResults getRandomResults() {
+        return randomBoolean() ? DenseEmbeddingFloatResultsTests.createRandomResults() : SparseEmbeddingResultsTests.createRandomResults();
     }
 
     @Override
     protected InferenceAction.Response mutateInstance(InferenceAction.Response instance) throws IOException {
-        return null;
+        var originalResults = instance.getResults();
+
+        return new InferenceAction.Response(randomValueOtherThan(originalResults, this::getRandomResults));
+    }
+
+    @Override
+    protected InferenceAction.Response mutateInstanceForVersion(InferenceAction.Response instance, TransportVersion version) {
+        return instance;
     }
 }

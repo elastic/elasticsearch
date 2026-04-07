@@ -249,7 +249,7 @@ public class ExtractedFieldsDetector {
         fieldSelection.add(FieldSelection.excluded(field, getMappingTypes(field), reason));
     }
 
-    private void addExcludedNestedPattern(String pattern, Set<FieldSelection> fieldSelection) {
+    private static void addExcludedNestedPattern(String pattern, Set<FieldSelection> fieldSelection) {
         fieldSelection.add(
             FieldSelection.excluded(pattern, Collections.singleton(NestedObjectMapper.CONTENT_TYPE), "nested fields are not supported")
         );
@@ -344,7 +344,7 @@ public class ExtractedFieldsDetector {
         }
     }
 
-    private Set<String> expandFields(String[] fields, Set<String> nameset, boolean allowNoMatch) {
+    private static Set<String> expandFields(String[] fields, Set<String> nameset, boolean allowNoMatch) {
         NameResolver nameResolver = NameResolver.newUnaliased(
             nameset,
             (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex))

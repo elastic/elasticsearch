@@ -8,34 +8,39 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctDoubleAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class CountDistinctDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
-  private final List<Integer> channels;
-
   private final int precision;
 
-  public CountDistinctDoubleAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels,
-      int precision) {
-    this.bigArrays = bigArrays;
-    this.channels = channels;
+  public CountDistinctDoubleAggregatorFunctionSupplier(int precision) {
     this.precision = precision;
   }
 
   @Override
-  public CountDistinctDoubleAggregatorFunction aggregator() {
-    return CountDistinctDoubleAggregatorFunction.create(channels, bigArrays, precision);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return CountDistinctDoubleAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public CountDistinctDoubleGroupingAggregatorFunction groupingAggregator() {
-    return CountDistinctDoubleGroupingAggregatorFunction.create(channels, bigArrays, precision);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return CountDistinctDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public CountDistinctDoubleAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new CountDistinctDoubleAggregatorFunction(driverContext, channels, precision);
+  }
+
+  @Override
+  public CountDistinctDoubleGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext, List<Integer> channels) {
+    return new CountDistinctDoubleGroupingAggregatorFunction(channels, driverContext, precision);
   }
 
   @Override

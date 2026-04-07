@@ -302,23 +302,6 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
         return version1.id > version2.id ? version1 : version2;
     }
 
-    public static TransformConfigVersion fromVersion(Version version) {
-        if (version.equals(Version.V_8_10_0)) {
-            return V_10;
-        }
-        if (version.after(Version.V_8_10_0)) {
-            throw new IllegalArgumentException("Cannot convert " + version + ". Incompatible version");
-        }
-        return fromId(version.id);
-    }
-
-    public static Version toVersion(TransformConfigVersion TransformConfigVersion) {
-        if (TransformConfigVersion.before(FIRST_TRANSFORM_VERSION) || TransformConfigVersion.onOrAfter(V_8_10_0)) {
-            throw new IllegalArgumentException("Cannot convert " + TransformConfigVersion + ". Incompatible version");
-        }
-        return Version.fromId(TransformConfigVersion.id);
-    }
-
     public static TransformConfigVersion getMinTransformConfigVersion(DiscoveryNodes nodes) {
         return getMinMaxTransformConfigVersion(nodes).v1();
     }
@@ -348,9 +331,7 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
 
     public static TransformConfigVersion getTransformConfigVersionForNode(DiscoveryNode node) {
         String transformConfigVerStr = node.getAttributes().get(TRANSFORM_CONFIG_VERSION_NODE_ATTR);
-        if (transformConfigVerStr == null) {
-            return fromVersion(node.getVersion());
-        }
+        if (transformConfigVerStr == null) throw new IllegalStateException(TRANSFORM_CONFIG_VERSION_NODE_ATTR + " not present on node");
         return fromString(transformConfigVerStr);
     }
 
@@ -364,12 +345,17 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
         if (str.equals("8.10.0")) {
             return V_10;
         }
-        Matcher matcher = Pattern.compile("^(\\d+)\\.0\\.0$").matcher(str);
-        int versionNum;
-        if (matcher.matches() == false || (versionNum = Integer.parseInt(matcher.group(1))) < 10) {
-            return fromVersion(Version.fromString(str));
+        Matcher matcher = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)(?:-\\w+)?$").matcher(str);
+        if (matcher.matches() == false) {
+            throw new IllegalArgumentException("Transform config version [" + str + "] not valid");
         }
-        return fromId(1000000 * versionNum + 99);
+        int first = Integer.parseInt(matcher.group(1));
+        int second = Integer.parseInt(matcher.group(2));
+        int third = Integer.parseInt(matcher.group(3));
+        if (first >= 10 && (second > 0 || third > 0)) {
+            throw new IllegalArgumentException("Transform config version [" + str + "] not valid");
+        }
+        return fromId(1000000 * first + 10000 * second + 100 * third + 99);
     }
 
     @Override

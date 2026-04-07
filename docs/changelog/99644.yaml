@@ -1,6 +1,0 @@
-pr: 99644
-summary: Add links to docs from failing bootstrap checks
-area: Infra/Node Lifecycle
-type: enhancement
-issues: [99614]
-

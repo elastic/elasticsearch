@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.application.rules.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,16 +28,14 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class ListQueryRulesetsAction extends ActionType<ListQueryRulesetsAction.Response> {
+public class ListQueryRulesetsAction {
 
-    public static final ListQueryRulesetsAction INSTANCE = new ListQueryRulesetsAction();
     public static final String NAME = "cluster:admin/xpack/query_rules/list";
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
-    public ListQueryRulesetsAction() {
-        super(NAME, ListQueryRulesetsAction.Response::new);
-    }
+    private ListQueryRulesetsAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
         private final PageParams pageParams;
 
         private static final ParseField PAGE_PARAMS_FIELD = new ParseField("pageParams");
@@ -104,14 +100,13 @@ public class ListQueryRulesetsAction extends ActionType<ListQueryRulesetsAction.
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         public static final ParseField RESULT_FIELD = new ParseField("results");
 
         final QueryPage<QueryRulesetListItem> queryPage;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.queryPage = new QueryPage<>(in, QueryRulesetListItem::new);
         }
 
@@ -127,11 +122,6 @@ public class ListQueryRulesetsAction extends ActionType<ListQueryRulesetsAction.
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return queryPage.toXContent(builder, params);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         public QueryPage<QueryRulesetListItem> queryPage() {

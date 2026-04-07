@@ -388,16 +388,12 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                         super.force(metaData);
                         return;
                     }
-                    try {
-                        blockingLatch.countDown();
-                        releasingLatch.await();
-                        if (failFSync.get()) {
-                            throw new IOException("Simulated");
-                        } else {
-                            super.force(metaData);
-                        }
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
+                    blockingLatch.countDown();
+                    safeAwait(releasingLatch);
+                    if (failFSync.get()) {
+                        throw new IOException("Simulated");
+                    } else {
+                        super.force(metaData);
                     }
                 }
             };
@@ -409,11 +405,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
         }
 
         public void waitForBlock() {
-            try {
-                blockingLatch.await();
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(blockingLatch);
         }
 
         public void unblock() {

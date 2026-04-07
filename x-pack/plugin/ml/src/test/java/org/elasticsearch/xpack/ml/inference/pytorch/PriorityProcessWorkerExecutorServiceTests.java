@@ -22,7 +22,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService.RequestPriority;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
 
@@ -177,6 +179,49 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         }
     }
 
+    public void testNotifyQueueRunnables_notifiesAllQueuedRunnables() throws InterruptedException {
+        notifyQueueRunnables(false);
+    }
+
+    public void testNotifyQueueRunnables_notifiesAllQueuedRunnables_withError() throws InterruptedException {
+        notifyQueueRunnables(true);
+    }
+
+    private void notifyQueueRunnables(boolean withError) {
+        int queueSize = 10;
+        var executor = createProcessWorkerExecutorService(queueSize);
+
+        List<QueueDrainingRunnable> runnables = new ArrayList<>(queueSize);
+        // First fill the queue
+        for (int i = 0; i < queueSize; ++i) {
+            QueueDrainingRunnable runnable = new QueueDrainingRunnable();
+            runnables.add(runnable);
+            executor.executeWithPriority(runnable, RequestPriority.NORMAL, i);
+        }
+
+        assertThat(executor.queueSize(), is(queueSize));
+
+        // Set the executor to be stopped
+        if (withError) {
+            executor.shutdownNowWithError(new Exception());
+        } else {
+            executor.shutdownNow();
+        }
+
+        // Start the executor, which will cause notifyQueueRunnables() to be called immediately since the executor is already stopped
+        executor.start();
+
+        // Confirm that all the runnables were notified
+        for (QueueDrainingRunnable runnable : runnables) {
+            assertThat(runnable.initialized, is(true));
+            assertThat(runnable.hasBeenRun, is(false));
+            assertThat(runnable.hasBeenRejected, not(withError));
+            assertThat(runnable.hasBeenFailed, is(withError));
+        }
+
+        assertThat(executor.queueSize(), is(0));
+    }
+
     private PriorityProcessWorkerExecutorService createProcessWorkerExecutorService(int queueSize) {
         return new PriorityProcessWorkerExecutorService(
             threadPool.getThreadContext(),
@@ -242,6 +287,34 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         @Override
         public void init() {
             // do nothing
+        }
+    }
+
+    private static class QueueDrainingRunnable extends AbstractInitializableRunnable {
+
+        private boolean initialized = false;
+        private boolean hasBeenRun = false;
+        private boolean hasBeenRejected = false;
+        private boolean hasBeenFailed = false;
+
+        @Override
+        public void init() {
+            initialized = true;
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            hasBeenRejected = true;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            hasBeenFailed = true;
+        }
+
+        @Override
+        protected void doRun() {
+            hasBeenRun = true;
         }
     }
 }

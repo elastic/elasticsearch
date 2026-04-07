@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -34,10 +35,10 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
     public static final String NAME = "cluster:admin/transform/schedule_now";
 
     private ScheduleNowTransformAction() {
-        super(NAME, ScheduleNowTransformAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
 
         private final String id;
 
@@ -93,6 +94,11 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
 
             // the base class does not implement equals, therefore we need to check timeout ourselves
             return this.id.equals(other.id) && getTimeout().equals(other.getTimeout());
+        }
+
+        @Override
+        public boolean match(Task task) {
+            return task instanceof TransformTaskMatcher matcher && matcher.match(id);
         }
     }
 

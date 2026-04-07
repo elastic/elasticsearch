@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 140538
+pr: 141060
+summary: "Support arithmetic operations for dense_vectors: scalar version"
+type: enhancement

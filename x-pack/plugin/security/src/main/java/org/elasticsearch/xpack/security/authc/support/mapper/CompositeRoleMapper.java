@@ -8,11 +8,8 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,17 +24,9 @@ import java.util.stream.Collectors;
  */
 public class CompositeRoleMapper implements UserRoleMapper {
 
-    private List<UserRoleMapper> delegates;
+    private final List<UserRoleMapper> delegates;
 
-    public CompositeRoleMapper(
-        RealmConfig realmConfig,
-        ResourceWatcherService watcherService,
-        NativeRoleMappingStore nativeRoleMappingStore
-    ) {
-        this(new DnRoleMapper(realmConfig, watcherService), nativeRoleMappingStore);
-    }
-
-    private CompositeRoleMapper(UserRoleMapper... delegates) {
+    public CompositeRoleMapper(UserRoleMapper... delegates) {
         this.delegates = new ArrayList<>(Arrays.asList(delegates));
     }
 
@@ -54,8 +43,7 @@ public class CompositeRoleMapper implements UserRoleMapper {
     }
 
     @Override
-    public void refreshRealmOnChange(CachingRealm realm) {
-        this.delegates.forEach(mapper -> mapper.refreshRealmOnChange(realm));
+    public void clearRealmCacheOnChange(CachingRealm realm) {
+        this.delegates.forEach(mapper -> mapper.clearRealmCacheOnChange(realm));
     }
-
 }

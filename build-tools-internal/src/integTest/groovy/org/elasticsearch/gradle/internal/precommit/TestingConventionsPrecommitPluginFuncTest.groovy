@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit
@@ -109,6 +110,13 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
                > Following test classes do not extend any supported base class:
                  \torg.acme.InvalidTests""".stripIndent()
         )
+
+        and: "problems report contains testing-conventions violations"
+        assertProblemsReportContains("testing-conventions")
+        assertProblemsReportContainsProblem("missing-base-class")
+        assertProblemsReportSeverity("missing-base-class", "ERROR")
+        def diagnostics = problemsReportDiagnostics()
+        diagnostics.any { it.contextualLabel?.contains("org.acme.InvalidTests") }
     }
 
     def "checks naming convention"() {
@@ -145,6 +153,10 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
                > Following test classes do not match naming convention to use suffix 'UnitTest':
                  \torg.acme.valid.SomeNameMissmatchingTest""".stripIndent()
         )
+
+        and: "problems report contains invalid-suffix violations"
+        assertProblemsReportContains("testing-conventions")
+        assertProblemsReportContainsProblem("invalid-suffix")
     }
 
     def "provided base classes do not need match naming convention"() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -182,7 +183,7 @@ public class HealthService {
      * @param results                  The results that the listener will be notified of, if they pass validation
      * @param listener                 A listener to be notified of results
      */
-    private void validateResultsAndNotifyListener(
+    private static void validateResultsAndNotifyListener(
         @Nullable String indicatorName,
         List<HealthIndicatorResult> results,
         ActionListener<List<HealthIndicatorResult>> listener
@@ -203,7 +204,7 @@ public class HealthService {
      * @param computeDetails If details should be calculated on which indicators are causing the UNKNOWN state.
      * @return Details explaining why results are UNKNOWN, or an empty detail set if computeDetails is false.
      */
-    private HealthIndicatorDetails healthUnknownReason(List<HealthIndicatorResult> preflightResults, boolean computeDetails) {
+    private static HealthIndicatorDetails healthUnknownReason(List<HealthIndicatorResult> preflightResults, boolean computeDetails) {
         assert preflightResults.isEmpty() == false : "Requires at least one non-GREEN preflight result";
         HealthIndicatorDetails unknownDetails;
         if (computeDetails) {
@@ -226,7 +227,7 @@ public class HealthService {
      * @param details the details to include on the result
      * @return A result with the UNKNOWN status
      */
-    private HealthIndicatorResult generateUnknownResult(
+    private static HealthIndicatorResult generateUnknownResult(
         HealthIndicatorService indicatorService,
         String summary,
         HealthIndicatorDetails details

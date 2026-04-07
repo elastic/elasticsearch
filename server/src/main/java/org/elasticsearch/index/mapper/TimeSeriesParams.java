@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 /**
@@ -34,6 +36,7 @@ public final class TimeSeriesParams {
     public enum MetricType {
         GAUGE(new String[] { "max", "min", "value_count", "sum" }),
         COUNTER(new String[] { "last_value" }),
+        HISTOGRAM(new String[] {}, false),
         POSITION(new String[] {}, false);
 
         private final String[] supportedAggs;
@@ -87,8 +90,14 @@ public final class TimeSeriesParams {
         ).acceptsNull();
     }
 
-    public static FieldMapper.Parameter<Boolean> dimensionParam(Function<FieldMapper, Boolean> initializer) {
-        return FieldMapper.Parameter.boolParam(TIME_SERIES_DIMENSION_PARAM, false, initializer, false);
+    public static FieldMapper.Parameter<Boolean> dimensionParam(Function<FieldMapper, Boolean> initializer, BooleanSupplier hasDocValues) {
+        return FieldMapper.Parameter.boolParam(TIME_SERIES_DIMENSION_PARAM, false, initializer, false).addValidator(v -> {
+            if (v && (hasDocValues.getAsBoolean() == false)) {
+                throw new IllegalArgumentException(
+                    "Field [" + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + "] requires that [doc_values] is true"
+                );
+            }
+        });
     }
 
 }

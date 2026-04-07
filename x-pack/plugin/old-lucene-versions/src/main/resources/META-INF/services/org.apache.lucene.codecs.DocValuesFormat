@@ -14,3 +14,4 @@
 #  limitations under the License.
 
 org.elasticsearch.xpack.lucene.bwc.codecs.lucene54.Lucene54DocValuesFormat
+org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.Lucene70DocValuesFormat

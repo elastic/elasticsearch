@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.math;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.ql.QlException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
@@ -19,12 +21,17 @@ public class ToNumberFunctionProcessorTests extends ESTestCase {
         return new ToNumber(EMPTY, l(value), l(base)).makePipe().asProcessor().process(null);
     }
 
+    private static String error(Object value, Object base, Class<? extends QlException> exceptionClass) {
+        Exception e = expectThrows(exceptionClass, () -> new ToNumber(EMPTY, l(value), l(base)).makePipe().asProcessor().process(null));
+        return e.getMessage();
+    }
+
     private static String error(Object value, Object base) {
-        QlIllegalArgumentException saie = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> new ToNumber(EMPTY, l(value), l(base)).makePipe().asProcessor().process(null)
-        );
-        return saie.getMessage();
+        return error(value, base, QlIllegalArgumentException.class);
+    }
+
+    private static String clientError(Object value, Object base) {
+        return error(value, base, InvalidArgumentException.class);
     }
 
     public void toNumberWithLongRange() {
@@ -121,7 +128,7 @@ public class ToNumberFunctionProcessorTests extends ESTestCase {
     }
 
     public void testNegativeBase16() {
-        assertEquals("Unable to convert [-0x1] to number of base [16]", error("-0x1", 16));
+        assertEquals("Unable to convert [-0x1] to number of base [16]", clientError("-0x1", 16));
     }
 
     public void testNumberInvalidDataType() {
@@ -139,11 +146,11 @@ public class ToNumberFunctionProcessorTests extends ESTestCase {
     }
 
     public void testInvalidSourceString() {
-        assertEquals("Unable to convert [] to number of base [10]", error("", null));
-        assertEquals("Unable to convert [] to number of base [16]", error("", 16));
-        assertEquals("Unable to convert [foo] to number of base [10]", error("foo", null));
-        assertEquals("Unable to convert [foo] to number of base [16]", error("foo", 16));
-        assertEquals("Unable to convert [1.2.3.4] to number of base [10]", error("1.2.3.4", 10));
-        assertEquals("Unable to convert [1.2.3.4] to number of base [16]", error("1.2.3.4", 16));
+        assertEquals("Unable to convert [] to number of base [10]", clientError("", null));
+        assertEquals("Unable to convert [] to number of base [16]", clientError("", 16));
+        assertEquals("Unable to convert [foo] to number of base [10]", clientError("foo", null));
+        assertEquals("Unable to convert [foo] to number of base [16]", clientError("foo", 16));
+        assertEquals("Unable to convert [1.2.3.4] to number of base [10]", clientError("1.2.3.4", 10));
+        assertEquals("Unable to convert [1.2.3.4] to number of base [16]", clientError("1.2.3.4", 16));
     }
 }

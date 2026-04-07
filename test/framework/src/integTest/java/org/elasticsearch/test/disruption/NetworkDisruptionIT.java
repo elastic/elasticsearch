@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -19,7 +20,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -144,7 +144,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         assertEquals("All requests must respond, requests: " + requests, 0, latch.getCount());
     }
 
-    private Tuple<TransportService, TransportService> findDisruptedPair(NetworkDisruption.DisruptedLinks disruptedLinks) {
+    private static Tuple<TransportService, TransportService> findDisruptedPair(NetworkDisruption.DisruptedLinks disruptedLinks) {
         Optional<Tuple<TransportService, TransportService>> disruptedPair = disruptedLinks.nodes()
             .stream()
             .flatMap(n1 -> disruptedLinks.nodes().stream().map(n2 -> Tuple.tuple(n1, n2)))
@@ -161,31 +161,36 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         return disruptedPair.get();
     }
 
-    private void sendRequest(TransportService source, TransportService target, CountDownLatch latch) {
-        source.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(), new TransportResponseHandler<>() {
-            private AtomicBoolean responded = new AtomicBoolean();
+    private static void sendRequest(TransportService source, TransportService target, CountDownLatch latch) {
+        source.sendRequest(
+            target.getLocalNode(),
+            TransportClusterHealthAction.NAME,
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT),
+            new TransportResponseHandler<>() {
+                private AtomicBoolean responded = new AtomicBoolean();
 
-            @Override
-            public Executor executor(ThreadPool threadPool) {
-                return TransportResponseHandler.TRANSPORT_WORKER;
-            }
+                @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
 
-            @Override
-            public void handleResponse(TransportResponse response) {
-                assertTrue(responded.compareAndSet(false, true));
-                latch.countDown();
-            }
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    assertTrue(responded.compareAndSet(false, true));
+                    latch.countDown();
+                }
 
-            @Override
-            public void handleException(TransportException exp) {
-                assertTrue(responded.compareAndSet(false, true));
-                latch.countDown();
-            }
+                @Override
+                public void handleException(TransportException exp) {
+                    assertTrue(responded.compareAndSet(false, true));
+                    latch.countDown();
+                }
 
-            @Override
-            public TransportResponse read(StreamInput in) throws IOException {
-                return ClusterHealthResponse.readResponseFrom(in);
+                @Override
+                public TransportResponse read(StreamInput in) throws IOException {
+                    return ClusterHealthResponse.readResponseFrom(in);
+                }
             }
-        });
+        );
     }
 }

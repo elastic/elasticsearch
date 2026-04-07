@@ -1,6 +1,0 @@
-pr: 98038
-summary: Update enrich execution to only set index false on fields that support it
-area: Ingest Node
-type: bug
-issues:
- - 98019

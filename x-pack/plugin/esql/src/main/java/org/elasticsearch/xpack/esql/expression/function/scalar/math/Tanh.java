@@ -7,27 +7,54 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.Named;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
  * Tangent hyperbolic function.
  */
 public class Tanh extends AbstractTrigonometricFunction {
-    public Tanh(Source source, @Named("n") Expression n) {
-        super(source, n);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Tanh", Tanh::new);
+
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic tangent] of a number.",
+        examples = @Example(file = "floats", tag = "tanh")
+    )
+    public Tanh(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Numeric expression. If `null`, the function returns `null`."
+        ) Expression angle
+    ) {
+        super(source, angle);
+    }
+
+    private Tanh(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext dvrCtx) {
-        return new TanhEvaluator(field, dvrCtx);
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected ExpressionEvaluator.Factory doubleEvaluator(ExpressionEvaluator.Factory field) {
+        return new TanhEvaluator.Factory(source(), field);
     }
 
     @Override

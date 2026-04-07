@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 144311
+summary: Enable Prometheus plugin by default
+type: enhancement

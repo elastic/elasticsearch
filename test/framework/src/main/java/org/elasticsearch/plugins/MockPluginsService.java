@@ -1,25 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.lang.reflect.Constructor;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -43,19 +42,17 @@ public class MockPluginsService extends PluginsService {
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
     public MockPluginsService(Settings settings, Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
-
-        final Path configPath = environment.configFile();
+        super(settings, environment.configDir(), new PluginsLoader(Collections.emptySet(), Collections.emptySet(), Collections.emptyMap()));
 
         List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
 
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+            Plugin plugin = loadPlugin(pluginClass, settings, environment.configDir());
             PluginDescriptor pluginInfo = new PluginDescriptor(
                 pluginClass.getName(),
                 "classpath plugin",
                 "NA",
-                Version.CURRENT,
+                Build.current().version(),
                 Integer.toString(Runtime.version().feature()),
                 pluginClass.getName(),
                 null,
@@ -63,15 +60,41 @@ public class MockPluginsService extends PluginsService {
                 false,
                 false,
                 false,
-                false
+                false,
+                PluginDescriptor.DeploymentTarget.ALL
             );
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
-            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, pluginClass.getClassLoader(), ModuleLayer.boot()));
+            pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, MockPluginsService.class.getClassLoader()));
         }
         loadExtensions(pluginsLoaded);
         this.classpathPlugins = List.copyOf(pluginsLoaded);
+    }
+
+    /**
+     * This method differs from {@link PluginsService#loadExtensions(Collection)} in that it
+     * loads extensions from all plugins for each {@link ExtensiblePlugin}.
+     * That is because {@link MockPluginsService} loads plugins from the classpath, and uses a mock {@link PluginDescriptor}
+     * for plugins that do not expose information on extended plugins.
+     */
+    static void loadExtensions(Collection<LoadedPlugin> plugins) {
+        for (LoadedPlugin pluginTuple : plugins) {
+            if (pluginTuple.instance() instanceof ExtensiblePlugin extensiblePlugin) {
+                extensiblePlugin.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+                    @Override
+                    public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                        Map<Class<?>, T> result = new HashMap<>();
+                        for (var candidatePlugin : plugins) {
+                            createExtensions(extensionPointType, candidatePlugin.instance(), result::containsKey).forEach(
+                                e -> result.put(e.getClass(), e)
+                            );
+                        }
+                        return List.copyOf(result.values());
+                    }
+                });
+            }
+        }
     }
 
     @Override
@@ -157,7 +180,8 @@ public class MockPluginsService extends PluginsService {
             // For one argument constructors we cannot validate from which plugin they should be loaded, which
             // is why we de-dup the instances by using a Set in loadServiceProviders.
             for (var constructor : constructors) {
-                if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
+                if (constructor.getParameterCount() == 1
+                    && constructor.getParameterTypes()[0].isAssignableFrom(plugin.getClass()) == false) {
                     compatible = false;
                     break;
                 }
@@ -167,10 +191,5 @@ public class MockPluginsService extends PluginsService {
             }
         }
         return extensions;
-    }
-
-    @Override
-    protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
-        // tests don't run modular
     }
 }

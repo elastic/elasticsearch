@@ -132,7 +132,7 @@ public class AllocationReducer {
         return buildUpdatedAssignment(numberOfAllocations, allocationsByNode);
     }
 
-    private boolean canAssignmentBeRemovedEntirely(
+    private static boolean canAssignmentBeRemovedEntirely(
         Map.Entry<String, Integer> assignment,
         int minAllocationsInOtherZones,
         int zoneAllocations,

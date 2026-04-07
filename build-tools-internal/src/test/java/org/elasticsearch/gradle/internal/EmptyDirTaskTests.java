@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal;
 
@@ -14,6 +15,10 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -60,9 +65,8 @@ public class EmptyDirTaskTests {
 
         assertTrue(newEmptyFolder.exists());
         assertTrue(newEmptyFolder.isDirectory());
-        assertFalse(newEmptyFolder.canExecute());
-        assertFalse(newEmptyFolder.canRead());
-        assertFalse(newEmptyFolder.canWrite());
+        Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(newEmptyFolder.toPath());
+        assertEquals(Collections.emptySet(), permissions);
 
         // cleanup
         newEmptyFolder.delete();

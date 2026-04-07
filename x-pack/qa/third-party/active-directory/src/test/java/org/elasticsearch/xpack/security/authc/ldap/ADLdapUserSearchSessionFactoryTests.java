@@ -63,7 +63,7 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = Settings.builder()
-            .put("url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+            .put("url", smbFixture.getAdLdapUrl())
             .put("group_search.base_dn", groupSearchBase)
             .put("user_search.base_dn", userSearchBase)
             .put("bind_dn", "ironman@ad.test.elasticsearch.com")

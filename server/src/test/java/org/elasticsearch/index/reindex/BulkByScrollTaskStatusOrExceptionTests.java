@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -41,7 +42,7 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
 
     @Override
     protected StatusOrException doParseInstance(XContentParser parser) throws IOException {
-        return StatusOrException.fromXContent(parser);
+        return BulkByScrollTaskStatusTests.parseStatusOrException(parser);
     }
 
     public static void assertEqualStatusOrException(
@@ -73,6 +74,52 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    /**
+     * Verifies that a {@link StatusOrException} constructed with a {@link BulkByScrollTask.Status} exposes it via
+     * {@link StatusOrException#getStatus()} and returns null from {@link StatusOrException#getException()}.
+     */
+    public void testStatusOrExceptionWithStatus() {
+        BulkByScrollTask.Status status = BulkByScrollTaskStatusTests.randomStatusWithoutException();
+        StatusOrException statusOrException = new StatusOrException(status);
+        assertNotNull(statusOrException.getStatus());
+        assertSame(status, statusOrException.getStatus());
+        assertNull(statusOrException.getException());
+    }
+
+    /**
+     * Verifies that a {@link StatusOrException} constructed with an {@link Exception} exposes it via
+     * {@link StatusOrException#getException()} and returns null from {@link StatusOrException#getStatus()}.
+     */
+    public void testStatusOrExceptionWithException() {
+        String message = randomAlphaOfLengthBetween(5, 20);
+        Exception exception = new ElasticsearchException(message);
+        StatusOrException statusOrException = new StatusOrException(exception);
+        assertNull(statusOrException.getStatus());
+        assertNotNull(statusOrException.getException());
+        assertSame(exception, statusOrException.getException());
+        assertThat(statusOrException.getException().getMessage(), containsString(message));
+    }
+
+    /**
+     * Verifies that {@link StatusOrException#equals(Object)} returns false for null and for an object of a different class.
+     */
+    public void testEqualsReturnsFalseForNullAndWrongType() {
+        StatusOrException statusOrException = createTestInstanceWithoutExceptions();
+        assertFalse(statusOrException.equals(null));
+        assertFalse(statusOrException.equals(BulkByScrollTaskStatusTests.randomStatus()));
+    }
+
+    /**
+     * Verifies that two {@link StatusOrException} instances with the same status are equal and have the same hashCode.
+     */
+    public void testEqualsAndHashCodeWhenHoldingSameStatus() {
+        BulkByScrollTask.Status status = BulkByScrollTaskStatusTests.randomStatusWithoutException();
+        StatusOrException first = new StatusOrException(status);
+        StatusOrException second = new StatusOrException(status);
+        assertEquals(first, second);
+        assertEquals(first.hashCode(), second.hashCode());
     }
 
     /**

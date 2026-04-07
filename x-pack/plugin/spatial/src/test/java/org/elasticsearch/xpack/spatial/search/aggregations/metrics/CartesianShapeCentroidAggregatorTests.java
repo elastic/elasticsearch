@@ -14,8 +14,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -25,13 +30,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
-import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
-import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +60,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                 true,
                 Orientation.RIGHT,
                 null,
+                false,
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
@@ -82,12 +85,21 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                     true,
                     Orientation.RIGHT,
                     null,
+                    false,
                     Collections.emptyMap()
                 );
                 InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
 
-                fieldType = new ShapeFieldMapper.ShapeFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+                fieldType = new ShapeFieldMapper.ShapeFieldType(
+                    "field",
+                    true,
+                    true,
+                    Orientation.RIGHT,
+                    null,
+                    false,
+                    Collections.emptyMap()
+                );
                 result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
@@ -112,6 +124,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                     true,
                     Orientation.RIGHT,
                     null,
+                    false,
                     Collections.emptyMap()
                 );
                 InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
@@ -162,8 +175,9 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                 w.addDocument(document);
                 if (targetShapeType.compareTo(calculator.getDimensionalShapeType()) == 0) {
                     double weight = calculator.sumWeight();
-                    compensatedSumLat.add(weight * calculator.getY());
-                    compensatedSumLon.add(weight * calculator.getX());
+                    // compute the centroid of centroids in float space
+                    compensatedSumLat.add(weight * (float) calculator.getY());
+                    compensatedSumLon.add(weight * (float) calculator.getX());
                     compensatedSumWeight.add(weight);
                 }
             }
@@ -177,6 +191,65 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    /**
+     * Tests that when shapes with very different areas are in different segments (simulating different shards),
+     * the aggregation produces an area-weighted centroid rather than a count-weighted one.
+     */
+    public void testMultiSegmentAreaWeightedReduction() throws Exception {
+        // Large polygon: 1000×1000 square, centroid at (500, 500), area = 1_000_000
+        Polygon largePolygon = new Polygon(new LinearRing(new double[] { 0, 1000, 1000, 0, 0 }, new double[] { 0, 0, 1000, 1000, 0 }));
+
+        // Small polygon: 1×1 square, centroid at (0.5, 0.5), area = 1
+        Polygon smallPolygon = new Polygon(new LinearRing(new double[] { 0, 1, 1, 0, 0 }, new double[] { 0, 0, 1, 1, 0 }));
+        int numSmallPolygons = 100;
+
+        CentroidCalculator largeCalc = new CentroidCalculator();
+        largeCalc.add(largePolygon);
+        CentroidCalculator smallCalc = new CentroidCalculator();
+        smallCalc.add(smallPolygon);
+
+        double largeWeight = largeCalc.sumWeight();
+        double smallWeight = smallCalc.sumWeight();
+        double totalWeight = largeWeight + numSmallPolygons * smallWeight;
+        double expectedX = (largeWeight * largeCalc.getX() + numSmallPolygons * smallWeight * smallCalc.getX()) / totalWeight;
+        double expectedY = (largeWeight * largeCalc.getY() + numSmallPolygons * smallWeight * smallCalc.getY()) / totalWeight;
+
+        // The count-weighted (buggy) result would be much closer to (0.5, 0.5); the area-weighted result near (500, 500).
+        assertTrue("Area-weighted centroid x " + expectedX + " should dominate", expectedX > 499);
+
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            doc.add(GeoTestUtils.binaryCartesianShapeDocValuesField("field", largePolygon));
+            w.addDocument(doc);
+            w.flush();
+
+            for (int i = 0; i < numSmallPolygons; i++) {
+                Document smallDoc = new Document();
+                smallDoc.add(GeoTestUtils.binaryCartesianShapeDocValuesField("field", smallPolygon));
+                w.addDocument(smallDoc);
+            }
+            w.flush();
+
+            MappedFieldType fieldType = new ShapeFieldMapper.ShapeFieldType(
+                "field",
+                true,
+                true,
+                Orientation.RIGHT,
+                null,
+                false,
+                Collections.emptyMap()
+            );
+            CartesianCentroidAggregationBuilder aggBuilder = new CartesianCentroidAggregationBuilder("my_agg").field("field");
+            try (IndexReader reader = w.getReader()) {
+                InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
+                assertNotNull(result.centroid());
+                assertEquals(numSmallPolygons + 1, result.count());
+                assertCentroid("x (area-weighted)", result.count(), result.centroid().getX(), expectedX);
+                assertCentroid("y (area-weighted)", result.count(), result.centroid().getY(), expectedY);
+            }
+        }
+    }
+
     private void assertCentroid(RandomIndexWriter w, CartesianPoint expectedCentroid) throws IOException {
         MappedFieldType fieldType = new ShapeFieldMapper.ShapeFieldType(
             "field",
@@ -184,6 +257,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
             true,
             Orientation.RIGHT,
             null,
+            false,
             Collections.emptyMap()
         );
         CartesianCentroidAggregationBuilder aggBuilder = new CartesianCentroidAggregationBuilder("my_agg").field("field");

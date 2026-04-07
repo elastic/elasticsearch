@@ -10,13 +10,22 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 
 public class RestSqlDeprecationIT extends BaseRestSqlTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public void testIndexIncludeParameterIsDeprecated() throws IOException {
         testDeprecationWarning(

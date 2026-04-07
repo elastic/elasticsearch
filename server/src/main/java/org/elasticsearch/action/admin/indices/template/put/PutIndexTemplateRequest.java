@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -76,15 +76,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         order = in.readInt();
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                in.readString();    // type - cannot assert on _doc because 7x allows arbitrary type names
-                this.mappings = in.readString();
-            }
-        } else {
-            this.mappings = in.readOptionalString();
-        }
+        mappings = in.readOptionalString();
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(new Alias(in));
@@ -92,12 +84,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         version = in.readOptionalVInt();
     }
 
-    public PutIndexTemplateRequest() {}
+    public PutIndexTemplateRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     /**
      * Constructs a new put index template request with the provided name.
      */
     public PutIndexTemplateRequest(String name) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.name = name;
     }
 
@@ -446,15 +441,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         out.writeInt(order);
         out.writeBoolean(create);
         settings.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeVInt(mappings == null ? 0 : 1);
-            if (mappings != null) {
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                out.writeString(mappings);
-            }
-        } else {
-            out.writeOptionalString(mappings);
-        }
+        out.writeOptionalString(mappings);
         out.writeCollection(aliases);
         out.writeOptionalVInt(version);
     }

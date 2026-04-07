@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.synonyms;
 
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.test.ESTestCase;
@@ -26,8 +26,9 @@ public class PutSynonymsActionTests extends ESTestCase {
             .withParams(Map.of("synonymsSet", "test"))
             .build();
 
-        FakeRestChannel channel = new FakeRestChannel(request, false, 0);
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
+        FakeRestChannel channel = new FakeRestChannel(request, randomBoolean());
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = new NoOpNodeClient(threadPool);
             expectThrows(IllegalArgumentException.class, () -> action.handleRequest(request, channel, nodeClient));
         }
     }

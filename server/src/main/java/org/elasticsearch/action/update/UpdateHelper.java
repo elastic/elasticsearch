@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.update;
@@ -21,8 +22,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
+import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,7 +34,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateCtxMap;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.script.UpsertCtxMap;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -55,28 +60,33 @@ public class UpdateHelper {
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) throws IOException {
-        final GetResult getResult = indexShard.getService().getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
-        return prepare(indexShard.shardId(), request, getResult, nowInMillis);
+    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis, FetchSourceContext fetchSourceContext)
+        throws IOException {
+        if (indexShard.indexSettings().sequenceNumbersDisabled()) {
+            throw new UpdateNotSupportedException(indexShard.shardId());
+        }
+        final GetResult getResult = indexShard.getService()
+            .getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
+        return prepare(indexShard, request, getResult, nowInMillis);
     }
 
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action, in the event of a
      * noop).
      */
-    protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
+    protected Result prepare(IndexShard indexShard, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
         if (getResult.isExists() == false) {
             // If the document didn't exist, execute the update request as an upsert
-            return prepareUpsert(shardId, request, getResult, nowInMillis);
+            return prepareUpsert(indexShard.shardId(), request, getResult, nowInMillis);
         } else if (getResult.internalSourceRef() == null) {
             // no source, we can't do anything, throw a failure...
-            throw new DocumentSourceMissingException(shardId, request.id());
+            throw new DocumentSourceMissingException(indexShard.shardId(), request.id());
         } else if (request.script() == null && request.doc() != null) {
             // The request has no script, it is a new doc that should be merged with the old document
-            return prepareUpdateIndexRequest(shardId, request, getResult, request.detectNoop());
+            return prepareUpdateIndexRequest(indexShard, request, getResult, request.detectNoop());
         } else {
             // The request has a script (or empty script), execute the script and prepare a new index request
-            return prepareUpdateScriptRequest(shardId, request, getResult, nowInMillis);
+            return prepareUpdateScriptRequest(indexShard, request, getResult, nowInMillis);
         }
     }
 
@@ -174,7 +184,7 @@ public class UpdateHelper {
      * Prepare the request for merging the existing document with a new one, can optionally detect a noop change. Returns a {@code Result}
      * containing a new {@code IndexRequest} to be executed on the primary and replicas.
      */
-    static Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
+    Result prepareUpdateIndexRequest(IndexShard indexShard, UpdateRequest request, GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
@@ -187,7 +197,7 @@ public class UpdateHelper {
         // where users repopulating multi-fields or adding synonyms, etc.
         if (detectNoop && noop) {
             UpdateResponse update = new UpdateResponse(
-                shardId,
+                indexShard.shardId(),
                 getResult.getId(),
                 getResult.getSeqNo(),
                 getResult.getPrimaryTerm(),
@@ -198,6 +208,7 @@ public class UpdateHelper {
                 extractGetResult(
                     request,
                     request.index(),
+                    indexShard.mapperService().mappingLookup(),
                     getResult.getSeqNo(),
                     getResult.getPrimaryTerm(),
                     getResult.getVersion(),
@@ -209,7 +220,7 @@ public class UpdateHelper {
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             String index = request.index();
-            final IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
+            IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
                 .routing(routing)
                 .source(updatedSourceAsMap, updateSourceContentType)
                 .setIfSeqNo(getResult.getSeqNo())
@@ -226,7 +237,7 @@ public class UpdateHelper {
      * either a new {@code IndexRequest} or {@code DeleteRequest} (depending on the script's returned "op" value) to be executed on the
      * primary and replicas.
      */
-    Result prepareUpdateScriptRequest(ShardId shardId, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
+    Result prepareUpdateScriptRequest(IndexShard indexShard, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
@@ -251,7 +262,7 @@ public class UpdateHelper {
         switch (operation) {
             case INDEX -> {
                 String index = request.index();
-                final IndexRequest indexRequest = new IndexRequest(index).id(request.id())
+                IndexRequest indexRequest = new IndexRequest(index).id(request.id())
                     .routing(routing)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .setIfSeqNo(getResult.getSeqNo())
@@ -275,7 +286,7 @@ public class UpdateHelper {
             default -> {
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
                 UpdateResponse update = new UpdateResponse(
-                    shardId,
+                    indexShard.shardId(),
                     getResult.getId(),
                     getResult.getSeqNo(),
                     getResult.getPrimaryTerm(),
@@ -286,6 +297,7 @@ public class UpdateHelper {
                     extractGetResult(
                         request,
                         request.index(),
+                        indexShard.mapperService().mappingLookup(),
                         getResult.getSeqNo(),
                         getResult.getPrimaryTerm(),
                         getResult.getVersion(),
@@ -319,6 +331,7 @@ public class UpdateHelper {
     public static GetResult extractGetResult(
         final UpdateRequest request,
         String concreteIndex,
+        final MappingLookup mappingLookup,
         long seqNo,
         long primaryTerm,
         long version,
@@ -330,8 +343,9 @@ public class UpdateHelper {
             return null;
         }
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
-        if (request.fetchSource().hasFilter()) {
-            sourceFilteredAsBytes = Source.fromMap(source, sourceContentType).filter(request.fetchSource().filter()).internalSourceRef();
+        SourceFilter sourceFilter = request.fetchSource().filter();
+        if (sourceFilter != null) {
+            sourceFilteredAsBytes = Source.fromMap(source, sourceContentType).filter(sourceFilter).internalSourceRef();
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)

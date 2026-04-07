@@ -10,11 +10,15 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -22,10 +26,11 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
-public final class FrozenIndexInput extends MetadataCachingIndexInput {
+public final class FrozenIndexInput extends MetadataCachingIndexInput implements DirectAccessInput {
 
     private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
 
@@ -103,6 +108,27 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
+    public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+        return cacheFile.withByteBufferSlice(offset + this.offset, Math.toIntExact(length), action);
+    }
+
+    @Override
+    public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+        throws IOException {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
+            return false;
+        }
+        long[] adjusted = offsets;
+        if (this.offset != 0) {
+            adjusted = new long[count];
+            for (int i = 0; i < count; i++) {
+                adjusted[i] = offsets[i] + this.offset;
+            }
+        }
+        return cacheFile.withByteBufferSlices(adjusted, length, count, action);
+    }
+
+    @Override
     protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
@@ -145,31 +171,39 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                 final int read = SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference);
                 stats.addCachedBytesRead(read);
                 return read;
-            }, (channel, channelPos, relativePos, len, progressUpdater) -> {
-                final long startTimeNanos = stats.currentTimeNanos();
-                try (InputStream input = openInputStreamFromBlobStore(rangeToWrite.start() + relativePos, len)) {
-                    assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
-                    logger.trace(
-                        "{}: writing channel {} pos {} length {} (details: {})",
-                        fileInfo.physicalName(),
-                        channelPos,
-                        relativePos,
-                        len,
-                        cacheFile
-                    );
-                    SharedBytes.copyToCacheFileAligned(
-                        channel,
-                        input,
-                        channelPos,
-                        relativePos,
-                        len,
-                        progressUpdater,
-                        writeBuffer.get().clear()
-                    );
-                    final long endTimeNanos = stats.currentTimeNanos();
-                    stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
-                }
-            });
+            },
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> ActionListener.completeWith(
+                    completionListener,
+                    () -> {
+                        assert streamFactory == null : streamFactory;
+                        final long startTimeNanos = stats.currentTimeNanos();
+                        try (InputStream input = openInputStreamFromBlobStore(rangeToWrite.start() + relativePos, len)) {
+                            assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+                            logger.trace(
+                                "{}: writing channel {} pos {} length {} (details: {})",
+                                fileInfo.physicalName(),
+                                channelPos,
+                                relativePos,
+                                len,
+                                cacheFile
+                            );
+                            SharedBytes.copyToCacheFileAligned(
+                                channel,
+                                input,
+                                channelPos,
+                                relativePos,
+                                len,
+                                progressUpdater,
+                                writeBuffer.get().clear()
+                            );
+                            final long endTimeNanos = stats.currentTimeNanos();
+                            stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
+                            return null;
+                        }
+                    }
+                ),
+                fileInfo.physicalName()
+            );
             assert bytesRead == length : bytesRead + " vs " + length;
             byteBufferReference.finish(bytesRead);
         } finally {
@@ -205,7 +239,16 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    public FrozenIndexInput clone() {
+    public void prefetch(long offset, long length) throws IOException {
+        cacheFile.tryPrefetch(offset + this.offset, length);
+    }
+
+    @Override
+    public IndexInput clone() {
+        var clone = tryCloneBuffer();
+        if (clone != null) {
+            return clone;
+        }
         return new FrozenIndexInput(this);
     }
 

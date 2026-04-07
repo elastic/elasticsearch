@@ -11,8 +11,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,6 +27,8 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.TaskParams;
@@ -38,6 +42,7 @@ import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.tooManyDocumentsForAnalysis;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
@@ -59,7 +64,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, ProjectId.DEFAULT);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(assignment.getExplanation(), is(equalTo("persistent task cannot be assigned while upgrade mode is enabled.")));
     }
@@ -72,7 +77,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, ProjectId.DEFAULT);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(assignment.getExplanation(), is(emptyString()));
     }
@@ -91,7 +96,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             )
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, ProjectId.DEFAULT);
         assertThat(assignment.getExecutorNode(), is(nullValue()));
         assertThat(
             assignment.getExplanation(),
@@ -99,48 +104,6 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 containsString("Not opening job [data_frame_id] on node [_node_name0]. Reason: This node isn't a machine learning node."),
                 containsString("Not opening job [data_frame_id] on node [_node_name1]. Reason: This node isn't a machine learning node."),
                 containsString("Not opening job [data_frame_id] on node [_node_name2]. Reason: This node isn't a machine learning node.")
-            )
-        );
-    }
-
-    // Cannot assign the node because none of the existing nodes is appropriate:
-    // - _node_name0 is too old (version 7.2.0)
-    // - _node_name1 is too old (version 7.9.1)
-    // - _node_name2 is too old (version 7.9.2)
-    public void testGetAssignment_MlNodesAreTooOld() {
-        TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.CURRENT, false);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(createNode(0, true, Version.V_7_2_0, MlConfigVersion.V_7_2_0))
-                    .add(createNode(1, true, Version.V_7_9_1, MlConfigVersion.V_7_9_1))
-                    .add(createNode(2, true, Version.V_7_9_2, MlConfigVersion.V_7_9_2))
-            )
-            .build();
-
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
-        assertThat(assignment.getExecutorNode(), is(nullValue()));
-        assertThat(
-            assignment.getExplanation(),
-            allOf(
-                containsString(
-                    "Not opening job [data_frame_id] on node [{_node_name0}{version=7.2.0}], "
-                        + "because the data frame analytics requires a node of version [7.3.0] or higher"
-                ),
-                containsString(
-                    "Not opening job [data_frame_id] on node [{_node_name1}{version=7.9.1}], "
-                        + "because the data frame analytics created for version ["
-                        + MlConfigVersion.CURRENT
-                        + "] requires a node of version [7.10.0] or higher"
-                ),
-                containsString(
-                    "Not opening job [data_frame_id] on node [{_node_name2}{version=7.9.2}], "
-                        + "because the data frame analytics created for version ["
-                        + MlConfigVersion.CURRENT
-                        + "] requires a node of version [7.10.0] or higher"
-                )
             )
         );
     }
@@ -155,9 +118,37 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(createNode(0, true, Version.V_7_10_0, MlConfigVersion.V_7_10_0)))
             .build();
 
-        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, ProjectId.DEFAULT);
         assertThat(assignment.getExecutorNode(), is(equalTo("_node_id0")));
         assertThat(assignment.getExplanation(), is(emptyString()));
+    }
+
+    public void testTooManyDocumentsForAnalysis_FullTrainingPercentBelowLimit() {
+        assertFalse(tooManyDocumentsForAnalysis(50_000_000L, 100.0));
+    }
+
+    public void testTooManyDocumentsForAnalysis_FullTrainingPercentAtLimit() {
+        long twoTo32 = 1L << 32;
+        assertTrue(tooManyDocumentsForAnalysis(twoTo32, 100.0));
+    }
+
+    public void testTooManyDocumentsForAnalysis_FullTrainingPercentJustBelowLimit() {
+        long justBelow = (1L << 32) - 1;
+        assertFalse(tooManyDocumentsForAnalysis(justBelow, 100.0));
+    }
+
+    public void testTooManyDocumentsForAnalysis_PartialTrainingPercentBelowLimit() {
+        long twoTo32 = 1L << 32;
+        assertFalse(tooManyDocumentsForAnalysis(twoTo32, 50.0));
+    }
+
+    public void testTooManyDocumentsForAnalysis_PartialTrainingPercentAboveLimit() {
+        long twiceTheLimit = (1L << 32) * 2;
+        assertTrue(tooManyDocumentsForAnalysis(twiceTheLimit, 50.0));
+    }
+
+    public void testTooManyDocumentsForAnalysis_LargeRowCountWithFullTrainingPercent() {
+        assertFalse(tooManyDocumentsForAnalysis(1_000_000_000L, 100.0));
     }
 
     private static TaskExecutor createTaskExecutor() {
@@ -167,13 +158,14 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             Sets.newHashSet(
                 MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_ML_NODE_SIZE,
-                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearningField.MAX_LAZY_ML_NODES,
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
 
         return new TaskExecutor(
             Settings.EMPTY,
@@ -188,24 +180,27 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode createNode(int i, boolean isMlNode, Version nodeVersion, MlConfigVersion mlConfigVersion) {
-        return new DiscoveryNode(
-            "_node_name" + i,
-            "_node_id" + i,
-            new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i),
-            isMlNode
-                ? Map.of(
-                    "ml.machine_memory",
-                    String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
-                    "ml.max_jvm_size",
-                    String.valueOf(ByteSizeValue.ofMb(400).getBytes()),
-                    MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
-                    mlConfigVersion.toString()
-                )
-                : Map.of(),
-            isMlNode
-                ? Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)
-                : Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            VersionInformation.inferVersions(nodeVersion)
-        );
+        return DiscoveryNodeUtils.builder("_node_id" + i)
+            .name("_node_name" + i)
+            .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i))
+            .attributes(
+                isMlNode
+                    ? Map.of(
+                        "ml.machine_memory",
+                        String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
+                        "ml.max_jvm_size",
+                        String.valueOf(ByteSizeValue.ofMb(400).getBytes()),
+                        MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+                        mlConfigVersion.toString()
+                    )
+                    : Map.of()
+            )
+            .roles(
+                isMlNode
+                    ? Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)
+                    : Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
+            )
+            .version(VersionInformation.inferVersions(nodeVersion))
+            .build();
     }
 }

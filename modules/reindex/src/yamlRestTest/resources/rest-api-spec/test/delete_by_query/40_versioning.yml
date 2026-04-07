@@ -1,7 +1,7 @@
 ---
 "delete_by_query fails to delete documents with version number equal to zero":
   - skip:
-      version: "6.7.0 - "
+      cluster_features: ["gte_v6.7.0"]
       reason: reindex moved to rely on sequence numbers for concurrency control
 
   - do:

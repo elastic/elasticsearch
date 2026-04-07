@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -34,7 +33,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/stop";
 
     public StopTrainedModelDeploymentAction() {
-        super(NAME, StopTrainedModelDeploymentAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -79,11 +78,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             allowNoMatch = in.readBoolean();
             force = in.readBoolean();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_FINISH_PENDING_WORK_ADDED)) {
-                finishPendingWork = in.readBoolean();
-            } else {
-                finishPendingWork = false;
-            }
+            finishPendingWork = in.readBoolean();
         }
 
         private Request() {}
@@ -132,9 +127,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             out.writeBoolean(allowNoMatch);
             out.writeBoolean(force);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_FINISH_PENDING_WORK_ADDED)) {
-                out.writeBoolean(finishPendingWork);
-            }
+            out.writeBoolean(finishPendingWork);
         }
 
         @Override

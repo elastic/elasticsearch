@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.percolator;
@@ -25,14 +26,13 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -113,11 +113,11 @@ public class PercolateQueryTests extends ESTestCase {
                 new TermQuery(new Term("select", "a")),
                 percolateSearcher,
                 null,
-                new MatchNoDocsQuery("")
+                Queries.NO_DOCS_INSTANCE
             )
         );
         TopDocs topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits.value, equalTo(1L));
+        assertThat(topDocs.totalHits.value(), equalTo(1L));
         assertThat(topDocs.scoreDocs.length, equalTo(1));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
         Explanation explanation = shardSearcher.explain(query, 0);
@@ -132,11 +132,11 @@ public class PercolateQueryTests extends ESTestCase {
                 new TermQuery(new Term("select", "b")),
                 percolateSearcher,
                 null,
-                new MatchNoDocsQuery("")
+                Queries.NO_DOCS_INSTANCE
             )
         );
         topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits.value, equalTo(3L));
+        assertThat(topDocs.totalHits.value(), equalTo(3L));
         assertThat(topDocs.scoreDocs.length, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
         explanation = shardSearcher.explain(query, 1);
@@ -158,14 +158,14 @@ public class PercolateQueryTests extends ESTestCase {
                 "_name",
                 queryStore,
                 Collections.singletonList(new BytesArray("c")),
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 percolateSearcher,
                 null,
-                new MatchAllDocsQuery()
+                Queries.ALL_DOCS_INSTANCE
             )
         );
         topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits.value, equalTo(4L));
+        assertThat(topDocs.totalHits.value(), equalTo(4L));
 
         query = new PercolateQuery(
             "_name",
@@ -174,10 +174,10 @@ public class PercolateQueryTests extends ESTestCase {
             new TermQuery(new Term("select", "b")),
             percolateSearcher,
             null,
-            new MatchNoDocsQuery("")
+            Queries.NO_DOCS_INSTANCE
         );
         topDocs = shardSearcher.search(query, 10);
-        assertThat(topDocs.totalHits.value, equalTo(3L));
+        assertThat(topDocs.totalHits.value(), equalTo(3L));
         assertThat(topDocs.scoreDocs.length, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(3));
         explanation = shardSearcher.explain(query, 3);

@@ -1,0 +1,11 @@
+host.name:keyword,kibana.alert.risk_score:double
+test-host-1,21.0
+test-host-2,17.0
+test-host-2,23.0
+test-host-1,45.0
+test-host-2,12.0
+test-host-2,16.0
+test-host-1,21.0
+test-host-1,70.0
+test-host-1,21.0
+test-host-2,5.0

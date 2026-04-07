@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
@@ -14,6 +15,8 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.TermOrdValComparator;
@@ -65,16 +68,16 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return indexFieldData.load(context).getBytesValues();
     }
 
-    protected void setScorer(Scorable scorer) {}
+    protected void setScorer(LeafReaderContext context, Scorable scorer) {}
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning enableSkipping, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;
         final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);
         if (indexFieldData instanceof IndexOrdinalsFieldData) {
-            return new TermOrdValComparator(numHits, null, sortMissingLast, reversed, false) {
+            return new TermOrdValComparator(numHits, null, sortMissingLast, reversed, Pruning.NONE) {
 
                 @Override
                 protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
@@ -112,16 +115,49 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);
                     final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
-                    selectedValues = sortMode.select(values, missingBytes, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
+                    selectedValues = sortMode.select(values, missingBytes, rootDocs, innerDocs, maxChildren);
                 }
                 return selectedValues;
             }
 
             @Override
-            public void setScorer(Scorable scorer) {
-                BytesRefFieldComparatorSource.this.setScorer(scorer);
-            }
+            public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                LeafFieldComparator leafComparator = super.getLeafComparator(context);
+                // TopFieldCollector interacts with inter-segment concurrency by creating a FieldValueHitQueue per slice, each one with a
+                // specific instance of the FieldComparator. This ensures sequential execution across LeafFieldComparators returned by
+                // the same parent FieldComparator. That allows for effectively sharing the same instance of leaf comparator, like in this
+                // case in the Lucene code. That's fine dealing with sorting by field, but not when using script sorting, because we then
+                // need to set to Scorer to the specific leaf comparator, to make the _score variable available in sort scripts. The
+                // setScorer call happens concurrently across slices and needs to target the specific leaf context that is being searched.
+                return new LeafFieldComparator() {
+                    @Override
+                    public void setBottom(int slot) throws IOException {
+                        leafComparator.setBottom(slot);
+                    }
 
+                    @Override
+                    public int compareBottom(int doc) throws IOException {
+                        return leafComparator.compareBottom(doc);
+                    }
+
+                    @Override
+                    public int compareTop(int doc) throws IOException {
+                        return leafComparator.compareTop(doc);
+                    }
+
+                    @Override
+                    public void copy(int slot, int doc) throws IOException {
+                        leafComparator.copy(slot, doc);
+                    }
+
+                    @Override
+                    public void setScorer(Scorable scorer) {
+                        // this ensures that the scorer is set for the specific leaf comparator
+                        // corresponding to the leaf context we are scoring
+                        BytesRefFieldComparatorSource.this.setScorer(context, scorer);
+                    }
+                };
+            }
         };
     }
 

@@ -16,16 +16,18 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.action.MlMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.MlMemoryAction.Response.MlMemoryStats;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction.Response.CacheInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -45,14 +48,15 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
-import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 
 public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryAction.Request, MlMemoryAction.Response> {
 
     private final Client client;
     private final MlMemoryTracker memoryTracker;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportMlMemoryAction(
@@ -60,9 +64,9 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
-        MlMemoryTracker memoryTracker
+        MlMemoryTracker memoryTracker,
+        ProjectResolver projectResolver
     ) {
         super(
             MlMemoryAction.NAME,
@@ -71,12 +75,12 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             threadPool,
             actionFilters,
             MlMemoryAction.Request::new,
-            indexNameExpressionResolver,
             MlMemoryAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.memoryTracker = memoryTracker;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -89,55 +93,60 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
 
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
 
+        var clusterName = state.getClusterName();
+        var projectMetadata = state.projectState(projectResolver.getProjectId()).metadata();
+        var trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromMetadata(projectMetadata);
+        PersistentTasksCustomMetadata persistentTasksCustomMetadata = projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
         // Resolve the node specification to some concrete nodes
         String[] nodeIds = state.nodes().resolveNodes(request.getNodeId());
 
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
 
-        ActionListener<NodesStatsResponse> nodeStatsListener = ActionListener.wrap(nodesStatsResponse -> {
-            TrainedModelCacheInfoAction.Request trainedModelCacheInfoRequest = new TrainedModelCacheInfoAction.Request(
-                nodesStatsResponse.getNodes().stream().map(NodeStats::getNode).toArray(DiscoveryNode[]::new)
-            ).timeout(request.timeout());
-
-            parentTaskClient.execute(
-                TrainedModelCacheInfoAction.INSTANCE,
-                trainedModelCacheInfoRequest,
-                ActionListener.wrap(
-                    trainedModelCacheInfoResponse -> handleResponses(
-                        state,
-                        clusterSettings,
-                        nodesStatsResponse,
-                        trainedModelCacheInfoResponse,
-                        listener
-                    ),
-                    listener::onFailure
-                )
-            );
-        }, listener::onFailure);
-
         // Next get node stats related to the OS and JVM
-        ActionListener<Void> memoryTrackerRefreshListener = ActionListener.wrap(
-            r -> parentTaskClient.admin()
+        ActionListener<Void> memoryTrackerRefreshListener = listener.delegateFailureAndWrap(
+            (delegate, r) -> parentTaskClient.admin()
                 .cluster()
                 .prepareNodesStats(nodeIds)
                 .clear()
                 .setOs(true)
                 .setJvm(true)
-                .setTimeout(request.timeout())
-                .execute(nodeStatsListener),
-            listener::onFailure
+                .setTimeout(request.ackTimeout())
+                .execute(delegate.delegateFailureAndWrap((delegate2, nodesStatsResponse) -> {
+                    TrainedModelCacheInfoAction.Request trainedModelCacheInfoRequest = new TrainedModelCacheInfoAction.Request(
+                        nodesStatsResponse.getNodes().stream().map(NodeStats::getNode).toArray(DiscoveryNode[]::new)
+                    );
+                    trainedModelCacheInfoRequest.setTimeout(request.ackTimeout());
+
+                    parentTaskClient.execute(
+                        TrainedModelCacheInfoAction.INSTANCE,
+                        trainedModelCacheInfoRequest,
+                        delegate2.delegateFailureAndWrap(
+                            (l, trainedModelCacheInfoResponse) -> handleResponses(
+                                clusterName,
+                                persistentTasksCustomMetadata,
+                                trainedModelAssignmentMetadata,
+                                clusterSettings,
+                                nodesStatsResponse,
+                                trainedModelCacheInfoResponse,
+                                l
+                            )
+                        )
+                    );
+                }))
         );
 
         // If the memory tracker has never been refreshed, do that first
         if (memoryTracker.isEverRefreshed()) {
             memoryTrackerRefreshListener.onResponse(null);
         } else {
-            memoryTracker.refresh(state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE), memoryTrackerRefreshListener);
+            memoryTracker.refresh(persistentTasksCustomMetadata, memoryTrackerRefreshListener);
         }
     }
 
     void handleResponses(
-        ClusterState state,
+        ClusterName clusterName,
+        PersistentTasksCustomMetadata persistentTasks,
+        TrainedModelAssignmentMetadata assignmentMetadata,
         ClusterSettings clusterSettings,
         NodesStatsResponse nodesStatsResponse,
         TrainedModelCacheInfoAction.Response trainedModelCacheInfoResponse,
@@ -175,7 +184,8 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             ByteSizeValue mlNativeInference;
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
                 NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(
-                    state,
+                    persistentTasks,
+                    assignmentMetadata,
                     node,
                     maxOpenJobsPerNode,
                     maxMachineMemoryPercent,
@@ -221,7 +231,7 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             );
         }
 
-        listener.onResponse(new MlMemoryAction.Response(state.getClusterName(), nodeResponses, failures));
+        listener.onResponse(new MlMemoryAction.Response(clusterName, nodeResponses, failures));
     }
 
     @Override

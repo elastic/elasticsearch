@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -95,13 +96,15 @@ public class LuceneDocument implements Iterable<IndexableField> {
     /**
      * only add the key to the keyedFields, it don't add the field to the field list
      */
-    public void onlyAddKey(Object key, IndexableField field) {
+    public void onlyAddKey(final Object key, final IndexableField field) {
+        assert field != null : "field must not be null";
         if (keyedFields == null) {
             keyedFields = new HashMap<>();
-        } else if (keyedFields.containsKey(key)) {
+        }
+        final var existing = keyedFields.put(key, field);
+        if (existing != null) {
             throw new IllegalStateException("Only one field can be stored per key");
         }
-        keyedFields.put(key, field);
     }
 
     /**

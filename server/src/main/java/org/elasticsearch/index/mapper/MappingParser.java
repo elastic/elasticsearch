@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -27,19 +30,20 @@ import java.util.function.Supplier;
  */
 public final class MappingParser {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
-    private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
+    private final Supplier<Map<String, MetadataFieldMapper.Builder>> metadataBuildersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MappingParser.class);
 
     MappingParser(
         Supplier<MappingParserContext> mappingParserContextSupplier,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-        Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
+        Supplier<Map<String, MetadataFieldMapper.Builder>> metadataBuildersSupplier,
         Function<String, String> documentTypeResolver
     ) {
         this.mappingParserContextSupplier = mappingParserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
-        this.metadataMappersSupplier = metadataMappersSupplier;
+        this.metadataBuildersSupplier = metadataBuildersSupplier;
         this.documentTypeResolver = documentTypeResolver;
     }
 
@@ -79,20 +83,50 @@ public final class MappingParser {
     }
 
     Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
+        return parse(type, MergeReason.MAPPING_UPDATE, source);
+    }
+
+    Mapping parse(@Nullable String type, MergeReason reason, CompressedXContent source) throws MapperParsingException {
         Map<String, Object> mapping = convertToMap(source);
-        return parse(type, mapping);
+        return parse(type, reason, mapping);
+    }
+
+    MappingBuilder parseToBuilder(@Nullable String type, MergeReason reason, CompressedXContent source) throws MapperParsingException {
+        try {
+            Map<String, Object> mapping = convertToMap(source);
+            return parseToBuilder(type, reason, mapping);
+        } catch (Exception e) {
+            throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
+        }
     }
 
     /**
      * A method to parse mapping from a source in a map form.
      *
      * @param type          the mapping type
+     * @param reason        the merge reason to use when merging mappers while building the mapper
      * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise
      * @return a parsed mapping
      * @throws MapperParsingException in case of parsing error
      */
+    Mapping parse(@Nullable String type, MergeReason reason, Map<String, Object> mappingSource) throws MapperParsingException {
+        return parseToBuilder(type, reason, mappingSource).build(reason);
+    }
+
+    /**
+     * Parses a mapping source into a {@link MappingBuilder}, deferring the final build step.
+     * This allows callers to perform merge operations at the builder level before building the
+     * final {@link Mapping}.
+     *
+     * @param type          the mapping type
+     * @param reason        the merge reason (used for deprecation checks during parsing)
+     * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise
+     * @return a {@link MappingBuilder} containing the parsed root builder, metadata, and meta
+     * @throws MapperParsingException in case of parsing error
+     */
     @SuppressWarnings("unchecked")
-    Mapping parse(@Nullable String type, Map<String, Object> mappingSource) throws MapperParsingException {
+    MappingBuilder parseToBuilder(@Nullable String type, MergeReason reason, Map<String, Object> mappingSource)
+        throws MapperParsingException {
         if (mappingSource.isEmpty()) {
             if (type == null) {
                 throw new MapperParsingException("malformed mapping, no type name found");
@@ -115,11 +149,8 @@ public final class MappingParser {
 
         RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
 
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders = metadataBuildersSupplier.get();
         Map<String, Object> meta = null;
-
-        boolean isSourceSynthetic = mappingParserContext.getIndexSettings().getMode().isSyntheticSourceEnabled();
-        boolean isDataStream = false;
 
         Iterator<Map.Entry<String, Object>> iterator = mappingSource.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -135,21 +166,15 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext).build();
-                metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
+                if (reason == MergeReason.INDEX_TEMPLATE
+                    && SourceFieldMapper.NAME.equals(fieldName)
+                    && fieldNodeMap.containsKey("mode")
+                    && SourceFieldMapper.onOrAfterDeprecateModeVersion(mappingParserContext.indexVersionCreated())) {
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
+                }
+                MetadataFieldMapper.Builder parsedBuilder = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext);
+                metadataBuilders.put(fieldName, parsedBuilder);
                 assert fieldNodeMap.isEmpty();
-
-                if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
-                    // Validation in other places should have failed first
-                    assert sfm.isSynthetic()
-                        || (sfm.isSynthetic() == false && mappingParserContext.getIndexSettings().getMode() != IndexMode.TIME_SERIES)
-                        : "synthetic source can't be disabled in a time series index";
-                    isSourceSynthetic = sfm.isSynthetic();
-                }
-
-                if (metadataFieldMapper instanceof DataStreamTimestampFieldMapper dsfm) {
-                    isDataStream = dsfm.isEnabled();
-                }
             }
         }
 
@@ -177,10 +202,6 @@ public final class MappingParser {
             checkNoRemainingFields(mappingSource, "Root mapping definition has unsupported parameters: ");
         }
 
-        return new Mapping(
-            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic, isDataStream)),
-            metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-            meta
-        );
+        return new MappingBuilder(rootObjectMapper, metadataBuilders, meta);
     }
 }

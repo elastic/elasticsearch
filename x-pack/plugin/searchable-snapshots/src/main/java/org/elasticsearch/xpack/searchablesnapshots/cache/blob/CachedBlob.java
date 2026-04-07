@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.ToXContent;
@@ -23,18 +22,17 @@ public class CachedBlob implements ToXContent {
     /**
      * Sentinel {@link CachedBlob} indicating that searching the cache index returned an error.
      */
-    public static final CachedBlob CACHE_NOT_READY = new CachedBlob(null, null, null, "CACHE_NOT_READY", null, BytesArray.EMPTY, 0L, 0L);
+    public static final CachedBlob CACHE_NOT_READY = new CachedBlob(null, null, "CACHE_NOT_READY", null, BytesArray.EMPTY, 0L, 0L);
 
     /**
      * Sentinel {@link CachedBlob} indicating that the cache index definitely did not contain the requested data.
      */
-    public static final CachedBlob CACHE_MISS = new CachedBlob(null, null, null, "CACHE_MISS", null, BytesArray.EMPTY, 0L, 0L);
+    public static final CachedBlob CACHE_MISS = new CachedBlob(null, null, "CACHE_MISS", null, BytesArray.EMPTY, 0L, 0L);
 
     private static final String TYPE = "blob";
     public static final String CREATION_TIME_FIELD = "creation_time";
 
     private final Instant creationTime;
-    private final Version version;
     private final String repository;
     private final String name;
     private final String path;
@@ -43,30 +41,12 @@ public class CachedBlob implements ToXContent {
     private final long from;
     private final long to;
 
-    public CachedBlob(
-        Instant creationTime,
-        Version version,
-        String repository,
-        String name,
-        String path,
-        BytesReference content,
-        long offset
-    ) {
-        this(creationTime, version, repository, name, path, content, offset, offset + (content == null ? 0 : content.length()));
+    public CachedBlob(Instant creationTime, String repository, String name, String path, BytesReference content, long offset) {
+        this(creationTime, repository, name, path, content, offset, offset + (content == null ? 0 : content.length()));
     }
 
-    private CachedBlob(
-        Instant creationTime,
-        Version version,
-        String repository,
-        String name,
-        String path,
-        BytesReference content,
-        long from,
-        long to
-    ) {
+    private CachedBlob(Instant creationTime, String repository, String name, String path, BytesReference content, long from, long to) {
         this.creationTime = creationTime;
-        this.version = version;
         this.repository = repository;
         this.name = name;
         this.path = path;
@@ -82,7 +62,6 @@ public class CachedBlob implements ToXContent {
         {
             builder.field("type", TYPE);
             builder.field(CREATION_TIME_FIELD, creationTime.toEpochMilli());
-            builder.field("version", version.id);
             builder.field("repository", repository);
             builder.startObject("blob");
             {
@@ -118,10 +97,6 @@ public class CachedBlob implements ToXContent {
         return bytes;
     }
 
-    public Version version() {
-        return version;
-    }
-
     public Instant creationTime() {
         return creationTime;
     }
@@ -131,10 +106,6 @@ public class CachedBlob implements ToXContent {
         final Long creationTimeEpochMillis = (Long) source.get(CREATION_TIME_FIELD);
         if (creationTimeEpochMillis == null) {
             throw new IllegalStateException("cached blob document does not have the [creation_time] field");
-        }
-        final Version version = Version.fromId((Integer) source.get("version"));
-        if (version == null) {
-            throw new IllegalStateException("cached blob document does not have the [version] field");
         }
         final String repository = (String) source.get("repository");
         if (repository == null) {
@@ -179,7 +150,6 @@ public class CachedBlob implements ToXContent {
         // TODO add exhaustive verifications (from/to/content.length, version supported, id == recomputed id etc)
         return new CachedBlob(
             Instant.ofEpochMilli(creationTimeEpochMillis),
-            version,
             repository,
             name,
             path,
@@ -194,8 +164,6 @@ public class CachedBlob implements ToXContent {
         return "CachedBlob ["
             + "creationTime="
             + creationTime
-            + ", version="
-            + version
             + ", repository='"
             + repository
             + '\''

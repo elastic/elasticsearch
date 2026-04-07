@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import java.nio.file.Files
@@ -11,52 +12,72 @@ import java.nio.file.Path
 
 apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 
-CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean isTestDistro) {
+CopySpec archiveFiles(String distributionType, String os, String architecture, boolean isTestDistro) {
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
-        with libFiles
+        with libFiles(os, architecture)
       }
       into('config') {
-        dirMode 0750
-        fileMode 0660
+        dirPermissions {
+          unix 0750
+        }
+        filePermissions {
+          unix 0660
+        }
         with configFiles(distributionType, isTestDistro)
         from {
-          dirMode 0750
+          dirPermissions {
+            unix 0750
+          }
           jvmOptionsDir.getParent()
         }
       }
       into('bin') {
         with binFiles(distributionType, isTestDistro)
       }
-      into("darwin".equals(platform) ? 'jdk.app' : 'jdk') {
+      into("darwin".equals(os) ? 'jdk.app' : 'jdk') {
         if (isTestDistro == false) {
-          with jdkFiles(project, platform, architecture)
+          with jdkFiles(project, os, architecture)
         }
       }
       into('') {
         from {
-          dirMode 0755
+          dirPermissions {
+            unix 0755
+          }
           logsDir.getParent()
         }
       }
       into('') {
         from {
-          dirMode 0755
+          dirPermissions {
+            unix 0755
+          }
           pluginsDir.getParent()
         }
       }
-      from(rootProject.projectDir) {
+      from(layout.settingsDirectory.asFile) {
+        filePermissions {
+          unix(0644)
+        }
         include 'README.asciidoc'
       }
-      from(rootProject.file('licenses')) {
-        include isTestDistro ? 'SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
+      from(layout.settingsDirectory.file('licenses').asFile) {
+        include isTestDistro ? 'AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
+        filePermissions {
+          unix(0644)
+        }
         rename { 'LICENSE.txt' }
       }
 
       with noticeFile(isTestDistro)
       into('modules') {
-        with modulesFiles
+        if (isTestDistro) {
+          with integTestModulesFiles
+        } else {
+          with modulesFiles(os, architecture)
+        }
       }
     }
   }
@@ -65,42 +86,42 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 distribution_archives {
   integTestZip {
     content {
-      archiveFiles(integTestModulesFiles, 'zip', null, 'x64', true)
+      archiveFiles('zip', null, null, true)
     }
   }
 
   windowsZip {
     archiveClassifier = 'windows-x86_64'
     content {
-      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', false)
+      archiveFiles('zip', 'windows', 'x64', false)
     }
   }
 
   darwinTar {
     archiveClassifier = 'darwin-x86_64'
     content {
-      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', false)
+      archiveFiles('tar', 'darwin', 'x64', false)
     }
   }
 
   darwinAarch64Tar {
     archiveClassifier = 'darwin-aarch64'
     content {
-      archiveFiles(modulesFiles('darwin-aarch64'), 'tar', 'darwin', 'aarch64', false)
+      archiveFiles('tar', 'darwin', 'aarch64', false)
     }
   }
 
   linuxAarch64Tar {
     archiveClassifier = 'linux-aarch64'
     content {
-      archiveFiles(modulesFiles('linux-aarch64'), 'tar', 'linux', 'aarch64', false)
+      archiveFiles('tar', 'linux', 'aarch64', false)
     }
   }
 
   linuxTar {
     archiveClassifier = 'linux-x86_64'
     content {
-      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false)
+      archiveFiles('tar', 'linux', 'x64', false)
     }
   }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.test;
 
@@ -21,6 +22,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.CloseableTestClusterWrapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
@@ -83,7 +85,8 @@ public class InternalTestClusterTests extends ESTestCase {
             numClientNodes,
             nodePrefix,
             Collections.emptyList(),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         InternalTestCluster cluster1 = new InternalTestCluster(
             clusterSeed,
@@ -97,7 +100,8 @@ public class InternalTestClusterTests extends ESTestCase {
             numClientNodes,
             nodePrefix,
             Collections.emptyList(),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         assertClusters(cluster0, cluster1, true);
     }
@@ -196,7 +200,8 @@ public class InternalTestClusterTests extends ESTestCase {
             numClientNodes,
             nodePrefix,
             mockPlugins(),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         cluster0.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
 
@@ -212,7 +217,8 @@ public class InternalTestClusterTests extends ESTestCase {
             numClientNodes,
             nodePrefix,
             mockPlugins(),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         cluster1.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
 
@@ -237,7 +243,7 @@ public class InternalTestClusterTests extends ESTestCase {
             cluster0.afterTest();
             cluster1.afterTest();
         } finally {
-            IOUtils.close(cluster0, cluster1);
+            IOUtils.close(CloseableTestClusterWrapper.wrap(List.of(cluster0, cluster1)));
         }
     }
 
@@ -278,7 +284,8 @@ public class InternalTestClusterTests extends ESTestCase {
             numClientNodes,
             nodePrefix,
             mockPlugins(),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         try {
             cluster.beforeTest(random());
@@ -373,7 +380,8 @@ public class InternalTestClusterTests extends ESTestCase {
             0,
             "",
             mockPlugins(),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         cluster.beforeTest(random());
         List<DiscoveryNodeRole> roles = new ArrayList<>();
@@ -465,7 +473,8 @@ public class InternalTestClusterTests extends ESTestCase {
             0,
             nodePrefix,
             plugins,
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         try {
             cluster.beforeTest(random());

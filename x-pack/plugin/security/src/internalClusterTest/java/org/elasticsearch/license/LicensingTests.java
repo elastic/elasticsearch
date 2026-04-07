@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.nio.file.Files;
@@ -146,7 +146,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testEnableDisableBehaviour() throws Exception {
-        IndexResponse indexResponse = index("test", jsonBuilder().startObject().field("name", "value").endObject());
+        DocWriteResponse indexResponse = index("test", jsonBuilder().startObject().field("name", "value").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         indexResponse = index("test1", jsonBuilder().startObject().field("name", "value1").endObject());
@@ -159,7 +159,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         assertElasticsearchSecurityException(() -> client.admin().indices().prepareStats().get());
         assertElasticsearchSecurityException(() -> client.admin().cluster().prepareClusterStats().get());
-        assertElasticsearchSecurityException(() -> client.admin().cluster().prepareHealth().get());
+        assertElasticsearchSecurityException(() -> client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get());
         assertElasticsearchSecurityException(() -> client.admin().cluster().prepareNodesStats().get());
 
         enableLicensing(randomFrom(License.OperationMode.values()));
@@ -173,7 +173,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertThat(indices, notNullValue());
         assertThat(indices.getIndexCount(), greaterThanOrEqualTo(2));
 
-        ClusterHealthResponse clusterIndexHealth = client.admin().cluster().prepareHealth().get();
+        ClusterHealthResponse clusterIndexHealth = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
         assertThat(clusterIndexHealth, notNullValue());
 
         NodesStatsResponse nodeStats = client.admin().cluster().prepareNodesStats().get();
@@ -242,6 +242,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         Header[] headers = null;
         try {
             getRestClient().performRequest(request);
+            Assert.fail("expected response exception");
         } catch (ResponseException e) {
             headers = e.getResponse().getHeaders();
             List<String> afterWarningHeaders = getWarningHeaders(headers);

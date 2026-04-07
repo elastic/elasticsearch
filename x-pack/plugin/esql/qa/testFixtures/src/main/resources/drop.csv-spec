@@ -1,3 +1,23 @@
+height
+// tag::height[]
+FROM employees
+| DROP height
+// end::height[]
+| LIMIT 0;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
+;
+
+heightWithWildcard
+// tag::heightWithWildcard[]
+FROM employees 
+| DROP height*
+// end::heightWithWildcard[]
+| LIMIT 0;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
+;
+
 sortWithLimitOne_DropHeight
 from employees | sort languages, emp_no | limit 1 | drop height*;
 
@@ -29,28 +49,199 @@ b:integer | x:integer
 ;
 
 dropAllColumns
-from employees | keep height | drop height | eval x = 1;
+required_capability: fix_no_columns
+from employees | limit 4 | keep height | drop height | eval x = 1;
 
 x:integer
+1
+1
+1
+1
 ;
 
+dropEvalKeep
+required_capability: fix_no_columns
+from employees | drop salary | eval salary = 1 | keep salary | limit 4;
+
+salary:integer
+1
+1
+1
+1
+;
+
+
+dropEvalStats
+required_capability: fix_no_columns
+from mv_sample* | drop `client_ip`, message | eval  `event_duration` = "foo", @timestamp = 1 | stats max(@timestamp) by event_duration;
+
+max(@timestamp):integer | event_duration:keyword
+1                       | foo
+; 
+
+
+
+dropAllColumnsIndexPattern
+required_capability: fix_no_columns
+from emp* | drop languages | eval languages = 123 | keep languages | limit 4;
+
+languages:integer
+123
+123
+123
+123
+;
+
+
+dropAllColumnsWithMetadata
+required_capability: fix_no_columns
+from employees metadata _index | drop languages | eval languages = 123 | keep languages | limit 4;
+
+languages:integer
+123
+123
+123
+123
+;
+
+
 dropAllColumns_WithLimit
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | limit 3;
 
 x:integer
+1
+1
+1
 ;
 
 dropAllColumns_WithCount
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | stats c=count(x);
 
 c:long
-0
+100
 ;
 
 dropAllColumns_WithStats
+required_capability: fix_no_columns
 from employees | keep height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
 
-c:l|mi:i|s:l
-0  |null|null
+c:l  | mi:i | s:l
+100  | 1    | 100
 ;
 
+
+// see https://github.com/elastic/elasticsearch/issues/102121
+dropGrouping#[skip:-8.11.99, reason:planning bug fixed in v8.12]
+row a = 1 | rename a AS foo | stats bar = count(*) by foo | drop foo;
+
+bar:long
+1
+;
+
+dropGroupingMulti#[skip:-8.11.99]
+row a = 1, b = 2 | rename a AS foo, b as bar | stats baz = count(*) by foo, bar | drop foo;
+
+baz:long  | bar:integer
+1         | 2
+;
+
+dropGroupingMulti2#[skip:-8.11.99]
+row a = 1, b = 2 | rename a AS foo, b as bar | stats baz = count(*) by foo, bar | drop foo, bar;
+
+baz:long
+1
+;
+
+
+dropGroupingMultirow#[skip:-8.11.99]
+from employees | rename gender AS foo | stats bar = count(*) by foo | drop foo | sort bar;
+
+bar:long
+10
+33
+57
+;
+
+dropColumnWithQuotedWildcard#[skip:-8.12.99]
+FROM employees | STATS ROUND(AVG(height * 1.5)), COUNT(*), MIN(salary  * 10) | DROP `MIN(salary  * 10)`
+;
+
+ROUND(AVG(height * 1.5)):d | COUNT(*):l
+3.0                        | 100
+;
+
+dropColumnWithQuotedWildcardBasic#[skip:-8.12.99]
+FROM employees | STATS COUNT(*), MIN(salary  * 10), MAX(languages)| DROP `COUNT(*)`
+;
+
+MIN(salary  * 10):i | MAX(languages):i
+253240              | 5
+;
+
+// Not really shadowing, but let's keep the name consistent with the other command's tests
+shadowingInternal
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no, first_name, last_name
+| DROP last_name, last_name
+| LIMIT 2
+;
+
+emp_no:integer | first_name:keyword
+         10001 | Georgi
+         10002 | Bezalel
+;
+
+shadowingInternalWildcard
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no, first_name, last_name
+| DROP last*name, last*name, last*, last_name
+| LIMIT 2
+;
+
+emp_no:integer | first_name:keyword
+         10001 | Georgi
+         10002 | Bezalel
+;
+
+subfields
+FROM addresses
+| DROP city.country.continent.planet.name, city.country.continent.name, city.country.name, number, street, zip_code, city.country.continent.planet.name
+| SORT city.name
+;
+
+city.country.continent.planet.galaxy:keyword | city.name:keyword
+Milky Way                                    | Amsterdam
+Milky Way                                    | San Francisco
+Milky Way                                    | Tokyo
+;
+
+subfieldsWildcard
+FROM addresses
+| DROP *.name, number, street, zip_code, *ame
+;
+
+city.country.continent.planet.galaxy:keyword
+Milky Way
+Milky Way
+Milky Way
+;
+
+dropAgainWithWildcardAfterEval
+required_capability: drop_again_with_wildcard_after_eval
+from languages
+| eval language_code = 12, x = 13
+| drop language_code
+| drop language*
+| keep x
+| limit 3
+;
+
+x:integer
+13
+13
+13
+;

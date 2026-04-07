@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
@@ -20,9 +20,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +47,8 @@ import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.After;
 import org.junit.Before;
 
@@ -64,10 +67,12 @@ import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegis
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -151,15 +156,14 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutLifecycleAction) {
+            if (action == ILMActions.PUT) {
                 calledTimes.incrementAndGet();
-                assertThat(action, instanceOf(PutLifecycleAction.class));
-                assertThat(request, instanceOf(PutLifecycleAction.Request.class));
-                final PutLifecycleAction.Request putRequest = (PutLifecycleAction.Request) request;
+                assertThat(request, instanceOf(PutLifecycleRequest.class));
+                final PutLifecycleRequest putRequest = (PutLifecycleRequest) request;
                 assertThat(putRequest.getPolicy().getName(), equalTo(SLM_POLICY_NAME));
                 assertNotNull(listener);
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutComposableIndexTemplateAction) {
+            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return new TestPutIndexTemplateResponse(true);
             } else {
@@ -184,10 +188,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         policyMap.put(policy.getName(), policy);
 
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComposableIndexTemplateAction) {
+            if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return new TestPutIndexTemplateResponse(true);
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should be re-put");
             } else {
                 fail("client called with unexpected request:" + request.toString());
@@ -210,10 +214,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         LifecyclePolicy policy = policies.get(0);
 
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComposableIndexTemplateAction) {
+            if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return new TestPutIndexTemplateResponse(true);
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 fail("if the policy already exists it should be re-put");
             } else {
                 fail("client called with unexpected request:" + request.toString());
@@ -267,10 +271,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         );
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComposableIndexTemplateAction) {
+            if (action == TransportPutComposableIndexTemplateAction.TYPE) {
                 fail("template should not have been re-installed");
                 return null;
-            } else if (action instanceof PutLifecycleAction) {
+            } else if (action == ILMActions.PUT) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -300,21 +304,8 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
     }
 
-    public void testValidate() {
-        assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), null)));
-        assertFalse(
-            registry.validate(
-                createClusterState(Settings.EMPTY, Collections.singletonMap(SLM_TEMPLATE_NAME, null), Collections.emptyMap(), null)
-            )
-        );
-
-        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        policyMap.put(SLM_POLICY_NAME, new LifecyclePolicy(SLM_POLICY_NAME, new HashMap<>()));
-        assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyMap(), policyMap, null)));
-
-        assertTrue(
-            registry.validate(createClusterState(Settings.EMPTY, Collections.singletonMap(SLM_TEMPLATE_NAME, null), policyMap, null))
-        );
+    public void testTemplateNameIsVersioned() {
+        assertThat(SLM_TEMPLATE_NAME, endsWith("-" + INDEX_TEMPLATE_VERSION));
     }
 
     // -------------
@@ -330,7 +321,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         };
 
         VerifyingClient(ThreadPool threadPool) {
-            super(threadPool);
+            super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
         }
 
         @Override
@@ -359,17 +350,17 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action instanceof PutComposableIndexTemplateAction) {
+        if (action == TransportPutComposableIndexTemplateAction.TYPE) {
             calledTimes.incrementAndGet();
-            assertThat(action, instanceOf(PutComposableIndexTemplateAction.class));
-            assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
-            final PutComposableIndexTemplateAction.Request putRequest = (PutComposableIndexTemplateAction.Request) request;
+            assertThat(action, sameInstance(TransportPutComposableIndexTemplateAction.TYPE));
+            assertThat(request, instanceOf(TransportPutComposableIndexTemplateAction.Request.class));
+            final TransportPutComposableIndexTemplateAction.Request putRequest =
+                (TransportPutComposableIndexTemplateAction.Request) request;
             assertThat(putRequest.name(), equalTo(SLM_TEMPLATE_NAME));
-            assertThat(putRequest.indexTemplate().template().settings().get("index.lifecycle.name"), equalTo(SLM_POLICY_NAME));
             assertThat(putRequest.indexTemplate().version(), equalTo((long) INDEX_TEMPLATE_VERSION));
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);
-        } else if (action instanceof PutLifecycleAction) {
+        } else if (action == ILMActions.PUT) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else {
@@ -387,7 +378,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes);
+        ClusterState cs = createClusterState(existingTemplates, existingPolicies, nodes);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -400,7 +391,6 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterState createClusterState(
-        Settings nodeSettings,
         Map<String, Integer> existingTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
@@ -419,14 +409,13 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(indexTemplates)
+            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+            .build();
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder()
-                    .indexTemplates(indexTemplates)
-                    .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                    .build()
-            )
+            // We need to ensure only one project is present in the cluster state to simplify the assertions in these tests.
+            .metadata(Metadata.builder().projectMetadata(Map.of(project.id(), project)).build())
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();

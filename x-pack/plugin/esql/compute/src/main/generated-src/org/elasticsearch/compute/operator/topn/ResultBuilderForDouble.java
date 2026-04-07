@@ -8,28 +8,35 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 
+/**
+ * Builds the resulting {@link DoubleBlock} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderForDouble implements ResultBuilder {
     private final DoubleBlock.Builder builder;
 
     private final boolean inKey;
+
+    private final TopNEncoder encoder;
 
     /**
      * The value previously set by {@link #decodeKey}.
      */
     private double key;
 
-    ResultBuilderForDouble(TopNEncoder encoder, boolean inKey, int initialSize) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+    ResultBuilderForDouble(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
+        this.encoder = encoder;
         this.inKey = inKey;
-        this.builder = DoubleBlock.newBlockBuilder(initialSize);
+        this.builder = blockFactory.newDoubleBlockBuilder(initialSize);
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         assert inKey;
-        key = TopNEncoder.DEFAULT_SORTABLE.decodeDouble(keys);
+        key = encoder.toSortable(asc).decodeDouble(keys);
     }
 
     @Override
@@ -60,7 +67,17 @@ class ResultBuilderForDouble implements ResultBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
+    }
+
+    @Override
     public String toString() {
         return "ResultBuilderForDouble[inKey=" + inKey + "]";
+    }
+
+    @Override
+    public void close() {
+        builder.close();
     }
 }

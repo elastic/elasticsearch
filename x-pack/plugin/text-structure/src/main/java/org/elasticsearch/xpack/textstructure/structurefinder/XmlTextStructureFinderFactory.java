@@ -46,7 +46,42 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
      */
     @Override
     public boolean canCreateFromSample(List<String> explanation, String sample, double allowedFractionOfBadLines) {
+        int completeDocCount = parseXml(explanation, sample);
+        if (completeDocCount == -1) {
+            return false;
+        }
+        if (completeDocCount == 0) {
+            explanation.add("Not XML because sample didn't contain a complete document");
+            return false;
+        }
+        explanation.add("Deciding sample is XML");
+        return true;
+    }
 
+    public boolean canCreateFromMessages(List<String> explanation, List<String> messages, double allowedFractionOfBadLines) {
+        for (String message : messages) {
+            int completeDocCount = parseXml(explanation, message);
+            if (completeDocCount == -1) {
+                return false;
+            }
+            if (completeDocCount == 0) {
+                explanation.add("Not XML because a message didn't contain a complete document");
+                return false;
+            }
+            if (completeDocCount > 1) {
+                explanation.add("Not XML because a message contains a multiple documents");
+                return false;
+            }
+        }
+        explanation.add("Deciding sample is XML");
+        return true;
+    }
+
+    /**
+     * Tries to parse the sample as XML.
+     * @return -1 if invalid, otherwise the number of complete docs
+     */
+    private int parseXml(List<String> explanation, String sample) {
         int completeDocCount = 0;
         String commonRootElementName = null;
         String remainder = sample.trim();
@@ -80,14 +115,14 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
                                                 + rootElementName
                                                 + "]"
                                         );
-                                        return false;
+                                        return -1;
                                     }
                                 }
                                 break;
                             case XMLStreamReader.END_ELEMENT:
                                 if (--nestingLevel < 0) {
                                     explanation.add("Not XML because an end element occurs before a start element");
-                                    return false;
+                                    return -1;
                                 }
                                 break;
                         }
@@ -111,7 +146,7 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
                                             + remainder
                                             + "]"
                                     );
-                                    return false;
+                                    return -1;
                                 }
                             }
                             endPos += location.getColumnNumber() - 1;
@@ -125,17 +160,11 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
                 }
             } catch (IOException | XMLStreamException e) {
                 explanation.add("Not XML because there was a parsing exception: [" + e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
-                return false;
+                return -1;
             }
         }
 
-        if (completeDocCount == 0) {
-            explanation.add("Not XML because sample didn't contain a complete document");
-            return false;
-        }
-
-        explanation.add("Deciding sample is XML");
-        return true;
+        return completeDocCount;
     }
 
     @Override
@@ -156,5 +185,18 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
             overrides,
             timeoutChecker
         );
+    }
+
+    public TextStructureFinder createFromMessages(
+        List<String> explanation,
+        List<String> messages,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) throws IOException, ParserConfigurationException, SAXException {
+        // XmlTextStructureFinderFactory::canCreateFromMessages already
+        // checked that every message contains a single valid XML document,
+        // so we can safely concatenate and run the logic for a sample.
+        String sample = String.join("\n", messages);
+        return XmlTextStructureFinder.makeXmlTextStructureFinder(explanation, sample, "UTF-8", null, overrides, timeoutChecker);
     }
 }

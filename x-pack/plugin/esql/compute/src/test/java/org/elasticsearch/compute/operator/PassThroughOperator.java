@@ -44,5 +44,15 @@ public class PassThroughOperator implements Operator {
     }
 
     @Override
-    public void close() {}
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return page != null;
+    }
+
+    @Override
+    public void close() {
+        if (page != null) {
+            // this can only happen in a failure situation, prior to the operator being exhausted
+            page.releaseBlocks();
+        }
+    }
 }

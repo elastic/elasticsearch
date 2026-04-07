@@ -1,0 +1,660 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: synthetic source support added in 8.15
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index.mapping.source.mode: synthetic
+          mappings:
+            "properties":
+              "integer_range":
+                "type" : "integer_range"
+              "long_range":
+                "type" : "long_range"
+              "float_range":
+                "type" : "float_range"
+              "double_range":
+                "type" : "double_range"
+              "date_range":
+                "type" : "date_range"
+              "ip_range":
+                "type" : "ip_range"
+
+---
+"Integer range":
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        body: { "integer_range" : { "gte": 1, "lte": 5 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "2"
+        body: { "integer_range" : { "gt": 1, "lte": 3 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "3"
+        body: { "integer_range" : [ { "gte": 4, "lt": 5 } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "4"
+        body: { "integer_range" : [ { "gt": 4, "lt": 8 }, { "gt": 4, "lt": 7 } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "5"
+        body: { "integer_range" : null }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "integer_range": { "gte": null, "lte": 10 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "7"
+        body: { "integer_range": { "gte": 1 } }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "1"
+  - match:
+      _source:
+        integer_range:  { "gte": 1, "lte": 5 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "2"
+  - match:
+      _source:
+        integer_range: { "gte": 2, "lte": 3 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "3"
+  - match:
+      _source:
+        integer_range: { "gte": 4, "lte": 4 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "4"
+  - match:
+      _source:
+        integer_range: [ { "gte": 5, "lte": 6 }, { "gte": 5, "lte": 7 } ]
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "5"
+  - match:
+      _source: {}
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "6"
+  - match:
+      _source:
+        integer_range: { "gte": null, "lte": 10 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "7"
+  - match:
+      _source:
+        integer_range: { "gte": 1, "lte": null }
+
+---
+"Long range":
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        body: { "long_range" : { "gte": 1, "lte": 5 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "2"
+        body: { "long_range" : { "gt": 1, "lte": 3 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "3"
+        body: { "long_range" : [ { "gte": 4, "lt": 5 } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "4"
+        body: { "long_range" : [ { "gt": 4, "lt": 8 }, { "gt": 4, "lt": 7 } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "5"
+        body: { "long_range" : null }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "long_range": { "gte": null, "lte": 10 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "7"
+        body: { "long_range": { "gte": 1 } }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "1"
+  - match:
+      _source:
+        long_range:  { "gte": 1, "lte": 5 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "2"
+  - match:
+      _source:
+        long_range: { "gte": 2, "lte": 3 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "3"
+  - match:
+      _source:
+        long_range: { "gte": 4, "lte": 4 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "4"
+  - match:
+      _source:
+        long_range: [ { "gte": 5, "lte": 6 }, { "gte": 5, "lte": 7 } ]
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "5"
+  - match:
+      _source: {}
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "6"
+  - match:
+      _source:
+        long_range: { "gte": null, "lte": 10 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "7"
+  - match:
+      _source:
+        long_range: { "gte": 1, "lte": null }
+
+---
+"Float range":
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        body: { "float_range" : { "gte": 1, "lte": 5 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "2"
+        body: { "float_range" : [ { "gte": 4.0, "lte": 5.0 } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "3"
+        body: { "float_range" : [ { "gte": 4, "lte": 8 }, { "gte": 4, "lte": 7 } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "4"
+        body: { "float_range" : null }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "5"
+        body: { "float_range": { "gte": null, "lte": 10 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "float_range": { "gte": 1 } }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "1"
+  - match:
+      _source:
+        float_range:  { "gte": 1.0, "lte": 5.0 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "2"
+  - match:
+      _source:
+        float_range: { "gte": 4.0, "lte": 5.0 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "3"
+  - match:
+      _source:
+        float_range: [ { "gte": 4.0, "lte": 7.0 }, { "gte": 4.0, "lte": 8.0 } ]
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "4"
+  - match:
+      _source: {}
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "5"
+  - match:
+      _source:
+        float_range: { "gte": null, "lte": 10.0 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "6"
+  - match:
+      _source:
+        float_range: { "gte": 1.0, "lte": null }
+
+---
+"Double range":
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        body: { "double_range" : { "gte": 1, "lte": 5 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "2"
+        body: { "double_range" : [ { "gte": 4.0, "lte": 5.0 } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "3"
+        body: { "double_range" : [ { "gte": 4, "lte": 8 }, { "gte": 4, "lte": 7 } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "4"
+        body: { "double_range" : null }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "5"
+        body: { "double_range": { "gte": null, "lte": 10 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "double_range": { "gte": 1 } }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "1"
+  - match:
+      _source:
+        double_range:  { "gte": 1.0, "lte": 5.0 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "2"
+  - match:
+      _source:
+        double_range: { "gte": 4.0, "lte": 5.0 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "3"
+  - match:
+      _source:
+        double_range: [ { "gte": 4.0, "lte": 7.0 }, { "gte": 4.0, "lte": 8.0 } ]
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "4"
+  - match:
+      _source: {}
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "5"
+  - match:
+      _source:
+        double_range: { "gte": null, "lte": 10.0 }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "6"
+  - match:
+      _source:
+        double_range: { "gte": 1.0, "lte": null }
+
+---
+"IP range":
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        body: { "ip_range" : { "gte": "192.168.0.1", "lte": "192.168.0.5" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "2"
+        body: { "ip_range" : { "gt": "192.168.0.1", "lte": "192.168.0.3" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "3"
+        body: { "ip_range" : [ { "gte": "192.168.0.4", "lt": "192.168.0.5" } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "4"
+        body: { "ip_range" : { "gt": "2001:db8::", "lt": "200a:100::" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "5"
+        body: { "ip_range" : "74.125.227.0/25" }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "ip_range" : null }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "7"
+        body: { "ip_range": { "gte": null, "lte": "10.10.10.10" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "8"
+        body: { "ip_range": { "gte": "2001:db8::" } }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "1"
+  - match:
+      _source:
+        ip_range:  { "gte": "192.168.0.1", "lte": "192.168.0.5" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "2"
+  - match:
+      _source:
+        ip_range: { "gte": "192.168.0.2", "lte": "192.168.0.3" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "3"
+  - match:
+      _source:
+        ip_range: { "gte": "192.168.0.4", "lte": "192.168.0.4" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "4"
+  - match:
+      _source:
+        ip_range: { "gte": "2001:db8::1", "lte": "200a:ff:ffff:ffff:ffff:ffff:ffff:ffff" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "5"
+  - match:
+      _source:
+        ip_range: { "gte": "74.125.227.0", "lte": "74.125.227.127" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "6"
+  - match:
+      _source: {}
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "7"
+  - match:
+      _source:
+        ip_range: { "gte": null, "lte": "10.10.10.10" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "8"
+  - match:
+      _source:
+        ip_range: { "gte": "2001:db8::", "lte": null }
+
+---
+"Date range Rounding Fixes":
+  - requires:
+      cluster_features: ["mapper.range.date_range_indexing_fix"]
+      reason: "tests rounding fixes in 8.16.0 that previously caused non-intuitive indexing and query because ranges were assumed to always index with 0's as the default such as when time is missing 00:00:00.000 time was assumed but for lte indexing and query missing time should be 23:59:59.999 as per docs here: https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-range-query.html"
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        body: { "date_range": { "gte": "2017-09-01", "lte": "2017-09-05" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "2"
+        body: { "date_range": { "gt": "2017-09-01", "lte": "2017-09-03" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "3"
+        body: { "date_range": [ { "gte": "2017-09-04", "lt": "2017-09-05" } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "4"
+        body: { "date_range": [ { "gt": "2017-09-04", "lt": "2017-09-08" }, { "gt": "2017-09-04", "lt": "2017-09-07" } ] }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "5"
+        body: { "date_range": { "gte": 1504224000000, "lte": 1504569600000 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "date_range": { "gte": "2017-09-01T10:20:30.123Z", "lte": "2017-09-05T03:04:05.789Z" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "7"
+        body: { "date_range": null }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "8"
+        body: { "date_range": { "gte": null, "lte": "2017-09-05" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "9"
+        body: { "date_range": { "gte": "2017-09-05" } }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "1"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-01T00:00:00.000Z", "lte": "2017-09-05T23:59:59.999Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "2"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-02T00:00:00.000Z", "lte": "2017-09-03T23:59:59.999Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "3"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-04T00:00:00.000Z", "lte": "2017-09-04T23:59:59.999Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "4"
+  - match:
+      _source:
+        date_range: [ { "gte": "2017-09-05T00:00:00.000Z", "lte": "2017-09-06T23:59:59.999Z" }, { "gte": "2017-09-05T00:00:00.000Z", "lte": "2017-09-07T23:59:59.999Z" } ]
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "5"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-01T00:00:00.000Z", "lte": "2017-09-05T00:00:00.000Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "6"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-01T10:20:30.123Z", "lte": "2017-09-05T03:04:05.789Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "7"
+  - match:
+      _source: { }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "8"
+  - match:
+      _source:
+        date_range: { "gte": null, "lte": "2017-09-05T23:59:59.999Z" }
+
+  - do:
+      get:
+        index: synthetic_source_test
+        id: "9"
+  - match:
+      _source:
+        date_range: { "gte": "2017-09-05T00:00:00.000Z", "lte": null }

@@ -23,8 +23,8 @@ teardown:
 
 ---
 "Verify get index api":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   # save the backing index names for later use
@@ -41,8 +41,8 @@ teardown:
 
 ---
 "Verify get mapping api":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   # save the backing index names for later use
@@ -59,10 +59,10 @@ teardown:
 
 ---
 "Verify shard stores api":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -118,9 +118,9 @@ teardown:
   - is_true: acknowledged
 ---
 "Verify search shards api":
-  - skip:
-      features: allowed_warnings
-      version: " - 7.8.99"
+  - requires:
+      test_runner_features: allowed_warnings
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do:
@@ -150,9 +150,9 @@ teardown:
 
 ---
 "Verify get field mappings api":
-  - skip:
-      features: allowed_warnings
-      version: " - 7.8.99"
+  - requires:
+      test_runner_features: allowed_warnings
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do:
@@ -189,10 +189,10 @@ teardown:
 
 ---
 "Open write index for data stream opens all backing indices":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -230,8 +230,6 @@ teardown:
   - do:
       indices.close:
         index: ".ds-simple-data-stream1-*000001,.ds-simple-data-stream1-*000002"
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:
@@ -262,10 +260,10 @@ teardown:
 
 ---
 "Verify rank eval with data streams":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       index:

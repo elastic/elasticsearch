@@ -1,25 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.node.Node;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class DiscoveryNodeUtils {
+
+    public static DiscoveryNode randomDiscoveryNode() {
+        return DiscoveryNodeUtils.builder(UUID.randomUUID().toString())
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(1, 65535)))
+            .build();
+    }
 
     public static DiscoveryNode create(String id) {
         return builder(id).build();
@@ -33,7 +45,12 @@ public class DiscoveryNodeUtils {
         return builder(id).address(address).build();
     }
 
+    @Deprecated
     public static DiscoveryNode create(String id, TransportAddress address, Version version) {
+        return builder(id).address(address).version(version).build();
+    }
+
+    public static DiscoveryNode create(String id, TransportAddress address, VersionInformation version) {
         return builder(id).address(address).version(version).build();
     }
 
@@ -64,8 +81,10 @@ public class DiscoveryNodeUtils {
         private TransportAddress address;
         private Map<String, String> attributes = Map.of();
         private Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
+        private BuildVersion buildVersion;
         private Version version;
         private IndexVersion minIndexVersion;
+        private IndexVersion minReadOnlyIndexVersion;
         private IndexVersion maxIndexVersion;
         private String externalId;
 
@@ -104,21 +123,43 @@ public class DiscoveryNodeUtils {
             return this;
         }
 
+        @Deprecated
         public Builder version(Version version) {
             this.version = version;
             return this;
         }
 
+        @Deprecated
         public Builder version(Version version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+            this.buildVersion = BuildVersion.fromVersionId(version.id());
             this.version = version;
             this.minIndexVersion = minIndexVersion;
+            this.minReadOnlyIndexVersion = minIndexVersion;
+            this.maxIndexVersion = maxIndexVersion;
+            return this;
+        }
+
+        public Builder version(
+            BuildVersion version,
+            IndexVersion minIndexVersion,
+            IndexVersion minReadOnlyIndexVersion,
+            IndexVersion maxIndexVersion
+        ) {
+            // see comment in VersionInformation
+            assert version.equals(BuildVersion.current());
+            this.buildVersion = version;
+            this.version = Version.CURRENT;
+            this.minIndexVersion = minIndexVersion;
+            this.minReadOnlyIndexVersion = minReadOnlyIndexVersion;
             this.maxIndexVersion = maxIndexVersion;
             return this;
         }
 
         public Builder version(VersionInformation versions) {
+            this.buildVersion = versions.buildVersion();
             this.version = versions.nodeVersion();
             this.minIndexVersion = versions.minIndexVersion();
+            this.minReadOnlyIndexVersion = versions.minReadOnlyIndexVersion();
             this.maxIndexVersion = versions.maxIndexVersion();
             return this;
         }
@@ -126,6 +167,12 @@ public class DiscoveryNodeUtils {
         public Builder externalId(String externalId) {
             this.externalId = externalId;
             return this;
+        }
+
+        public Builder applySettings(Settings settings) {
+            return name(Node.NODE_NAME_SETTING.get(settings)).attributes(Node.NODE_ATTRIBUTES.getAsMap(settings))
+                .roles(DiscoveryNode.getRolesFromSettings(settings))
+                .externalId(Node.NODE_EXTERNAL_ID_SETTING.get(settings));
         }
 
         public DiscoveryNode build() {
@@ -140,10 +187,10 @@ public class DiscoveryNodeUtils {
             }
 
             VersionInformation versionInfo;
-            if (minIndexVersion == null || maxIndexVersion == null) {
+            if (minIndexVersion == null || minReadOnlyIndexVersion == null || maxIndexVersion == null) {
                 versionInfo = VersionInformation.inferVersions(version);
             } else {
-                versionInfo = new VersionInformation(version, minIndexVersion, maxIndexVersion);
+                versionInfo = new VersionInformation(buildVersion, version, minIndexVersion, minReadOnlyIndexVersion, maxIndexVersion);
             }
 
             return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, externalId);

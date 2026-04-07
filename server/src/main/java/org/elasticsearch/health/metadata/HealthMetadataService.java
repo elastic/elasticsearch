@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.metadata;
@@ -11,7 +12,6 @@ package org.elasticsearch.health.metadata;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -37,6 +37,8 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW;
 import static org.elasticsearch.health.node.selection.HealthNodeTaskExecutor.ENABLED_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN;
@@ -109,7 +111,12 @@ public class HealthMetadataService {
                 )
             );
 
-        Stream.of(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN)
+        Stream.of(
+            SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+            SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
+            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
+            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED
+        )
             .forEach(
                 setting -> clusterSettings.addSettingsUpdateConsumer(
                     setting,
@@ -132,8 +139,8 @@ public class HealthMetadataService {
     }
 
     private boolean canPostClusterStateUpdates(ClusterState state) {
-        // Wait until every node in the cluster is upgraded to 8.5.0 or later
-        return isMaster && state.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0);
+        // Wait until every node in the cluster supports health checks
+        return isMaster && state.clusterRecovered();
     }
 
     private void updateOnClusterStateChange(ClusterChangedEvent event) {
@@ -225,6 +232,10 @@ public class HealthMetadataService {
             shardLimitsBuilder.maxShardsPerNode(value);
         } else if (SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey().equals(settingName)) {
             shardLimitsBuilder.maxShardsPerNodeFrozen(value);
+        } else if (SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey().equals(settingName)) {
+            shardLimitsBuilder.shardCapacityUnhealthyThresholdYellow(value);
+        } else if (SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey().equals(settingName)) {
+            shardLimitsBuilder.shardCapacityUnhealthyThresholdRed(value);
         }
 
         this.localHealthMetadata = healthMetadataBuilder.shardLimits(shardLimitsBuilder.build()).build();
@@ -242,7 +253,9 @@ public class HealthMetadataService {
             ),
             new HealthMetadata.ShardLimits(
                 SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings),
-                SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings)
+                SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.get(settings),
+                SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.get(settings),
+                SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.get(settings)
             )
         );
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -31,7 +32,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -53,6 +53,8 @@ import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -66,6 +68,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand.TRUNCATE_CLEAN_TRANSLOG_FLAG;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -75,6 +78,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
+@WithoutEntitlements // commands don't run with entitlements enforced
 public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
     private ShardId shardId;
@@ -97,13 +101,9 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     public void setup() throws IOException {
         shardId = new ShardId("index0", UUIDs.randomBase64UUID(), 0);
         final String nodeId = randomAlphaOfLength(10);
-        routing = TestShardRouting.newShardRouting(
-            shardId,
-            nodeId,
-            true,
-            ShardRoutingState.INITIALIZING,
+        routing = shardRoutingBuilder(shardId, nodeId, true, ShardRoutingState.INITIALIZING).withRecoverySource(
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+        ).build();
 
         dataPaths = new Path[] { createTempDir(), createTempDir(), createTempDir() };
         final String[] tmpPaths = Arrays.stream(dataPaths).map(s -> s.toAbsolutePath().toString()).toArray(String[]::new);
@@ -155,7 +155,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                     nodeId,
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(1L, clusterState);
@@ -263,7 +264,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             failOnShardFailures();
             final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-            final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+            final Set<String> shardDocUIDs = getShardDocIDs(newShard);
 
             final Matcher matcher = NUM_CORRUPT_DOCS_PATTERN.matcher(output);
             assertThat(matcher.find(), equalTo(true));
@@ -324,7 +325,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+        final Set<String> shardDocUIDs = getShardDocIDs(newShard);
 
         assertThat(shardDocUIDs.size(), equalTo(numDocsToKeep));
 
@@ -380,7 +381,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+        final Set<String> shardDocUIDs = getShardDocIDs(newShard);
 
         final Matcher matcher = NUM_CORRUPT_DOCS_PATTERN.matcher(output);
         assertThat(matcher.find(), equalTo(true));
@@ -503,7 +504,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         failOnShardFailures();
         final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
 
-        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+        final Set<String> shardDocUIDs = getShardDocIDs(newShard);
         assertEquals(numDocs, shardDocUIDs.size());
 
         assertThat(t.getOutput(), containsString("This shard has been marked as corrupted but no corruption can now be detected."));

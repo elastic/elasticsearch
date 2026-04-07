@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -27,11 +28,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
@@ -48,7 +50,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
@@ -145,11 +147,17 @@ public class MinAggregatorTests extends AggregatorTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
         }, min -> {
@@ -159,7 +167,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchesSortedNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
@@ -170,7 +178,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchesNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
@@ -297,18 +305,18 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalHistogram>) histo -> {
             assertThat(histo.getBuckets().size(), equalTo(3));
 
-            assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("min"));
-            Min min = (Min) histo.getBuckets().get(0).getAggregations().asMap().get("min");
+            assertNotNull(histo.getBuckets().get(0).getAggregations().get("min"));
+            Min min = (Min) histo.getBuckets().get(0).getAggregations().get("min");
             assertEquals(1.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
 
-            assertNotNull(histo.getBuckets().get(1).getAggregations().asMap().get("min"));
-            min = (Min) histo.getBuckets().get(1).getAggregations().asMap().get("min");
+            assertNotNull(histo.getBuckets().get(1).getAggregations().get("min"));
+            min = (Min) histo.getBuckets().get(1).getAggregations().get("min");
             assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
 
-            assertNotNull(histo.getBuckets().get(2).getAggregations().asMap().get("min"));
-            min = (Min) histo.getBuckets().get(2).getAggregations().asMap().get("min");
+            assertNotNull(histo.getBuckets().get(2).getAggregations().get("min"));
+            min = (Min) histo.getBuckets().get(2).getAggregations().get("min");
             assertEquals(3.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
 
@@ -343,9 +351,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalGlobal>) global -> {
             assertEquals(2, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
-            assertNotNull(global.getAggregations().asMap().get("min"));
+            assertNotNull(global.getAggregations().get("min"));
 
-            Min min = (Min) global.getAggregations().asMap().get("min");
+            Min min = (Min) global.getAggregations().get("min");
             assertEquals(1.0, min.value(), 0);
             assertThat(global.getProperty("min"), equalTo(min));
             assertThat(global.getProperty("min.value"), equalTo(1.0));
@@ -529,7 +537,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 assertEquals((long) i1 + 1, bucket.getKeyAsNumber());
                 assertEquals(1L, bucket.getDocCount());
 
-                Filter filter = bucket.getAggregations().get("filter");
+                SingleBucketAggregation filter = bucket.getAggregations().get("filter");
                 assertNotNull(filter);
                 assertEquals(0L, filter.getDocCount());
 
@@ -554,7 +562,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                try (AggregationContext context = createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldType)) {
+                try (AggregationContext context = createAggregationContext(indexReader, Queries.ALL_DOCS_INSTANCE, fieldType)) {
                     createAggregator(aggregationBuilder, context);
                     assertTrue(context.isCacheable());
                 }
@@ -579,12 +587,12 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                try (AggregationContext context = createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldType)) {
+                try (AggregationContext context = createAggregationContext(indexReader, Queries.ALL_DOCS_INSTANCE, fieldType)) {
                     createAggregator(nonDeterministicAggregationBuilder, context);
                     assertFalse(context.isCacheable());
                 }
 
-                try (AggregationContext context = createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldType)) {
+                try (AggregationContext context = createAggregationContext(indexReader, Queries.ALL_DOCS_INSTANCE, fieldType)) {
                     createAggregator(aggregationBuilder, context);
                     assertTrue(context.isCacheable());
                 }

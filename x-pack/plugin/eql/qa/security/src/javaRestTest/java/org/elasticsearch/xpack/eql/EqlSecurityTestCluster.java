@@ -19,7 +19,7 @@ public class EqlSecurityTestCluster {
             .setting("xpack.license.self_generated.type", "basic")
             .setting("xpack.monitoring.collection.enabled", "true")
             .setting("xpack.security.enabled", "true")
-            .configFile("roles.yml", Resource.fromClasspath("roles.yml"))
+            .rolesFile(Resource.fromClasspath("roles.yml"))
             .user("test-admin", "x-pack-test-password", "test-admin", false)
             .user("user1", "x-pack-test-password", "user1", false)
             .user("user2", "x-pack-test-password", "user2", false)

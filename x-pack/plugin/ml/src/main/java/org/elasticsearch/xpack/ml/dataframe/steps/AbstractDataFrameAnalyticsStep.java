@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.tasks.TaskId;
@@ -67,16 +67,16 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
             listener.onResponse(new StepResponse(true));
             return;
         }
-        doExecute(ActionListener.wrap(stepResponse -> {
+        doExecute(listener.delegateFailureAndWrap((l, stepResponse) -> {
             // We persist progress at the end of each step to ensure we do not have
             // to repeat the step in case the node goes down without getting a chance to persist progress.
-            task.persistProgress(() -> listener.onResponse(stepResponse));
-        }, listener::onFailure));
+            task.persistProgress(() -> l.onResponse(stepResponse));
+        }));
     }
 
     protected abstract void doExecute(ActionListener<StepResponse> listener);
 
-    protected void refreshDestAsync(ActionListener<RefreshResponse> refreshListener) {
+    protected void refreshDestAsync(ActionListener<BroadcastResponse> refreshListener) {
         ParentTaskAssigningClient parentTaskClient = parentTaskClient();
         executeWithHeadersAsync(
             config.getHeaders(),

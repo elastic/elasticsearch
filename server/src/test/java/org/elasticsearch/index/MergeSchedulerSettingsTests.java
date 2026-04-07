@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -39,11 +40,11 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             String message = event.getMessage().getFormattedMessage();
             if (event.getLevel() == Level.TRACE && event.getLoggerName().endsWith("lucene.iw")) {
             }
-            if (event.getLevel() == Level.INFO
+            if (event.getLevel() == Level.DEBUG
                 && message.contains("updating [index.merge.scheduler.max_thread_count] from [10000] to [1]")) {
                 sawUpdateMaxThreadCount = true;
             }
-            if (event.getLevel() == Level.INFO
+            if (event.getLevel() == Level.DEBUG
                 && message.contains("updating [index.merge.scheduler.auto_throttle] from [true] to [false]")) {
                 sawUpdateAutoThrottle = true;
             }

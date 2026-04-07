@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.ml.aggs.heuristic;
 
 import org.apache.commons.math3.util.FastMath;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.AbstractNXYSignificanceHeuristicTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.util.List;
 import java.util.function.Function;
@@ -33,7 +34,7 @@ public class PValueScoreTests extends AbstractNXYSignificanceHeuristicTestCase {
 
     @Override
     protected TransportVersion randomVersion() {
-        return randomFrom(TransportVersions.V_8_0_0, TransportVersions.V_7_16_0);
+        return TransportVersionUtils.randomCompatibleVersion();
     }
 
     @Override
@@ -56,16 +57,14 @@ public class PValueScoreTests extends AbstractNXYSignificanceHeuristicTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(
-            new SearchModule(Settings.EMPTY, List.of(new MachineLearning(Settings.EMPTY))).getNamedXContents()
-        );
+        MachineLearning mlPlugin = MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of(mlPlugin)).getNamedXContents());
     }
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, List.of(new MachineLearning(Settings.EMPTY))).getNamedWriteables()
-        );
+        MachineLearning mlPlugin = MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, List.of(mlPlugin)).getNamedWriteables());
     }
 
     public void testPValueScore_WhenAllDocsContainTerm() {

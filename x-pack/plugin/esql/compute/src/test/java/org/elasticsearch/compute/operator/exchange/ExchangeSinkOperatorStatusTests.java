@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -17,8 +18,19 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExchangeSinkOperatorStatusTests extends AbstractWireSerializingTestCase<ExchangeSinkOperator.Status> {
     public void testToXContent() {
-        assertThat(Strings.toString(new ExchangeSinkOperator.Status(10)), equalTo("""
-            {"pages_accepted":10}"""));
+        assertThat(Strings.toString(simple(), true, true), equalTo(simpleToJson()));
+    }
+
+    public static ExchangeSinkOperator.Status simple() {
+        return new ExchangeSinkOperator.Status(10, 111);
+    }
+
+    public static String simpleToJson() {
+        return """
+            {
+              "pages_received" : 10,
+              "rows_received" : 111
+            }""";
     }
 
     @Override
@@ -27,12 +39,19 @@ public class ExchangeSinkOperatorStatusTests extends AbstractWireSerializingTest
     }
 
     @Override
-    protected ExchangeSinkOperator.Status createTestInstance() {
-        return new ExchangeSinkOperator.Status(between(0, Integer.MAX_VALUE));
+    public ExchangeSinkOperator.Status createTestInstance() {
+        return new ExchangeSinkOperator.Status(randomNonNegativeInt(), randomNonNegativeLong());
     }
 
     @Override
     protected ExchangeSinkOperator.Status mutateInstance(ExchangeSinkOperator.Status instance) throws IOException {
-        return new ExchangeSinkOperator.Status(randomValueOtherThan(instance.pagesAccepted(), () -> between(0, Integer.MAX_VALUE)));
+        int pagesReceived = instance.pagesReceived();
+        long rowsReceived = instance.rowsReceived();
+        switch (between(0, 1)) {
+            case 0 -> pagesReceived = randomValueOtherThan(pagesReceived, ESTestCase::randomNonNegativeInt);
+            case 1 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            default -> throw new UnsupportedOperationException();
+        }
+        return new ExchangeSinkOperator.Status(pagesReceived, rowsReceived);
     }
 }

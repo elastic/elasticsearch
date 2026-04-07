@@ -7,11 +7,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -31,8 +33,8 @@ public class PercentileDoubleAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new PercentileDoubleAggregatorFunctionSupplier(percentile);
     }
 
     @Override
@@ -41,16 +43,17 @@ public class PercentileDoubleAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
-        return new SequenceDoubleBlockSourceOperator(LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        return new SequenceDoubleBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        TDigestState td = TDigestState.create(QuantileStates.DEFAULT_COMPRESSION);
-        input.stream().flatMapToDouble(b -> allDoubles(b)).forEach(td::add);
-        double expected = td.quantile(percentile / 100);
-        double value = ((DoubleBlock) result).getDouble(0);
-        assertThat(value, closeTo(expected, expected * 0.1));
+    protected void assertSimpleOutput(List<Page> input, Block result) {
+        try (TDigestState td = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), QuantileStates.DEFAULT_COMPRESSION)) {
+            input.stream().flatMapToDouble(p -> allDoubles(p.getBlock(0))).forEach(td::add);
+            double expected = td.quantile(percentile / 100);
+            double value = ((DoubleBlock) result).getDouble(0);
+            assertThat(value, closeTo(expected, expected * 0.1));
+        }
     }
 }

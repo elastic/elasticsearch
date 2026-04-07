@@ -1,0 +1,13 @@
+config:
+  allow-labels: "test-arm"
+steps:
+  - label: part-5-arm
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart5
+    timeout_in_minutes: 300
+    agents:
+      provider: aws
+      imagePrefix: elasticsearch-ubuntu-2404-aarch64
+      instanceType: m6g.8xlarge
+      diskSizeGb: 350
+      diskType: gp3
+      diskName: /dev/sda1

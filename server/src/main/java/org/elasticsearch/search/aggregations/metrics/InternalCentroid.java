@@ -1,17 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ParseField;
@@ -21,32 +25,36 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
 public abstract class InternalCentroid extends InternalAggregation implements CentroidAggregation {
+
+    private static final TransportVersion SHAPE_CENTROID_SUPPORT = TransportVersion.fromName("geo_centroid_shape_weighted_sums");
+
+    /**
+     * Holds the raw weighted sums and dimensional shape type needed for correct cross-shard reduction
+     * of shape centroids. This is {@code null} for geo_point centroids and for results from old nodes,
+     * avoiding any memory overhead in the common geo_point case.
+     */
+    public record ShapeData(double firstWeightedSum, double secondWeightedSum, double totalWeight, DimensionalShapeType shapeType) {}
+
     protected final SpatialPoint centroid;
     protected final long count;
-    private final FieldExtractor firstField;
-    private final FieldExtractor secondField;
+    protected final ShapeData shapeData;
 
-    public InternalCentroid(
-        String name,
-        SpatialPoint centroid,
-        long count,
-        Map<String, Object> metadata,
-        FieldExtractor firstField,
-        FieldExtractor secondField
-    ) {
+    public InternalCentroid(String name, SpatialPoint centroid, long count, Map<String, Object> metadata) {
+        this(name, centroid, count, null, metadata);
+    }
+
+    public InternalCentroid(String name, SpatialPoint centroid, long count, ShapeData shapeData, Map<String, Object> metadata) {
         super(name, metadata);
         assert (centroid == null) == (count == 0);
         this.centroid = centroid;
         assert count >= 0;
         this.count = count;
-        this.firstField = firstField;
-        this.secondField = secondField;
+        this.shapeData = shapeData;
     }
 
     protected abstract SpatialPoint centroidFromStream(StreamInput in) throws IOException;
@@ -56,7 +64,8 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     /**
      * Read from a stream.
      */
-    protected InternalCentroid(StreamInput in, FieldExtractor firstField, FieldExtractor secondField) throws IOException {
+    @SuppressWarnings("this-escape")
+    protected InternalCentroid(StreamInput in) throws IOException {
         super(in);
         count = in.readVLong();
         if (in.readBoolean()) {
@@ -64,8 +73,20 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
         } else {
             centroid = null;
         }
-        this.firstField = firstField;
-        this.secondField = secondField;
+        if (in.getTransportVersion().supports(SHAPE_CENTROID_SUPPORT)) {
+            if (in.readBoolean()) {
+                shapeData = new ShapeData(
+                    in.readDouble(),
+                    in.readDouble(),
+                    in.readDouble(),
+                    DimensionalShapeType.fromOrdinalByte(in.readByte())
+                );
+            } else {
+                shapeData = null;
+            }
+        } else {
+            shapeData = null;
+        }
     }
 
     @Override
@@ -76,6 +97,17 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
             centroidToStream(out);
         } else {
             out.writeBoolean(false);
+        }
+        if (out.getTransportVersion().supports(SHAPE_CENTROID_SUPPORT)) {
+            if (shapeData != null) {
+                out.writeBoolean(true);
+                out.writeDouble(shapeData.firstWeightedSum);
+                out.writeDouble(shapeData.secondWeightedSum);
+                out.writeDouble(shapeData.totalWeight);
+                out.writeByte((byte) shapeData.shapeType.ordinal());
+            } else {
+                out.writeBoolean(false);
+            }
         }
     }
 
@@ -91,29 +123,93 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
 
     protected abstract InternalCentroid copyWith(SpatialPoint result, long count);
 
-    /** Create a new centroid with by reducing from the sums and total count */
+    /** Create a new centroid by reducing from the sums and total count (count-weighted path for geo_point). */
     protected abstract InternalCentroid copyWith(double firstSum, double secondSum, long totalCount);
 
-    @Override
-    public InternalCentroid reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        double firstSum = Double.NaN;
-        double secondSum = Double.NaN;
-        long totalCount = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalCentroid centroidAgg = (InternalCentroid) aggregation;
-            if (centroidAgg.count > 0) {
-                totalCount += centroidAgg.count;
-                if (Double.isNaN(firstSum)) {
-                    firstSum = centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
-                    secondSum = centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
-                } else {
-                    firstSum += centroidAgg.count * firstField.extractor.apply(centroidAgg.centroid);
-                    secondSum += centroidAgg.count * secondField.extractor.apply(centroidAgg.centroid);
+    /** Create a new centroid from shape-aware weighted sums (area-weighted path for geo_shape). */
+    protected abstract InternalCentroid copyWithShapeFields(ShapeData shapeData, long count);
+
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+
+            // Count-weighted accumulator (geo_point or old nodes)
+            double firstSum = Double.NaN;
+            double secondSum = Double.NaN;
+            long totalCount = 0;
+
+            // Shape-aware accumulator (geo_shape)
+            double combinedFirstWeighted = 0;
+            double combinedSecondWeighted = 0;
+            double combinedWeight = 0;
+            long shapeCount = 0;
+            DimensionalShapeType combinedShapeType = DimensionalShapeType.POINT;
+            boolean hasShapeValues = false;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalCentroid centroidAgg = (InternalCentroid) aggregation;
+                if (centroidAgg.count > 0) {
+                    if (centroidAgg.shapeData != null && centroidAgg.shapeData.totalWeight > 0) {
+                        // Shape-aware path: respect dimensional type priority
+                        int cmp = centroidAgg.shapeData.shapeType.compareTo(combinedShapeType);
+                        if (hasShapeValues == false || cmp > 0) {
+                            // First shape value or higher dimension — reset
+                            combinedFirstWeighted = centroidAgg.shapeData.firstWeightedSum;
+                            combinedSecondWeighted = centroidAgg.shapeData.secondWeightedSum;
+                            combinedWeight = centroidAgg.shapeData.totalWeight;
+                            shapeCount = centroidAgg.count;
+                            combinedShapeType = centroidAgg.shapeData.shapeType;
+                            hasShapeValues = true;
+                        } else if (cmp == 0) {
+                            // Same dimension — accumulate
+                            combinedFirstWeighted += centroidAgg.shapeData.firstWeightedSum;
+                            combinedSecondWeighted += centroidAgg.shapeData.secondWeightedSum;
+                            combinedWeight += centroidAgg.shapeData.totalWeight;
+                            shapeCount += centroidAgg.count;
+                        }
+                        // cmp < 0: lower dimension — ignore
+                    } else if (centroidAgg.centroid != null) {
+                        // Count-weighted path (geo_point or BWC from old node)
+                        if (hasShapeValues) {
+                            // BWC: approximate old-node shape result as same dimension, count as weight
+                            combinedFirstWeighted += centroidAgg.count * extractFirst(centroidAgg.centroid);
+                            combinedSecondWeighted += centroidAgg.count * extractSecond(centroidAgg.centroid);
+                            combinedWeight += centroidAgg.count;
+                            shapeCount += centroidAgg.count;
+                        } else {
+                            totalCount += centroidAgg.count;
+                            if (Double.isNaN(firstSum)) {
+                                firstSum = centroidAgg.count * extractFirst(centroidAgg.centroid);
+                                secondSum = centroidAgg.count * extractSecond(centroidAgg.centroid);
+                            } else {
+                                firstSum += centroidAgg.count * extractFirst(centroidAgg.centroid);
+                                secondSum += centroidAgg.count * extractSecond(centroidAgg.centroid);
+                            }
+                        }
+                    }
                 }
             }
-        }
-        return copyWith(firstSum, secondSum, totalCount);
+
+            @Override
+            public InternalAggregation get() {
+                if (hasShapeValues) {
+                    return copyWithShapeFields(
+                        new ShapeData(combinedFirstWeighted, combinedSecondWeighted, combinedWeight, combinedShapeType),
+                        shapeCount
+                    );
+                }
+                return copyWith(firstSum, secondSum, totalCount);
+            }
+        };
     }
+
+    protected abstract String nameFirst();
+
+    protected abstract double extractFirst(SpatialPoint point);
+
+    protected abstract String nameSecond();
+
+    protected abstract double extractSecond(SpatialPoint point);
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
@@ -123,16 +219,6 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     @Override
     protected boolean mustReduceOnSingleInternalAgg() {
         return false;
-    }
-
-    protected static class FieldExtractor {
-        private final String name;
-        private final Function<SpatialPoint, Double> extractor;
-
-        public FieldExtractor(String name, Function<SpatialPoint, Double> extractor) {
-            this.name = name;
-            this.extractor = extractor;
-        }
     }
 
     protected abstract double extractDouble(String name);
@@ -163,8 +249,8 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
         if (centroid != null) {
             builder.startObject(Fields.CENTROID.getPreferredName());
             {
-                builder.field(firstField.name, firstField.extractor.apply(centroid));
-                builder.field(secondField.name, secondField.extractor.apply(centroid));
+                builder.field(nameFirst(), extractFirst(centroid));
+                builder.field(nameSecond(), extractSecond(centroid));
             }
             builder.endObject();
         }

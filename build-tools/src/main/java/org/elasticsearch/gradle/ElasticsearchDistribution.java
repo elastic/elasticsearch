@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
-import org.gradle.api.Action;
 import org.gradle.api.Buildable;
-import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
@@ -44,38 +45,39 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final String name;
     private final Property<Boolean> dockerAvailability;
     // pkg private so plugin can configure
-    final Configuration configuration;
+    final FileCollection configuration;
 
     private final Property<Architecture> architecture;
     private final Property<String> version;
+    private final Property<Boolean> detachedVersion;
     private final Property<ElasticsearchDistributionType> type;
     private final Property<Platform> platform;
     private final Property<Boolean> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
-    private final Configuration extracted;
-    private Action<ElasticsearchDistribution> distributionFinalizer;
+    private final Property<Boolean> preferArchive;
+    private final ConfigurableFileCollection extracted;
     private boolean frozen = false;
 
     ElasticsearchDistribution(
         String name,
         ObjectFactory objectFactory,
         Property<Boolean> dockerAvailability,
-        Configuration fileConfiguration,
-        Configuration extractedConfiguration,
-        Action<ElasticsearchDistribution> distributionFinalizer
+        ConfigurableFileCollection fileConfiguration,
+        ConfigurableFileCollection extractedConfiguration
     ) {
         this.name = name;
         this.dockerAvailability = dockerAvailability;
         this.configuration = fileConfiguration;
         this.architecture = objectFactory.property(Architecture.class);
         this.version = objectFactory.property(String.class).convention(VersionProperties.getElasticsearch());
+        this.detachedVersion = objectFactory.property(Boolean.class).convention(false);
         this.type = objectFactory.property(ElasticsearchDistributionType.class);
         this.type.convention(ElasticsearchDistributionTypes.ARCHIVE);
         this.platform = objectFactory.property(Platform.class);
         this.bundledJdk = objectFactory.property(Boolean.class);
         this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
+        this.preferArchive = objectFactory.property(Boolean.class).convention(false);
         this.extracted = extractedConfiguration;
-        this.distributionFinalizer = distributionFinalizer;
     }
 
     public String getName() {
@@ -89,6 +91,19 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     public void setVersion(String version) {
         Version.fromString(version); // ensure the version parses, but don't store as Version since that removes -SNAPSHOT
         this.version.set(version);
+    }
+
+    /**
+     * Informs if the version is not tied to any Elasticsearch release and is a custom build.
+     * This is true when the distribution is not from HEAD but also not any known released version.
+     * In that case the detached source build needs to be prepared by `usedBwcDistributionFromRef(ref, version)`.
+     */
+    public boolean isDetachedVersion() {
+        return detachedVersion.get();
+    }
+
+    public void setDetachedVersion(boolean detachedVersion) {
+        this.detachedVersion.set(detachedVersion);
     }
 
     public Platform getPlatform() {
@@ -140,6 +155,14 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.failIfUnavailable.set(failIfUnavailable);
     }
 
+    public boolean getPreferArchive() {
+        return preferArchive.get();
+    }
+
+    public void setPreferArchive(boolean preferArchive) {
+        this.preferArchive.set(preferArchive);
+    }
+
     public void setArchitecture(Architecture architecture) {
         this.architecture.set(architecture);
     }
@@ -161,7 +184,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     public ElasticsearchDistribution maybeFreeze() {
         if (frozen == false) {
             finalizeValues();
-            distributionFinalizer.execute(this);
             frozen = true;
         }
         return this;
@@ -172,7 +194,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return configuration.getSingleFile().toString();
     }
 
-    public Configuration getExtracted() {
+    public ConfigurableFileCollection getExtracted() {
         if (getType().shouldExtract() == false) {
             throw new UnsupportedOperationException(
                 "distribution type [" + getType().getName() + "] for " + "elasticsearch distribution [" + name + "] cannot be extracted"
@@ -187,7 +209,9 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             return task -> Collections.emptySet();
         } else {
             maybeFreeze();
-            return getType().shouldExtract() ? extracted.getBuildDependencies() : configuration.getBuildDependencies();
+            return getType().shouldExtract() && (preferArchive.get() == false)
+                ? extracted.getBuildDependencies()
+                : configuration.getBuildDependencies();
         }
     }
 
@@ -251,14 +275,5 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         platform.finalizeValue();
         type.finalizeValue();
         bundledJdk.finalizeValue();
-    }
-
-    public TaskDependency getArchiveDependencies() {
-        if (skippingDockerDistributionBuild()) {
-            return task -> Collections.emptySet();
-        } else {
-            maybeFreeze();
-            return configuration.getBuildDependencies();
-        }
     }
 }

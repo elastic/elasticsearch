@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -16,7 +17,6 @@ import org.elasticsearch.test.VersionUtils;
 import java.time.Instant;
 import java.util.Properties;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class FeatureFlagTests extends ESTestCase {
@@ -58,10 +58,10 @@ public class FeatureFlagTests extends ESTestCase {
         assertThat(flag.isEnabled(), is(true));
     }
 
-    public void testSetFeatureFlagCannotBeDisabledInSnapshotBuild() {
+    public void testSetFeatureFlagExplicitlyDisabledInSnapshotBuild() {
         final Properties properties = setProperty("es.test_feature_flag_enabled", "false");
-        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> newFeatureFlag(properties, true));
-        assertThat(ex.getMessage(), containsString("cannot be disabled in snapshot builds"));
+        final FeatureFlag flag = newFeatureFlag(properties, true);
+        assertThat(flag.isEnabled(), is(false));
     }
 
     private static FeatureFlag newFeatureFlag(Properties properties, boolean isSnapshot) {
@@ -81,10 +81,11 @@ public class FeatureFlagTests extends ESTestCase {
             randomFrom(Build.Type.values()),
             Hex.encodeHexString(randomByteArrayOfLength(20)),
             Instant.now().toString(),
+            VersionUtils.randomVersion().toString(),
+            randomFrom(random(), null, "alpha1", "beta1", "rc2"),
             isSnapshot,
-            VersionUtils.randomVersion(random()).toString(),
-            VersionUtils.randomVersion(random()).toString(),
-            VersionUtils.randomVersion(random()).toString(),
+            VersionUtils.randomVersion().toString(),
+            VersionUtils.randomVersion().toString(),
             randomAlphaOfLength(10)
         );
     }

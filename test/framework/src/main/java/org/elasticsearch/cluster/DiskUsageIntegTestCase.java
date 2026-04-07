@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -12,7 +13,6 @@ import org.apache.lucene.tests.mockfile.FilterFileStore;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
@@ -83,7 +83,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
         try {
             Files.createDirectories(dataPath);
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
         fileSystemProvider.addTrackedPath(dataPath);
         return Settings.builder()
@@ -94,7 +94,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
     }
 
     public TestFileStore getTestFileStore(String nodeName) {
-        return fileSystemProvider.getTestFileStore(internalCluster().getInstance(Environment.class, nodeName).dataFiles()[0]);
+        return fileSystemProvider.getTestFileStore(internalCluster().getInstance(Environment.class, nodeName).dataDirs()[0]);
     }
 
     protected static class TestFileStore extends FilterFileStore {
@@ -218,7 +218,12 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
         }
 
         TestFileStore getTestFileStore(Path path) {
-            final TestFileStore fileStore = trackedPaths.get(path);
+            final TestFileStore fileStore = trackedPaths.entrySet()
+                .stream()
+                .filter(e -> path.startsWith(e.getKey()))
+                .map(Map.Entry::getValue)
+                .findAny()
+                .orElse(null);
             if (fileStore != null) {
                 return fileStore;
             }
@@ -231,11 +236,5 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
             return trackedPaths.get(containingPaths.iterator().next());
         }
 
-        void clearTrackedPaths() throws IOException {
-            for (Path path : trackedPaths.keySet()) {
-                IOUtils.rm(path);
-            }
-            trackedPaths.clear();
-        }
     }
 }

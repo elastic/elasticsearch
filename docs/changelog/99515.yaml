@@ -1,5 +1,0 @@
-pr: 99515
-summary: Add `IndexVersion` to node info
-area: Infra/REST API
-type: enhancement
-issues: []

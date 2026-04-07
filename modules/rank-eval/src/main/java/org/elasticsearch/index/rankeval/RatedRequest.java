@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -31,6 +33,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Definition of a particular query in the ranking evaluation request.<br>
@@ -130,7 +133,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         Set<DocumentKey> docKeys = new HashSet<>();
         for (RatedDocument doc : ratedDocs) {
             if (docKeys.add(doc.getKey()) == false) {
-                String docKeyToString = doc.getKey().toString().replaceAll("\n", "").replaceAll("  ", " ");
+                String docKeyToString = doc.getKey().toString().replace("\n", "").replace("  ", " ");
                 throw new IllegalArgumentException(
                     "Found duplicate rated document key [" + docKeyToString + "] in evaluation request [" + id + "]"
                 );
@@ -179,7 +182,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         for (int i = 0; i < intentSize; i++) {
             ratedDocs.add(new RatedDocument(in));
         }
-        this.params = in.readMap();
+        this.params = in.readGenericMap();
         int summaryFieldsSize = in.readInt();
         summaryFields = new ArrayList<>(summaryFieldsSize);
         for (int i = 0; i < summaryFieldsSize; i++) {
@@ -246,7 +249,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
     private static final ParseField TEMPLATE_ID_FIELD = new ParseField("template_id");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RatedRequest, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<RatedRequest, Predicate<NodeFeature>> PARSER = new ConstructingObjectParser<>(
         "request",
         a -> new RatedRequest(
             (String) a[0],
@@ -262,7 +265,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RatedDocument.fromXContent(p), RATINGS_FIELD);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> new SearchSourceBuilder().parseXContent(p, false),
+            (p, c) -> new SearchSourceBuilder().parseXContent(p, false, c),
             REQUEST_FIELD
         );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), PARAMS_FIELD);
@@ -273,8 +276,8 @@ public class RatedRequest implements Writeable, ToXContentObject {
     /**
      * parse from rest representation
      */
-    public static RatedRequest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static RatedRequest fromXContent(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature) {
+        return PARSER.apply(parser, clusterSupportsFeature);
     }
 
     @Override

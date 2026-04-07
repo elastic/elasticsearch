@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +33,7 @@ public class InternalInferenceAggregation extends InternalAggregation {
 
     public InternalInferenceAggregation(StreamInput in) throws IOException {
         super(in);
-        inferenceResult = in.readNamedWriteable(InferenceResults.class);
+        inferenceResult = in.readNamedWriteable(org.elasticsearch.inference.InferenceResults.class);
     }
 
     public InferenceResults getInferenceResult() {
@@ -45,7 +46,7 @@ public class InternalInferenceAggregation extends InternalAggregation {
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Reducing an inference aggregation is not supported");
     }
 

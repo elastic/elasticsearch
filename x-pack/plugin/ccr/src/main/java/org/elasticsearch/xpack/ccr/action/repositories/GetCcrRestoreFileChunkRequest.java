@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,9 +19,7 @@ import org.elasticsearch.transport.RemoteClusterAwareRequest;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.ccr.Ccr.TRANSPORT_VERSION_ACTION_WITH_SHARD_ID;
-
-public class GetCcrRestoreFileChunkRequest extends ActionRequest implements RemoteClusterAwareRequest, IndicesRequest {
+public class GetCcrRestoreFileChunkRequest extends LegacyActionRequest implements RemoteClusterAwareRequest, IndicesRequest {
 
     private final DiscoveryNode node;
     private final String sessionUUID;
@@ -49,11 +47,7 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
         sessionUUID = in.readString();
         fileName = in.readString();
         size = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
-            shardId = new ShardId(in);
-        } else {
-            shardId = null;
-        }
+        shardId = new ShardId(in);
     }
 
     @Override
@@ -62,9 +56,7 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
         out.writeString(sessionUUID);
         out.writeString(fileName);
         out.writeVInt(size);
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ACTION_WITH_SHARD_ID)) {
-            shardId.writeTo(out);
-        }
+        shardId.writeTo(out);
     }
 
     String getSessionUUID() {

@@ -25,11 +25,12 @@ import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.ietf.jgss.GSSException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +65,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     public static final String KRB_METADATA_UPN_KEY = "kerberos_user_principal_name";
 
     private final Cache<String, User> userPrincipalNameToUserCache;
-    private final NativeRoleMappingStore userRoleMapper;
+    private final UserRoleMapper userRoleMapper;
     private final KerberosTicketValidator kerberosTicketValidator;
     private final ThreadPool threadPool;
     private final Path keytabPath;
@@ -72,21 +73,21 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     private final boolean removeRealmName;
     private DelegatedAuthorizationSupport delegatedRealms;
 
-    public KerberosRealm(final RealmConfig config, final NativeRoleMappingStore nativeRoleMappingStore, final ThreadPool threadPool) {
-        this(config, nativeRoleMappingStore, new KerberosTicketValidator(), threadPool, null);
+    public KerberosRealm(final RealmConfig config, final UserRoleMapper userRoleMapper, final ThreadPool threadPool) {
+        this(config, userRoleMapper, new KerberosTicketValidator(), threadPool, null);
     }
 
     // pkg scoped for testing
     KerberosRealm(
         final RealmConfig config,
-        final NativeRoleMappingStore nativeRoleMappingStore,
+        final UserRoleMapper userRoleMapper,
         final KerberosTicketValidator kerberosTicketValidator,
         final ThreadPool threadPool,
         final Cache<String, User> userPrincipalNameToUserCache
     ) {
         super(config);
-        this.userRoleMapper = nativeRoleMappingStore;
-        this.userRoleMapper.refreshRealmOnChange(this);
+        this.userRoleMapper = userRoleMapper;
+        this.userRoleMapper.clearRealmCacheOnChange(this);
         final TimeValue ttl = config.getSetting(KerberosRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
             this.userPrincipalNameToUserCache = (userPrincipalNameToUserCache == null)
@@ -100,21 +101,28 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
         this.kerberosTicketValidator = kerberosTicketValidator;
         this.threadPool = threadPool;
-        this.keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        this.keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
 
-        if (Files.exists(keytabPath) == false) {
-            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] does not exist");
-        }
-        if (Files.isDirectory(keytabPath)) {
-            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] is a directory");
-        }
-        if (Files.isReadable(keytabPath) == false) {
-            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] must have read permission");
-        }
+        validateKeytab(this.keytabPath);
 
         this.enableKerberosDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         this.removeRealmName = config.getSetting(KerberosRealmSettings.SETTING_REMOVE_REALM_NAME);
         this.delegatedRealms = null;
+    }
+
+    private static void validateKeytab(Path keytabPath) {
+        boolean fileExists = AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(keytabPath));
+        if (fileExists == false) {
+            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] does not exist");
+        }
+        boolean pathIsDir = AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> Files.isDirectory(keytabPath));
+        if (pathIsDir) {
+            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] is a directory");
+        }
+        boolean isReadable = AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> Files.isReadable(keytabPath));
+        if (isReadable == false) {
+            throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] must have read permission");
+        }
     }
 
     @Override
@@ -185,7 +193,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         );
     }
 
-    private String[] splitUserPrincipalName(final String userPrincipalName) {
+    private static String[] splitUserPrincipalName(final String userPrincipalName) {
         return userPrincipalName.split("@");
     }
 

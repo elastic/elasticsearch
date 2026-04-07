@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -20,12 +21,16 @@ public class TermsEnumAction extends ActionType<TermsEnumResponse> {
 
     public static final TermsEnumAction INSTANCE = new TermsEnumAction();
     public static final String NAME = "indices:data/read/xpack/termsenum/list";
+    public static final RemoteClusterActionType<TermsEnumResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        TermsEnumResponse::new
+    );
 
     static final ParseField INDEX_FILTER = new ParseField("index_filter");
     static final ParseField TIMEOUT = new ParseField("timeout");
 
     private TermsEnumAction() {
-        super(NAME, TermsEnumResponse::new);
+        super(NAME);
     }
 
     public static TermsEnumRequest fromXContent(XContentParser parser, String... indices) throws IOException {

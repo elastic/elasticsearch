@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -80,18 +80,37 @@ public class DeleteAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         Step.StepKey waitForNoFollowerStepKey = new Step.StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
+        Step.StepKey waitTimeSeriesEndTimePassesKey = new Step.StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, DeleteStep.NAME);
         Step.StepKey cleanSnapshotKey = new Step.StepKey(phase, NAME, CleanupSnapshotStep.NAME);
 
         if (deleteSearchableSnapshot) {
-            WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, cleanSnapshotKey, client);
+            WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(
+                waitForNoFollowerStepKey,
+                waitTimeSeriesEndTimePassesKey,
+                client
+            );
+            WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
+                waitTimeSeriesEndTimePassesKey,
+                cleanSnapshotKey,
+                Instant::now
+            );
             CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, deleteStepKey, client);
             DeleteStep deleteStep = new DeleteStep(deleteStepKey, nextStepKey, client);
-            return Arrays.asList(waitForNoFollowersStep, cleanupSnapshotStep, deleteStep);
+            return List.of(waitForNoFollowersStep, waitUntilTimeSeriesEndTimeStep, cleanupSnapshotStep, deleteStep);
         } else {
-            WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, deleteStepKey, client);
+            WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(
+                waitForNoFollowerStepKey,
+                waitTimeSeriesEndTimePassesKey,
+                client
+            );
+            WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
+                waitTimeSeriesEndTimePassesKey,
+                deleteStepKey,
+                Instant::now
+            );
             DeleteStep deleteStep = new DeleteStep(deleteStepKey, nextStepKey, client);
-            return Arrays.asList(waitForNoFollowersStep, deleteStep);
+            return List.of(waitForNoFollowersStep, waitUntilTimeSeriesEndTimeStep, deleteStep);
         }
     }
 

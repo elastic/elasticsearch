@@ -71,7 +71,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
-        this.processConnectTimeout = Duration.ofMillis(processConnectTimeout.getMillis());
+        this.processConnectTimeout = processConnectTimeout.toDuration();
     }
 
     @Override
@@ -149,7 +149,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         ProcessPipes processPipes
     ) {
         AnalyticsBuilder analyticsBuilder = new AnalyticsBuilder(
-            env::tmpFile,
+            env::tmpDir,
             nativeController,
             processPipes,
             analyticsProcessConfig,

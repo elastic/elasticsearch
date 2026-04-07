@@ -7,19 +7,22 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Run a set of drivers to completion.
  */
 public abstract class DriverRunner {
+    private final ThreadContext threadContext;
+
+    public DriverRunner(ThreadContext threadContext) {
+        this.threadContext = threadContext;
+    }
+
     /**
      * Start a driver.
      */
@@ -29,9 +32,11 @@ public abstract class DriverRunner {
      * Run all drivers to completion asynchronously.
      */
     public void runToCompletion(List<Driver> drivers, ActionListener<Void> listener) {
-        AtomicReference<Exception> failure = new AtomicReference<>();
+        var responseHeadersCollector = new ResponseHeadersCollector(threadContext);
+        var failure = new FailureCollector();
         CountDown counter = new CountDown(drivers.size());
-        for (Driver driver : drivers) {
+        for (int i = 0; i < drivers.size(); i++) {
+            Driver driver = drivers.get(i);
             ActionListener<Void> driverListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -40,23 +45,7 @@ public abstract class DriverRunner {
 
                 @Override
                 public void onFailure(Exception e) {
-                    failure.getAndUpdate(first -> {
-                        if (first == null) {
-                            return e;
-                        }
-                        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-                            return first;
-                        } else {
-                            if (ExceptionsHelper.unwrap(first, TaskCancelledException.class) != null) {
-                                return e;
-                            } else {
-                                if (first != e) {
-                                    first.addSuppressed(e);
-                                }
-                                return first;
-                            }
-                        }
-                    });
+                    failure.unwrapAndCollect(e);
                     for (Driver d : drivers) {
                         if (driver != d) {
                             d.cancel("Driver [" + driver.sessionId() + "] was cancelled or failed");
@@ -66,15 +55,10 @@ public abstract class DriverRunner {
                 }
 
                 private void done() {
+                    responseHeadersCollector.collect();
                     if (counter.countDown()) {
-                        for (Driver d : drivers) {
-                            if (d.status().status() == DriverStatus.Status.QUEUED) {
-                                d.close();
-                            } else {
-                                Releasables.close(d.driverContext().getSnapshot().releasables());
-                            }
-                        }
-                        Exception error = failure.get();
+                        responseHeadersCollector.finish();
+                        Exception error = failure.getFailure();
                         if (error != null) {
                             listener.onFailure(error);
                         } else {

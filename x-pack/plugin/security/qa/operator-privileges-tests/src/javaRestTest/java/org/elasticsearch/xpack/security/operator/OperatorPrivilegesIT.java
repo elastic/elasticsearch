@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -15,9 +17,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -37,14 +46,41 @@ import static org.hamcrest.Matchers.not;
 
 public class OperatorPrivilegesIT extends ESRestTestCase {
 
-    private static final String OPERATOR_AUTH_HEADER = "Basic "
-        + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));;
+    private static TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(3)
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "false")
+        .setting("xpack.security.operator_privileges.enabled", "true")
+        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        .plugin("operator-privileges-test")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
+        .configFile("operator_users.yml", Resource.fromClasspath("operator_users.yml"))
+        .user("test_admin", "x-pack-test-password", "superuser", false)
+        // the user is defined as an operator in the "operator_users.yml" file
+        .user("test_operator", "x-pack-test-password", "limited_operator", false)
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    private static final String OPERATOR_AUTH_HEADER = "Basic "
+        + Base64.getEncoder().encodeToString("test_operator:x-pack-test-password".getBytes(StandardCharsets.UTF_8));;
 
     @SuppressWarnings("unchecked")
     @Override
@@ -130,6 +166,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testEveryActionIsEitherOperatorOnlyOrNonOperator() throws IOException {
+        assumeTrue("Exclude release builds due to maintenance burden around feature flags", Build.current().isSnapshot());
         final String message = "An action should be declared to be either operator-only in ["
             + DefaultOperatorOnlyRegistry.class.getName()
             + "] or non-operator in ["
@@ -291,6 +328,13 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
     }
 
+    public void testNonOperatorUserCanCallAnalyzeRepositoryAPI() throws IOException {
+        createSnapshotRepo("testAnalysisRepo");
+        var request = new Request("POST", "/_snapshot/testAnalysisRepo/_analyze");
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+    }
+
     private void createSnapshotRepo(String repoName) throws IOException {
         Request request = new Request("PUT", "/_snapshot/" + repoName);
         request.setJsonEntity(
@@ -299,7 +343,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
                     .startObject()
                     .field("type", "fs")
                     .startObject("settings")
-                    .field("location", System.getProperty("tests.path.repo"))
+                    .field("location", repoDirectory.getRoot().getPath())
                     .endObject()
                     .endObject()
             )

@@ -40,8 +40,8 @@ setup:
 
 ---
 "Create a snapshot and clean up repository":
-  - skip:
-      version: " - 7.3.99"
+  - requires:
+      cluster_features: ["gte_v7.4.0"]
       reason:  cleanup introduced in 7.4
 
   - do:

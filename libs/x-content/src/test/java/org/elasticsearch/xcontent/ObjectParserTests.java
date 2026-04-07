@@ -763,16 +763,16 @@ public class ObjectParserTests extends ESTestCase {
 
         assertEquals("i", parser.parse(createParser(JsonXContent.jsonXContent, "{\"body\": \"i\"}"), null).get());
         Exception garbageException = expectThrows(
-            IllegalStateException.class,
+            XContentParseException.class,
             () -> parser.parse(createParser(JsonXContent.jsonXContent, """
                 {"noop": {"garbage": "shouldn't"}}
                 """), null)
         );
-        assertEquals("parser for [noop] did not end on END_OBJECT", garbageException.getMessage());
-        Exception sneakyException = expectThrows(IllegalStateException.class, () -> parser.parse(createParser(JsonXContent.jsonXContent, """
+        assertThat(garbageException.getMessage(), containsString("parser for [noop] did not end on END_OBJECT"));
+        Exception sneakyException = expectThrows(XContentParseException.class, () -> parser.parse(createParser(JsonXContent.jsonXContent, """
             {"noop": {"body": "shouldn't"}}
             """), null));
-        assertEquals("parser for [noop] did not end on END_OBJECT", sneakyException.getMessage());
+        assertThat(sneakyException.getMessage(), containsString("parser for [noop] did not end on END_OBJECT"));
     }
 
     public void testNoopDeclareField() throws IOException {
@@ -782,10 +782,10 @@ public class ObjectParserTests extends ESTestCase {
 
         assertEquals("i", parser.parse(createParser(JsonXContent.jsonXContent, "{\"body\": \"i\"}"), null).get());
         Exception e = expectThrows(
-            IllegalStateException.class,
+            XContentParseException.class,
             () -> parser.parse(createParser(JsonXContent.jsonXContent, "{\"noop\": [\"ignored\"]}"), null)
         );
-        assertEquals("parser for [noop] did not end on END_ARRAY", e.getMessage());
+        assertThat(e.getMessage(), containsString("parser for [noop] did not end on END_ARRAY"));
     }
 
     public void testNoopDeclareObjectArray() {

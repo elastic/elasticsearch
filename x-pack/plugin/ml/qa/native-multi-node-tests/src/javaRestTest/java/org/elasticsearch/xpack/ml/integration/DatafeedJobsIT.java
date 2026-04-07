@@ -535,7 +535,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             GetDatafeedsStatsAction.Response.DatafeedStats stats = response.getResponse().results().get(0);
             assertThat(stats.getDatafeedState(), equalTo(DatafeedState.STARTED));
             assertNotNull(stats.getRunningState());
-            assertNull(stats.getRunningState().getCrossProjectStats());
+            assertNull(stats.getRunningState().getCrossClusterStats());
         });
 
         StopDatafeedAction.Response stopResponse = stopDatafeed(datafeedId);

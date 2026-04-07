@@ -28,19 +28,26 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
     }
 
     /**
+     * Constructor for shape centroid results that carry raw weighted sums for correct cross-shard reduction.
+     */
+    public InternalCartesianCentroid(String name, SpatialPoint centroid, long count, ShapeData shapeData, Map<String, Object> metadata) {
+        super(name, centroid, count, shapeData, metadata);
+    }
+
+    /**
      * Read from a stream.
      */
     public InternalCartesianCentroid(StreamInput in) throws IOException {
         super(in);
     }
 
+    static InternalCartesianCentroid empty(String name, Map<String, Object> metadata) {
+        return new InternalCartesianCentroid(name, null, 0L, metadata);
+    }
+
     @Override
     protected CartesianPoint centroidFromStream(StreamInput in) throws IOException {
         return new CartesianPoint(in.readDouble(), in.readDouble());
-    }
-
-    static InternalCartesianCentroid empty(String name, Map<String, Object> metadata) {
-        return new InternalCartesianCentroid(name, null, 0L, metadata);
     }
 
     @Override
@@ -75,8 +82,14 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
     }
 
     @Override
-    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalCartesianCentroid(name, centroid, samplingContext.scaleUp(count), getMetadata());
+    protected InternalCartesianCentroid copyWithShapeFields(ShapeData shapeData, long count) {
+        final CartesianPoint result = shapeData.totalWeight() > 0
+            ? new CartesianPoint(
+                shapeData.firstWeightedSum() / shapeData.totalWeight(),
+                shapeData.secondWeightedSum() / shapeData.totalWeight()
+            )
+            : null;
+        return new InternalCartesianCentroid(name, result, count, shapeData, getMetadata());
     }
 
     @Override
@@ -97,5 +110,10 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
     @Override
     protected double extractSecond(SpatialPoint point) {
         return point.getY();
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalCartesianCentroid(name, centroid, samplingContext.scaleUp(count), getMetadata());
     }
 }

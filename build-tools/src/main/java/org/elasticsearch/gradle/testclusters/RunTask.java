@@ -14,6 +14,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.UntrackedTask;
 import org.gradle.api.tasks.options.Option;
 
 import java.io.BufferedReader;
@@ -33,6 +34,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@UntrackedTask(because = "When we wanna run a cluster, we wanna run a cluster.")
 public abstract class RunTask extends DefaultTestClustersTask {
 
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";

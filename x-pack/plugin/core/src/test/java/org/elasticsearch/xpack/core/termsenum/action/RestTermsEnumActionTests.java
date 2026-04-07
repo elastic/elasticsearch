@@ -124,7 +124,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
             }""";
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);
@@ -152,7 +152,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
             }""";
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);

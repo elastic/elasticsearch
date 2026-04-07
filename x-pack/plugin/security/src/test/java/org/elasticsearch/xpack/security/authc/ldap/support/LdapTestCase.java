@@ -20,6 +20,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -188,7 +189,8 @@ public abstract class LdapTestCase extends ESTestCase {
         List<String> urls = new ArrayList<>(numberOfLdapServers);
         for (int i = 0; i < numberOfLdapServers; i++) {
             InetAddress listenAddress = resolveListenAddress(ldapServers[i].getListenAddress());
-            LDAPURL url = new LDAPURL("ldap", NetworkAddress.format(listenAddress), ldapServers[i].getListenPort(), null, null, null, null);
+            String hostName = InetAddresses.toUriString(listenAddress);
+            LDAPURL url = new LDAPURL("ldap", hostName, ldapServers[i].getListenPort(), null, null, null, null);
             urls.add(url.toString());
         }
         return urls.toArray(Strings.EMPTY_ARRAY);

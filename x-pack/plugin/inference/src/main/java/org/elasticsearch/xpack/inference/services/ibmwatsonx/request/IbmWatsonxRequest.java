@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -57,17 +56,15 @@ public interface IbmWatsonxRequest extends Request {
             httpPostForBearerToken.setEntity(byteEntity);
             httpPostForBearerToken.setHeader(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded");
 
-            bearerToken = SocketAccess.doPrivileged(() -> {
-                HttpResponse response = httpClient.execute(httpPostForBearerToken);
-                validateResponse(bearerTokenGenUrl, inferenceId, response);
-                HttpEntity entity = response.getEntity();
-                Map<String, Object> map;
-                try (InputStream content = entity.getContent()) {
-                    XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
-                    map = XContentHelper.convertToMap(xContentType.xContent(), content, false);
-                }
-                return (String) map.get("access_token");
-            });
+            HttpResponse response = httpClient.execute(httpPostForBearerToken);
+            validateResponse(bearerTokenGenUrl, inferenceId, response);
+            HttpEntity entity = response.getEntity();
+            Map<String, Object> map;
+            try (InputStream content = entity.getContent()) {
+                XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+                map = XContentHelper.convertToMap(xContentType.xContent(), content, false);
+            }
+            bearerToken = (String) map.get("access_token");
         } catch (IOException e) {
             throw new XContentParseException("Failed to add Bearer token to the request");
         }

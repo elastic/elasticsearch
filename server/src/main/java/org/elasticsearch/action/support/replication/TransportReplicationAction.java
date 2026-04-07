@@ -55,7 +55,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -487,17 +486,14 @@ public abstract class TransportReplicationAction<
                 );
             }
 
-            final SubscribableListener<Void> asyncShardStartedListener;
+            // IndicesClusterStateService may apply cluster state asynchronously. Locally published
+            // cluster state can move ahead of index-level work (e.g. mapping merges), so wait before
+            // acquiring a primary permit.
+            final SubscribableListener<Void> asyncClusterStateAppliersListener = SubscribableListener.newForked(
+                clusterService.getClusterApplierService()::awaitAllAsyncAppliers
+            );
 
-            if (indexShard.state() == IndexShardState.POST_RECOVERY) {
-                asyncShardStartedListener = SubscribableListener.newForked(
-                    clusterService.getClusterApplierService()::awaitAllAsyncAppliers
-                );
-            } else {
-                asyncShardStartedListener = SubscribableListener.nullSuccess();
-            }
-
-            asyncShardStartedListener.<Releasable>andThen(
+            asyncClusterStateAppliersListener.<Releasable>andThen(
                 executor,
                 threadPool.getThreadContext(),
                 (l, ignored) -> acquirePrimaryOperationPermit(indexShard, primaryRequest.getRequest(), l)
@@ -848,14 +844,21 @@ public abstract class TransportReplicationAction<
                     actualAllocationId
                 );
             }
-            acquireReplicaOperationPermit(
-                replica,
-                replicaRequest.getRequest(),
-                this,
-                replicaRequest.getPrimaryTerm(),
-                replicaRequest.getGlobalCheckpoint(),
-                replicaRequest.getMaxSeqNoOfUpdatesOrDeletes()
+            final SubscribableListener<Void> asyncClusterStateAppliersListener = SubscribableListener.newForked(
+                clusterService.getClusterApplierService()::awaitAllAsyncAppliers
             );
+            asyncClusterStateAppliersListener.<Releasable>andThen(
+                executor,
+                threadPool.getThreadContext(),
+                (listener, ignored) -> acquireReplicaOperationPermit(
+                    replica,
+                    replicaRequest.getRequest(),
+                    listener,
+                    replicaRequest.getPrimaryTerm(),
+                    replicaRequest.getGlobalCheckpoint(),
+                    replicaRequest.getMaxSeqNoOfUpdatesOrDeletes()
+                )
+            ).addListener(this);
         }
     }
 

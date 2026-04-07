@@ -40,7 +40,6 @@ import java.util.Map;
  * copied from Lucene's package-private internals because they cannot be accessed from outside
  * {@code org.apache.lucene.util.automaton}.
  *
- * @see MinimizationOperations
  */
 public final class CircuitBreakingOperations {
 

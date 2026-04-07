@@ -88,7 +88,7 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
     void assertMetricStats(Set<String> expectedMetrics, Map<String, BlobStoreActionStats> actualMetrics) {
         for (var expectedMetric : expectedMetrics) {
             var actualStats = actualMetrics.get(expectedMetric);
-            assertNotNull(expectedMetric + " not found in " + actualMetrics, actualMetrics);
+            assertNotNull(expectedMetric + " not found in " + actualMetrics, actualStats);
             assertTrue(expectedMetric + " value should be not zero", actualStats.operations() > 0);
         }
     }

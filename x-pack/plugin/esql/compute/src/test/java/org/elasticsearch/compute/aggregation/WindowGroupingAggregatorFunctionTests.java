@@ -109,6 +109,8 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
                 });
             }
         }
+        long startTrimThreshold = smallestBucket + Duration.ofMinutes(5).toMillis();
+        expected.entrySet().removeIf(e -> e.getKey().bucket() < startTrimThreshold);
         Map<Key, Long> actual = new TreeMap<>(Comparator.comparing(Key::tsid).thenComparingLong(Key::bucket));
         for (Page page : results) {
             var scratch = new BytesRef();
@@ -149,25 +151,12 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         return new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), Duration.ofMinutes(5));
     }
 
-    protected boolean backwardBucketIntervalConvention() {
-        return true;
-    }
-
     protected void forEachExpandedBucket(long bucket, Duration window, long minTimestamp, long maxTimestamp, LongConsumer action) {
-        if (backwardBucketIntervalConvention()) {
-            long nextBucket = timeBucket.nextRoundingValue(bucket);
-            long endTimestamp = bucket + DateFieldMapper.Resolution.MILLISECONDS.convert(window.toMillis());
-            while (nextBucket < endTimestamp && nextBucket <= maxTimestamp) {
-                action.accept(nextBucket);
-                nextBucket = timeBucket.nextRoundingValue(nextBucket);
-            }
-            return;
-        }
-        long earliestBucket = timeBucket.nextRoundingValue(bucket - DateFieldMapper.Resolution.MILLISECONDS.convert(window.toMillis()));
-        earliestBucket = Math.max(earliestBucket, minTimestamp);
-        while (earliestBucket < bucket) {
-            action.accept(earliestBucket);
-            earliestBucket = timeBucket.nextRoundingValue(earliestBucket);
+        long nextBucket = timeBucket.nextRoundingValue(bucket);
+        long endTimestamp = bucket + DateFieldMapper.Resolution.MILLISECONDS.convert(window.toMillis());
+        while (nextBucket < endTimestamp && nextBucket <= maxTimestamp) {
+            action.accept(nextBucket);
+            nextBucket = timeBucket.nextRoundingValue(nextBucket);
         }
     }
 
@@ -457,15 +446,10 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         }
 
         outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
-        // 10m backward-looking window over 5m buckets.
-        // bucket 0: partial window -> point at 0 -> sum=10
-        // bucket 5m: points at 0 and 5m -> sum=20
-        // bucket 10m: points at 5m and 10m -> sum=20
-        // bucket 15m: points at 10m and 15m -> sum=20
-        assertThat(outputRows.size(), equalTo(4));
-        assertThat(outputRows.get(0).value(), equalTo(10L));
+        // 10m backward-looking window over 5m buckets with start-side trimming:
+        // only buckets at base+10m and base+15m remain.
+        assertThat(outputRows.size(), equalTo(2));
+        assertThat(outputRows.get(0).value(), equalTo(20L));
         assertThat(outputRows.get(1).value(), equalTo(20L));
-        assertThat(outputRows.get(2).value(), equalTo(20L));
-        assertThat(outputRows.get(3).value(), equalTo(20L));
     }
 }

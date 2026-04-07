@@ -206,6 +206,7 @@ min_in_bucket:long | max_in_bucket:long | time_bucket:datetime
 sum_over_time_non_multiple_with_trange
 required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
+required_capability: time_series_window_v2
 
 TS ts_window
 | WHERE TRANGE("2024-01-01T00:05:00.000Z", "2024-01-01T00:20:00.000Z")
@@ -240,6 +241,7 @@ s:long | dim:keyword | time_bucket:datetime
 sum_over_time_exact_multiple_baseline
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
+required_capability: fix_time_series_backward_window
 
 TS ts_window
 | STATS s = sum(sum_over_time(val, 10m)) BY dim, time_bucket = TBUCKET(5minute)

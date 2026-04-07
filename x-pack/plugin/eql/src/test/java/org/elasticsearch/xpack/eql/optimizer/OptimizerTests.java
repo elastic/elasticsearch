@@ -306,7 +306,15 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter negatedRule = missingEventKeyedFilter(new LocalRelation(EMPTY, emptyList()));
         KeyedFilter positiveRule = keyedFilter(basicFilter(new IsNull(EMPTY, TRUE)));
         KeyedFilter until = keyedFilter(basicFilter(Literal.FALSE));
-        Sequence s = new Sequence(EMPTY, asList(negatedRule, positiveRule), until, TimeValue.MINUS_ONE, timestamp(), tiebreaker(), OrderDirection.ASC);
+        Sequence s = new Sequence(
+            EMPTY,
+            asList(negatedRule, positiveRule),
+            until,
+            TimeValue.MINUS_ONE,
+            timestamp(),
+            tiebreaker(),
+            OrderDirection.ASC
+        );
 
         LogicalPlan result = new Optimizer.SkipEmptyJoin().rule(s);
         assertEquals(Sequence.class, result.getClass());
@@ -325,7 +333,15 @@ public class OptimizerTests extends ESTestCase {
         KeyedFilter positiveRule = keyedFilter(new LocalRelation(EMPTY, emptyList()));
         KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(new IsNull(EMPTY, TRUE)));
         KeyedFilter until = keyedFilter(basicFilter(Literal.FALSE));
-        Sequence s = new Sequence(EMPTY, asList(positiveRule, negatedRule), until, TimeValue.MINUS_ONE, timestamp(), tiebreaker(), OrderDirection.ASC);
+        Sequence s = new Sequence(
+            EMPTY,
+            asList(positiveRule, negatedRule),
+            until,
+            TimeValue.MINUS_ONE,
+            timestamp(),
+            tiebreaker(),
+            OrderDirection.ASC
+        );
 
         LogicalPlan result = new Optimizer.SkipEmptyJoin().rule(s);
         assertEquals(LocalRelation.class, result.getClass());

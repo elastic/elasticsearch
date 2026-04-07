@@ -248,6 +248,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_DETECT_UNMAPPED_FIELDS_IN_AGG_FILTERS,
 
         /**
+         * Fix for 500 error when querying multiple indices with {@code unmapped_fields="load"}.
+         * See https://github.com/elastic/elasticsearch/issues/145555
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_MULTI_INDEX_PATTERN,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
          * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          * V3: Fix synthetic _source numeric load bug (#143916)
@@ -1204,7 +1210,7 @@ public class EsqlCapabilities {
         /**
          * Support for views in cluster state (and REST API).
          */
-        VIEWS_IN_CLUSTER_STATE(EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+        VIEWS_IN_CLUSTER_STATE,
 
         /**
          * Basic Views with no branching (do not need subqueries or FORK).
@@ -2147,7 +2153,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V6(Build.current().isSnapshot()),
+        APPROXIMATION_V6,
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2424,6 +2430,30 @@ public class EsqlCapabilities {
          * Supports the {@code USER_AGENT} command.
          */
         USER_AGENT_COMMAND,
+
+        /**
+         * Fix full-text functions being rejected after SAMPLE.
+         */
+        FIX_SAMPLE_AFTER_KQL_OR_QSTR,
+        KEYWORDS_MV_COUNT_AS_SINGLE_VALUE_FIX,
+
+        /**
+         * Parquet and ORC filter pushdown for StartsWith (prefix range predicates).
+         */
+        PARQUET_ORC_STARTS_WITH_PUSHDOWN,
+
+        /**
+         * Alias for calling FIRST (or LAST) and only passing the search field. The sort field is implicitly set to @timestamp.
+         * These are not time series agg functions.
+         */
+        EARLIEST_LATEST_AGGS,
+
+        /**
+         * Fix for full-text functions (MATCH, MATCH_PHRASE, :) on constant_keyword fields.
+         * The optimizer no longer replaces their field arguments with literal constants.
+         * See https://github.com/elastic/elasticsearch/issues/145570
+         */
+        FIX_FULL_TEXT_FUNCTIONS_ON_CONSTANT_KEYWORD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

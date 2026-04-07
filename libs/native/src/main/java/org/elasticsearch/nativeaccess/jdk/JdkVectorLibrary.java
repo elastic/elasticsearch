@@ -40,7 +40,8 @@ import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.functionAddressOrN
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
-    static final Logger logger = LogManager.getLogger(JdkVectorLibrary.class);
+    private static final Logger logger = LogManager.getLogger(JdkVectorLibrary.class);
+    private static final int VEC_CAPS_OVERRIDE = getVecCapsOverride();
 
     private record OperationSignature<E extends Enum<E>>(Function function, E dataType, Operation operation) {}
 
@@ -51,6 +52,33 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final MethodHandle applyCorrectionsDotProductBulk$mh;
 
     private static final JdkVectorSimilarityFunctions INSTANCE;
+
+    /**
+     * Try to get a vec_caps override value from the {@code es.vec_caps_override} system property.
+     * This value is used to override the vector capabilities value returned by the native call
+     * to {@code vec_caps}; if the override is defined and valid (>= 0), and it is less then the
+     * one returned by {@code vec_caps}, the override is used to determine which functions to bind.
+     * This can be used to force binding to functions from a lower tier (e.g. AVX2 on a AVX-512
+     * capable processor), or to disable native functions completely (by passing 0).
+     * Usage: {@code -Des.vec_caps_override=1}.
+     * For benchmarks, add {@code --jvmArgsPrepend "-Des.vec_caps_override=..."} to {@code --args}.
+     *
+     * @return the caps override value, or -1 if the property is not defined or invalid.
+     */
+    private static int getVecCapsOverride() {
+        try {
+            var capsOverrideString = System.getProperty("es.vec_caps_override", "-1");
+            try {
+                return Integer.parseInt(capsOverrideString);
+            } catch (NumberFormatException e) {
+                logger.warn("Invalid es.vec_caps_override value [{}]", capsOverrideString);
+                return -1;
+            }
+        } catch (Throwable t) {
+            logger.warn("Cannot read es.vec_caps_override value", t);
+        }
+        return -1;
+    }
 
     /**
      * Native functions in the native simdvec library can have multiple implementations, one for each "capability level".
@@ -89,9 +117,17 @@ public final class JdkVectorLibrary implements VectorLibrary {
         Map<OperationSignature<?>, MethodHandle> handles = new HashMap<>();
 
         try {
-            int caps = (int) vecCaps$mh.invokeExact();
-            logger.info("vec_caps=" + caps);
-            if (caps > 0) {
+            int vecCaps = (int) vecCaps$mh.invokeExact();
+            final int finalVecCaps;
+            if (VEC_CAPS_OVERRIDE >= 0) {
+                finalVecCaps = Math.min(vecCaps, VEC_CAPS_OVERRIDE);
+                logger.info("vec_caps={}; es.vec_caps_override={}; using [{}]", vecCaps, VEC_CAPS_OVERRIDE, finalVecCaps);
+            } else {
+                finalVecCaps = vecCaps;
+                logger.info("vec_caps=" + finalVecCaps);
+            }
+
+            if (finalVecCaps > 0) {
                 FunctionDescriptor intSingle = FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT);
                 FunctionDescriptor longSingle = FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_INT);
                 FunctionDescriptor floatSingle = FunctionDescriptor.of(JAVA_FLOAT, ADDRESS, ADDRESS, JAVA_INT);
@@ -130,8 +166,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             // Only DOT_PRODUCT is needed for int4 — other functions are computed by
                             // applying correction terms on top of the raw dot product result.
                             if (f != Function.DOT_PRODUCT && type == DataType.INT4) continue;
-                            // BULK_SPARSE only for INT7U and INT8 — no native sparse functions exist for FLOAT32 or INT4
-                            if (op == Operation.BULK_SPARSE && (type == DataType.FLOAT32 || type == DataType.INT4)) continue;
+                            // BULK_SPARSE only for INT7U, INT8, and INT4 — no native sparse functions exist for FLOAT32
+                            if (op == Operation.BULK_SPARSE && type == DataType.FLOAT32) continue;
 
                             String typeName = switch (type) {
                                 case INT7U -> "i7u";
@@ -149,7 +185,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                 case BULK_OFFSETS -> bulkOffsets;
                             };
 
-                            MethodHandle handle = bindFunction("vec_" + funcName + typeName + opName, caps, descriptor);
+                            MethodHandle handle = bindFunction("vec_" + funcName + typeName + opName, finalVecCaps, descriptor);
                             handles.put(new OperationSignature<>(f, type, op), handle);
                         }
 
@@ -170,15 +206,13 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                 case BULK_OFFSETS -> bulkOffsets;
                             };
 
-                            MethodHandle handle = bindFunction("vec_" + funcName + typeName + opName, caps, descriptor);
+                            MethodHandle handle = bindFunction("vec_" + funcName + typeName + opName, finalVecCaps, descriptor);
                             handles.put(new OperationSignature<>(f, type, op), handle);
                         }
 
                         for (BBQType type : BBQType.values()) {
                             // not implemented yet...
                             if (f == Function.COSINE || f == Function.SQUARE_DISTANCE) continue;
-                            // BULK_SPARSE not yet implemented for BBQ
-                            if (op == Operation.BULK_SPARSE) continue;
 
                             String typeName = switch (type) {
                                 case D1Q4 -> "d1q4";
@@ -192,7 +226,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                 case BULK_OFFSETS -> bulkOffsets;
                             };
 
-                            MethodHandle handle = bindFunction("vec_" + funcName + typeName + opName, caps, descriptor);
+                            MethodHandle handle = bindFunction("vec_" + funcName + typeName + opName, finalVecCaps, descriptor);
                             handles.put(new OperationSignature<>(f, type, op), handle);
                         }
                     }
@@ -215,13 +249,17 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     ADDRESS // scores
                 );
 
-                applyCorrectionsEuclideanBulk$mh = bindFunction("diskbbq_apply_corrections_euclidean_bulk", caps, score);
-                applyCorrectionsMaxInnerProductBulk$mh = bindFunction("diskbbq_apply_corrections_maximum_inner_product_bulk", caps, score);
-                applyCorrectionsDotProductBulk$mh = bindFunction("diskbbq_apply_corrections_dot_product_bulk", caps, score);
+                applyCorrectionsEuclideanBulk$mh = bindFunction("diskbbq_apply_corrections_euclidean_bulk", finalVecCaps, score);
+                applyCorrectionsMaxInnerProductBulk$mh = bindFunction(
+                    "diskbbq_apply_corrections_maximum_inner_product_bulk",
+                    finalVecCaps,
+                    score
+                );
+                applyCorrectionsDotProductBulk$mh = bindFunction("diskbbq_apply_corrections_dot_product_bulk", finalVecCaps, score);
 
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
-                if (caps < 0) {
+                if (finalVecCaps < 0) {
                     logger.warn("""
                         Your CPU supports vector capabilities, but they are disabled at OS level. For optimal performance, \
                         enable them in your OS/Hypervisor/VM/container""");
@@ -340,9 +378,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int count,
             MemorySegment result
         ) {
-            assert elementBits % 8 == 0 : "requires byte-aligned element types";
+            long queryBytes = elementBits >= 8 ? (long) length * elementBits / 8 : length;
             Objects.checkFromIndexSize(0L, (long) count * Long.BYTES, addresses.byteSize());
-            Objects.checkFromIndexSize(0L, (long) length * elementBits / 8, b.byteSize());
+            Objects.checkFromIndexSize(0L, queryBytes, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             assert validateBulkSparse(addresses, count, length, elementBits, result);
             return true;
@@ -384,6 +422,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             assert validateBulkOffsets(a, offsets, count, length, pitch, result, (long) length * Short.BYTES);
+            return true;
+        }
+
+        static boolean checkBBQBulkSparse(
+            int dataBits,
+            MemorySegment addresses,
+            MemorySegment query,
+            int datasetVectorLengthInBytes,
+            int count,
+            MemorySegment result
+        ) {
+            final int queryBits = 4;
+            Objects.checkFromIndexSize(0L, (long) count * Long.BYTES, addresses.byteSize());
+            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * (queryBits / dataBits), query.byteSize());
+            Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             return true;
         }
 
@@ -460,7 +513,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             if (length <= 0) throw new IllegalArgumentException("length must be positive: " + length);
             checkSegmentAlignment(addresses, Long.BYTES, "addresses", "long");
             checkSegmentAlignment(result, Float.BYTES, "result", "float");
-            long vectorBytes = (long) length * elementBits / 8;
+            long vectorBytes = elementBits >= 8 ? (long) length * elementBits / 8 : length;
             for (int i = 0; i < count; i++) {
                 long addr = addresses.getAtIndex(JAVA_LONG, i);
                 if (addr == 0) {
@@ -900,6 +953,26 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                     );
                                     yield MethodHandles.guardWithTest(
                                         MethodHandles.insertArguments(checkMethod, 0, dt.bits()),
+                                        op.getValue(),
+                                        MethodHandles.empty(op.getValue().type())
+                                    );
+                                }
+                                case BBQType bbq -> {
+                                    MethodHandle checkMethod = lookup.findStatic(
+                                        JdkVectorSimilarityFunctions.class,
+                                        "checkBBQBulkSparse",
+                                        MethodType.methodType(
+                                            boolean.class,
+                                            int.class,
+                                            MemorySegment.class,
+                                            MemorySegment.class,
+                                            int.class,
+                                            int.class,
+                                            MemorySegment.class
+                                        )
+                                    );
+                                    yield MethodHandles.guardWithTest(
+                                        MethodHandles.insertArguments(checkMethod, 0, bbq.dataBits()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );

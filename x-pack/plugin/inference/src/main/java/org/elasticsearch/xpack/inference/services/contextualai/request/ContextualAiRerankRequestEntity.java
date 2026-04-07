@@ -26,29 +26,25 @@ public class ContextualAiRerankRequestEntity implements ToXContentObject {
     private static final String DOCUMENTS_FIELD = "documents";
     private static final String TOP_N_FIELD = "top_n";
     private static final String INSTRUCTION_FIELD = "instruction";
-    private static final String RETURN_DOCUMENTS_FIELD = "return_documents";
 
     private final String query;
     private final String modelId;
     private final Integer topN;
     private final String instruction;
     private final List<String> documents;
-    private final Boolean returnDocuments;
 
     public ContextualAiRerankRequestEntity(
         String modelId,
         String query,
         List<String> documents,
         @Nullable Integer topN,
-        @Nullable String instruction,
-        Boolean returnDocuments
+        @Nullable String instruction
     ) {
         this.query = Objects.requireNonNull(query);
         this.modelId = Objects.requireNonNull(modelId);
         this.documents = Objects.requireNonNull(documents);
         this.topN = topN;
         this.instruction = instruction;
-        this.returnDocuments = returnDocuments;
     }
 
     @Override
@@ -65,10 +61,6 @@ public class ContextualAiRerankRequestEntity implements ToXContentObject {
         }
         if (instruction != null) {
             builder.field(INSTRUCTION_FIELD, instruction);
-        }
-        // TODO: check if it is recognized by ContextualAI API. It is absent in their API docs
-        if (returnDocuments != null) {
-            builder.field(RETURN_DOCUMENTS_FIELD, returnDocuments);
         }
         builder.endObject();
         return builder;

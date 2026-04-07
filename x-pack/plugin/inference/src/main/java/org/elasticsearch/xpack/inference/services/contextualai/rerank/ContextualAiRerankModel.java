@@ -73,8 +73,6 @@ public class ContextualAiRerankModel extends ContextualAiModel {
 
     /**
      * Accepts a visitor to create an executable action for reranking.
-     * When {@link ContextualAiRerankTaskSettings#getReturnDocuments()} is true, the provider may echo document text in the response.
-     *
      * @param visitor      interface for creating {@link ExecutableAction} instances for ContextualAI models
      * @param taskSettings settings in the request to override the model's defaults
      * @return the rerank action

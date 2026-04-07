@@ -53,14 +53,7 @@ public class ContextualAiRerankRequest implements Request {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new ContextualAiRerankRequestEntity(
-                    model.getServiceSettings().modelId(),
-                    query,
-                    documents,
-                    getTopN(),
-                    instruction,
-                    model.getTaskSettings().getReturnDocuments()
-                )
+                new ContextualAiRerankRequestEntity(model.getServiceSettings().modelId(), query, documents, getTopN(), instruction)
             ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);

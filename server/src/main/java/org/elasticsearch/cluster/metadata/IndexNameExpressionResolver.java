@@ -322,6 +322,27 @@ public class IndexNameExpressionResolver {
         }).toList();
     }
 
+    public List<String> views(ProjectMetadata projectMetadata, IndicesOptions options, IndicesRequest request) {
+        Context context = new Context(
+            projectMetadata,
+            options,
+            System.currentTimeMillis(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            getSystemIndexAccessLevel(),
+            getSystemIndexAccessPredicate(),
+            getNetNewSystemIndexPredicate()
+        );
+        final Collection<ResolvedExpression> expressions = resolveExpressionsToResources(context, request.indices());
+        return expressions.stream().map(ResolvedExpression::resource).filter(view -> {
+            IndexAbstraction ia = projectMetadata.getIndicesLookup().get(view);
+            return ia != null && Type.VIEW == ia.getType();
+        }).toList();
+    }
+
     /**
      * Returns {@link IndexAbstraction} instance for the provided write request. This instance isn't fully resolved,
      * meaning that {@link IndexAbstraction#getWriteIndex()} should be invoked in order to get concrete write index.

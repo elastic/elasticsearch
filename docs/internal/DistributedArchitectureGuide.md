@@ -1701,7 +1701,7 @@ window.
 
 #### Enforcement of IndexVersion compatibility in a cluster
 
-Index version acts as a cluster-wide contract. New indices must use a format every data- and master-eligible node
+Index version acts as a cluster-wide contract. New indices must use a format every data and master-eligible node
 can read and write. A node is only admitted to the cluster if it can open every existing index. Allocation must not
 move shards to nodes running an older Lucene version that cannot read segments already written by a newer one.
 

@@ -91,7 +91,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
-        if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
+        // When using PIT, indices are intentionally empty; the PIT defines the index context
+        boolean usingPit = getSearchRequest().source() != null && getSearchRequest().source().pointInTimeBuilder() != null;
+        if ((getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) && usingPit == false) {
             e = addValidationError("use _all if you really want to copy from all existing indexes", e);
         }
         if (getSearchRequest().source().fetchSource() != null && getSearchRequest().source().fetchSource().fetchSource() == false) {

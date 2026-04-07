@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -182,7 +181,7 @@ public class OpenShiftAiRerankTaskSettings implements TaskSettings, TopNProvider
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        OpenShiftAiRerankTaskSettings updatedSettings = OpenShiftAiRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        OpenShiftAiRerankTaskSettings updatedSettings = OpenShiftAiRerankTaskSettings.fromMap(newSettings);
         return OpenShiftAiRerankTaskSettings.of(this, updatedSettings);
     }
 }

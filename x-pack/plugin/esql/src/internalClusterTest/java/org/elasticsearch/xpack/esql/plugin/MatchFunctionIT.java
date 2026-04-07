@@ -359,6 +359,56 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testWhereFalseBeforeInlineStatsWithMatch() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
+    public void testImpossibleFilterBeforeInlineStatsWithMatch() {
+        var query = """
+            FROM test
+            | EVAL a = 1, b = a + 1, c = b + a
+            | WHERE c > 10
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeInlineStatsWithMatchAndStats() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            | STATS c = COUNT(*)
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeGroupedInlineStatsWithMatch() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE match(content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+    }
+
     public void testMatchWithLookupJoinOnMatch() {
         var query = """
             FROM test

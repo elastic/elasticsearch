@@ -23,7 +23,8 @@ public final class Uid {
 
     private static final int UTF8 = 0xff;
     private static final int NUMERIC = 0xfe;
-    private static final int BASE64_ESCAPE = 0xfd;
+    /** Escape byte prepended to base64-decoded IDs when the first byte is >= 0xfd */
+    public static final int BASE64_ESCAPE = 0xfd;
 
     private Uid() {}
 

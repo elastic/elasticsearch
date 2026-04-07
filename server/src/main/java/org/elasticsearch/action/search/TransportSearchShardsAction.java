@@ -162,10 +162,10 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     searchShardsRequest.clusterAlias(),
                     indicesAndAliases,
                     concreteIndexNames,
-                    true
+                    false
                 );
-                CollectionUtil.timSort(shardIts);
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
+                    CollectionUtil.timSort(shardIts);
                     delegate.onResponse(
                         new SearchShardsResponse(
                             toGroups(shardIts),

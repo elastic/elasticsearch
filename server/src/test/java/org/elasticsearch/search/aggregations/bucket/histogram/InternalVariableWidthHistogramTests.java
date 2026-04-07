@@ -163,7 +163,8 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             () -> false,
             mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY
+            PipelineAggregator.PipelineTree.EMPTY,
+            null
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -220,7 +221,8 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             () -> false,
             mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY
+            PipelineAggregator.PipelineTree.EMPTY,
+            null
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -313,7 +315,8 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             () -> false,
             mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY
+            PipelineAggregator.PipelineTree.EMPTY,
+            null
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -372,7 +375,8 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             () -> false,
             mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY
+            PipelineAggregator.PipelineTree.EMPTY,
+            null
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -436,7 +440,8 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             () -> false,
             mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY
+            PipelineAggregator.PipelineTree.EMPTY,
+            null
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();

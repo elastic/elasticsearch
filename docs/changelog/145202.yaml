@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+  - 145204
+pr: 145202
+summary: Fix `dense_vector` default index options when using BFLOAT16
+type: bug

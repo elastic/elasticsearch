@@ -270,12 +270,13 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         MappingMetadata mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
-        Settings.Builder newSettings = Settings.builder().put(settings);
-        newSettings.remove("index.provided_name");
-        newSettings.remove("index.uuid");
-        newSettings.remove("index.creation_date");
-        newSettings.remove("index.version.created");
-        newSettings.remove("index.transport_version.created");
+        Settings.Builder newSettings = Settings.builder()
+            .put(settings)
+            .remove("index.provided_name")
+            .remove("index.uuid")
+            .remove("index.creation_date")
+            .remove("index.version.created")
+            .remove("index.transport_version.created");
 
         assertAcked(indicesAdmin().prepareCreate(to).setMapping(mapping.sourceAsMap()).setSettings(newSettings));
         ensureGreen(to);

@@ -12,7 +12,6 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
 
 public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
     Request extends AbstractBulkByScrollRequest<Request>,

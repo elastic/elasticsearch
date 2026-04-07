@@ -975,7 +975,7 @@ interface FieldSpecificMatcher {
         return getMappingParameter("null_value", actualMapping, expectedMapping);
     }
 
-    private static Object getMappingParameter(String name, Map<String, Object> actualMapping, Map<String, Object> expectedMapping) {
+    static Object getMappingParameter(String name, Map<String, Object> actualMapping, Map<String, Object> expectedMapping) {
         var actualValue = actualMapping.get(name);
         var expectedValue = expectedMapping.get(name);
         if (Objects.equals(actualValue, expectedValue) == false) {

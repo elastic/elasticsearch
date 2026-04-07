@@ -51,17 +51,16 @@ public class ContextualAiRerankRequestEntity implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        // Order fields to match ContextualAI API expectation: query, model, top_n, instruction, documents
         builder.field(QUERY_FIELD, query);
         builder.field(DOCUMENTS_FIELD, documents);
         builder.field(MODEL_FIELD, modelId);
-
         if (topN != null) {
             builder.field(TOP_N_FIELD, topN);
         }
         if (instruction != null) {
             builder.field(INSTRUCTION_FIELD, instruction);
         }
+
         builder.endObject();
         return builder;
     }

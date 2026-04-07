@@ -1681,6 +1681,10 @@ public class EsqlCapabilities {
          */
         RATE_WITH_INTERPOLATION,
         RATE_WITH_INTERPOLATION_V2,
+        /**
+         * V3 fixes a bug on how we handle single-value time buckets with the sole value falling onto the bucket boundary.
+         */
+        RATE_WITH_INTERPOLATION_V3,
 
         /**
          * INLINE STATS fix incorrect prunning of null filtering

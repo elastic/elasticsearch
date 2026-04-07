@@ -1715,7 +1715,9 @@ public class IndexNameExpressionResolver {
                 : "selectors are enabled in this context, but a selector was not provided";
             List<ResolvedExpression> concreteIndices = resolveEmptyOrTrivialWildcard(context, selector);
 
-            if (context.includeDataStreams() == false && context.getOptions().ignoreAliases()) {
+            if (context.includeDataStreams() == false
+                && context.getOptions().ignoreAliases()
+                && context.getOptions().indexAbstractionOptions().resolveViews() == false) {
                 return concreteIndices;
             }
 
@@ -1724,9 +1726,10 @@ public class IndexNameExpressionResolver {
                 .getIndicesLookup()
                 .values()
                 .stream()
-                .filter(ia -> ia.getType() != Type.VIEW)
                 .filter(ia -> context.getOptions().expandWildcardsHidden() || ia.isHidden() == false)
-                .filter(ia -> shouldIncludeIfDataStream(ia, context) || shouldIncludeIfAlias(ia, context))
+                .filter(
+                    ia -> shouldIncludeIfDataStream(ia, context) || shouldIncludeIfAlias(ia, context) || shouldIncludeIfView(ia, context)
+                )
                 .filter(ia -> ia.isSystem() == false || context.systemIndexAccessPredicate.test(ia.getName()))
                 .forEach(ia -> resolved.addAll(expandToOpenClosed(context, ia, selector)));
 
@@ -1740,6 +1743,10 @@ public class IndexNameExpressionResolver {
 
         private static boolean shouldIncludeIfAlias(IndexAbstraction ia, IndexNameExpressionResolver.Context context) {
             return context.getOptions().ignoreAliases() == false && ia.getType() == Type.ALIAS;
+        }
+
+        private static boolean shouldIncludeIfView(IndexAbstraction ia, IndexNameExpressionResolver.Context context) {
+            return context.getOptions().indexAbstractionOptions().resolveViews() && ia.getType() == Type.VIEW;
         }
 
         private static IndexMetadata.State excludeState(IndicesOptions options) {

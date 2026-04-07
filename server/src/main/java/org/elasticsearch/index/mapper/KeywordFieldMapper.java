@@ -1024,7 +1024,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
                     return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
-                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                 
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    value,
+                    false
+                );
             }
         }
 
@@ -1055,13 +1062,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                     );
                     return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
-                return new RegexpQuery(
-                    new Term(name(), indexedValueForSearch(value)),
+                return new StringScriptFieldRegexpQuery(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    indexedValueForSearch(value).utf8ToString(),
                     syntaxFlags,
                     matchFlags,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    maxDeterminizedStates,
-                    MultiTermQuery.DOC_VALUES_REWRITE
+                    maxDeterminizedStates
                 );
             }
         }

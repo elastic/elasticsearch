@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 

@@ -70,20 +70,10 @@ public class StreamingOutputOperator extends SinkOperator {
             return;
         }
         finishing = true;
-        long t0 = System.nanoTime();
         while (accumulatedRows > 0) {
             flushExact(Math.min(pageSize, accumulatedRows));
         }
-        long t1 = System.nanoTime();
         provider.finish(totalRows);
-        long t2 = System.nanoTime();
-        logger.info(
-            "[TIMING] StreamingOp.finish: flush={}ms, providerFinish={}ms, totalRows={}, thread={}",
-            (t1 - t0) / 1_000_000,
-            (t2 - t1) / 1_000_000,
-            totalRows,
-            Thread.currentThread().getName()
-        );
         finished = true;
     }
 
@@ -112,9 +102,7 @@ public class StreamingOutputOperator extends SinkOperator {
 
     @Override
     protected void doAddInput(Page page) {
-        long t0 = System.nanoTime();
         Page mapped = mapper.apply(page);
-        long t1 = System.nanoTime();
         accumulator.add(mapped);
         accumulatedRows += mapped.getPositionCount();
         totalRows += mapped.getPositionCount();
@@ -122,14 +110,6 @@ public class StreamingOutputOperator extends SinkOperator {
         while (accumulatedRows >= pageSize && provider.isBufferFull() == false && streamingFailure == null) {
             flushExact(pageSize);
         }
-        long t2 = System.nanoTime();
-        logger.info(
-            "[TIMING] StreamingOp.addInput: mapper={}ms, total={}ms, rows={}, thread={}",
-            (t1 - t0) / 1_000_000,
-            (t2 - t0) / 1_000_000,
-            mapped.getPositionCount(),
-            Thread.currentThread().getName()
-        );
     }
 
     private void flushExact(int rowCount) {

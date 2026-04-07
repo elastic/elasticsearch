@@ -99,24 +99,13 @@ public class StreamingProvider {
      * chunk but will not apply backpressure itself.
      */
     public void emitChunk(List<Page> pages, int offset, int rowCount, List<Page> pagesToRelease) {
-        long t0 = System.nanoTime();
         boolean isFirst = firstChunkEmitted.compareAndSet(false, true);
         StreamingChunk chunk = new StreamingChunk(pages, columns, isFirst, offset, rowCount, pagesToRelease);
 
         synchronized (lock) {
             if (responseSent.compareAndSet(false, true)) {
-                long t1 = System.nanoTime();
                 EsqlStreamResponseBodyPart firstPart = new EsqlStreamResponseBodyPart(chunk, this, httpChannel);
-                long t2 = System.nanoTime();
                 channel.sendResponse(RestResponse.chunked(RestStatus.OK, firstPart, this::releaseAllChunks));
-                long t3 = System.nanoTime();
-                LOGGER.info(
-                    "[TIMING] emitChunk(first): bodyPart={}ms, sendResponse={}ms, total={}ms, thread={}",
-                    (t2 - t1) / 1_000_000,
-                    (t3 - t2) / 1_000_000,
-                    (t3 - t0) / 1_000_000,
-                    Thread.currentThread().getName()
-                );
             } else {
                 chunkQueue.add(chunk);
                 bufferedCount.incrementAndGet();
@@ -130,8 +119,6 @@ public class StreamingProvider {
                         waiting.onResponse(new EsqlStreamResponseBodyPart(next, this, httpChannel));
                     }
                 }
-                long t1 = System.nanoTime();
-                LOGGER.info("[TIMING] emitChunk(queued): total={}ms, thread={}", (t1 - t0) / 1_000_000, Thread.currentThread().getName());
             }
         }
     }
@@ -142,7 +129,6 @@ public class StreamingProvider {
      * @param totalRows total number of rows produced across all chunks
      */
     public void finish(int totalRows) {
-        long t0 = System.nanoTime();
         this.totalRowCount = totalRows;
         if (executionInfo != null) {
             executionInfo.markEndQuery();
@@ -169,8 +155,6 @@ public class StreamingProvider {
                 }
             }
         }
-        long t1 = System.nanoTime();
-        LOGGER.info("[TIMING] StreamingProvider.finish: total={}ms, thread={}", (t1 - t0) / 1_000_000, Thread.currentThread().getName());
     }
 
     /**

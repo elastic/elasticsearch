@@ -481,7 +481,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         @Nullable PaginationStoreProvider paginationStoreProvider,
         ActionListener<EsqlQueryResponse> listener
     ) {
-        long t0 = System.nanoTime();
         var innerResult = result.inner();
         List<ColumnInfoImpl> columns = innerResult.schema().stream().map(c -> {
             List<String> originalTypes;
@@ -511,16 +510,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return;
         }
 
-        long t1 = System.nanoTime();
         EsqlQueryResponse response = buildResponse(task, request, columns, allPages, profile, innerResult, result, null);
-        long t2 = System.nanoTime();
-        logger.info(
-            "[TIMING] toResponse: buildColumns={}ms, buildResponse={}ms, totalPages={}, thread={}",
-            (t1 - t0) / 1_000_000,
-            (t2 - t1) / 1_000_000,
-            allPages.size(),
-            Thread.currentThread().getName()
-        );
         listener.onResponse(response);
     }
 

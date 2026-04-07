@@ -180,7 +180,6 @@ public class EsqlStreamResponseBodyPart implements ChunkedRestResponseBodyPart {
         if (httpChannel.isOpen() == false) {
             throw new IOException("HTTP channel closed, aborting streaming response");
         }
-        long t0 = System.nanoTime();
         try {
             final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
             assert target == null;
@@ -200,13 +199,6 @@ public class EsqlStreamResponseBodyPart implements ChunkedRestResponseBodyPart {
             }
             final var result = chunkStream.moveToBytesReference();
             target = null;
-            long t1 = System.nanoTime();
-            logger.info(
-                "[TIMING] encodeChunk: size={}bytes, time={}ms, thread={}",
-                result.length(),
-                (t1 - t0) / 1_000_000,
-                Thread.currentThread().getName()
-            );
             return result;
         } catch (Exception e) {
             logger.error("failure encoding streaming chunk", e);

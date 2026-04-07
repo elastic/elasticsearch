@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RerankRequest;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
 
 import java.net.URI;
@@ -28,7 +29,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class ContextualAiRerankRequest implements Request {
+public class ContextualAiRerankRequest implements RerankRequest {
 
     private static final Logger logger = LogManager.getLogger(ContextualAiRerankRequest.class);
 

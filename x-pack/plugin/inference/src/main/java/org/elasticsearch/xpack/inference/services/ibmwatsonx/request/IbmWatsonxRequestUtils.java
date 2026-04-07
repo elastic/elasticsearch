@@ -24,7 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.io.IOException;
@@ -40,10 +39,10 @@ import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponse
 import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler.SERVER_ERROR;
 import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler.UNSUCCESSFUL;
 
-public interface IbmWatsonxRequest extends Request {
+public final class IbmWatsonxRequestUtils {
 
     static void decorateWithBearerToken(HttpPost httpPost, DefaultSecretSettings secretSettings, String inferenceId) {
-        final Logger logger = LogManager.getLogger(IbmWatsonxRequest.class);
+        final Logger logger = LogManager.getLogger(IbmWatsonxRequestUtils.class);
         String bearerTokenGenUrl = "https://iam.cloud.ibm.com/identity/token";
         String bearerToken = "";
 
@@ -136,4 +135,6 @@ public interface IbmWatsonxRequest extends Request {
 
         return code == null ? RestStatus.BAD_REQUEST : code;
     }
+
+    private IbmWatsonxRequestUtils() {}
 }

@@ -17,7 +17,7 @@ summary: >-
 
   The downside is that [Optimistic Concurrency Control](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/optimistic-concurrency-control)
   is no longer applicable to these indices. Index, update and delete operations using `if_seq_no` error out, and
-  search calls with `seq_no_primary_term` set return sentinel values for sequence numbers. More so, `update_by_query`
+  search calls with `seq_no_primary_term` set return sentinel values for sequence numbers. Moreover, `update_by_query`
   and `delete_by_query` operations proceed without conflict detection, so concurrent modifications may silently
   overwrite the affected docs without triggering version conflict errors.
 

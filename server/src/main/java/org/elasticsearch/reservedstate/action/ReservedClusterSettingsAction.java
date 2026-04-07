@@ -65,7 +65,7 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
                 // Skip nulling it out — validation would fail since the setting is unknown.
                 // Omitting it from newSettings means it won't appear in currentKeys, so it will
                 // be silently dropped from the reserved state metadata.
-                logger.warn("Previously reserved cluster setting [{}] no longer exists; removing from reserved state", key);
+                logger.info("Previously reserved cluster setting [{}] no longer exists; removing from reserved state", key);
             }
         }
 

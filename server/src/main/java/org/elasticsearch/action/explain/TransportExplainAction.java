@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.FixForMultiProject;
@@ -158,8 +159,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
         try {
+            // TODO remove SplitShardCountSummary.UNSET
             // No need to check the type, IndexShard#get does it for us
-            result = context.indexShard().get(new Engine.Get(false, false, request.id()));
+            result = context.indexShard().get(new Engine.Get(false, false, request.id()), SplitShardCountSummary.UNSET);
             if (result.exists() == false) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }

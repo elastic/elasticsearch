@@ -1705,14 +1705,14 @@ Index version acts as a cluster-wide contract. New indices must use a format eve
 can read and write. A node is only admitted to the cluster if it can open every existing index. Allocation must not
 move shards to nodes running an older Lucene version that cannot read segments already written by a newer one.
 
-When [cluster state builds `DiscoveryNodes`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L833),
-[it records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L350)
+When [cluster state builds `DiscoveryNodes`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L835),
+[it records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L352)
 `getMaxDataNodeCompatibleIndexVersion()`: for each node that
-[can contain data or be master](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L852),
+[can contain data or be master](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L854),
 take that node's maximum supported index version, then take the minimum of those values. That is the highest index
 version all such nodes support.
 
-[Creating an index](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1264)
+[Creating an index](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1128)
 sets `index.version.created` to the minimum of `IndexVersion.current()` and
 `getMaxDataNodeCompatibleIndexVersion()`. During a rolling upgrade, old and new nodes coexist: the cluster-wide value
 stays at the lower ceiling until the last pre-upgrade node is gone, so indices created mid-upgrade get the same index

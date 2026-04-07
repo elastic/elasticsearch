@@ -14,7 +14,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -43,7 +43,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         // Creates the render template request
         SearchTemplateRequest renderRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
@@ -60,7 +60,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
         return channel -> client.execute(
             MustachePlugin.SEARCH_TEMPLATE_ACTION,
             renderRequest,
-            new RestChunkedToXContentListener<>(channel)
+            new RestRefCountedChunkedToXContentListener<>(channel)
         );
     }
 }

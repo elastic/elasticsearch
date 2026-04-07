@@ -6302,8 +6302,7 @@ public class AnalyzerTests extends ESTestCase {
             assertEquals(2, fork.children().size());
 
             for (int i = 0; i < 2; i++) {
-                limit = as(fork.children().get(i), Limit.class);
-                Project project = as(limit.child(), Project.class);
+                Project project = as(fork.children().get(i), Project.class);
                 assertEquals(1, project.projections().size());
                 ReferenceAttribute referenceAttribute = as(project.projections().getFirst(), ReferenceAttribute.class);
                 assertEquals("_fork", referenceAttribute.name());
@@ -6331,8 +6330,7 @@ public class AnalyzerTests extends ESTestCase {
             assertEquals(2, fork.children().size());
 
             for (int i = 0; i < 2; i++) {
-                limit = as(fork.children().get(i), Limit.class);
-                Project project = as(limit.child(), Project.class);
+                Project project = as(fork.children().get(i), Project.class);
                 assertEquals(1, project.projections().size());
                 ReferenceAttribute referenceAttribute = as(project.projections().getFirst(), ReferenceAttribute.class);
                 assertEquals("_fork", referenceAttribute.name());

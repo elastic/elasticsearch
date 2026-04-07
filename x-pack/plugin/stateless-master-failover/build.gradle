@@ -15,6 +15,10 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
+plugins {
+    id("elasticsearch.internal-java-rest-test")
+}
+
 esplugin {
     name = "stateless-master-failover"
     description = "Triggers graceful master failover on shutdown for stateless Elasticsearch"
@@ -26,5 +30,7 @@ esplugin {
 dependencies {
     compileOnly(xpackModule("core"))
     compileOnly(xpackModule("security"))
+    javaRestTestImplementation(testArtifact(xpackModule("plugin")))
+    javaRestTestImplementation(testArtifact(xpackModule("core")))
 }
 

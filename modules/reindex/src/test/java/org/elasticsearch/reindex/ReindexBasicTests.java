@@ -9,13 +9,11 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
@@ -36,9 +34,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 
 public class ReindexBasicTests extends ReindexTestCase {
     public void testFiltering() throws Exception {
@@ -184,7 +180,10 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         int expectedStatuses = expectedSliceStatuses(AbstractBulkByScrollRequest.AUTO_SLICES, source);
 
-        ReindexRequestBuilder copy = reindex().source(source).destination(dest).refresh(true).setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        ReindexRequestBuilder copy = reindex().source(source)
+            .destination(dest)
+            .refresh(true)
+            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(expectedStatuses)));
         assertHitCount(prepareSearch(dest).setSize(0), max);
@@ -269,8 +268,7 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         String dest = prefix + "_dest";
         String[] sourceNames = docs.keySet().toArray(new String[0]);
-        ReindexRequestBuilder request = reindex()
-            .source(sourceNames)
+        ReindexRequestBuilder request = reindex().source(sourceNames)
             .destination(dest)
             .refresh(true)
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
@@ -278,13 +276,7 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         BulkByScrollResponse response = request.get();
         int totalDocs = allDocs.size();
-        assertThat(
-            response,
-            matcher()
-                .created(totalDocs)
-                .batches(greaterThanOrEqualTo(totalDocs / 5))
-                .slices(hasSize(expectedStatuses))
-        );
+        assertThat(response, matcher().created(totalDocs).batches(greaterThanOrEqualTo(totalDocs / 5)).slices(hasSize(expectedStatuses)));
         assertHitCount(prepareSearch(dest).setSize(0), totalDocs);
     }
 
@@ -325,13 +317,7 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         BulkByScrollResponse response = request.get();
         int totalDocs = allDocs.size();
-        assertThat(
-            response,
-            matcher()
-                .created(totalDocs)
-                .batches(greaterThanOrEqualTo(totalDocs / 5))
-                .slices(hasSize(expectedStatuses))
-        );
+        assertThat(response, matcher().created(totalDocs).batches(greaterThanOrEqualTo(totalDocs / 5)).slices(hasSize(expectedStatuses)));
         assertHitCount(prepareSearch(dest).setSize(0), totalDocs);
     }
 

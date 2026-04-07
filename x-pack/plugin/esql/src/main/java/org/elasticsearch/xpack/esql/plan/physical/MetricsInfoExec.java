@@ -144,10 +144,7 @@ public class MetricsInfoExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        if (mode.isInputPartial()) {
-            return AttributeSet.of(intermediateAttributes);
-        }
-        return AttributeSet.EMPTY;
+        return child().outputSet();
     }
 
     @Override

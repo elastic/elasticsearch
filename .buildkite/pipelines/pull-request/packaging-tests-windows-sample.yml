@@ -18,8 +18,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: n4-custom-32-98304
-          diskType: hyperdisk-balanced
+          machineType: e2-custom-32-98304
+          diskType: pd-ssd
           diskSizeGb: 350
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

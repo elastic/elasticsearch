@@ -17,6 +17,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
@@ -75,6 +76,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -288,20 +290,14 @@ public final class CsvTestUtils {
                 requiredCapabilities,
                 everyItem(in(allCapabilities.capabilities()))
             );
-            assumeTrueLogging(
-                "Capability not supported in this build",
-                enabledCapabilities.capabilities().containsAll(requiredCapabilities)
-            );
-        } else {
-            for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
-                if (false == c.isEnabled()) {
-                    assumeFalseLogging(
-                        c.capabilityName() + " is not supported in non-snapshot releases",
-                        requiredCapabilities.contains(c.capabilityName())
-                    );
-                }
-            }
         }
+        assumeTrueLogging(
+            format(
+                "Capability not supported in this build: {}",
+                Sets.difference(new HashSet<>(requiredCapabilities), enabledCapabilities.capabilities())
+            ),
+            enabledCapabilities.capabilities().containsAll(requiredCapabilities)
+        );
     }
 
     public static void assumeTrueLogging(String message, boolean condition) {

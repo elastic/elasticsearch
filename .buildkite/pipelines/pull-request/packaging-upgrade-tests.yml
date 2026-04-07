@@ -16,8 +16,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: n4-custom-16-32768
-          diskType: hyperdisk-balanced
+          machineType: e2-custom-16-32768
+          diskType: pd-ssd
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: $BWC_VERSION

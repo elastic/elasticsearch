@@ -23,11 +23,9 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
-import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -72,13 +70,6 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             // TODO: revisit with every new command
             // skip nodes that simply pass the input through and use no references
             if (p instanceof Limit || p instanceof Sample) {
-                return p;
-            }
-
-            // MetricsInfo/TsInfo handle their own field extraction internally;
-            // mark all child attributes as used so nothing below them is pruned.
-            if (p instanceof MetricsInfo || p instanceof TsInfo) {
-                used.addAll(((UnaryPlan) p).child().outputSet());
                 return p;
             }
 

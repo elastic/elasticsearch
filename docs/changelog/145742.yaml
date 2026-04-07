@@ -1,0 +1,22 @@
+area: Mapping
+breaking:
+  area: Mapping
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Summary of Improvements on `aggregate_metric_double` in `9.4`
+highlight:
+  body: |-
+    In this PR we update the docs with the improvements we accomplished for
+    the `aggregate_metric_double` type of fields.
+
+    - Deprecated the `default_metric` configuration
+    - Use the average as a more representative signal compared to `max`
+    - In `ES|QL` support `aggregate_metric_double` for non-native operations using the average, such as `std_dev`.
+  notable: true
+  title: Summary of Improvements on `aggregate_metric_double` in `9.4`
+issues: []
+pr: 145742
+summary: Summary of Improvements on `aggregate_metric_double` in `9.4`
+type: breaking

@@ -1,5 +1,5 @@
 dateRange
-required_capability: range_within
+required_capability: date_range_field_type_v2
 FROM decades
 | SORT decade;
 
@@ -20,7 +20,7 @@ date_range:date_range  | decade:integer | description:keyword
 ;
 
 dateRangeToString
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | WHERE decade == 1900
@@ -32,7 +32,7 @@ date_range:date_range  | decade:integer | description:keyword | range:keyword
 ;
 
 dateRangeFieldType
-required_capability: range_within
+required_capability: date_range_field_type_v2
 FROM decades
 | SORT decade;
 
@@ -53,7 +53,7 @@ date_range:date_range  | decade:integer | description:keyword
 ;
 
 dateRangeIdentityFieldType
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | WHERE decade == 1900
@@ -65,7 +65,7 @@ date_range:date_range  | decade:integer | description:keyword | range:date_range
 ;
 
 dateRangeToStringFieldType
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | WHERE decade == 1900
@@ -78,7 +78,7 @@ date_range:date_range  | decade:integer | description:keyword | range:keyword
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeFromString
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 // tag::to_date_range-str[]
 ROW str = "2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z"
@@ -93,7 +93,7 @@ str:keyword                                          | range:date_range
 ;
 
 toDateRangeIdentity
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | WHERE decade == 1900
@@ -106,7 +106,7 @@ date_range:date_range  | decade:integer | description:keyword | range:date_range
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeFromShortFormat
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 ROW str = "2024-06-01..2024-06-30"
 | EVAL range = TO_DATE_RANGE(str)
@@ -118,7 +118,7 @@ str:keyword            | range:date_range
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeWithEval
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 ROW start_date = "2023-01-01T00:00:00.000Z", end_date = "2024-01-01T00:00:00.000Z"
 | EVAL range_str = CONCAT(start_date, "..", end_date)
@@ -132,7 +132,7 @@ start_date:keyword              | end_date:keyword                | range:date_r
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeSingleDay
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 ROW str = "2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z"
 | EVAL range = TO_DATE_RANGE(str)
@@ -147,7 +147,7 @@ str:keyword                                          | range:date_range
 ###############################################
 
 rangeWithinWithEmployees
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 // tag::rangeWithin[]
 FROM employees
@@ -165,7 +165,7 @@ emp_no:integer | hire_date:date
 ;
 
 rangeWithinWithDateRangesTable
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1955-06-15"), date_range)
@@ -177,7 +177,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinAtBoundaryStart
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1950-01-01"), date_range)
@@ -189,7 +189,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinAtBoundaryEnd
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1959-12-31T23:59:59.999Z"), date_range)
@@ -201,7 +201,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinOutsideRange
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("2050-01-01"), date_range)
@@ -212,7 +212,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinWithEval
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | EVAL test_date = TO_DATETIME("1965-07-20")
@@ -226,7 +226,7 @@ decade:integer | description:keyword | in_range:boolean
 ;
 
 rangeWithinMultipleMatches
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM employees
 | WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
@@ -238,7 +238,7 @@ count:long
 ;
 
 rangeWithinWithNull
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM employees
 | WHERE emp_no == 10040
@@ -251,7 +251,7 @@ emp_no:integer | birth_date:date | in_range:boolean
 ;
 
 rangeWithinWithStats
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM employees
 | EVAL in_1985 = RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
@@ -263,7 +263,7 @@ count_in_1985:long | total:long
 ;
 
 rangeWithinBeforeStart
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1899-12-31T23:59:59.999Z"), date_range)
@@ -274,7 +274,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinAfterEnd
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("2030-01-01T00:00:00.000Z"), date_range)
@@ -285,7 +285,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinWithLiteralRange
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 ROW date = TO_DATETIME("2024-06-15T12:00:00.000Z")
 | EVAL in_june = RANGE_WITHIN(date, TO_DATE_RANGE("2024-06-01..2024-07-01"))
@@ -300,7 +300,7 @@ date:date                     | in_june:boolean | in_july:boolean
 // RANGE_WITHIN with LOOKUP JOIN: date from lookup, date_range from FROM (existing indices only).
 // join_key=1 matches two rows in multi_column_joinable_lookup, so LOOKUP JOIN emits multi-value warnings.
 rangeWithinDateFromLookupRangeFromFrom
-required_capability: range_within
+required_capability: date_range_field_type_v2
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 
@@ -326,7 +326,7 @@ date_range:date_range                              | decade:integer | descriptio
 
 // Date from FROM, date_range from LOOKUP
 rangeWithinDateFromFromRangeFromLookup
-required_capability: range_within
+required_capability: date_range_field_type_v2
 required_capability: join_lookup_v12
 
 FROM employees
@@ -352,7 +352,7 @@ emp_no:integer | hire_date:date                | description:keyword
 
 // Literal date + date_range from LOOKUP (1985-06-15 in 1985 range)
 rangeWithinLiteralDateLookupRange1985
-required_capability: range_within
+required_capability: date_range_field_type_v2
 required_capability: join_lookup_v12
 
 FROM employees
@@ -375,7 +375,7 @@ emp_no:integer | description:keyword
 
 // Literal date + date_range from LOOKUP (1986-06-15 in 1986 range)
 rangeWithinLiteralDateLookupRange1986
-required_capability: range_within
+required_capability: date_range_field_type_v2
 required_capability: join_lookup_v12
 
 FROM employees
@@ -398,7 +398,7 @@ emp_no:integer | description:keyword
 
 // Date from LOOKUP, date_range from FROM (decades_main + lookup_with_date)
 rangeWithinDateFromLookupRangeFromFromDecadesMain
-required_capability: range_within
+required_capability: date_range_field_type_v2
 required_capability: join_lookup_v12
 
 FROM decades_main
@@ -413,7 +413,7 @@ date_range:date_range                              | some_date:date
 
 // date_range from FROM, date_range from LOOKUP (decades_main + lookup_with_date_range)
 rangeWithinRangeFromFromRangeFromLookup
-required_capability: range_within
+required_capability: date_range_field_type_v2
 required_capability: join_lookup_v12
 
 FROM decades_main
@@ -428,7 +428,7 @@ date_range:date_range                              | lookup_range:date_range
 
 // Multiple ranges in WHERE (OR)
 rangeWithinMultipleRangesInWhere
-required_capability: range_within
+required_capability: date_range_field_type_v2
 required_capability: join_lookup_v12
 
 FROM employees
@@ -452,7 +452,7 @@ emp_no:integer | description:keyword
 
 // Boundary: 1985-01-01 at start of 1985 range
 rangeWithinBoundaryCondition
-required_capability: range_within
+required_capability: date_range_field_type_v2
 required_capability: join_lookup_v12
 
 FROM employees
@@ -473,7 +473,7 @@ emp_no:integer | description:keyword
 
 // Date from FROM with literal range (join still multiplies rows; filter by literal range)
 rangeWithinLeftSideDateLiteralRange
-required_capability: range_within
+required_capability: date_range_field_type_v2
 required_capability: join_lookup_v12
 
 FROM employees
@@ -502,7 +502,7 @@ emp_no:integer | hire_date:date                | description:keyword
 ###############################################
 
 rangeMin
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 // tag::range_min[]
 FROM decades
@@ -519,7 +519,7 @@ date_range:date_range  | min_bound:date
 ;
 
 rangeMax
-required_capability: range_within
+required_capability: date_range_field_type_v2
 
 // tag::range_max[]
 FROM decades

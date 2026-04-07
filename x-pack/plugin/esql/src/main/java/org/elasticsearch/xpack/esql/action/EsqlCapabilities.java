@@ -1732,7 +1732,7 @@ public class EsqlCapabilities {
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
          */
-        RANGE_WITHIN(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V2(Build.current().isSnapshot()),
 
         /**
          * Network direction function.

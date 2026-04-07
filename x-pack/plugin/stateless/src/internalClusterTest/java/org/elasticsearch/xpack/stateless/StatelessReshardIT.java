@@ -31,6 +31,8 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -48,6 +50,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -158,6 +161,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.resizeRequest;
 import static org.elasticsearch.common.blobstore.OperationPurpose.INDICES;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.IndexSettings.MODE;
@@ -169,6 +173,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -1867,6 +1872,68 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         );
 
         assertThat(iae.getMessage(), equalTo("Requested new shard count [4] does not match required new shard count [2]"));
+    }
+
+    public void testReshardFailsDuringResize() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        String sourceIndex = "source";
+        int sourceShards = 2;
+
+        createIndex(sourceIndex, indexSettings(sourceShards, 1).build());
+        ensureGreen(sourceIndex);
+
+        int numDocs = randomIntBetween(1, 20);
+        indexDocsAndRefresh(sourceIndex, numDocs);
+        flush(sourceIndex);
+
+        // Set write block (required for resize)
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndex);
+
+        // Start a clone with ActiveShardCount.NONE so it returns immediately,
+        // and route the target's shards to a non-existent node so they never allocate.
+        // This keeps the resizing operation without completing.
+        String targetIndex = "target";
+        var cloneRequest = resizeRequest(
+            ResizeType.CLONE,
+            sourceIndex,
+            targetIndex,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.require._name", "non_existent_node")
+                .putNull("index.blocks.write")
+        );
+        cloneRequest.setWaitForActiveShards(ActiveShardCount.NONE);
+        client(indexNode).execute(TransportResizeAction.TYPE, cloneRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+
+        // Attempt to reshard the source — should be rejected.
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(sourceIndex)).actionGet(SAFE_AWAIT_TIMEOUT)
+        );
+        assertThat(e.getMessage(), containsString("cannot be resharded while it is the source of a resize operation"));
+
+        // Let resize complete
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.require._name"), targetIndex);
+        ensureGreen(targetIndex);
+
+        // Now we can reshard the source index
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(sourceIndex)).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(sourceIndex);
+        checkNumberOfShardsSetting(indexNode, sourceIndex, sourceShards * 2);
+
+        // Write new documents to the target index
+        int numNewDocs = randomIntBetween(0, 50);
+        if (numNewDocs > 0) {
+            indexDocsAndRefresh(targetIndex, numNewDocs);
+        }
+
+        // Verify all documents are present in the target index
+        assertHitCount(prepareSearch(targetIndex).setSize(0).setQuery(QueryBuilders.matchAllQuery()), numDocs + numNewDocs);
+
+        // Verify all documents are present in the resharded source index
+        ensureGreen(sourceIndex);
+        assertHitCount(prepareSearch(sourceIndex).setSize(0).setQuery(QueryBuilders.matchAllQuery()), numDocs);
     }
 
     public void testReshardFailsWithNullIndex() {

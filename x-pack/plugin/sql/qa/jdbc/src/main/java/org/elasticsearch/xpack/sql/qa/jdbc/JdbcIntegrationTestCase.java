@@ -39,8 +39,8 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     public static final String JDBC_ES_URL_PREFIX = "jdbc:es://";
 
     @After
-    public void checkSearchContent() throws IOException {
-        // Some context might linger due to fire and forget nature of PIT cleanup
+    public void checkSearchContent() throws Exception {
+        // Some context might linger due to the fire-and-forget nature of PIT cleanup
         assertNoSearchContexts();
     }
 
@@ -157,15 +157,17 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         return (Integer) stats.get("open_contexts");
     }
 
-    static void assertNoSearchContexts() throws IOException {
-        Map<String, Object> stats = searchStats();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");
-        for (String index : indicesStats.keySet()) {
-            if (index.startsWith(".") == false) { // We are not interested in internal indices
-                assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
+    static void assertNoSearchContexts() throws Exception {
+        assertBusy(() -> {
+            Map<String, Object> stats = searchStats();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");
+            for (String index : indicesStats.keySet()) {
+                if (index.startsWith(".") == false) { // We are not interested in internal indices
+                    assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
+                }
             }
-        }
+        });
     }
 
     @Override

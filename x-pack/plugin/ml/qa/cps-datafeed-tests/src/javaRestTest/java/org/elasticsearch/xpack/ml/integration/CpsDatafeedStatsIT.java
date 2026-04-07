@@ -118,8 +118,8 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         .setting("cluster.remote.project_a.seeds", () -> "\"" + remoteClusterA.getTransportEndpoint(0) + "\"")
         .setting("cluster.remote.connections_per_cluster", "1")
         .setting("cluster.remote.project_a.skip_unavailable", "false")
-        .setting("xpack.ml.cps_stabilization_cycles", "1")
-        .setting("xpack.ml.cps_stabilization_floor", "0s")
+        .setting("xpack.ml.ccs_stabilization_cycles", "1")
+        .setting("xpack.ml.ccs_stabilization_floor", "0s")
         .build();
 
     @ClassRule

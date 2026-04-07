@@ -62,6 +62,20 @@ develocity {
         def jobName = safeName(jobLabel)
 
         tag 'CI'
+        if (Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") > 0) {
+          tag 'RETRY'
+          value 'Retry Count', System.getenv('BUILDKITE_RETRY_COUNT')
+          def retrySourceJobId = System.getenv('BUILDKITE_RETRY_SOURCE_JOB_ID')
+          if (retrySourceJobId) {
+            value 'Retry Source Job ID', retrySourceJobId
+            link 'Retried Job', "${buildKiteUrl}#${retrySourceJobId}"
+          }
+          def retryType = System.getenv('BUILDKITE_RETRY_TYPE')
+          if (retryType) {
+            value 'Retry Type', retryType
+            tag retryType == 'automatic' ? 'AUTO_RETRY' : 'MANUAL_RETRY'
+          }
+        }
         link 'CI Build', "${buildKiteUrl}#${System.getenv('BUILDKITE_JOB_ID')}"
         value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
         value 'Build ID', System.getenv('BUILDKITE_BUILD_ID')

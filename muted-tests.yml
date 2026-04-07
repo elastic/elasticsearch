@@ -157,15 +157,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143697
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
-  method: testAccumulateSearchLoad
-  issue: https://github.com/elastic/elasticsearch/issues/143708
 - class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
   method: testCliConnectionWithInvalidApiKey
   issue: https://github.com/elastic/elasticsearch/issues/143646
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
-  method: testAccumulateSearchLoad
-  issue: https://github.com/elastic/elasticsearch/issues/143750
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143800
@@ -341,12 +335,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidBigDecimalFromBooleanWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145702
-- class: org.elasticsearch.xpack.esql.action.MetricsAndTSInfoIT
-  method: testTsInfo
-  issue: https://github.com/elastic/elasticsearch/issues/145720
-- class: org.elasticsearch.xpack.esql.action.MetricsAndTSInfoIT
-  method: testMetricsInfo
-  issue: https://github.com/elastic/elasticsearch/issues/145719
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidIntegerWithCasting
   issue: https://github.com/elastic/elasticsearch/issues/145735
@@ -356,6 +344,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcFetchSizeIT
   method: testPivotPagingWithLimit
   issue: https://github.com/elastic/elasticsearch/issues/145792
+- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ForkGoldenTests
+  method: testHybridSearch
+  issue: https://github.com/elastic/elasticsearch/issues/145800
 
 # Examples:
 #

@@ -37,14 +37,16 @@ import java.util.BitSet;
  * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
  */
 @Aggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "observed", type = "BOOLEAN"),
         @IntermediateState(name = "timestampPresent", type = "BOOLEAN"),
         @IntermediateState(name = "timestamp", type = "$v2_TYPE$"),
         @IntermediateState(name = "values", type = "$v1_TYPE$_BLOCK") }
 )
 @GroupingAggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "observed", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestampsPresent", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestamps", type = "$v2_TYPE$_BLOCK"),

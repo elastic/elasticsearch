@@ -94,6 +94,7 @@ public class AutomatonQueries {
      * Convert Lucene wildcard syntax into a case-sensitive automaton, checking a circuit breaker
      * during determinization to prevent OOM from huge automatons.
      */
+    @SuppressWarnings("fallthrough")
     public static Automaton toWildcardAutomaton(Term wildcardquery, CircuitBreaker circuitBreaker) {
         Automaton nfa = toWildcardNFA(wildcardquery);
         return CircuitBreakingOperations.determinize(

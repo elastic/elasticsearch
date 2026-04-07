@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiServi
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -59,9 +60,9 @@ public class ContextualAiRerankModelTests extends ESTestCase {
     public void testCreateModel_NoUrl_DefaultUrl() {
         var model = new ContextualAiRerankModel(
             INFERENCE_ENTITY_ID,
-            Map.of(ServiceFields.MODEL_ID, MODEL_VALUE),
-            Map.of(),
-            Map.of(DefaultSecretSettings.API_KEY, API_KEY_VALUE),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_VALUE)),
+            new HashMap<>(),
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, API_KEY_VALUE)),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -93,7 +94,7 @@ public class ContextualAiRerankModelTests extends ESTestCase {
             new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
         );
 
-        var merged = ContextualAiRerankModel.of(model, Map.of(TASK_SETTINGS_TOP_N_FIELD, REQUEST_TOP_N_OVERRIDE_VALUE));
+        var merged = ContextualAiRerankModel.of(model, new HashMap<>(Map.of(TASK_SETTINGS_TOP_N_FIELD, REQUEST_TOP_N_OVERRIDE_VALUE)));
 
         assertThat(merged.getTaskSettings().getTopN(), is(REQUEST_TOP_N_OVERRIDE_VALUE));
         assertThat(merged.getTaskSettings().getInstruction(), is(ORIGINAL_INSTRUCTION_VALUE));
@@ -113,10 +114,7 @@ public class ContextualAiRerankModelTests extends ESTestCase {
             new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
         );
 
-        var merged = ContextualAiRerankModel.of(
-            model,
-            Map.of(TASK_SETTINGS_INSTRUCTION_FIELD, NEW_INSTRUCTION_VALUE)
-        );
+        var merged = ContextualAiRerankModel.of(model, new HashMap<>(Map.of(TASK_SETTINGS_INSTRUCTION_FIELD, NEW_INSTRUCTION_VALUE)));
 
         assertThat(merged.getTaskSettings().getTopN(), is(MODEL_TOP_N_VALUE));
         assertThat(merged.getTaskSettings().getInstruction(), is(NEW_INSTRUCTION_VALUE));
@@ -136,7 +134,7 @@ public class ContextualAiRerankModelTests extends ESTestCase {
             new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
         );
 
-        var merged = ContextualAiRerankModel.of(model, Map.of());
+        var merged = ContextualAiRerankModel.of(model, new HashMap<>());
 
         assertThat(merged.getTaskSettings(), sameInstance(model.getTaskSettings()));
     }

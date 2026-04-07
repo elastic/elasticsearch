@@ -1,13 +1,16 @@
 ---
 teardown:
-  - requires:
-      test_runner_features: ["allowed_warnings"]
-
+  - skip:
+      features: "allowed_warnings"
   - do:
-      allowed_warnings:
-        - "this request accesses system indices: [.async-search], but in a future major version, direct access to system indices will be prevented by default"
       indices.delete:
         index: .*,-.security-*
+  - do:
+      allowed_warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
+      indices.delete:
+        index: .tasks
+        ignore_unavailable: true
 
 ---
 "Index creation with a dot-prefix is deprecated unless x-elastic-product-origin set":
@@ -202,14 +205,11 @@ teardown:
 
 ---
 "System indices do not cause deprecation warnings":
-  - do:
-      index:
-        index: myindex
-        id: "1"
-        body: {foo: bar}
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
-      async_search.submit:
-        index: myindex
-        keep_alive: 1m
-        keep_on_completion: true
+      allowed_warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
+      indices.create:
+        index: .tasks

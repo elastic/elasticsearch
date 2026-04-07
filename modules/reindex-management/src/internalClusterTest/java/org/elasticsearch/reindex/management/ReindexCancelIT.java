@@ -203,7 +203,9 @@ public class ReindexCancelIT extends ESIntegTestCase {
         assertThat("reindex is cancelled and contains acknowledged response", responseBody, equalTo(Map.of("acknowledged", true)));
 
         assertBusy(() -> assertThat("there are no open scroll contexts", currentNumberOfScrollContexts(), equalTo(0L)));
-        assertBusy(() -> assertThat("PIT and search contexts are released on cancel", currentOpenSearchContextsOnSourceIndex(), equalTo(0L)));
+        assertBusy(
+            () -> assertThat("PIT and search contexts are released on cancel", currentOpenSearchContextsOnSourceIndex(), equalTo(0L))
+        );
         assertBusy(() -> assertThat("parent group should be absent", findTaskGroup(parentTaskId).isEmpty(), is(true)));
         assertBusy(() -> {
             final RawTaskStatus parentTaskStatus = (RawTaskStatus) getCompletedTaskResult(parentTaskId).getTask().status();

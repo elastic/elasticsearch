@@ -10,5 +10,8 @@ highlight:
     duplicate detection at ingest time. Lookups and operations that previously relied on `_id` are delegated to other
     indexed fields on the document, such as timestamps, or dimension fields, preserving the same query and
     retrieval functionality.
+
+    This offers up to 40% storage improvement for OTLP metrics and reduces the cpu overhead for segment merging due to the
+    lack of an inverted index for `_id` fields.
   notable: true
 type: "enhancement"

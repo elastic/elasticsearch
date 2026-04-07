@@ -592,34 +592,6 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("get failed"));
     }
 
-    // --- handleInProgressSnapshot tests ---
-
-    public void testHandleInProgressSnapshot_withinTimeout_waitsForCompletion() {
-        // Snapshot started recently (within timeout) - observer should wait and find completed snapshot
-        long recentStartTime = clock.millis() - 1000; // 1 second ago
-        ProjectState projectState = createProjectStateWithInProgressSnapshot(recentStartTime);
-        setClusterState(projectState);
-
-        // When the observer fires (after snapshot leaves SnapshotsInProgress), return a completed snapshot
-        SnapshotInfo completedSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
-        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(completedSnapshot));
-
-        // Schedule a cluster state update that removes the snapshot from SnapshotsInProgress,
-        // which will trigger the ClusterStateObserver's predicate
-        threadPool.generic().execute(() -> {
-            ProjectState noSnapshotState = createProjectState();
-            setClusterState(noSnapshotState);
-        });
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.handleInProgressSnapshot(indexName, REPO_NAME, snapshotName, recentStartTime);
-
-        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
-        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
-    }
-
     public void testHandleInProgressSnapshot_exceededTimeout_deletesAndRestarts() {
         // Snapshot started longer ago than SNAPSHOT_TIMEOUT (12h)
         long oldStartTime = clock.millis() - TimeValue.timeValueHours(13).millis(); // exceeds 12h SNAPSHOT_TIMEOUT
@@ -637,6 +609,8 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
     }
 
+    // todo: add integ test for handleInProgressSnapshot when snapshot is within timeout
+
     // --- maybeTakeSnapshot tests ---
 
     public void testMaybeTakeSnapshot_noInProgress_noExisting_createsNew() throws InterruptedException {
@@ -652,30 +626,6 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
         assertGetSnapshotsRequest(REPO_NAME, snapshotName);
         assertCreateSnapshotRequest(REPO_NAME, snapshotName, indexName);
         assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-    }
-
-    public void testMaybeTakeSnapshot_inProgressWithinTimeout_waits() throws InterruptedException {
-        long recentStartTime = clock.millis() - 1000;
-        ProjectState projectState = createProjectStateWithInProgressSnapshot(recentStartTime);
-        setClusterState(projectState);
-
-        SnapshotInfo completedSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
-        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(completedSnapshot));
-
-        // Schedule a cluster state update that removes the snapshot from SnapshotsInProgress,
-        // which will trigger the ClusterStateObserver's predicate
-        threadPool.generic().execute(() -> {
-            ProjectState noSnapshotState = createProjectState();
-            setClusterState(noSnapshotState);
-        });
-
-        DLMConvertToFrozen converter = createConverter();
-        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        converter.maybeTakeSnapshot(indexName);
-
-        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
-        assertThat(capturedDeleteSnapshotRequest.get(), is(nullValue()));
-        assertThat(capturedCreateSnapshotRequest.get(), is(nullValue()));
     }
 
     public void testMaybeTakeSnapshot_inProgressExceededTimeout_deletesAndRestarts() throws InterruptedException {

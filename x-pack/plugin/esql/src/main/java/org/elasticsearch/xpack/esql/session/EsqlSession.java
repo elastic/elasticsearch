@@ -403,7 +403,7 @@ public class EsqlSession {
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
      * this is public for testing.
      */
-    public void executeOptimizedPlan(
+    private void executeOptimizedPlan(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
@@ -833,7 +833,7 @@ public class EsqlSession {
         }
     }
 
-    public void analyzedPlan(
+    private void analyzedPlan(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
         Configuration configuration,
@@ -881,8 +881,7 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        TimeSpanMarker dependencyResolutionProfile = executionInfo.queryProfile().dependencyResolution();
-        dependencyResolutionProfile.start();
+        executionInfo.queryProfile().indicesResolutionMarker().start();
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
         ).andThenApply(r -> {
@@ -932,21 +931,33 @@ public class EsqlSession {
             return r;
         })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
+            .andThenApply(r -> {
+                executionInfo.queryProfile().indicesResolutionMarker().stop();
+                return r;
+            })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(parsed, preAnalysis, r, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
+                executionInfo.queryProfile().enrichResolutionMarker().start();
                 enrichPolicyResolver.resolvePolicies(
                     preAnalysis.enriches(),
                     executionInfo,
                     r.minimumTransportVersion(),
-                    l.map(r::withEnrichResolution)
+                    l.delegateFailureAndWrap((ll, enrichResolution) -> {
+                        executionInfo.queryProfile().enrichResolutionMarker().stop();
+                        ll.onResponse(r.withEnrichResolution(enrichResolution));
+                    })
                 );
             })
             .<PreAnalysisResult>andThen((l, r) -> {
-                inferenceService.inferenceResolver(functionRegistry).resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
+                executionInfo.queryProfile().inferenceResolutionMarker().start();
+                inferenceService.inferenceResolver(functionRegistry)
+                    .resolveInferenceIds(parsed, l.delegateFailureAndWrap((ll, inferenceResolution) -> {
+                        executionInfo.queryProfile().inferenceResolutionMarker().stop();
+                        ll.onResponse(r.withInferenceResolution(inferenceResolution));
+                    }));
             })
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
-                dependencyResolutionProfile.stop();
                 analyzeWithRetry(parsed, unmappedResolution, configuration, executionInfo, description, requestFilter, preAnalysis, r, l);
             })
             .addListener(logicalPlanListener);
@@ -1461,7 +1472,7 @@ public class EsqlSession {
         return plan;
     }
 
-    public LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {
+    private LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {
         if (logicalPlan.preOptimized() == false) {
             throw new IllegalStateException("Expected pre-optimized plan");
         }
@@ -1474,7 +1485,7 @@ public class EsqlSession {
         return plan;
     }
 
-    public void preOptimizedPlan(
+    private void preOptimizedPlan(
         LogicalPlan logicalPlan,
         LogicalPlanPreOptimizer logicalPlanPreOptimizer,
         PlanTimeProfile planTimeProfile,

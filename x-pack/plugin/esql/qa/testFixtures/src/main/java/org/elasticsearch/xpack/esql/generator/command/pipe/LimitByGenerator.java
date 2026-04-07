@@ -26,7 +26,7 @@ public class LimitByGenerator implements CommandGenerator {
     public static final String LIMIT_BY = "limit_by";
 
     private static final String LIMIT_CONTEXT = "limit";
-    public static final String GROUPINGS_CONTEXT = "groupings";
+    private static final String GROUPINGS_CONTEXT = "groupings";
 
     @Override
     public CommandDescription generate(

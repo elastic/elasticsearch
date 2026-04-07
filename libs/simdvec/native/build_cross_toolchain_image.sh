@@ -27,7 +27,7 @@ case "${1:-}" in
   *)       echo "Usage: $0 [--local]" >&2; exit 1 ;;
 esac
 
-VERSION=1
+VERSION=2
 HOST=docker.elastic.co
 REPOSITORY=elasticsearch-infra/es-native-cross-toolchain
 IMAGE=$HOST/$REPOSITORY:$VERSION

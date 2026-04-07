@@ -30,6 +30,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -254,6 +255,13 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
             settings.add(IndexSettings.SYNTHETIC_ID);
+            settings.add(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS);
+            settings.add(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS);
+            settings.add(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS);
+            settings.add(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC);
+            settings.add(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC);
+            settings.add(SyntheticIdBloomFilterSettings.MAX_SIZE);
+            settings.add(SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE);
         }
         if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
             settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);

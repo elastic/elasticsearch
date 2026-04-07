@@ -1348,6 +1348,136 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(Expressions.name(fullTextFunction.field()), equalTo("text"));
     }
 
+    public void testFullTextFunctionOnConstantField() {
+        String functionName = randomFrom("match", "match_phrase");
+        var plan = testAnalyzer().coordinatorPlan(String.format(Locale.ROOT, """
+            from test
+            | where %s(first_name, "John")
+            """, functionName));
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name")) {
+                    return "John";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
+        // The field must remain a FieldAttribute — not replaced with a constant Literal
+        assertThat(fullTextFunction.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(fullTextFunction.field()), equalTo("first_name"));
+    }
+
+    public void testConstantFieldReplacedOutsideFullTextFunction() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where match_phrase(first_name, "John") and last_name == "Doe"
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("last_name")) {
+                    return "Doe";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        // last_name is a constant field with value "Doe", so last_name == "Doe" folds to true
+        // and is eliminated from the AND, leaving only the full-text function in the condition.
+        // If constant substitution had NOT happened, the condition would still be an And.
+        var matchPhrase = as(filter.condition(), SingleFieldFullTextFunction.class);
+        assertThat(matchPhrase.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(matchPhrase.field()), equalTo("first_name"));
+    }
+
+    public void testMatchOperatorOnConstantField() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name : "John"
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name")) {
+                    return "John";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var matchOp = as(filter.condition(), SingleFieldFullTextFunction.class);
+        assertThat(matchOp.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(matchOp.field()), equalTo("first_name"));
+    }
+
+    public void testSameConstantFieldProtectedInFullTextAndOutside() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where match(first_name, "John") and first_name == "John"
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name")) {
+                    return "John";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        // first_name is protected everywhere because it appears in a full-text function;
+        // semantic equality in AttributeSet means all references to the same field are kept.
+        filter.condition().forEachDown(FieldAttribute.class, fa -> assertThat(Expressions.name(fa), equalTo("first_name")));
+        filter.condition().forEachDown(SingleFieldFullTextFunction.class, ftf -> assertThat(ftf.field(), instanceOf(FieldAttribute.class)));
+    }
+
+    public void testMultipleFullTextFunctionsOnConstantFields() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where match(first_name, "John") and match_phrase(last_name, "Doe")
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name") || name.string().equals("last_name")) {
+                    return "constant";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+        var match = as(and.left(), SingleFieldFullTextFunction.class);
+        assertThat(match.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(match.field()), equalTo("first_name"));
+        var matchPhrase = as(and.right(), SingleFieldFullTextFunction.class);
+        assertThat(matchPhrase.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(matchPhrase.field()), equalTo("last_name"));
+    }
+
     private IsNotNull isNotNull(Expression field) {
         return new IsNotNull(EMPTY, field);
     }

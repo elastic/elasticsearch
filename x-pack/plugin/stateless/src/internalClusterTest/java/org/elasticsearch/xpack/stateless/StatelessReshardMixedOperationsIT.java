@@ -449,7 +449,18 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                 halfwayDone.countDown();
             }
 
-            executor.execute(operations.get(i));
+            // We lower RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD to speed up these tests
+            // but that also means that resharding completes quickly.
+            // If some thread is slow to execute an operation with old shard count summary (maybe due to a big GC or something)
+            // it can encouter `StaleRequestException` and that is expected.
+            // This should be resolved with a single retry since if resharding is complete,
+            // the coordinator must have the updated routing.
+            for (int tries = 0; tries < 2; tries++) {
+                try {
+                    executor.execute(operations.get(i));
+                    break;
+                } catch (StaleRequestException ignored) {}
+            }
         }
     }
 

@@ -712,7 +712,7 @@ public class Reindexer {
             );
             final ResumeBulkByScrollRequest resumeRequest = new ResumeBulkByScrollRequest(request);
             final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
-                l.onFailure(new TaskRelocatedException(new TaskId(clusterService.localNode().getId(), task.getId()), resp.getTaskId()));
+                l.onFailure(new TaskRelocatedException(resumeInfo.relocationOrigin().originalTaskId(), resp.getTaskId()));
             }, l::onFailure);
             transportService.sendRequest(
                 nodeToRelocateToNode,

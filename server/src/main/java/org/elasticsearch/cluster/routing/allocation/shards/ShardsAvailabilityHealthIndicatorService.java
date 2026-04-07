@@ -472,6 +472,8 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     /// @param gracePeriodCutoffTime inclusive lower bound on [UnassignedInfo#unassignedTimeMillis()] for treating
     /// the shard as still within the grace window (typically `Instant.now().toEpochMilli() - bufferMillis`).
     /// Unassignment timestamps strictly less than this value are older than the buffer and are outside the grace window.
+    /// @param primaryGracePeriodCutoffTime the primary grace period cutoff time, derived from
+    /// [#PRIMARY_UNASSIGNED_BUFFER_TIME], and used by replicas to check grace period eligibility, based on primary state.
     ///
     private static boolean isUnassignedWithinGracePeriod(
         ProjectId projectId,

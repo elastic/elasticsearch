@@ -363,7 +363,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         logShardStats("flushing before acquiring all primary operation permits", indexShard, preFlushEngine);
 
-        final var threadDumpListener = slowShardOperationListener(indexShard, TimeValue.timeValueSeconds(10), "flush and acquire permits");
+        final var threadDumpListener = slowShardOperationListener(indexShard, slowRelocationWarningThreshold, "flush and acquire permits");
 
         final long beforeInitialFlush = threadPool.relativeTimeInMillis();
         if (hollowShardsService.isHollowShard(indexShard.shardId())) {
@@ -621,7 +621,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final var indexShard = indexService.getShard(request.shardId().id());
         statelessCommitService.setTrackedSearchNodesPerCommitOnRelocationTarget(request.shardId(), request.searchNodesPerCommit());
 
-        final var threadDumpListener = slowShardOperationListener(indexShard, TimeValue.timeValueSeconds(10), "starting");
+        final var threadDumpListener = slowShardOperationListener(indexShard, slowRelocationWarningThreshold, "starting");
 
         final var recoveryRef = peerRecoveryTargetService.getRecoveryRef(request.recoveryId(), request.shardId());
         final Releasable cleanUpStatelessCommitService = () -> {

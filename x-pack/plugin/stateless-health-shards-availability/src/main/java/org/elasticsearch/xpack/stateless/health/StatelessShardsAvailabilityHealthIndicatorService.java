@@ -158,16 +158,18 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
             super(clusterMetadata, maxAffectedResourcesCount);
         }
 
-        /**
-         * Overrides the existing status to indicate that the cluster is red when all replicas for a shard are not assigned
-         */
+        /// Like the base indicator, treats provisionally unavailable shards (e.g. within the replica unassigned grace
+        /// window) as acceptable for [`GREEN`][HealthStatus#GREEN]. Otherwise, returns [`RED`][HealthStatus#RED] when
+        /// every replica of an index is unavailable in a non-provisional way and returns [`YELLOW`][HealthStatus#YELLOW]
+        /// when some replica copies are unavailable but not all.
         @Override
         public HealthStatus getStatus() {
-            if (primaries.areAllAvailable() == false || primaries.searchableSnapshotsState.getRedSearchableSnapshots().isEmpty() == false) {
+            if (primaries.areAllAvailableOrProvisionallyUnavailable() == false
+                || primaries.searchableSnapshotsState.getRedSearchableSnapshots().isEmpty() == false) {
                 return RED;
-            } else if (replicas.areAllAvailable() == false) {
+            } else if (replicas.areAllAvailableOrProvisionallyUnavailable() == false) {
                 if (replicas.doAnyIndicesHaveAllUnavailable()) {
-                    // There are some indices where *all* indices are unavailable
+                    // Some index has all of its replica copies unavailable (non-provisionally)
                     return RED;
                 } else {
                     return YELLOW;
@@ -184,7 +186,10 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
                 return details;
             }
             assert details instanceof SimpleHealthIndicatorDetails : details.getClass().getName();
-            if (primaries.indicesWithUnavailableShards.isEmpty() && replicas.indicesWithUnavailableShards.isEmpty()) {
+            if (primaries.indicesWithUnavailableShards.isEmpty()
+                && replicas.indicesWithUnavailableShards.isEmpty()
+                && primaries.indicesWithProvisionallyUnavailableShards.isEmpty()
+                && replicas.indicesWithProvisionallyUnavailableShards.isEmpty()) {
                 return details;
             }
 
@@ -204,6 +209,26 @@ public class StatelessShardsAvailabilityHealthIndicatorService extends ShardsAva
                     "indices_with_unavailable_replicas",
                     getTruncatedProjectIndices(
                         replicas.indicesWithUnavailableShards,
+                        clusterMetadata,
+                        projectResolver.supportsMultipleProjects()
+                    )
+                );
+            }
+            if (primaries.indicesWithProvisionallyUnavailableShards.isEmpty() == false) {
+                map.put(
+                    "indices_with_provisionally_unavailable_primaries",
+                    getTruncatedProjectIndices(
+                        primaries.indicesWithProvisionallyUnavailableShards,
+                        clusterMetadata,
+                        projectResolver.supportsMultipleProjects()
+                    )
+                );
+            }
+            if (replicas.indicesWithProvisionallyUnavailableShards.isEmpty() == false) {
+                map.put(
+                    "indices_with_provisionally_unavailable_replicas",
+                    getTruncatedProjectIndices(
+                        replicas.indicesWithProvisionallyUnavailableShards,
                         clusterMetadata,
                         projectResolver.supportsMultipleProjects()
                     )

@@ -376,7 +376,12 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
             final var barrier = new CyclicBarrier(2);
             final var registerThread = new Thread(() -> {
                 safeAwait(barrier);
-                testHarness.snapshotsCommitService.registerReleaseForSnapshot(shardId, snapshot, snapshotIndexCommit);
+                try {
+                    testHarness.snapshotsCommitService.registerReleaseForSnapshot(shardId, snapshot, snapshotIndexCommit);
+                } catch (IndexShardSnapshotFailedException e) {
+                    // registerReleaseForSnapshot may throw IndexShardSnapshotFailedException if the snapshot
+                    // completes before or during registration — this is expected in the race.
+                }
             });
             final var releaseThread = new Thread(() -> {
                 safeAwait(barrier);

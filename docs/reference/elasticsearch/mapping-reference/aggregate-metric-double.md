@@ -40,7 +40,7 @@ PUT my-index
 
 `default_metric` {applies_to}`stack: deprecated 9.4` {applies_to}`serverless: deprecated`
 :   :::{admonition} Deprecated in 9.4
-    The average value will be used as the default metric value, calculated using the `sum` and `value_count`, unless there is only a single sub-field, in which case it will use that metric.
+    The average value will be used as the default metric value, calculated using the `sum` and `value_count`, unless there is only a single sub-field, in which case it will use that metric (see [deprecations]( https://www.elastic.co/docs/release-notes/elasticsearch/deprecations) for more information).
     :::
 
     (Required, string) Default metric sub-field to use for queries, scripts, and aggregations that don’t use a sub-field. Must be a value from the `metrics` array.
@@ -79,7 +79,7 @@ Finally, an `aggregate_metric_double` field supports the following queries, for 
 * [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md)
 * [`terms`](/reference/query-languages/query-dsl/query-dsl-terms-query.md)
 
-The field delegates its behavior as follows:
+To achieve that, it delegates its behavior as follows:
 
 * If `sum` and `value_count` metrics exist, the average is used. {applies_to}`stack: ga 9.4`
 * If only one sub-field is configured, that sub-field is used.

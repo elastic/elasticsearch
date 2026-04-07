@@ -1,19 +1,4 @@
 area: Mapping
-breaking:
-  area: Mapping
-  details: |-
-    The `aggregate_metric_double` can natively support operations that are supported by its sub-fields,
-    such as `max`, `min`, `sum`, `avg`, and `count`. For other supported operations, it used to use the `default_metric`
-    which could be set to one of the configured sub-fields during index creation.
-
-    In Elasticsearch `9.4` we change this behaviour to use the average as a more representative signal compared to a single sub-field,
-    unless the `aggregate_metric_double` only has one sub-field configured, in which case it will delegate to this sub-field.
-
-    This change aims to both simplify the configuration of `aggregate_metric_double` and improve its use by non-native operations.
-  impact: "When `aggregate_metric_double` does not natively support the operation,\
-    \ the average is used instead of the previously configured `default_metric`."
-  notable: true
-  title: Simplify the configuration of `aggregate_metric_double` for non-native operations.
 highlight:
   body: |-
     In Elasticsearch `9.4` we expand the supportability of `aggregate_metric_double` to include non-native operations in ES|QL,
@@ -25,7 +10,7 @@ highlight:
     [source]
     ----
       FROM k8s-downsampled
-      | STATS max = max(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
+      | STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
       | sort pod
 
       max:double | std_dev:double | pod:keyword
@@ -34,10 +19,10 @@ highlight:
       1419.0     | 356.9865993    | two
     ----
   notable: true
-  title: Improve configuration of `aggregate_metric_double` and supportability by
-    ES|QL.
-issues: []
+  title: Improve the supportability of `aggregate_metric_double` by ES|QL.
+issues:
+  - 128356
 pr: 145742
-summary: Improve configuration of `aggregate_metric_double` and supportability by
+summary: Improve the supportability of `aggregate_metric_double` by non-native ES|QL stats operations, such as std_dev.
   ES|QL.
-type: breaking
+type: enhancement

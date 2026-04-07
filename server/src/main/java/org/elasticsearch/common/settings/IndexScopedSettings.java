@@ -241,6 +241,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
+                IndexSettings.SYNTHETIC_ID,
+                SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS,
+                SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS,
+                SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS,
+                SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC,
+                SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC,
+                SyntheticIdBloomFilterSettings.MAX_SIZE,
+                SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE,
 
                 // Legacy index settings we must keep around for BWC from 7.x
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
@@ -253,16 +261,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             )
         );
 
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settings.add(IndexSettings.SYNTHETIC_ID);
-            settings.add(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS);
-            settings.add(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS);
-            settings.add(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS);
-            settings.add(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC);
-            settings.add(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC);
-            settings.add(SyntheticIdBloomFilterSettings.MAX_SIZE);
-            settings.add(SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE);
-        }
         if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
             settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
         }

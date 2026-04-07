@@ -123,7 +123,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             plan.forEachExpression(FullTextFunction.class, ftf -> ftf.forEachDown(FieldAttribute.class, fullTextFieldArgsBuilder::add));
             AttributeSet fullTextFieldArgs = fullTextFieldArgsBuilder.build();
 
-            LogicalPlan transformed = plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {
+            return plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {
                 if (attrToConstant.containsKey(f)) {// handle constant values field and use the value itself instead
                     return fullTextFieldArgs.contains(f) ? f : attrToConstant.get(f);
                 } else {// handle missing fields and replace them with null

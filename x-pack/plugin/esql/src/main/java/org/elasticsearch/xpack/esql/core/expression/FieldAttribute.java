@@ -236,24 +236,13 @@ public class FieldAttribute extends TypedAttribute {
         return lazyFieldName;
     }
 
-    // TODO: better method name
-    // TODO: reference https://github.com/elastic/elasticsearch/issues/141995
     /**
      * If the underlying field is an {@link InvalidMappedField} (ambiguous type across indices),
      * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message
      * so the analyzer can surface a clear user-facing error.
      */
-    public Attribute checkUnresolved() {
+    public Attribute flagTypeConflicts() {
         if (field instanceof InvalidMappedField imf) {
-            if (imf.isPotentiallyUnmapped() && imf.types().size() == 1) {
-                // The field is mapped to a single type in some indices but unmapped in others. Revert it to a regular field so that
-                // values are loaded from the indices where it is mapped (and null is returned from unmapped indices).
-                DataType type = imf.types().iterator().next();
-                var restoredField = new EsField(imf.getName(), type, imf.getProperties(), false, imf.getTimeSeriesFieldType());
-                // TODO: add test where not passing on the parent name fails the test
-                // TODO: add TS tests and tests with different time series field types
-                return new FieldAttribute(source(), parentName(), qualifier(), name(), restoredField, nullable(), id(), synthetic());
-            }
             // Field has conflicting types across indices — build a user-facing error message.
             String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + imf.errorMessage();
             List<String> types = imf.getTypesToIndices().keySet().stream().toList();

@@ -125,10 +125,10 @@ public class Verifier {
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
+        // Temporary check before we implement https://github.com/elastic/elasticsearch/issues/141995.
         // Partially-unmapped non-keyword field references are checked before the bail-out so that a query with both
         // an UnsupportedAttribute and a PUNK field produces both errors in one batch.
         // TODO: test that shows that error message for PUNKs and using un-cast union types show up together
-        // TODO: mention that this is temporary, reference https://github.com/elastic/elasticsearch/issues/141995
         if (unmappedResolution == UnmappedResolution.LOAD) {
             checkPartiallyUnmappedNonKeywordReferences(plan, failures, context);
         }

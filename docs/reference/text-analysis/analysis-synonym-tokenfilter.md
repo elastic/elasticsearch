@@ -233,7 +233,7 @@ serverless: ga
 
 When building the synonyms map, {{es}} checks available heap memory using a circuit breaker to prevent synonym token filters from causing out-of-memory errors when processing large numbers of synonym rules. By default, the circuit breaker trips when more than 95% of heap memory is in use.
 
-The threshold is configurable using the [parent circuit breaker settings](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#parent-circuit-breaker). {applies_to}`serverless: unavailable`
+The threshold is configurable using the [`indices.breaker.total.limit` parent circuit breaker setting](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#parent-circuit-breaker). {applies_to}`serverless: unavailable`
 
 When the circuit breaker trips, the behavior is determined by the `lenient` parameter:
 

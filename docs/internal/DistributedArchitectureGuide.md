@@ -1705,12 +1705,12 @@ Index version acts as a cluster-wide contract. New indices must use a format eve
 can read and write. A node is only admitted to the cluster if it can open every existing index. Allocation must not
 move shards to nodes running an older Lucene version that cannot read segments already written by a newer one.
 
-When [cluster state builds `DiscoveryNodes`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L835),
-[it records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L352)
-`getMaxDataNodeCompatibleIndexVersion()`: for each node that
-[can contain data or be master](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L854),
-take that node's maximum supported index version, then take the minimum of those values. That is the highest index
-version all such nodes support.
+The cluster state's `DiscoveryNodes` field (see
+the [Cluster State section](#cluster-state) for more details) computes and
+records `maxDataNodeCompatibleIndexVersion`, which
+is [the minimum of](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L855)
+all data and master-eligible node's `versionInfo.maxIndexVersion()`. This is the
+highest index version the whole cluster supports.
 
 [Creating an index](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1128)
 sets `index.version.created` to the minimum of `IndexVersion.current()` and

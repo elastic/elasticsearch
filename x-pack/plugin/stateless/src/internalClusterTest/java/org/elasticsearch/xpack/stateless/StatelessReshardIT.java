@@ -72,6 +72,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -162,6 +163,7 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.resizeRequest;
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.blobstore.OperationPurpose.INDICES;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.IndexSettings.MODE;
@@ -3070,7 +3072,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureStableCluster(3);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(1, 1).build());
+        createIndex(indexName, indexSettings(1, 1).put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 100).build());
         ensureGreen(indexName);
         checkNumberOfShardsSetting(indexNodeA, indexName, 1);
 
@@ -3119,6 +3121,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         );
         Index index = resolveIndex(indexName);
         ensureGreen(indexName);
+        // Disable rebalancing so the relocated shard doesn't get moved back
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
+        );
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
@@ -3178,7 +3186,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureStableCluster(3);
 
         // Disable rebalancing
-        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
+        );
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).put("index.allocation.max_retries", Integer.MAX_VALUE).build());
@@ -3266,7 +3278,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertHitCount(prepareSearch(indexName), numDocs);
 
         // Disable rebalancing
-        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
+        );
 
         var index = resolveIndex(indexName);
         var sourceShardOldNode = findIndexNode(index, 0).getName();

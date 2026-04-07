@@ -11,13 +11,15 @@ package org.elasticsearch.datageneration.matchers.source;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.matchers.MatchResult;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -42,6 +44,18 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
         this.expectedSettings = expectedSettings;
     }
 
+    private static FlattenedFieldMapper.PreserveLeafArrays getPreserveLeafArrays(
+        Map<String, Object> actualMapping,
+        Map<String, Object> expectedMapping
+    ) {
+        var value = FieldSpecificMatcher.getMappingParameter("preserve_leaf_arrays", actualMapping, expectedMapping);
+        if (value == null) {
+            return null;
+        }
+
+        return FlattenedFieldMapper.PreserveLeafArrays.valueOf(value.toString().toUpperCase(Locale.ROOT));
+    }
+
     @Override
     public MatchResult match(
         List<Object> actual,
@@ -50,6 +64,7 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
         Map<String, Object> expectedMapping
     ) {
         var nullValue = FieldSpecificMatcher.getNullValue(actualMapping, expectedMapping);
+        var preserveLeafArrays = getPreserveLeafArrays(actualMapping, expectedMapping);
 
         @SuppressWarnings("unchecked")
         FlattenedSourceMatcher matcher = new FlattenedSourceMatcher(
@@ -59,7 +74,7 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
             expectedSettings,
             normalize(actual),
             normalize(expected),
-            true,
+            preserveLeafArrays,
             nullValue
         );
 
@@ -107,6 +122,7 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
 
     private static class FlattenedSourceMatcher extends SourceMatcher {
         private final Object nullValue;
+        private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
         private FlattenedSourceMatcher(
             final XContentBuilder actualMappings,
@@ -115,7 +131,7 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
             final Settings.Builder expectedSettings,
             final List<Map<String, Object>> actual,
             final List<Map<String, Object>> expected,
-            final boolean ignoringSort,
+            final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
             final Object nullValue
         ) {
             super(
@@ -126,10 +142,11 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
                 expectedSettings,
                 actual,
                 expected,
-                ignoringSort
+                preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.LOSSY
             );
 
             this.nullValue = nullValue;
+            this.preserveLeafArrays = preserveLeafArrays;
         }
 
         @Override
@@ -159,16 +176,20 @@ public class FlattenedFieldMatcher implements FieldSpecificMatcher {
                 );
         }
 
-        private Set<Object> normalize(List<Object> values) {
+        private Collection<Object> normalize(List<Object> values) {
             if (values == null) {
                 return Collections.emptySet();
             }
 
-            return values.stream()
-                .map(v -> v == null ? nullValue : v)
-                .filter(Objects::nonNull)
-                .map(Object::toString)
-                .collect(Collectors.toSet());
+            if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
+                return values.stream().map(v -> v == null ? nullValue : v.toString()).collect(Collectors.toList());
+            } else {
+                return values.stream()
+                    .map(v -> v == null ? nullValue : v)
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .collect(Collectors.toSet());
+            }
         }
     }
 }

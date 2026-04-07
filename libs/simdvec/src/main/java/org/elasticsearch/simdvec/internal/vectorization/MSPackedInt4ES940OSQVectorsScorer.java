@@ -21,14 +21,14 @@ import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPO
  * Packed-nibble int4 scorer that uses existing native dot-product ops.
  * Returns sentinel values when native support is unavailable so callers can fallback.
  */
-final class MSPackedInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
+final class MSPackedInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
 
     private byte[] cachedQueryArray;
     private MemorySegment cachedQuerySeg;
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSeg;
 
-    MSPackedInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+    MSPackedInt4ES940OSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
     }
 

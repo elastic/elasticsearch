@@ -51,8 +51,9 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
         description = "Calculates the count over time value of a field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "count_over_time") }
     )
     public CountOverTime(

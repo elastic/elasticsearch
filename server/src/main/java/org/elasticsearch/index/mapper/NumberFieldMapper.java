@@ -2464,7 +2464,7 @@ public class NumberFieldMapper extends FieldMapper {
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
         final String name = fieldType.name();
-        if (dimension && numericValue != null) {
+        if (dimension) {
             context.getRoutingFields().addLong(name, numericValue.longValue());
         }
         // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).

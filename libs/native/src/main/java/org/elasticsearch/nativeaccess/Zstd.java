@@ -39,8 +39,8 @@ public final class Zstd {
     }
 
     /**
-     * Decompress the content of {@code src} into {@code dst}, and return the number of decompressed bytes. {@link ByteBuffer#position()} and
-     * {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.
+     * Decompress the content of {@code src} into {@code dst}, and return the number of decompressed bytes. {@link ByteBuffer#position()}
+     * and {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.
      */
     public int decompress(CloseableByteBuffer dst, CloseableByteBuffer src) {
         Objects.requireNonNull(dst, "Null destination buffer");

@@ -275,9 +275,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                 acquired = replacePrimaryLock.readLock().tryLock(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
                                 assertTrue(acquired);
                                 inner.run();
+                            } catch (AssertionError e) {
+                                errorHandler.accept(new RuntimeException(e));
                             } catch (InterruptedException e) {
                                 Thread.currentThread().interrupt();
-                                throw new RuntimeException(e);
+                                errorHandler.accept(e);
                             } finally {
                                 if (acquired) {
                                     replacePrimaryLock.readLock().unlock();

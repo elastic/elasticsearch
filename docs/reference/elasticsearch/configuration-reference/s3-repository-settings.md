@@ -217,7 +217,7 @@ The following settings are supported:
 `get_register_retry_delay`
 :   ([time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Sets the time to wait before trying again if an attempt to read a [linearizable register](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-linearizable-registers) fails. Defaults to `5s`.
 
-`unsafely_incompatible_with_s3_conditional_writes` {applies_to}`stack: ga 9.2.3, deprecated 9.2.4`
+`unsafely_incompatible_with_s3_conditional_writes` {applies_to}`stack: ga =9.2.3!, deprecated 9.2.4!+`
 :   (boolean) {{es}} uses AWS S3's [support for conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html) to protect against repository corruption. If your repository is based on a storage system which claims to be S3-compatible but does not accept conditional writes, set this setting to `true` to make {{es}} perform unconditional writes, bypassing the repository corruption protection, while you work with your storage supplier to address this incompatibility with AWS S3. Defaults to `false`.
 
 ::::{admonition} Overriding client settings in repository settings.

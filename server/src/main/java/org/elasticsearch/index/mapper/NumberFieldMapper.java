@@ -2464,11 +2464,13 @@ public class NumberFieldMapper extends FieldMapper {
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
         final String name = fieldType.name();
+        final LuceneDocument doc = context.doc();
+
         if (dimension) {
             context.getRoutingFields().addLong(name, numericValue.longValue());
         }
+
         // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
-        final LuceneDocument doc = context.doc();
         switch (type) {
             case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue());
             case LONG -> addLongFields(doc, name, numericValue.longValue());
@@ -2477,10 +2479,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         if (false == allowMultipleValues && (indexed || docValuesParameters.enabled() || stored)) {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
-            List<IndexableField> fields = context.doc().getFields();
+            List<IndexableField> fields = doc.getFields();
             final IndexableField last = fields.getLast();
             assert last.name().equals(name) : "last field name [" + last.name() + "] mis match field name [" + name + "]";
-            context.doc().onlyAddKey(name, last);
+            doc.onlyAddKey(name, last);
         }
 
         if (docValuesParameters.enabled() == false && (stored || indexed)) {

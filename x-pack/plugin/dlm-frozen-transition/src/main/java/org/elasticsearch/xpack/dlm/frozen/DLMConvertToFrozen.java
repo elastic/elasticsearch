@@ -617,7 +617,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * than {@link #SNAPSHOT_TIMEOUT}, delete it and start again; otherwise wait for it to complete.
      */
     void handleInProgressSnapshot(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
-        if ((clock.millis() - snapshotStartTime) > SNAPSHOT_TIMEOUT.millis()) {
+        if ((clock.millis() - snapshotStartTime) >= SNAPSHOT_TIMEOUT.millis()) {
             logger.warn(
                 "DLM snapshot [{}] for index [{}] has been running for over [{}], cancelling and restarting",
                 snapshotName,
@@ -744,8 +744,9 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Best-effort delete of the existing snapshot, then create a new one.
+     * Deletes the existing snapshot, then creates a new one.
      * If the snapshot is already missing, proceeds directly to creation.
+     * If deletion fails for any other reason, the restart is aborted and the failure is propagated.
      */
     void deleteAndRestartSnapshot(String indexName, String repositoryName, String snapshotName) {
         deleteSnapshotIfExists(repositoryName, snapshotName, indexName);

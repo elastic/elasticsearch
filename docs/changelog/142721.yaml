@@ -10,7 +10,7 @@ highlight:
   body: |-
     ES|QL adds the `TS_INFO` command for time series (`TS`) queries. It returns one row per metric and time series combination.
     You get the same metadata columns as `METRICS_INFO`, plus a `dimensions` column with a JSON object of dimension keys and values for
-    that series. That makes it easier to see exactly which labels apply to each series when exploring or validating
+    that series. That unlocks inferring which labels apply to each series when exploring or validating
     time series data.
 
     For example:

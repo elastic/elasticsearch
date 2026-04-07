@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.AuditableRequest;
+import org.elasticsearch.xpack.security.metric.SecurityAuthcFailureFault;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 
 import java.util.Map;
@@ -169,7 +170,15 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             assertSingleFailedAuthMetric(
                 telemetryPlugin,
                 SecurityMetricType.AUTHC_API_KEY,
-                Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
+                Map.ofEntries(
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                    Map.entry(
+                        SecurityAuthcFailureFault.ATTRIBUTE_FAILURE_FAULT,
+                        exception == null
+                            ? SecurityAuthcFailureFault.CLIENT.attributeValue()
+                            : SecurityAuthcFailureFault.SERVER.attributeValue()
+                    )
+                )
             );
         } else {
             var authResult = future.actionGet();
@@ -177,7 +186,15 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             assertSingleFailedAuthMetric(
                 telemetryPlugin,
                 SecurityMetricType.AUTHC_API_KEY,
-                Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
+                Map.ofEntries(
+                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                    Map.entry(
+                        SecurityAuthcFailureFault.ATTRIBUTE_FAILURE_FAULT,
+                        exception == null
+                            ? SecurityAuthcFailureFault.CLIENT.attributeValue()
+                            : SecurityAuthcFailureFault.SERVER.attributeValue()
+                    )
+                )
             );
         }
 
@@ -224,7 +241,10 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         assertSingleFailedAuthMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
-            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
+            Map.ofEntries(
+                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
+                Map.entry(SecurityAuthcFailureFault.ATTRIBUTE_FAILURE_FAULT, SecurityAuthcFailureFault.SERVER.attributeValue())
+            )
         );
 
         // verify that there were no successes recorded

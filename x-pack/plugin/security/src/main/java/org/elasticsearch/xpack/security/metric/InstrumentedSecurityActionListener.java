@@ -33,11 +33,11 @@ public class InstrumentedSecurityActionListener {
             if (result.isAuthenticated()) {
                 metrics.recordSuccess(context);
             } else {
-                metrics.recordFailure(context);
+                metrics.recordFailure(context, SecurityAuthcFailureFaultClassifier.fromFailedResult(result));
             }
             listener.onResponse(result);
         }, e -> {
-            metrics.recordFailure(context);
+            metrics.recordFailure(context, SecurityAuthcFailureFaultClassifier.fromThrowable(e));
             listener.onFailure(e);
         }), () -> metrics.recordTime(context, startTimeNano));
     }
@@ -57,11 +57,11 @@ public class InstrumentedSecurityActionListener {
             if (result.isAuthenticated()) {
                 metrics.recordSuccess(result);
             } else {
-                metrics.recordFailure(result);
+                metrics.recordFailure(result, SecurityAuthcFailureFaultClassifier.fromFailedResult(result));
             }
             listener.onResponse(result);
         }, e -> {
-            metrics.recordFailure(null);
+            metrics.recordFailure(null, SecurityAuthcFailureFaultClassifier.fromThrowable(e));
             listener.onFailure(e);
         }), () -> metrics.recordTime(null, startTimeNano));
     }

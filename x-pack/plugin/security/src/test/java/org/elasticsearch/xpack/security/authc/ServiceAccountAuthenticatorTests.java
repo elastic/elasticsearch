@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.Servic
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.metric.SecurityAuthcFailureFault;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 
 import java.util.Map;
@@ -128,7 +129,8 @@ public class ServiceAccountAuthenticatorTests extends AbstractAuthenticatorTests
             telemetryPlugin,
             SecurityMetricType.AUTHC_SERVICE_ACCOUNT,
             Map.ofEntries(
-                Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_SERVICE_ACCOUNT_ID, serviceAccountToken.getAccountId().asPrincipal())
+                Map.entry(ServiceAccountAuthenticator.ATTRIBUTE_SERVICE_ACCOUNT_ID, serviceAccountToken.getAccountId().asPrincipal()),
+                Map.entry(SecurityAuthcFailureFault.ATTRIBUTE_FAILURE_FAULT, SecurityAuthcFailureFault.CLIENT.attributeValue())
             )
         );
 

@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.security.metric;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -65,13 +67,14 @@ public final class SecurityMetrics<C> {
         this.successCounter.incrementBy(1L, attributesBuilder.build(context));
     }
 
-    /**
-     * Records a single failed execution.
-     *
-     * @param context       The context object which is used to attach additional attributes to failed metric.
-     */
-    public void recordFailure(final C context) {
-        this.failuresCounter.incrementBy(1L, attributesBuilder.build(context));
+    /** Bump the failure counter with the usual attributes plus client/server/unknown fault. */
+    public void recordFailure(final C context, final SecurityAuthcFailureFault fault) {
+        Objects.requireNonNull(fault);
+        final Map<String, Object> baseAttributes = context == null ? Map.of() : Objects.requireNonNull(attributesBuilder.build(context));
+        this.failuresCounter.incrementBy(
+            1L,
+            Maps.copyMapWithAddedEntry(baseAttributes, SecurityAuthcFailureFault.ATTRIBUTE_FAILURE_FAULT, fault.attributeValue())
+        );
     }
 
     /**

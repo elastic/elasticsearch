@@ -81,7 +81,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         testSimpleImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE);
     }
 
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/145779")
     public void testSimpleMaxChunkSizeSmall() throws IOException {
         long maxChunkSize = randomLongBetween(4, 16);
         logger.info("maxChunkSize=" + maxChunkSize);
@@ -155,7 +155,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/145779")
     public void testRandomNIO() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
@@ -163,7 +163,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/145779")
     public void testRandomMaxChunkSizeSmall() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
@@ -246,7 +246,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/145779")
     public void testRandomScorerNIO() throws IOException {
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomScorerNIO"))) {
             testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
@@ -259,7 +259,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/145779")
     public void testRandomScorerChunkSizeSmall() throws IOException {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
@@ -327,7 +327,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/145779")
     public void testRandomSlice() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT4_FUNC);
@@ -430,7 +430,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/145779")
     public void testDatasetGreaterThanChunkSize() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
@@ -484,7 +484,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/145779")
     public void testBulkNIO() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testBulkNIO"))) {
@@ -540,7 +540,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/145779")
     public void testBulkWithDatasetGreaterThanChunkSize() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
@@ -600,7 +600,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/145779")
     public void testBulkScorerNIO() throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
         assumeTrue(notSupportedMsg(), supported());

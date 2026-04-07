@@ -44,11 +44,11 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
             // Block stores [from, to); use range (500, 1501) so point 1500 is included
             suppliers.add(pointInRange("date at range end (datetime)", DataType.DATETIME, 1500L, 500L, 1501L, true));
 
-            // (date_range, date_range): first contains second
-            suppliers.add(rangeContainsRange("first contains second", 100L, 2000L, 500L, 1500L, true));
-            suppliers.add(rangeContainsRange("first does not contain second (overlap)", 100L, 1000L, 500L, 1500L, false));
-            suppliers.add(rangeContainsRange("equal ranges", 500L, 1500L, 500L, 1500L, true));
-            suppliers.add(rangeContainsRange("point range in range", 500L, 1500L, 1000L, 1000L, true));
+            // (date_range, date_range): first within second
+            suppliers.add(rangeWithinRange("first within second", 500L, 1500L, 100L, 2000L, true));
+            suppliers.add(rangeWithinRange("first not within second (overlap)", 100L, 1000L, 500L, 1500L, false));
+            suppliers.add(rangeWithinRange("equal ranges", 500L, 1500L, 500L, 1500L, true));
+            suppliers.add(rangeWithinRange("point range within wider range", 1000L, 1000L, 500L, 1500L, true));
         }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
@@ -74,7 +74,7 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static TestCaseSupplier rangeContainsRange(String name, long aFrom, long aTo, long bFrom, long bTo, boolean expected) {
+    private static TestCaseSupplier rangeWithinRange(String name, long aFrom, long aTo, long bFrom, long bTo, boolean expected) {
         return new TestCaseSupplier(
             name,
             List.of(DataType.DATE_RANGE, DataType.DATE_RANGE),

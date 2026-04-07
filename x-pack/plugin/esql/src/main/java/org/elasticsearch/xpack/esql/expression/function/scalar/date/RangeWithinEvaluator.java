@@ -78,7 +78,7 @@ public class RangeWithinEvaluator implements ExpressionEvaluator {
     }
 
     /**
-     * Returns true if any (left value, right value) pair satisfies "value within range" (right is container).
+     * Returns true if any (left value, right value) pair satisfies "left within right" (right is the container).
      * Supports multivalued date_range and date. Only (date, date_range) and (date_range, date_range).
      */
     private boolean evalPosition(Block leftBlock, Block rightBlock, int p) {
@@ -99,7 +99,7 @@ public class RangeWithinEvaluator implements ExpressionEvaluator {
                 for (int j = 0; j < rightCount; j++) {
                     long bFrom = rightFrom.getLong(rightFirst + j);
                     long bTo = rightTo.getLong(rightFirst + j);
-                    if (bFrom >= aFrom && bTo <= aTo) {
+                    if (aFrom >= bFrom && aTo <= bTo) {
                         return true;
                     }
                 }

@@ -411,14 +411,14 @@ date_range:date_range                              | some_date:date
 1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z | 1955-06-15T00:00:00.000Z
 ;
 
-// date_range from FROM, date_range from LOOKUP (decades_main + lookup_with_date_range)
+// date_range from LOOKUP within date_range from FROM (decades_main + lookup_with_date_range)
 rangeWithinRangeFromFromRangeFromLookup
 required_capability: date_range_field_type_v2
 required_capability: join_lookup_v12
 
 FROM decades_main
 | LOOKUP JOIN lookup_with_date_range ON join_key
-| WHERE RANGE_WITHIN(date_range, lookup_range)
+| WHERE RANGE_WITHIN(lookup_range, date_range)
 | KEEP date_range, lookup_range
 ;
 

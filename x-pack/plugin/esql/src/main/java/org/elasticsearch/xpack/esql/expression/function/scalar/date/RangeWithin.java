@@ -37,11 +37,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 
 /**
  * RANGE_WITHIN(value, range) -> boolean
- * Returns true if the value is within the range, following search WITHIN/CONTAINS semantics (the range is the container).
+ * Returns true if the first argument is within the second (the range).
  * Supported signatures:
  * <ul>
- *   <li>(date, date_range): point within range (range contains the point)</li>
- *   <li>(date_range, date_range): first range contains the second (second fully within first)</li>
+ *   <li>(date, date_range): point within range</li>
+ *   <li>(date_range, date_range): first range within second (first fully contained by second)</li>
  * </ul>
  * (date_range, date) and (date, date) are not supported; they do not match "value within range" semantics.
  */
@@ -59,10 +59,8 @@ public class RangeWithin extends EsqlScalarFunction {
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Returns true if the value is within the range (search WITHIN/CONTAINS semantics). "
+        description = "Returns true if the first argument is within the second argument (WITHIN semantics). "
             + "Supports (date, date_range) and (date_range, date_range). The second argument must be a date_range.",
-        appendix = "RANGE_WITHIN matches search range-query semantics: the second argument is the container range. "
-            + "Lucene pushdown is not implemented for this function yet.",
         examples = @Example(file = "date_range", tag = "rangeWithin", explanation = "Filter events within a specific date range")
     )
     public RangeWithin(
@@ -122,19 +120,19 @@ public class RangeWithin extends EsqlScalarFunction {
             return null;
         }
 
-        return rangeContains(leftValue, rightValue, left.dataType(), right.dataType());
+        return rangeWithin(leftValue, rightValue, left.dataType(), right.dataType());
     }
 
     /**
-     * Value within range (second arg is container). Only (date, date_range) and (date_range, date_range) are supported.
-     * - (date_range, date_range): first range contains second (second within first).
-     * - (date, date_range): point within range (range contains point).
+     * Returns true if the left value is within the right range.
+     * - (date_range, date_range): first within second (first fully contained by second).
+     * - (date, date_range): point within range.
      */
-    static boolean rangeContains(Object leftVal, Object rightVal, DataType leftType, DataType rightType) {
+    static boolean rangeWithin(Object leftVal, Object rightVal, DataType leftType, DataType rightType) {
         if (leftType == DATE_RANGE && rightType == DATE_RANGE) {
             LongRangeBlockBuilder.LongRange a = (LongRangeBlockBuilder.LongRange) leftVal;
             LongRangeBlockBuilder.LongRange b = (LongRangeBlockBuilder.LongRange) rightVal;
-            return b.from() >= a.from() && b.to() <= a.to();
+            return a.from() >= b.from() && a.to() <= b.to();
         }
         // (date, date_range): point in range
         assert leftType == DATETIME && rightType == DATE_RANGE;

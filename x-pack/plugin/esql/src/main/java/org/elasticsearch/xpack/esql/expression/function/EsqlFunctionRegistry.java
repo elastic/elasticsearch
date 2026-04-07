@@ -489,11 +489,8 @@ public class EsqlFunctionRegistry {
                 def(DateParse.class, DateParse::new, "date_parse"),
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),
                 def(DayName.class, DayName::new, "day_name"),
-                def(RangeWithin.class, RangeWithin::new, "range_within"),
                 def(MonthName.class, MonthName::new, "month_name"),
                 def(Now.class, Now::new, "now"),
-                def(RangeMax.class, RangeMax::new, "range_max"),
-                def(RangeMin.class, RangeMin::new, "range_min"),
                 defTS(TRange.class, TRange::new, "trange") },
             // spatial
             new FunctionDefinition[] {
@@ -632,6 +629,9 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
+                def(RangeMax.class, RangeMax::new, "range_max"),
+                def(RangeMin.class, RangeMin::new, "range_min"),
+                def(RangeWithin.class, RangeWithin::new, "range_within"),
                 def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange"),
                 def(Sparkline.class, Sparkline::new, 0, "sparkline") } };
     }

@@ -465,7 +465,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             request.allowPartialResults(false);
             run(request).close();
         });
-        assertThat(failure.getMessage(), containsString("[hosts-old] is not a time series index; use FROM instead"));
+        assertThat(failure.getMessage(), containsString("[hosts-old] is not a time series index. Use FROM command instead"));
     }
 
     public void testTsAgainstNonExistentIndex() {

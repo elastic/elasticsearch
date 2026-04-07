@@ -731,22 +731,6 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
 
         if (lastTsSec == firstTsSec) {
-            // Check for the case where there is only one sample in state, right at the boundary towards a non-empty adjacent state.
-            if (state.samples == 1) {
-                if (previousState != null) {
-                    assert nextState == null;
-                    assert state.intervals[0].t1 == firstTsSec * dateFactor : firstTsSec + ":" + state.intervals[0].t1;
-                    final double startTs = previousState.intervals[0].t1 / dateFactor;
-                    final double delta = deltaBetweenStates(previousState, state, dateFactor);
-                    return isRateOverTime ? delta / (firstTsSec - startTs) : delta;
-                }
-                if (nextState != null) {
-                    assert state.intervals[0].t1 == lastTsSec * dateFactor : lastTsSec + ":" + state.intervals[0].t1;
-                    final double endTs = nextState.intervals[nextState.intervals.length - 1].t2 / dateFactor;
-                    final double delta = deltaBetweenStates(state, nextState, dateFactor);
-                    return isRateOverTime ? delta / (endTs - lastTsSec) : delta;
-                }
-            }
             return Double.NaN;
         }
         final double increase = lastValue - firstValue;

@@ -495,13 +495,7 @@ public class Similarities {
         }
     }
 
-    public static void dotProductD1Q4BulkSparse(
-        MemorySegment addresses,
-        MemorySegment query,
-        int length,
-        int count,
-        MemorySegment scores
-    ) {
+    public static void dotProductD1Q4BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         try {
             DOT_PRODUCT_D1Q4_BULK_SPARSE.invokeExact(addresses, query, length, count, scores);
         } catch (Throwable e) {
@@ -541,13 +535,7 @@ public class Similarities {
         }
     }
 
-    public static void dotProductD2Q4BulkSparse(
-        MemorySegment addresses,
-        MemorySegment query,
-        int length,
-        int count,
-        MemorySegment scores
-    ) {
+    public static void dotProductD2Q4BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         try {
             DOT_PRODUCT_D2Q4_BULK_SPARSE.invokeExact(addresses, query, length, count, scores);
         } catch (Throwable e) {
@@ -587,13 +575,7 @@ public class Similarities {
         }
     }
 
-    public static void dotProductD4Q4BulkSparse(
-        MemorySegment addresses,
-        MemorySegment query,
-        int length,
-        int count,
-        MemorySegment scores
-    ) {
+    public static void dotProductD4Q4BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         try {
             DOT_PRODUCT_D4Q4_BULK_SPARSE.invokeExact(addresses, query, length, count, scores);
         } catch (Throwable e) {

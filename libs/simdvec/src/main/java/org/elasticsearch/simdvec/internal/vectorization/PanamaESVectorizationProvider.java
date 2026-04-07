@@ -15,7 +15,7 @@ import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
-import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
@@ -38,14 +38,14 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
+    public ES940OSQVectorsScorer newES940OSQVectorsScorer(
         IndexInput input,
         byte queryBits,
         byte indexBits,
         int dimension,
         int dataLength,
         int bulkSize,
-        ESNextOSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) {
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
             && dataLength >= 16
@@ -53,7 +53,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
-                return new MemorySegmentESNextOSQVectorsScorer(
+                return new MemorySegmentES940OSQVectorsScorer(
                     unwrappedInput,
                     queryBits,
                     indexBits,
@@ -64,7 +64,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
                 );
             }
         }
-        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     @Override

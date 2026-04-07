@@ -82,13 +82,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         }
 
         boolean resolved = IndexInputUtils.withSliceAddresses(slice, vectorOffsets, numBytes, bulkSize, addrs -> {
-            Similarities.dotProductD1Q4BulkSparse(
-                addrs,
-                MemorySegment.ofArray(q),
-                numBytes,
-                bulkSize,
-                MemorySegment.ofArray(scores)
-            );
+            Similarities.dotProductD1Q4BulkSparse(addrs, MemorySegment.ofArray(q), numBytes, bulkSize, MemorySegment.ofArray(scores));
         });
 
         if (resolved == false) {

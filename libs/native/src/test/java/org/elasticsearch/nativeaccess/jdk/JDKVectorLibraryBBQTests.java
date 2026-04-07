@@ -317,13 +317,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         }
 
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(
-            function,
-            testData.unpackedQueryVector,
-            testData.unpackedIndexVectors,
-            ordinals,
-            expectedScores
-        );
+        ScalarOperations.bulkWithOffsets(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {
@@ -388,11 +382,16 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         final int indexVectorBytes = numBytes(size, type.dataBits());
         final int queryVectorBytes = numBytes(size, type.queryBits());
         int count = 3;
-        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
         var query = arena.allocate(queryVectorBytes);
         var scores = arena.allocate((long) count * Float.BYTES);
 
-        var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * count - 1);
+        var dummyVec = arena.allocate(indexVectorBytes);
+        var addresses = arena.allocate(ValueLayout.ADDRESS.byteSize() * count, ValueLayout.ADDRESS.byteAlignment());
+        for (int i = 0; i < count; i++) {
+            addresses.setAtIndex(ValueLayout.ADDRESS, i, dummyVec);
+        }
+
+        var tooSmallAddrs = arena.allocate(ValueLayout.ADDRESS.byteSize() * (count - 1), ValueLayout.ADDRESS.byteAlignment());
         Exception ex = expectThrows(IOOBE, () -> nativeSimilarityBulkSparse(tooSmallAddrs, query, indexVectorBytes, count, scores));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 

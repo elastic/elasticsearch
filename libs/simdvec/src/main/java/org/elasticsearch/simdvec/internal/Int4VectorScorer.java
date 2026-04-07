@@ -218,13 +218,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             }
 
             boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, packedDims, numNodes, addrs -> {
-                dotProductI4BulkSparse(
-                    addrs,
-                    query.unpackedQuery(),
-                    packedDims,
-                    numNodes,
-                    MemorySegment.ofArray(scores)
-                );
+                dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, MemorySegment.ofArray(scores));
             });
 
             if (resolved == false) {

@@ -160,9 +160,6 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 if (searchInterval != null) {
                     builder.field("search_interval", searchInterval);
                 }
-                if (crossClusterStats != null) {
-                    builder.field("cross_cluster_stats", crossClusterStats);
-                }
                 builder.endObject();
                 return builder;
             }

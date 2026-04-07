@@ -166,9 +166,9 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         }
 
         Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();
-        assertThat(dfStatsMap, hasKey("cross_cluster_stats"));
+        assertThat(dfStatsMap, hasKey("cross_project_stats"));
 
-        Map<String, Object> cpsMap = (Map<String, Object>) dfStatsMap.get("cross_cluster_stats");
+        Map<String, Object> cpsMap = (Map<String, Object>) dfStatsMap.get("cross_project_stats");
         assertThat(cpsMap, hasKey("total_clusters"));
         assertThat(cpsMap, hasKey("available_clusters"));
         assertThat(cpsMap, hasKey("skipped_clusters"));
@@ -196,6 +196,6 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         }
 
         Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();
-        assertFalse(dfStatsMap.containsKey("cross_cluster_stats"));
+        assertFalse(dfStatsMap.containsKey("cross_project_stats"));
     }
 }

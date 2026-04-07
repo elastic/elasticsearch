@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
+import org.elasticsearch.cluster.metadata.ShutdownShardSnapshotsStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -111,7 +113,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                         ns,
                         shardMigrationStatus(cancellableTask, state, ns.getNodeId(), ns.getType(), ns.getNodeSeen(), allocationService),
                         persistentTasksStatus(state, ns.getNodeId(), ns.getNodeSeen()),
-                        new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
+                        new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType())),
+                        shardSnapshotsStatus(state, ns.getNodeId(), ns.getNodeSeen())
                     )
                 )
                 .collect(Collectors.toList());
@@ -125,7 +128,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                         ns,
                         shardMigrationStatus(cancellableTask, state, ns.getNodeId(), ns.getType(), ns.getNodeSeen(), allocationService),
                         persistentTasksStatus(state, ns.getNodeId(), ns.getNodeSeen()),
-                        new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
+                        new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType())),
+                        shardSnapshotsStatus(state, ns.getNodeId(), ns.getNodeSeen())
                     )
 
                 )
@@ -155,6 +159,34 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             }
         }
         return ShutdownPersistentTasksStatus.fromRemainingTasks(persistentTasks, autoReassignTasks);
+    }
+
+    // pkg-private for testing
+    static ShutdownShardSnapshotsStatus shardSnapshotsStatus(ClusterState state, String nodeId, boolean nodeSeen) {
+        if (state.nodes().get(nodeId) == null && nodeSeen == false) {
+            return ShutdownShardSnapshotsStatus.NOT_STARTED;
+        }
+        long completedShards = 0;
+        long pausedShards = 0;
+        long runningShards = 0;
+        for (final var it = SnapshotsInProgress.get(state).asStream().iterator(); it.hasNext();) {
+            final SnapshotsInProgress.Entry entry = it.next();
+            if (entry.isClone()) {
+                continue;
+            }
+            for (final SnapshotsInProgress.ShardSnapshotStatus status : entry.shards().values()) {
+                if (nodeId.equals(status.nodeId())) {
+                    if (status.state().completed()) {
+                        completedShards++;
+                    } else if (status.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL) {
+                        pausedShards++;
+                    } else {
+                        runningShards++;
+                    }
+                }
+            }
+        }
+        return ShutdownShardSnapshotsStatus.fromShardCounts(completedShards, pausedShards, runningShards);
     }
 
     // pkg-private for testing

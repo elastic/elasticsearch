@@ -59,6 +59,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -92,6 +93,7 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
+    private final ShardChangesObserver shardChangesObserver;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     @SuppressWarnings("this-escape")
@@ -103,7 +105,7 @@ public class AllocationService {
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy, MeterRegistry.NOOP);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -112,13 +114,15 @@ public class AllocationService {
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
-        ShardRoutingRoleStrategy shardRoutingRoleStrategy
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+        MeterRegistry meterRegistry
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
+        this.shardChangesObserver = new ShardChangesObserver(meterRegistry);
     }
 
     /**
@@ -797,7 +801,9 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime
+            currentNanoTime,
+            false,
+            shardChangesObserver
         );
     }
 

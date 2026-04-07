@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -39,6 +40,7 @@ public class TestRoutingAllocationFactory {
         private ClusterInfo clusterInfo = ClusterInfo.EMPTY;
         private SnapshotShardSizeInfo shardSizeInfo = SnapshotShardSizeInfo.EMPTY;
         private long currentNanoTime = System.nanoTime();
+        private RoutingChangesObserver shardChangesObserver = RoutingChangesObserver.NOOP;
 
         private Builder(ClusterState clusterState) {
             this.clusterState = clusterState;
@@ -74,6 +76,11 @@ public class TestRoutingAllocationFactory {
             return this;
         }
 
+        public Builder shardChangesObserver(RoutingChangesObserver shardChangesObserver) {
+            this.shardChangesObserver = shardChangesObserver;
+            return this;
+        }
+
         /**
          * Build either an immutable or a mutable {@link RoutingAllocation} randomly
          */
@@ -100,7 +107,8 @@ public class TestRoutingAllocationFactory {
                 clusterInfo,
                 shardSizeInfo,
                 currentNanoTime,
-                false
+                false,
+                shardChangesObserver
             );
         }
     }

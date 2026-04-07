@@ -49,7 +49,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, RoutingChangesObserver.NOOP);
     }
 
     /**
@@ -68,7 +68,8 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
-        boolean isSimulating
+        boolean isSimulating,
+        RoutingChangesObserver shardChangesObserver
     ) {
         super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, isSimulating);
         if (routingNodes == null || routingNodes.isReadOnly()) {
@@ -87,7 +88,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
                     indexMetadataUpdater,
                     restoreInProgressUpdater,
                     resizeSourceIndexUpdater,
-                    new ShardChangesObserver() }
+                    shardChangesObserver }
         );
     }
 

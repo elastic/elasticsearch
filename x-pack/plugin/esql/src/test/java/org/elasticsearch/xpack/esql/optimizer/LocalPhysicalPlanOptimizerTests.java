@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -343,6 +344,33 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                 }]""";
             assertNotNull(leaf.get());
             assertThat(leaf.get().stat().toString(), equalTo(expectedStats));
+        }
+    }
+
+    /**
+     * Keyword MV field: detectSingleValue has a false positive when terms.size() == terms.getDocCount().
+     * See SearchContextStats.detectSingleValue(IndexReader, MappedFieldType, String) where this check was wrong for KeywordFieldType.
+     *
+     * doc1: first_name=["A","B"]
+     * doc2: first_name=["A"]
+     * segment has terms.size()=2, getDocCount()=2 which wrongly reported the field as being single-valued.
+     */
+    public void testCountPushDownFor_SpecificDistributionOfMVValues() throws IOException {
+        String properties = EsqlTestUtils.loadUtf8TextFile("/index/mappings/mapping-basic.json");
+        String mapping = "{\"mappings\": " + properties + "}";
+        String keywordQuery = """
+            from test
+            | stats c = count(first_name)
+            """;
+        List<List<String>> keywordMvCasesWithoutPushdown = List.of(
+            List.of("{ \"first_name\" : [\"A\", \"B\"] }", "{ \"first_name\" : [\"A\"] }")
+        );
+
+        PhysicalPlan plan;
+        for (List<String> docs : keywordMvCasesWithoutPushdown) {
+            plan = planWithMappingAndDocs(keywordQuery, mapping, docs);
+            // No EsSatsQueryExec as leaf of the plan.
+            assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
         }
     }
 
@@ -2482,7 +2510,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testLimitByNotPushedToSource() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | limit 10 by first_name
@@ -2502,7 +2529,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testLimitByMultipleKeys() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | limit 5 by first_name, last_name
@@ -2521,7 +2547,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testLimitByWithFilter() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | where salary > 1000
@@ -2541,6 +2566,51 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var source = (EsQueryExec) sources.get(0);
         assertThat(source.limit(), is(nullValue()));
         assertThat(source.query(), is(not(nullValue())));
+    }
+
+    /**
+     * {@code
+     * ProjectExec[[first_name{f}#10, last_name{f}#13, salary{f}#14, languages{f}#12]]
+     * \_TopNByExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],108]
+     *   \_ExchangeExec[[first_name{f}#10, languages{f}#12, last_name{f}#13, salary{f}#14],false]
+     *     \_ProjectExec[[first_name{f}#10, languages{f}#12, last_name{f}#13, salary{f}#14]]
+     *       \_FieldExtractExec[first_name{f}#10, last_name{f}#13][],[]
+     *         \_TopNByExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],128]
+     *           \_FieldExtractExec[salary{f}#14, languages{f}#12][],[]
+     *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#20], limit[], sort[] estimatedRowSize[12]
+     *             queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * }
+     */
+    public void testSortWithLimitBy() {
+        String query = """
+             FROM test
+            | SORT salary DESC NULLS LAST
+            | LIMIT 5 BY languages
+            | KEEP first_name, last_name, salary, languages""";
+        PhysicalPlan plan = plannerOptimizer.plan(query);
+
+        var project = as(plan, ProjectExec.class);
+        var limit = as(project.child(), LimitExec.class);
+        var topNBy = as(limit.child(), TopNByExec.class);
+
+        assertThat(as(as(topNBy.limitPerGroup(), Literal.class).value(), Integer.class), equalTo(5));
+        assertThat(topNBy.groupings(), hasSize(1));
+        var fieldAttr = as(topNBy.groupings().get(0), FieldAttribute.class);
+        assertThat(fieldAttr.name(), equalTo("languages"));
+
+        var topNOrder = topNBy.order();
+        assertThat(topNOrder.size(), equalTo(1));
+        var order = as(topNOrder.get(0), Order.class);
+        assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+
+        var exchangeExec = as(topNBy.child(), ExchangeExec.class);
+        var projectDataNode = as(exchangeExec.child(), ProjectExec.class);
+        var fieldExtractDataNode = as(projectDataNode.child(), FieldExtractExec.class);
+        var topNExec = as(fieldExtractDataNode.child(), TopNByExec.class);
+        var fieldExtractExec = as(topNExec.child(), FieldExtractExec.class);
+        var esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
     }
 
     private boolean isMultiTypeEsField(Expression e) {

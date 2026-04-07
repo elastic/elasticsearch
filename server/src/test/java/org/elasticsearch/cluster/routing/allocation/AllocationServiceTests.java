@@ -43,6 +43,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
@@ -153,7 +154,8 @@ public class AllocationServiceTests extends ESTestCase {
             },
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -267,7 +269,8 @@ public class AllocationServiceTests extends ESTestCase {
             null,
             null,
             null,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP
         );
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
@@ -383,7 +386,8 @@ public class AllocationServiceTests extends ESTestCase {
             null,
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            MeterRegistry.NOOP
         );
 
         final ProjectId project1 = randomUniqueProjectId();

@@ -34,6 +34,10 @@ public class PlanTelemetry {
         map.compute(key.toUpperCase(Locale.ROOT), (k, count) -> count == null ? 1 : count + 1);
     }
 
+    public EsqlFunctionRegistry functionRegistry() {
+        return functionRegistry;
+    }
+
     public void linkedProjectsCount(int linkedProjectsCount) {
         this.linkedProjectsCount = linkedProjectsCount;
     }

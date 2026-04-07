@@ -73,14 +73,15 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     // Tracks the sizes of the searchable snapshots that aren't yet registered in ClusterInfo by their cluster node id
     private final Map<String, Long> unaccountedSearchableSnapshotSizes;
 
-    /**
-     * Creates a new {@link RoutingAllocation}
-     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
-     * @param clusterState cluster state before rerouting
-     * @param clusterInfo {@link ClusterInfo} to use for allocation decisions
-     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
-     * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
-     */
+    /// Creates a new [RoutingAllocation]
+    ///
+    /// @param deciders [AllocationDeciders] to use to make decisions for routing allocations
+    /// @param clusterState cluster state before rerouting
+    /// @param clusterInfo information about node disk usage and shard disk usage
+    /// @param shardSizeInfo information about snapshot shard sizes
+    /// @param currentNanoTime the nano time to use for all delay allocation calculation (typically `System#nanoTime()`)
+    /// @param isSimulating `true` if "transient" deciders should be ignored because we are simulating the final allocation
+    ///
     RoutingAllocation(
         AllocationDeciders deciders,
         ClusterState clusterState,
@@ -384,7 +385,8 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
             clusterInfo,
             shardSizeInfo,
             currentNanoTime,
-            true
+            true,
+            RoutingChangesObserver.NOOP
         );
     }
 

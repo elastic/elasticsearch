@@ -18,6 +18,8 @@ import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+
 public class VectorScorerInt4OperationBenchmarkTests extends ESTestCase {
 
     private final int size;
@@ -27,8 +29,9 @@ public class VectorScorerInt4OperationBenchmarkTests extends ESTestCase {
     }
 
     @BeforeClass
-    public static void skipWindows() {
+    public static void skipUnsupported() {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
+        assumeTrue("native requires JDK22+", supportsHeapSegments());
     }
 
     public void test() {
@@ -39,6 +42,8 @@ public class VectorScorerInt4OperationBenchmarkTests extends ESTestCase {
 
             int expected = bench.scalar();
             assertEquals(expected, bench.lucene());
+            assertEquals(expected, bench.nativeWithNativeSeg());
+            assertEquals(expected, bench.nativeWithHeapSeg());
         }
     }
 

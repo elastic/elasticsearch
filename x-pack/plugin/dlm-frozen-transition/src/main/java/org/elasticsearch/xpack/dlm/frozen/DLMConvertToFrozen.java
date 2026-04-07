@@ -205,6 +205,16 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
+     * Checks whether the index exists in the project metadata. Throws IndexNotFoundException if not.
+     */
+    private void checkIndexExists(String index) {
+        Optional.ofNullable(getProjectState())
+            .map(ProjectState::metadata)
+            .map(metadata -> metadata.index(index))
+            .orElseThrow(() -> new IndexNotFoundException("Index " + index + " not found in project metadata during DLM run", index));
+    }
+
+    /**
      * Marks the index as read-only by adding a WRITE block, if the block is not already present.
      * This ensures all in-flight writes are completed and flushed to segments before proceeding
      * with the subsequent convert-to-frozen steps. In the case that the index is already marked as
@@ -290,15 +300,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     public void maybeForceMergeIndex(String forceMergeIndex) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
+        checkIndexExists(forceMergeIndex);
 
-        boolean indexMissing = Optional.ofNullable(getProjectState())
-            .map(ProjectState::metadata)
-            .map(metadata -> metadata.index(forceMergeIndex))
-            .isEmpty();
-        if (indexMissing) {
-            logger.warn("Index [{}] not found in project metadata, skipping force merge step", forceMergeIndex);
-            return;
-        }
         if (isForceMergeComplete()) {
             logger.debug("Index [{}] has already been force merged by DLM, skipping force merge step", forceMergeIndex);
             return;
@@ -353,6 +356,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     void maybeTakeSnapshot(String forceMergeIndex) throws InterruptedException {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
+        checkIndexExists(forceMergeIndex);
 
         ProjectState projectState = getProjectState();
         ProjectMetadata projectMetadata = projectState.metadata();

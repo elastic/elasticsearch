@@ -16,8 +16,6 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
@@ -42,7 +40,6 @@ import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponse
 public final class IbmWatsonxRequestUtils {
 
     static void decorateWithBearerToken(HttpPost httpPost, DefaultSecretSettings secretSettings, String inferenceId) {
-        final Logger logger = LogManager.getLogger(IbmWatsonxRequestUtils.class);
         String bearerTokenGenUrl = "https://iam.cloud.ibm.com/identity/token";
         String bearerToken = "";
 

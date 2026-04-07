@@ -16,9 +16,9 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequestUtils;
 
@@ -26,7 +26,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class GoogleVertexAiUnifiedChatCompletionRequest implements UnifiedCompletionRequest {
+public class GoogleVertexAiUnifiedChatCompletionRequest implements ChatCompletionRequest {
 
     private final GoogleVertexAiChatCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;

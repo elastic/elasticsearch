@@ -25,7 +25,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.inference.external.request.UnifiedCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.translati
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.NONE_TOOL_CHOICE;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.translation.Constants.REQUIRED_TOOL_CHOICE;
 
-public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest implements UnifiedCompletionRequest {
+public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest implements ChatCompletionRequest {
     private static final Set<String> VALID_TOOL_CHOICES = Set.of(AUTO_TOOL_CHOICE, REQUIRED_TOOL_CHOICE, NONE_TOOL_CHOICE);
 
     private final AmazonBedrockChatCompletionRequestEntity requestEntity;
@@ -180,8 +180,10 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest imp
         return stream;
     }
 
-    // In practice this method will always return TaskType.CHAT_COMPLETION, because AmazonBedrockChatCompletionRequest is only used in the
-    // unifiedCompletion code path
+    /**
+     * In practice this method will always return {@link TaskType#CHAT_COMPLETION}, because {@link AmazonBedrockChatCompletionRequest} is
+     * only used in the {@code InferenceService.unifiedCompletionInfer()} code path
+     */
     @Override
     public TaskType getTaskType() {
         return amazonBedrockModel.getTaskType();

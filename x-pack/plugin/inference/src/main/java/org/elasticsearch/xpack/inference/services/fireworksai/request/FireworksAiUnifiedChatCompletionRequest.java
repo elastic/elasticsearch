@@ -15,9 +15,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionModel;
 
 import java.net.URI;
@@ -26,7 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class FireworksAiUnifiedChatCompletionRequest implements UnifiedCompletionRequest {
+public class FireworksAiUnifiedChatCompletionRequest implements ChatCompletionRequest {
 
     private final UnifiedChatInput unifiedChatInput;
     private final FireworksAiChatCompletionModel model;

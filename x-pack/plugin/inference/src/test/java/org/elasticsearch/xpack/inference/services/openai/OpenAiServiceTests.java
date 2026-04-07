@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -46,6 +47,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -368,17 +370,18 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
 
     public void testParseRequestConfig_MovesModelIdFromTaskSettingsToServiceSettings() throws IOException {
         try (var service = createOpenAiService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
-                assertThat(model.getServiceSettings().modelId(), is(MODEL));
-                assertThat(model.getTaskSettings().isEmpty(), is(true));
-            }, exception -> fail("Unexpected exception: " + exception));
+            var listener = new TestPlainActionFuture<Model>();
 
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(Map.of(), new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL)), getSecretSettingsMap("secret")),
-                modelVerificationListener
+                listener
             );
+
+            var model = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(model.getServiceSettings().modelId(), is(MODEL));
+            assertThat(model.getTaskSettings().isEmpty(), is(true));
         }
     }
 
@@ -1266,7 +1269,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.EMBEDDING);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
             var inputString1 = "abc";
             var inputString2 = "def";
             service.embeddingInfer(
@@ -1311,7 +1314,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.EMBEDDING);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(
@@ -1338,7 +1341,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.EMBEDDING);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(
@@ -1372,7 +1375,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             var mockModel = getInvalidModel("model_id", "service_name");
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
             service.embeddingInfer(
                 mockModel,
                 new EmbeddingRequest(List.of(new InferenceStringGroup("abc")), InputType.UNSPECIFIED, Map.of()),

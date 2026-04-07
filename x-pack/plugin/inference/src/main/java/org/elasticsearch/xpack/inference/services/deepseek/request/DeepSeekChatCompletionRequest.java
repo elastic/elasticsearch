@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
@@ -33,7 +34,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
-public class DeepSeekChatCompletionRequest implements org.elasticsearch.xpack.inference.external.request.UnifiedCompletionRequest {
+public class DeepSeekChatCompletionRequest implements ChatCompletionRequest {
     private static final Logger logger = LogManager.getLogger(DeepSeekChatCompletionRequest.class);
     private static final String MODEL_FIELD = "model";
     private static final String MAX_TOKENS = "max_tokens";

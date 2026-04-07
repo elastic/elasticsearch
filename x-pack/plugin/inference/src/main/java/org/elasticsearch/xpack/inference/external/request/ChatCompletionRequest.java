@@ -13,4 +13,4 @@ import org.elasticsearch.inference.TaskType;
  * Marker interface for requests that may be {@link TaskType#CHAT_COMPLETION} or {@link TaskType#COMPLETION}. Implementing classes should
  * implement the {@link Request#getTaskType()} method to return the appropriate task type.
  */
-public interface UnifiedCompletionRequest extends Request {}
+public interface ChatCompletionRequest extends Request {}

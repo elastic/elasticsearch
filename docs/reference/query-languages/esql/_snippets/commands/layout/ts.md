@@ -2,7 +2,7 @@
 
 
 serverless: ga
-stack: preview 9.2.0, ga 9.4.0
+stack: preview 9.2, ga 9.4
 ```
 
 The `TS` source command is similar to the [`FROM`](/reference/query-languages/esql/commands/from.md)

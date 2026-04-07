@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns true if the value is within the range (search WITHIN/CONTAINS semantics). Supports (date, date_range) and (date_range, date_range). The second argument must be a date_range.
+Returns true if the first argument is within the second argument (WITHIN semantics). Supports (date, date_range) and (date_range, date_range). The second argument must be a date_range.
 

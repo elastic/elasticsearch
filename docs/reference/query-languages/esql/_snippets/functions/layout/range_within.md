@@ -24,6 +24,3 @@ serverless: preview
 
 :::{include} ../examples/range_within.md
 :::
-
-:::{include} ../appendix/range_within.md
-:::

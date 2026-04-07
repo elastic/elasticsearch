@@ -144,8 +144,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
                         if (IGNORED_INDEX_NAMES.contains(strippedName)) {
                             return;
                         }
-                        if (systemIndices.findMatchingDescriptor(strippedName) != null
-                            || systemIndices.findMatchingDataStreamDescriptor(strippedName) != null) {
+                        if (systemIndices.isSystemName(strippedName)) {
                             return;
                         }
                         if (this.ignoredIndexPatterns.stream().anyMatch(p -> p.matcher(strippedName).matches())) {

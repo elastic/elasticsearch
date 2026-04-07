@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.TaskType;
@@ -33,6 +35,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -52,6 +55,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -95,6 +101,10 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class, ReindexPlugin.class);
+    }
+
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
     }
 
     @Before
@@ -155,20 +165,49 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
         downgradeLicenseAndRestartCluster();
 
-        assertAcked(safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, null)).execute()));
+        for (int i = 0; i < 20; i++) {
+            IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+                SEMANTIC_TEXT_DEFAULTS_TO_BBQ,
+                IndexVersionUtils.getPreviousVersion(SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS)
+            );
+            assertAcked(
+                safeGet(
+                    prepareCreate(INDEX_NAME).setSettings(indexSettingsWithVersion(indexVersion))
+                        .setMapping(generateMapping(inferenceFieldName, inferenceId, null))
+                        .execute()
+                )
+            );
 
-        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
-            inferenceFieldName,
-            inferenceId,
-            new ExtendedDenseVectorIndexOptions(
-                SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions(),
-                DenseVectorFieldMapper.ElementType.BFLOAT16
-            )
-        );
+            final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
+                inferenceFieldName,
+                inferenceId,
+                indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
+                    ? new ExtendedDenseVectorIndexOptions(
+                        SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions(),
+                        DenseVectorFieldMapper.ElementType.BFLOAT16
+                    )
+                    : SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
+            );
 
-        // Filter out null/empty values from params we didn't set to make comparison easier
-        Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
-        assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
+            Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
+            assertThat("indexVersion = " + indexVersion, actualFieldMappings, equalTo(expectedFieldMapping));
+
+            assertAcked(
+                safeGet(
+                    client().admin()
+                        .indices()
+                        .prepareDelete(INDEX_NAME)
+                        .setIndicesOptions(
+                            IndicesOptions.builder().concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true)).build()
+                        )
+                        .execute()
+                )
+            );
+        }
+    }
+
+    private Settings indexSettingsWithVersion(IndexVersion version) {
+        return Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
     }
 
     public void testGetDefaultIndexOptionsWithElementTypeOverride() throws Exception {
@@ -193,10 +232,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         final Map<String, Object> expectedFieldMappingWithDefaults = generateExpectedFieldMapping(
             inferenceFieldName,
             inferenceId,
-            new ExtendedDenseVectorIndexOptions(
-                SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions(),
-                DenseVectorFieldMapper.ElementType.BFLOAT16
-            )
+            new ExtendedDenseVectorIndexOptions(null, DenseVectorFieldMapper.ElementType.BFLOAT16)
         );
 
         actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
@@ -252,11 +288,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         assertAcked(safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, null)).execute()));
 
         // If we didn't default to bfloat16, element_type should be excluded from index options even when include_defaults is true
-        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
-            inferenceFieldName,
-            inferenceId,
-            SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
-        );
+        final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(inferenceFieldName, inferenceId, null);
 
         Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
         assertThat(actualFieldMappings, equalTo(expectedFieldMapping));

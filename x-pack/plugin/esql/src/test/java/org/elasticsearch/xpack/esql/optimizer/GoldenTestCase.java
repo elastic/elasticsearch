@@ -797,6 +797,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         var mapping = new TreeMap<>(LoadMapping.loadMapping(dataset.streamMapping()));
         if (dataset.typeMapping() != null) {
             for (var entry : dataset.typeMapping().entrySet()) {
+                if (entry.getValue() == null) {
+                    mapping.remove(entry.getKey());
+                    continue;
+                }
                 if (mapping.containsKey(entry.getKey())) {
                     DataType dataType = DataType.fromTypeName(entry.getValue());
                     EsField field = mapping.get(entry.getKey());

@@ -427,6 +427,10 @@ public class HashAggregationOperator implements Operator {
         return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
+    protected void setOutput(ReleasableIterator<Page> newOutput) {
+        output = newOutput;
+    }
+
     @Override
     public boolean isFinished() {
         return finished && output == null;

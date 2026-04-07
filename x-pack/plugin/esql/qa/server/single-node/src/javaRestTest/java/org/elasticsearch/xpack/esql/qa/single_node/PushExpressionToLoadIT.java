@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
@@ -55,6 +56,8 @@ import static org.hamcrest.Matchers.startsWith;
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class PushExpressionToLoadIT extends ESRestTestCase {
+
+    private static final Settings DISABLE_ROUNDTO_QUERY_TAGS = Settings.builder().put("roundto_pushdown_threshold", 0).build();
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
@@ -402,24 +405,38 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         );
     }
 
+    /**
+     * Tests that {@code ROUND_TO} on a long field is pushed to the
+     * {@code RoundToLongsFromDocValues} block loader when the value falls
+     * between rounding points (e.g. 11-99 rounds down to 10).
+     */
     public void testRoundToLong() throws IOException {
         long value = randomLongBetween(11, 99);
         test(
-            justType("long"),
+            // index:false so the field uses doc values skippers, which the ROUND_TO block loader requires
+            b -> b.startObject("test").field("type", "long").field("index", false).endObject(),
             b -> b.field("test", value),
             "| EVAL test = ROUND_TO(test, 0, 10, 100)",
             matchesList().item(10),
-            matchesMap().entry("test:column_at_a_time:RoundToLongsFromDocValues.Singleton", 1)
+            matchesMap().entry("test:column_at_a_time:RoundToLongsFromDocValues.Singleton", 1),
+            DISABLE_ROUNDTO_QUERY_TAGS
         );
     }
 
+    /**
+     * Tests that {@code ROUND_TO} on a long field is pushed to the
+     * {@code RoundToLongsFromDocValues} block loader when the value exactly
+     * matches a rounding point.
+     */
     public void testRoundToLongExactMatch() throws IOException {
         test(
-            justType("long"),
+            // index:false so the field uses doc values skippers, which the ROUND_TO block loader requires
+            b -> b.startObject("test").field("type", "long").field("index", false).endObject(),
             b -> b.field("test", 100),
             "| EVAL test = ROUND_TO(test, 0, 10, 100)",
             matchesList().item(100),
-            matchesMap().entry("test:column_at_a_time:RoundToLongsFromDocValues.Singleton", 1)
+            matchesMap().entry("test:column_at_a_time:RoundToLongsFromDocValues.Singleton", 1),
+            DISABLE_ROUNDTO_QUERY_TAGS
         );
     }
 
@@ -778,6 +795,17 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Matcher<?> expectedValue,
         MapMatcher expectedLoaders
     ) throws IOException {
+        test(mapping, doc, eval, expectedValue, expectedLoaders, (Settings) null);
+    }
+
+    private void test(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String eval,
+        Matcher<?> expectedValue,
+        MapMatcher expectedLoaders,
+        Settings pragmas
+    ) throws IOException {
         test(
             mapping,
             doc,
@@ -791,7 +819,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .item("EvalOperator") // this one just renames the field
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
-            )
+            ),
+            pragmas
         );
     }
 
@@ -802,6 +831,18 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Matcher<?> expectedValue,
         MapMatcher expectedLoaders,
         Consumer<List<String>> assertDataNodeSig
+    ) throws IOException {
+        test(mapping, doc, eval, expectedValue, expectedLoaders, assertDataNodeSig, null);
+    }
+
+    private void test(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String eval,
+        Matcher<?> expectedValue,
+        MapMatcher expectedLoaders,
+        Consumer<List<String>> assertDataNodeSig,
+        Settings pragmas
     ) throws IOException {
 
         test(
@@ -815,7 +856,8 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             expectedValue,
             matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
             Map.of("data", List.of(expectedLoaders)),
-            assertDataNodeSig
+            assertDataNodeSig,
+            pragmas
         );
     }
 
@@ -828,9 +870,24 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Map<String, List<MapMatcher>> expectedLoadersPerDriver,
         Consumer<List<String>> assertDataNodeSig
     ) throws IOException {
+        test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, null);
+    }
+
+    private void test(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String query,
+        Matcher<?> expectedValue,
+        Matcher<?> columnMatcher,
+        Map<String, List<MapMatcher>> expectedLoadersPerDriver,
+        Consumer<List<String>> assertDataNodeSig,
+        Settings pragmas
+    ) throws IOException {
         indexValue(mapping, doc);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
-
+        if (pragmas != null) {
+            builder.pragmasOk().pragmas(pragmas);
+        }
         builder.profile(true);
         Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
 
@@ -898,6 +955,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             {
                 config.startObject("index");
                 config.field("number_of_shards", 1);
+                config.field("mapping.use_doc_values_skipper", true);
                 config.endObject();
             }
             config.endObject();

@@ -368,11 +368,11 @@ public class ReindexerTests extends ESTestCase {
         task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         task.requestRelocation();
 
+        final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(new TaskId("source-node", 987), randomNonNegativeLong());
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), future);
 
-        final BulkByScrollResponse response = reindexResponseWithResumeInfo();
-        wrapped.onResponse(response);
+        wrapped.onResponse(reindexResponseWithResumeInfo(origin));
 
         assertTrue(future.isDone());
         TaskRelocatedException exception = expectThrows(TaskRelocatedException.class, future::actionGet);
@@ -1824,6 +1824,10 @@ public class ReindexerTests extends ESTestCase {
     }
 
     private BulkByScrollResponse reindexResponseWithResumeInfo() {
+        return reindexResponseWithResumeInfo(randomOrigin());
+    }
+
+    private BulkByScrollResponse reindexResponseWithResumeInfo(ResumeInfo.RelocationOrigin origin) {
         final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
             "test-scroll-id",
             System.nanoTime(),
@@ -1836,7 +1840,7 @@ public class ReindexerTests extends ESTestCase {
             List.of(),
             List.of(),
             false,
-            new ResumeInfo(randomOrigin(), workerResumeInfo, null)
+            new ResumeInfo(origin, workerResumeInfo, null)
         );
     }
 
@@ -1941,10 +1945,14 @@ public class ReindexerTests extends ESTestCase {
     }
 
     private static ResumeInfo.RelocationOrigin randomOrigin() {
-        return new ResumeInfo.RelocationOrigin(randomTaskId(), randomNonNegativeLong());
+        return new ResumeInfo.RelocationOrigin(randomRealTaskId(), randomNonNegativeLong());
     }
 
     private static TaskId randomTaskId() {
-        return randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
+        return randomBoolean() ? TaskId.EMPTY_TASK_ID : randomRealTaskId();
+    }
+
+    private static TaskId randomRealTaskId() {
+        return new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
     }
 }

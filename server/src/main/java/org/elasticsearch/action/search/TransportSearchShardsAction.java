@@ -79,8 +79,12 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
         IndexNameExpressionResolver indexNameExpressionResolver,
         SearchResponseMetrics searchResponseMetrics
     ) {
-        super(TYPE.name(), actionFilters, transportService.getTaskManager(), transportService.getThreadPool()
-            .executor(ThreadPool.Names.SEARCH_COORDINATION));
+        super(
+            TYPE.name(),
+            actionFilters,
+            transportService.getTaskManager(),
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+        );
         transportService.registerRequestHandler(
             TYPE.name(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION),

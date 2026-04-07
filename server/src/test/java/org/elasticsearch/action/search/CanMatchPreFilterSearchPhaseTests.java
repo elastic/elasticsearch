@@ -273,18 +273,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         assertEquals(Collections.emptyMap(), result.get().skippedByClusterAlias());
         assertEquals(2, result.get().iterators().size());
-        SearchShardIterator shard0 = result.get()
-            .iterators()
-            .stream()
-            .filter(i -> i.shardId().id() == 0)
-            .findFirst()
-            .orElseThrow();
-        SearchShardIterator shard1 = result.get()
-            .iterators()
-            .stream()
-            .filter(i -> i.shardId().id() == 1)
-            .findFirst()
-            .orElseThrow();
+        SearchShardIterator shard0 = result.get().iterators().stream().filter(i -> i.shardId().id() == 0).findFirst().orElseThrow();
+        SearchShardIterator shard1 = result.get().iterators().stream().filter(i -> i.shardId().id() == 1).findFirst().orElseThrow();
         assertFalse(shard0.skip());
         assertTrue(shard1.skip());
     }

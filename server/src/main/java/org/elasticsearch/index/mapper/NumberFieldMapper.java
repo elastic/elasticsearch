@@ -2384,7 +2384,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return fieldType().type.typeName();
+        return fieldType.type.typeName();
     }
 
     @Override
@@ -2407,7 +2407,7 @@ public class NumberFieldMapper extends FieldMapper {
         if (value != null) {
             indexValue(context, value);
         } else {
-            value = fieldType().nullValue;
+            value = fieldType.nullValue;
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (value != null) {
@@ -2468,9 +2468,8 @@ public class NumberFieldMapper extends FieldMapper {
             context.getRoutingFields().addLong(name, numericValue.longValue());
         }
         // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
-        final NumberFieldType ft = fieldType();
         final LuceneDocument doc = context.doc();
-        final IndexType indexType = ft.indexType;
+        final IndexType indexType = fieldType.indexType;
         switch (type) {
             case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue(), indexType);
             case LONG -> addLongFields(doc, name, numericValue.longValue(), indexType);

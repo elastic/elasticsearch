@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -60,6 +59,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
 
     public void testReplicaShardsAvailabilityOnStateless() throws Exception {
         startMasterAndIndexNode();
+        updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", "0s"));
 
         String indexName = "myindex";
         createIndex(indexName, 2, 0);
@@ -129,12 +129,10 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         startMasterOnlyNode();
         startIndexNode();
         startSearchNode();
+        updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", "0s"));
 
-        // Shard health treats all replicas allocated as a "everything is green" sort of situation.
-        // However, the replicas.areAllAvailable() correctly ignores replicas that are initializing.
-        // We need it to look further in more detail, so we need to force there to be at least one
-        // unassigned replica. We create an index with two replicas (there is only one search node)
-        // for this purpose.
+        // We need to force there to be at least one truly unassigned replica. We create an index with two
+        // replicas (there is only one search node) for this purpose.
         createIndex("other", 1, 2);
 
         // We hook in to the transport service and catch the "shard started" event for the
@@ -152,8 +150,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
             }
         );
 
-        // Create the index (don't bother waiting for active shards because we've delayed them
-        // until release the latch.
+        // Create the index (don't bother waiting for active shards because we've delayed them until we release the latch)
         String indexName = "myindex";
         client().admin()
             .indices()
@@ -162,12 +159,14 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
             .setWaitForActiveShards(0)
             .get();
 
-        // The health should be yellow instead of red, even though the replica is not allocated,
-        // because we treat replicas for "INITIALIZING" primaries as "special"
+        // Health is YELLOW because "other" has a truly unassigned replica (1 search node, 2 replicas).
+        // "myindex" primary and replica are both still INITIALIZING (isNew path), so they do not
+        // contribute to the YELLOW status.
         assertBusy(() -> {
             GetHealthAction.Response health = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 10)).get();
             HealthIndicatorResult hir = health.findIndicator("shards_availability");
             assertThat(hir.status(), equalTo(HealthStatus.YELLOW));
+            assertUnavailablePrimaryAndReplicaIndices(hir, null, "other");
             // verify that "myindex" is affected, since issues with "other" can also cause YELLOW health
             assertTrue(hir.diagnosisList().stream().anyMatch(d -> d.affectedResources().get(0).getValues().contains(indexName)));
         });
@@ -187,16 +186,14 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         runTestReplicaShardsForNewPrimariesAvailability(true);
     }
 
-    public void testReplicaShardsForNewPrimariesAvailabilityNoTimeBuffer() throws Exception {
+    public void testReplicaShardsForNewPrimariesAvailabilityNoTimeBufferOrExpired() throws Exception {
         runTestReplicaShardsForNewPrimariesAvailability(false);
     }
 
     void runTestReplicaShardsForNewPrimariesAvailability(boolean useTimeBuffer) throws Exception {
-        // This test is copied from testReplicaShardsForNewPrimariesAvailabilityOnStateless, which
-        // checks the shard availability health when primary is still initializing. This test checks
-        // replica shard availability shortly after the primary has started. It tests with the
-        // setting `health.shard_availability.replica_unassigned_buffer_time` both present and absent.
-        // When present, YELLOW health is expected; when absent RED health is expected.
+        // This test checks replica shard availability shortly after the primary has started. It tests with
+        // `health.shards_availability.replica_unassigned_buffer_time` both non-zero and zero.
+        // When non-zero, GREEN is expected (provisionally unavailable replicas). When zero, RED.
 
         startMasterOnlyNode();
         startIndexNode();
@@ -207,10 +204,10 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         var timeBuffer = useTimeBuffer ? "10s" : "0s";
         updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", timeBuffer));
 
-        // Shard health treats all replicas allocated as a "everything is green" sort of situation.
-        // However, the replicas.areAllAvailable() correctly ignores replicas that are initializing.
-        // We need it to look further in more detail, so we need to force there to be at least one
-        // unassigned replica. We create an index with two replicas (there is only one search node)
+        // Shard health treats all replicas allocated as an "everything is green" sort of situation.
+        // However, replicas that are initializing or within the provisionally-unassigned grace period
+        // are ignored when evaluating availability. We need to force there to be at least one
+        // truly unassigned replica. We create an index with two replicas (there is only one search node)
         // for this purpose.
         createIndex("other", 1, 2);
 
@@ -234,8 +231,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
             }
         );
 
-        // Create the index (don't bother waiting for active shards because we've delayed them
-        // until release the latch.
+        // Create the index (don't bother waiting for active shards because we've delayed them until we release the latch)
         String indexName = "myindex";
         client().admin()
             .indices()
@@ -247,22 +243,28 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         // Wait for latch1 so that primary has moved from INITIALIZED to STARTED
         latch1.await(30, TimeUnit.SECONDS);
 
-        // The health should be yellow instead of red, even though the replica is not allocated,
-        // because we treat replicas for "INITIALIZING" primaries as "special"
+        // With a grace buffer, shards_availability stays GREEN while replica issues are still provisional.
+        // With buffer disabled, the same routing state yields RED.
         assertBusy(() -> {
             GetHealthAction.Response health = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 10)).get();
             HealthIndicatorResult hir = health.findIndicator("shards_availability");
 
             // At this point the primary is STARTED but the replica is still INITIALIZING.
-            // If using a time buffer, this should run while still within the 3s buffer time, allowing health to be YELLOW
+            // If using a time buffer, this should run while still within the buffer time, allowing health to be GREEN
             // If not using a time buffer, this state should cause shard_availability to go RED
             if (useTimeBuffer) {
-                assertThat(hir.status(), equalTo(HealthStatus.YELLOW));
+                assertThat(hir.status(), equalTo(HealthStatus.GREEN));
+                // "myindex" and "other" replica are within the grace period. They should appear as provisionally
+                // unavailable, not truly unavailable.
+                assertProvisionallyUnavailablePrimaryAndReplicaIndices(hir, null, indexName + ", other");
+                assertUnavailablePrimaryAndReplicaIndices(hir, null, null);
             } else {
                 assertThat(hir.status(), equalTo(HealthStatus.RED));
+                assertProvisionallyUnavailablePrimaryAndReplicaIndices(hir, null, null);
+                assertUnavailablePrimaryAndReplicaIndices(hir, null, indexName + ", other");
             }
 
-            // verify that "myindex" is affected, since issues with "other" also cause YELLOW/RED health
+            // verify that "myindex" appears in diagnoses while its shards are still catching up
             assertTrue(hir.diagnosisList().stream().anyMatch(d -> d.affectedResources().get(0).getValues().contains(indexName)));
         }, 30, TimeUnit.SECONDS);
 
@@ -282,6 +284,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         String indexNode = startIndexNode();
         startSearchNode();
         String searchNode = startSearchNode();
+        updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", "0s"));
 
         // With this variable we choose if we want this experiment to affect the index or the search nodes
         boolean shutDownIndexNode = randomBoolean();
@@ -351,6 +354,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         String indexNode = startIndexNode();
         startSearchNode();
         String searchNode = startSearchNode();
+        updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", "0s"));
 
         // With this variable we choose if we want this experiment to affect the index or the search nodes
         boolean shutDownIndexNode = randomBoolean();
@@ -417,6 +421,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
     public void testAddIndexNodes() throws Exception {
         startMasterOnlyNode();
         String indexNode = startIndexNode();
+        updateClusterSettings(Settings.builder().put("health.shards_availability.replica_unassigned_buffer_time", "0s"));
 
         final List<String> indexNames = IntStream.range(0, between(1, 11)).mapToObj(i -> Strings.format("myindex-%02d", i)).toList();
         indexNames.forEach(indexName -> {
@@ -439,6 +444,7 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
             : Strings.collectionToDelimitedString(indexNames, ", ");
 
         assertUnavailablePrimaryAndReplicaIndices(hir, reportedIndices, null);
+
         assertThat(
             Strings.collectionToCommaDelimitedString(hir.impacts().stream().map(HealthIndicatorImpact::impactDescription).toList()),
             containsString(
@@ -493,8 +499,18 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         @Nullable String unavailablePrimaries,
         @Nullable String unavailableReplicas
     ) {
-        final Map<String, Object> details = ((SimpleHealthIndicatorDetails) hir.details()).details();
+        final var details = ((SimpleHealthIndicatorDetails) hir.details()).details();
         assertThat(details.get("indices_with_unavailable_primaries"), equalTo(unavailablePrimaries));
         assertThat(details.get("indices_with_unavailable_replicas"), equalTo(unavailableReplicas));
+    }
+
+    private void assertProvisionallyUnavailablePrimaryAndReplicaIndices(
+        HealthIndicatorResult hir,
+        @Nullable String provisionallyUnavailablePrimaries,
+        @Nullable String provisionallyUnavailableReplicas
+    ) {
+        final var details = ((SimpleHealthIndicatorDetails) hir.details()).details();
+        assertThat(details.get("indices_with_provisionally_unavailable_primaries"), equalTo(provisionallyUnavailablePrimaries));
+        assertThat(details.get("indices_with_provisionally_unavailable_replicas"), equalTo(provisionallyUnavailableReplicas));
     }
 }

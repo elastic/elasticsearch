@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.77"
+VERSION="1.0.85"
 
 LOCAL=false
 FORCE_UPLOAD=false
@@ -39,7 +39,7 @@ if [ "$UPLOAD" = true ] && [ -z "${ARTIFACTORY_API_KEY:-}" ]; then
   exit 1;
 fi
 
-TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:1"
+TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:2"
 if [ "$LOCAL" = true ]; then
   TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"
 fi

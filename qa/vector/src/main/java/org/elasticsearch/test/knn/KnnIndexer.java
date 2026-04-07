@@ -142,6 +142,9 @@ public class KnnIndexer {
         int totalDocs,
         Sort indexSort
     ) throws IOException, InterruptedException, ExecutionException {
+        if (dim <= 0 && vectorReader instanceof IndexVectorReader.MultiFileVectorReader mfr) {
+            this.dim = mfr.dim();
+        }
         if (dim <= 0) {
             throw new IllegalArgumentException("dimensions must be specified for generated data");
         }

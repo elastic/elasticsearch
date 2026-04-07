@@ -186,8 +186,8 @@ public class SearchDirectoryTests extends ESTestCase {
         };
     }
 
-    public void testServerlessDirectory() throws IOException {
-        try (Directory directory = ServerlessDirectoryFactory.create(LuceneTestCase.createTempDir().toAbsolutePath())) {
+    public void testStatelessDirectory() throws IOException {
+        try (Directory directory = StatelessDirectoryFactory.create(LuceneTestCase.createTempDir().toAbsolutePath())) {
             // It's important to close the IndexOutput so the necessary metadata gets updated
             try (var output = directory.createOutput("vectors", IOContext.DEFAULT)) {
                 output.writeInt(12);

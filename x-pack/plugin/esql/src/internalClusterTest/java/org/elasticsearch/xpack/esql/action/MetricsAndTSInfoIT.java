@@ -42,7 +42,7 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
     @Before
     public void populateIndices() {
         Settings.Builder settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host", "cluster"));
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             settings.put("index.codec", "default").put("index.number_of_replicas", 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
         {

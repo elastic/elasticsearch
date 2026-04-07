@@ -160,6 +160,7 @@ public class AutomatonQueries {
      * Build the NFA for a case-sensitive wildcard pattern without determinizing.
      * This mirrors {@link WildcardQuery#toAutomaton(Term, int)} but stops before the determinize step.
      */
+    @SuppressWarnings("fallthrough")
     public static Automaton toWildcardNFA(Term wildcardquery) {
         List<Automaton> automata = new ArrayList<>();
 

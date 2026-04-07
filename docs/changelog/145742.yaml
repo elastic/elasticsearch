@@ -6,7 +6,7 @@ breaking:
     such as `max`, `min`, `sum`, `avg`, and `count`. For other supported operations, it used to use the `default_metric`
     which could be set to one of the configured sub-fields during index creation.
 
-    In {es} `9.4` we change this behaviour to use the average as a more representative signal compared a single sub-field,
+    In Elasticsearch `9.4` we change this behaviour to use the average as a more representative signal compared a single sub-field,
     unless the `aggregate_metric_double` only has one sub-field configured, in which case it will delegate to this sub-field.
 
     This change aims to both simplify the configuration of `aggregate_metric_double` and improve its use by non-native operations.
@@ -16,7 +16,7 @@ breaking:
   title: Simplify the configuration of `aggregate_metric_double` for non-native operations.
 highlight:
   body: |-
-    In {es} `9.4` we expand the supportability of `aggregate_metric_double` to include non-native operations in ES|QL,
+    In Elasticsearch `9.4` we expand the supportability of `aggregate_metric_double` to include non-native operations in ES|QL,
     such as `std_dev`, using the average. The average is calculated using the `sum` and `value_count` sub-fields.
     The average was selected because in most cases it is a more representative signal compared a single sub-field. Native
     operations such as `max`, `min`, `sum`, `avg`, and `count` will be supported natively by the respective sub-fields.

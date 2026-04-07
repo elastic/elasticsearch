@@ -38,9 +38,9 @@ PUT my-index
 `metrics`
 :   (Required, array of strings) Array of metric sub-fields to store. Each value corresponds to a [metric aggregation](/reference/aggregations/metrics.md). Valid values are [`min`](/reference/aggregations/search-aggregations-metrics-min-aggregation.md), [`max`](/reference/aggregations/search-aggregations-metrics-max-aggregation.md), [`sum`](/reference/aggregations/search-aggregations-metrics-sum-aggregation.md), and [`value_count`](/reference/aggregations/search-aggregations-metrics-valuecount-aggregation.md). You must specify at least one value.
 
-`default_metric` {applies_to}`stack: deprecated 9.4`
+`default_metric` {applies_to}`stack: deprecated 9.4` {applies_to}`serverless: deprecated`
 :   :::{admonition} Deprecated in 9.4
-    {es} will use the averaged value of the `sum` and `value_count` as the default metric value, unless there is only a single sub-field, in which case it will use that metric.
+    The average value will be used as the default metric value, calculated using the `sum` and `value_count`, unless there is only a single sub-field, in which case it will use that metric.
     :::
 
     (Required, string) Default metric sub-field to use for queries, scripts, and aggregations that don’t use a sub-field. Must be a value from the `metrics` array.

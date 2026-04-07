@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145010
+summary: Introduce "Swiss Table"-based hashing to ES|QL, a SIMD-accelerated hash table resulting in significantly higher throughput on uniform, high-cardinality workloads
+type: enhancement

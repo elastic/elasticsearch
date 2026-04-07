@@ -77,7 +77,8 @@ public final class VectorScoringUtils {
     }
 
     /**
-     * Scores and collects all vectors using the provided scorer and collector.
+     * Scores all vectors using the provided scorer and collects batches of documents when the batch's maxScore beats the collector's
+     * minCompetitiveSimilarity.
      *
      * @param knnCollector the collector to collect scored vectors
      * @param acceptDocs   the accept docs to filter vectors
@@ -99,6 +100,11 @@ public final class VectorScoringUtils {
 
             if (knnCollector.earlyTerminated()) {
                 break;
+            }
+
+            if (maxScore < knnCollector.minCompetitiveSimilarity()) {
+                // all the scores in this batch are too low, skip
+                continue;
             }
 
             for (int i = 0; i < buffer.size; i++) {

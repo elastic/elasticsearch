@@ -34,7 +34,7 @@ SMART_RETRY_DETAILS=""
 # Check if we already have the build info from seed retrieval above
 if [[ -z "$BUILD_JSON" ]]; then
   # Fetch build info if not already available (shouldn't happen, but be safe)
-  BUILD_JSON=$(curl --max-time 30 -H "Authorization: Bearer $BUILDKITE_API_TOKEN" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}?include_retried_jobs=true" 2>/dev/null) || BUILD_JSON=""
+  BUILD_JSON=$(curl --retry 3 --retry-delay 2 --retry-max-time 60 --retry-connrefused --connect-timeout 10 --max-time 30 -H "Authorization: Bearer $BUILDKITE_API_TOKEN" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}?include_retried_jobs=true" 2>/dev/null) || BUILD_JSON=""
 fi
 
 if [[ -n "$BUILD_JSON" ]]; then
@@ -74,6 +74,11 @@ if [[ -n "$BUILD_JSON" ]]; then
           --url "$DEVELOCITY_TEST_PERF_API_URL" \
           --max-filesize 10485760 \
           --max-time 30 \
+          --retry 3 \
+          --retry-delay 2 \
+          --retry-max-time 60 \
+          --retry-connrefused \
+          --connect-timeout 10 \
           --header 'accept: application/json' \
           --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
           --header 'content-type: application/json' 2>/dev/null > "$PERF_RESPONSE_FILE" &
@@ -83,6 +88,11 @@ if [[ -n "$BUILD_JSON" ]]; then
           --url "$DEVELOCITY_FAILED_TEST_API_URL" \
           --max-filesize 10485760 \
           --max-time 30 \
+          --retry 3 \
+          --retry-delay 2 \
+          --retry-max-time 60 \
+          --retry-connrefused \
+          --connect-timeout 10 \
           --header 'accept: application/json' \
           --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
           --header 'content-type: application/json' 2>/dev/null | jq --arg testseed "${TESTS_SEED:-}" '. + {testseed: $testseed}' &> .failed-test-history.json; then

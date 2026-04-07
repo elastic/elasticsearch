@@ -32,7 +32,7 @@ set SMART_RETRY_DETAILS=
 
 REM Check if we need to fetch build info (should already exist from Part 1)
 if not exist .build-info.json (
-  curl --max-time 30 -H "Authorization: Bearer %BUILDKITE_API_TOKEN%" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/%BUILDKITE_PIPELINE_SLUG%/builds/%BUILDKITE_BUILD_NUMBER%?include_retried_jobs=true" -o .build-info.json 2>nul
+  curl --retry 3 --retry-delay 2 --retry-max-time 60 --retry-connrefused --connect-timeout 10 --max-time 30 -H "Authorization: Bearer %BUILDKITE_API_TOKEN%" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/%BUILDKITE_PIPELINE_SLUG%/builds/%BUILDKITE_BUILD_NUMBER%?include_retried_jobs=true" -o .build-info.json 2>nul
 )
 
 if exist .build-info.json (
@@ -73,7 +73,7 @@ if exist .build-info.json (
             REM Fetch failed tests from Develocity API (curl will auto-decompress gzip with --compressed)
             REM Write to temp file first: cmd.exe truncates redirect targets before the pipeline runs,
             REM so a direct redirect would leave an empty file on curl/jq failure.
-            curl --compressed --request GET --url "!DEVELOCITY_FAILED_TEST_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq --arg testseed "!TESTS_SEED!" ". + {testseed: $testseed}" > .failed-test-history.json.dl 2>nul
+            curl --compressed --request GET --url "!DEVELOCITY_FAILED_TEST_API_URL!" --max-filesize 10485760 --max-time 30 --retry 3 --retry-delay 2 --retry-max-time 60 --retry-connrefused --connect-timeout 10 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq --arg testseed "!TESTS_SEED!" ". + {testseed: $testseed}" > .failed-test-history.json.dl 2>nul
 
             REM Validate the downloaded file is non-empty before using it
             set HISTORY_DL_SIZE=0
@@ -89,7 +89,7 @@ if exist .build-info.json (
             if exist .failed-test-history.json (
               REM Fetch executed test tasks from gradle-test-performance endpoint
               REM This enables three-state logic: distinguishing confirmed-passed from never-executed tasks
-              curl --compressed --request GET --url "!DEVELOCITY_TEST_PERF_API_URL!" --max-filesize 10485760 --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul > .test-perf-response.json.dl 2>nul
+              curl --compressed --request GET --url "!DEVELOCITY_TEST_PERF_API_URL!" --max-filesize 10485760 --max-time 30 --retry 3 --retry-delay 2 --retry-max-time 60 --retry-connrefused --connect-timeout 10 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul > .test-perf-response.json.dl 2>nul
 
               REM Validate the test-perf response is non-empty before using it
               set PERF_DL_SIZE=0

@@ -297,6 +297,7 @@
         "Logging",
         "Logs",
         "Mapping",
+        "Metrics",
         "Packaging",
         "Painless",
         "REST API",

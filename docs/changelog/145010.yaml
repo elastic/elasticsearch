@@ -2,4 +2,4 @@ area: ES|QL
 issues: []
 pr: 145010
 summary: Remove Swiss Hash FF
-type: feature
+type: "enhancement, feature"

@@ -595,7 +595,8 @@ public class HollowIndexEngine extends Engine {
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         // Hollow shards do not ingest, and flush before being hollow, so we expect the GCP to be the same as the one stored.
-        assert seqNoStats.getGlobalCheckpoint() == globalCheckpoint
+        assert globalCheckpoint == -1L // special case from LocalShardSnapshot#maxSeqNo()
+            || seqNoStats.getGlobalCheckpoint() == globalCheckpoint
             : "expected global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "] but got [" + globalCheckpoint + "]";
         return seqNoStats;
     }

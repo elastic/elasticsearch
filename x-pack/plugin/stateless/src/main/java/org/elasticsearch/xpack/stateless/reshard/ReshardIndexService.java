@@ -552,6 +552,16 @@ public class ReshardIndexService {
             final IndexAbstraction indexAbstraction = projectState.metadata().getIndicesLookup().get(index.getName());
             final IndexMetadata sourceMetadata = projectState.metadata().getIndexSafe(index);
 
+            // Check if this index is currently the source of a resize (split/shrink/clone) operation.
+            // During an active resize, the target index has INDEX_RESIZE_SOURCE_UUID pointing back to the source.
+            String sourceUUID = sourceMetadata.getIndex().getUUID();
+            for (IndexMetadata im : projectState.metadata().indices().values()) {
+                Index resizeSource = im.getResizeSourceIndex();
+                if (resizeSource != null && resizeSource.getUUID().equals(sourceUUID)) {
+                    throw new IllegalStateException("index " + index + " cannot be resharded while it is the source of a resize operation");
+                }
+            }
+
             var validationError = validateIndex(indexAbstraction, sourceMetadata);
             if (validationError != null) {
                 throw validationError.intoException(index);

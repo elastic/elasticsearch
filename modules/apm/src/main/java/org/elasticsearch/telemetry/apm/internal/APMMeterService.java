@@ -87,6 +87,11 @@ public class APMMeterService extends AbstractLifecycleComponent {
     @Override
     protected void doStop() {
         try {
+            otelMeterSupplier.attemptFlushMetrics();
+        } catch (Exception e) {
+            LOGGER.warn("Exception flushing OTel MeterSupplier", e);
+        }
+        try {
             otelMeterSupplier.close();
         } catch (Exception e) {
             LOGGER.warn("Exception closing OTel MeterSupplier", e);

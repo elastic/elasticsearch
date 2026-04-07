@@ -13,7 +13,7 @@ summary: >-
 
   Sequence numbers have significant storage footprint in metrics applications (up to 30% for OTLP). To alleviate this,
   we are disabling sequence numbers for indices in time-series mode, meaning that they get trimmed once they are no
-  longer needed for replication. This helps with storage efficiency, as well as reduces the overhead for segment merging.
+  longer needed for replication. This helps with storage efficiency, as well as reducing the overhead for segment merging.
 
   The downside is that [Optimistic Concurrency Control](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/optimistic-concurrency-control)
   is no longer applicable to these indices. Index, update and delete operations using `if_seq_no` error out, and

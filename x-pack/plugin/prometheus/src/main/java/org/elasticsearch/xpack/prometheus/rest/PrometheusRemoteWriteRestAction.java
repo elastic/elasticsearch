@@ -62,8 +62,8 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_prometheus/api/v1/write"),
-            new Route(POST, "/_prometheus/{dataset}/api/v1/write"),
-            new Route(POST, "/_prometheus/{dataset}/{namespace}/api/v1/write")
+            new Route(POST, "/_prometheus/metrics/{dataset}/api/v1/write"),
+            new Route(POST, "/_prometheus/metrics/{dataset}/{namespace}/api/v1/write")
         );
     }
 

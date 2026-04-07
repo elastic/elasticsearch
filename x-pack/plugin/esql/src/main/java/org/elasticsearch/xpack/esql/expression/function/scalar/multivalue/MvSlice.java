@@ -75,7 +75,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "unsigned_long",
             "version" },
         description = """
-            Returns a subset of the multivalued field using the start and end index values.
+            Returns a subset of the multivalued field using the start and end index values. Indexes are 0-based.
             This is most useful when reading from a function that emits multivalued columns
             in a known order like <<esql-split>> or <<esql-mv_sort>>.""",
         detailedDescription = """
@@ -107,7 +107,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If `null`, the function returns `null`."
+            description = "Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "start",

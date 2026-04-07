@@ -1,0 +1,5 @@
+Limit[1000[INTEGER],false,false]
+\_LimitBy[3[INTEGER],[_score{m}#0, author{f}#1],false]
+  \_Rerank[reranking-inference-id[KEYWORD],1000[INTEGER],war and peace[KEYWORD],[title{f}#2 AS title#3],_score{m}#0]
+    \_Limit[1000[INTEGER],false,false]
+      \_EsRelation[books][author{f}#1, author.keyword{f}#4, book_no{f}#5, collection{f}#6, description{f}#7, publisher{f}#8, ratings{f}#9, title{f}#2, year{f}#10]

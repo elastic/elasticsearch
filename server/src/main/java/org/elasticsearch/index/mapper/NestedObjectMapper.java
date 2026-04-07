@@ -420,7 +420,7 @@ public class NestedObjectMapper extends ObjectMapper {
             filter,
             () -> super.syntheticFieldLoader(filter, mappers, true),
             NOOP,
-            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
         );
         // Some synthetic source use cases require using _ignored_source field
         var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);

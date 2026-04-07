@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
@@ -56,8 +57,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
+    /** Default interval when agent export timing is unknown; same semantics as APMMeterService. */
+    private static final TimeValue DEFAULT_AGENT_INTERVAL = TimeValue.timeValueSeconds(10);
+
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
+
+    /** Time to wait in attemptFlushTraces when using the agent (2× export interval). */
+    private final long agentFlushWaitMs;
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -92,6 +99,34 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
+        this.agentFlushWaitMs = 2 * agentExportIntervalMs(settings);
+    }
+
+    private static long agentExportIntervalMs(Settings settings) {
+        String intervalStr = settings.get("telemetry.agent.metrics_interval");
+        if (intervalStr != null && intervalStr.isEmpty() == false) {
+            try {
+                return TimeValue.parseTimeValue(intervalStr, "telemetry.agent.metrics_interval").millis();
+            } catch (Exception e) {
+                logger.debug("Could not parse telemetry.agent.metrics_interval [{}], using default", intervalStr);
+            }
+        }
+        return DEFAULT_AGENT_INTERVAL.millis();
+    }
+
+    /**
+     * Ensures buffered traces are exported on a best-effort basis. When using the APM agent (no ES-owned
+     * tracer provider), this waits for 2× the agent export interval.
+     */
+    public void attemptFlushTraces() {
+        if (enabled == false) {
+            return;
+        }
+        try {
+            Thread.sleep(agentFlushWaitMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void setEnabled(boolean enabled) {

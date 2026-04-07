@@ -11,18 +11,30 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * Configuration for Google Cloud Storage access including credentials and endpoint settings.
  * <p>
- * Supports two authentication modes:
+ * Supports authentication modes:
  * <ul>
  *   <li>Service account JSON credentials (inline or from a file path)</li>
+ *   <li>{@code auth=none} for anonymous access to public buckets</li>
  *   <li>Application Default Credentials (ADC) when no explicit credentials are provided</li>
  * </ul>
  */
-public record GcsConfiguration(String serviceAccountCredentials, String projectId, String endpoint, String tokenUri) {
+public record GcsConfiguration(String serviceAccountCredentials, String projectId, String endpoint, String tokenUri, String auth) {
+
+    public GcsConfiguration {
+        auth = auth != null ? auth.toLowerCase(Locale.ROOT) : null;
+        if (auth != null && "none".equals(auth) == false) {
+            throw new IllegalArgumentException("Unsupported auth value [" + auth + "]; supported values: [none]");
+        }
+        if ("none".equals(auth) && serviceAccountCredentials != null) {
+            throw new IllegalArgumentException("auth=none cannot be combined with credentials; anonymous access uses no credentials");
+        }
+    }
 
     public static GcsConfiguration fromParams(Map<String, Expression> params) {
         if (params == null || params.isEmpty()) {
@@ -33,19 +45,30 @@ public record GcsConfiguration(String serviceAccountCredentials, String projectI
         String projectId = extractStringParam(params, "project_id");
         String endpoint = extractStringParam(params, "endpoint");
         String tokenUri = extractStringParam(params, "token_uri");
+        String auth = extractStringParam(params, "auth");
 
-        return fromFields(credentials, projectId, endpoint, tokenUri);
+        return fromFields(credentials, projectId, endpoint, tokenUri, auth);
     }
 
     public static GcsConfiguration fromFields(String serviceAccountCredentials, String projectId, String endpoint) {
-        return fromFields(serviceAccountCredentials, projectId, endpoint, null);
+        return fromFields(serviceAccountCredentials, projectId, endpoint, null, null);
     }
 
     public static GcsConfiguration fromFields(String serviceAccountCredentials, String projectId, String endpoint, String tokenUri) {
-        if (serviceAccountCredentials == null && projectId == null && endpoint == null && tokenUri == null) {
+        return fromFields(serviceAccountCredentials, projectId, endpoint, tokenUri, null);
+    }
+
+    public static GcsConfiguration fromFields(
+        String serviceAccountCredentials,
+        String projectId,
+        String endpoint,
+        String tokenUri,
+        String auth
+    ) {
+        if (serviceAccountCredentials == null && projectId == null && endpoint == null && tokenUri == null && auth == null) {
             return null;
         }
-        return new GcsConfiguration(serviceAccountCredentials, projectId, endpoint, tokenUri);
+        return new GcsConfiguration(serviceAccountCredentials, projectId, endpoint, tokenUri, auth);
     }
 
     private static String extractStringParam(Map<String, Expression> params, String key) {
@@ -60,9 +83,10 @@ public record GcsConfiguration(String serviceAccountCredentials, String projectI
         return null;
     }
 
-    /**
-     * Returns true if explicit service account credentials are provided.
-     */
+    public boolean isAnonymous() {
+        return "none".equals(auth);
+    }
+
     public boolean hasCredentials() {
         return serviceAccountCredentials != null;
     }

@@ -74,7 +74,9 @@ public class OffsetSourceFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {}
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerIgnoredParameter("charset");
+    }
 
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {

@@ -350,6 +350,7 @@ public class IndexAbstractionResolver {
             }
 
             if (isVisible && selectorString != null) {
+
                 // Check if a selector was present, and if it is, check if this alias is applicable to it
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
                 if (IndexComponentSelector.FAILURES.equals(selector)) {

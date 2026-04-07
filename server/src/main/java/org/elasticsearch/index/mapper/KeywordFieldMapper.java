@@ -27,6 +27,7 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -240,6 +241,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean forceDocValuesSkipper;
         private final boolean isWithinMultiField;
         private final IndexSettings indexSettings;
+        private final boolean storeIgnoredFieldsInBinaryDocValues;
 
         public Builder(final String name, final MappingParserContext mappingParserContext) {
             this(
@@ -294,6 +296,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.forceDocValuesSkipper = forceDocValuesSkipper;
             this.isWithinMultiField = isWithinMultiField;
             this.indexSettings = indexSettings;
+            if (indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES)) {
+                // from this version, we check whether TSDB doc values format is enabled
+                this.storeIgnoredFieldsInBinaryDocValues = indexSettings.useTimeSeriesDocValuesFormat();
+            } else {
+                // older indices stored ignored keyword fields in binary doc values regardless of the doc values format
+                this.storeIgnoredFieldsInBinaryDocValues = indexCreatedVersion.onOrAfter(
+                    IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES
+                );
+            }
         }
 
         public Builder(String name, IndexSettings indexSettings) {
@@ -585,8 +596,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
             this.usesBinaryDocValues = builder.usesBinaryDocValues();
-            this.usesBinaryDocValuesForIgnoredFields = builder.indexSettings.getIndexVersionCreated()
-                .onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
+            this.usesBinaryDocValuesForIgnoredFields = builder.storeIgnoredFieldsInBinaryDocValues;
         }
 
         public KeywordFieldType(String name) {
@@ -902,7 +912,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
-                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
                 ) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
@@ -933,7 +943,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(nullValueBytes) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
-                    String stringValue = ((BytesRef) value).utf8ToString();
+                    // When _source is synthetic, unmapped numeric fields are provided as their native Java types (Long, Double, etc.)
+                    // rather than BytesRef. Since we treat all unmapped fields as keyword, we fall back to toString().
+                    String stringValue = value instanceof BytesRef br ? br.utf8ToString() : value.toString();
                     String adjusted = applyIgnoreAboveAndNormalizer(stringValue);
                     if (adjusted != null) {
                         // TODO what if the value didn't change?
@@ -1115,6 +1127,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 if (caseInsensitive == false) {
                     Term term = new Term(name(), value);
+                    if (context.getCircuitBreaker() != null) {
+                        Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
 
@@ -1145,6 +1161,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     );
                 } else {
                     Term term = new Term(name(), value);
+                    if (context.getCircuitBreaker() != null) {
+                        Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
                     return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
             }
@@ -1178,6 +1198,17 @@ public final class KeywordFieldMapper extends FieldMapper {
                         maxDeterminizedStates
                     );
                 } else {
+                    if (context.getCircuitBreaker() != null) {
+                        Term term = new Term(name(), indexedValueForSearch(value));
+                        Automaton dfa = AutomatonQueries.toRegexpAutomaton(
+                            term,
+                            syntaxFlags,
+                            matchFlags,
+                            maxDeterminizedStates,
+                            context.getCircuitBreaker()
+                        );
+                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    }
                     return new RegexpQuery(
                         new Term(name(), indexedValueForSearch(value)),
                         syntaxFlags,
@@ -1241,6 +1272,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final boolean forceDocValuesSkipper;
+    private final boolean storeIgnoredFieldsInBinaryDocValues;
     private final String offsetsFieldName;
 
     private final IndexVersion indexCreatedVersion;
@@ -1267,6 +1299,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
+        this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;
         this.offsetsFieldName = offsetsFieldName;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         sourceKeepMode = builder.sourceKeepMode.orElse(indexSettings.sourceKeepMode());
@@ -1350,7 +1383,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
-                if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
+                if (storeIgnoredFieldsInBinaryDocValues) {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
                     if (field == null) {
@@ -1420,10 +1453,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         return true;
-    }
-
-    private boolean storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck() {
-        return indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
     }
 
     /**
@@ -1564,7 +1593,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
-            if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
+            if (storeIgnoredFieldsInBinaryDocValues) {
                 layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName));
             } else {
                 // old indices, stored ignored values in stored fields

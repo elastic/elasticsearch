@@ -155,6 +155,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         return storageService.clientSettings(projectId, clientName).getMaxRetries();
     }
 
+    long getMegabytesCopiedPerChunk() {
+        return storageService.clientSettings(projectId, clientName).getMegabytesCopiedPerChunk();
+    }
+
     RepositoriesMetrics getRepositoriesMetrics() {
         return statsCollector.getRepositoriesMetrics();
     }

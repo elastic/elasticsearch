@@ -38,7 +38,7 @@ import java.util.Objects;
  * a Wildcard term should not start with one of the wildcards {@code *} or
  * {@code ?}.
  */
-public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder> implements MultiTermQueryBuilder {
+public class WildcardQueryBuilder extends LeafQueryBuilder<WildcardQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "wildcard";
     private static final TransportVersion ESQL_FIXED_INDEX_LIKE = TransportVersion.fromName("esql_fixed_index_like");
 

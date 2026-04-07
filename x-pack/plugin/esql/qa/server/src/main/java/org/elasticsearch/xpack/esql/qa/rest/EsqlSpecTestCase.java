@@ -43,6 +43,7 @@ import org.junit.Rule;
 
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,8 +57,12 @@ import static org.elasticsearch.xpack.esql.CsvAssert.assertDataWithValueConverte
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.csvFileTemplateResolver;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.substituteTemplates;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
@@ -172,16 +177,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         INGEST.protectedBlock(() -> {
             // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
             // If multiple clusters are used, only create endpoints on the local cluster if it supports the inference test service.
-            if (supportsInferenceTestServiceOnLocalCluster()) {
-                createInferenceEndpoints(adminClient());
-            }
+            createInferenceEndpointsIfSupported();
             loadDataSetIntoEs(
                 client(),
                 supportsIndexModeLookup(),
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
                 timeSeriesOnly(),
-                this::clusterHasCapability
+                this::clusterHasCapability,
+                indicesToLoad()
             );
             return null;
         });
@@ -260,25 +264,31 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return "views".equals(groupName);
     }
 
+    /**
+     * Indices to load during setup. Override to control which indices are loaded.
+     *
+     * @return null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     */
+    protected List<String> indicesToLoad() {
+        return null;
+    }
+
     protected void shouldSkipTest(String testName) throws IOException {
-        assumeTrue("test clusters were broken", testClustersOk);
+        assumeTrueLogging("test clusters were broken", testClustersOk);
         if (requiresSemanticTextInference()) {
-            assumeTrue("Inference test service needs to be supported", supportsSemanticTextInference());
+            assumeTrueLogging("Inference test service needs to be supported", supportsSemanticTextInference());
         }
         if (requiresInferenceEndpointOnLocalCluster()) {
-            assumeTrue("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
+            assumeTrueLogging("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         if (supportsSourceFieldMapping() == false) {
-            assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
+            assumeFalseLogging(
+                "source mapping tests are muted",
+                testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName())
+            );
         }
-        // EXTERNAL command tests require dedicated infrastructure (S3 fixture, datasource plugins, template replacement)
-        // that is only available in AbstractExternalSourceSpecTestCase subclasses, not in generic EsqlSpecIT suites.
-        assumeFalse(
-            "EXTERNAL command tests require dedicated external source test infrastructure",
-            testCase.query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL")
-        );
     }
 
     protected static void checkCapabilities(
@@ -304,8 +314,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         for (String feature : requiredCapabilities) {
             var esqlFeature = "esql." + feature;
-            assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
-            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
+            assumeTrueLogging("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
+            assumeTrueLogging("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
         }
     }
 
@@ -315,6 +325,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsInferenceTestServiceOnLocalCluster() {
         return true;
+    }
+
+    /**
+     * Creates inference test endpoints when {@link #supportsInferenceTestServiceOnLocalCluster()} is true.
+     * Subclasses may override to register a subset of endpoints for clusters that do not support all task types.
+     */
+    protected void createInferenceEndpointsIfSupported() throws IOException {
+        if (supportsInferenceTestServiceOnLocalCluster()) {
+            createInferenceEndpoints(adminClient());
+        }
     }
 
     protected boolean requiresSemanticTextInference() {
@@ -355,7 +375,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && testCase.expectedWarnings().isEmpty() // avoid shifting warnings positions in source query
             && testCase.expectedWarningsRegex().isEmpty() // regexp might also contain line/position
             && query.startsWith("SET") == false // avoid conflicts with provided settings
-                ? "SET unmapped_fields=\"nullify\"; " + query
+                ? "SET unmapped_fields=" + randomFrom("\"nullify\"; ", "\"default\"; ") + query
                 : query;
     }
 
@@ -367,11 +387,24 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return hasCapabilities(client(), List.of(capability.capabilityName()));
     }
 
+    /**
+     * Override in subclasses that support EXTERNAL; return the path used for path.repo.
+     */
+    protected Path getCsvDataPath() {
+        return null;
+    }
+
     protected void doTest() throws Throwable {
         doTest(testCase.query);
     }
 
     protected final void doTest(String query) throws Throwable {
+        if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
+            Path path = getCsvDataPath();
+            if (path != null) {
+                query = substituteTemplates(query, csvFileTemplateResolver(path));
+            }
+        }
         query = maybeRandomizeQuery(query);
 
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
@@ -435,6 +468,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (randomBoolean() && hasCapabilities(client(), List.of("periodic_emit_partial_aggregation_results"))) {
             pragma.put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), between(10, 1000))
                 .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), randomDoubleBetween(0.1, 1.0, true));
+        }
+        if (enableRoundingDoubleValuesOnAsserting()
+            && hasCapabilities(client(), List.of("auto_partition_docs_threshold"))
+            && randomBoolean()) {
+            pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
         }
         if (randomBoolean() && hasCapabilities(client(), List.of("fork_no_implicit_limit"))) {
             pragma.put("fork_implicit_limit", false);

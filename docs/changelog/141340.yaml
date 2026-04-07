@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 141340
-summary: Skip nullifying aliases for Aggregate groups.
-type: bug

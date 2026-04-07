@@ -3,7 +3,7 @@
 ## Parameters
 
 `number`
-:   Multivalue expression.
+:   Expression that can be null, a single value, or multiple values.
 
 `percentile`
 :   The percentile to calculate. Must be a number between 0 and 100. Numbers out of range will return a null instead.

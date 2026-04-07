@@ -40,6 +40,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         "reindex.remote.whitelist",
         Property.NodeScope
     );
+    // Hosts matching the blocklist are not allowed, even if they match the whitelist
+    public static final Setting<List<String>> REMOTE_CLUSTER_BLOCKLIST = Setting.stringListSetting(
+        "reindex.remote.blocklist",
+        Property.NodeScope
+    );
 
     protected final ReindexValidator reindexValidator;
     private final Reindexer reindexer;
@@ -125,6 +130,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         validate(request);
+        normalize(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         reindexer.initTask(
             bulkByScrollTask,
@@ -148,5 +154,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      */
     protected void validate(ReindexRequest request) {
         reindexValidator.initialValidation(request);
+    }
+
+    /**
+     * This method can be overridden if different than usual normalization is needed.
+     * This method should throw an exception if normalization fails.
+     */
+    protected void normalize(ReindexRequest request) {
+        reindexValidator.normalize(request);
     }
 }

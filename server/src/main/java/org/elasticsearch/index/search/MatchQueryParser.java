@@ -26,7 +26,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -52,7 +51,6 @@ import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
-import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -146,10 +144,10 @@ public class MatchQueryParser {
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
 
-    protected final MaxClauseCountQueryVisitor queryVisitor;
+    protected final QueryVisitor queryVisitor;
 
-    public MatchQueryParser(SearchExecutionContext context) {
-        queryVisitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+    public MatchQueryParser(SearchExecutionContext context, QueryVisitor queryVisitor) {
+        this.queryVisitor = queryVisitor;
         this.context = context;
     }
 
@@ -248,7 +246,6 @@ public class MatchQueryParser {
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
         assert analyzer != null;
 
-        int currentClauseCount = queryVisitor.getNumClauses();
         MatchQueryBuilder builder = new MatchQueryBuilder(
             analyzer,
             fieldType,
@@ -287,17 +284,7 @@ public class MatchQueryParser {
                 query.visit(queryVisitor);
             }
         }
-        assert assertBooleanClauses(query, queryVisitor.getNumClauses() - currentClauseCount);
         return query;
-    }
-
-    protected boolean assertBooleanClauses(Query query, int numClauses) {
-        if (query == null) {
-            return numClauses == 0;
-        }
-        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(Integer.MAX_VALUE);
-        query.visit(visitor);
-        return visitor.getNumClauses() == numClauses;
     }
 
     private Query newLenientFieldQuery(String fieldName, RuntimeException e) {

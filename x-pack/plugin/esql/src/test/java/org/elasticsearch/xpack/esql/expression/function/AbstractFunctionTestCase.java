@@ -320,6 +320,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 // Object and nested fields aren't supported by any functions yet
                 return false;
             }
+
+            if (t == DataType.PARTIAL_AGG) {
+                /*
+                 * PARTIAL_AGG is an internal type used only for partial aggregation
+                 * state (ToPartial/FromPartial). It is not supported by any functions yet.
+                 */
+                return false;
+            }
+
             if (t == DataType.SOURCE || t == DataType.TSID_DATA_TYPE) {
                 // No functions take source or tsid fields yet. We'll make some eventually and remove this.
                 return false;

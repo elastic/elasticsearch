@@ -352,6 +352,31 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after MV_EXPAND"));
     }
 
+    public void testWhereFalseBeforeInlineStatsWithMatchPhrase() {
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match_phrase(content, "brown fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseWithEvalBeforeInlineStatsAndMatchPhrase() {
+        var query = """
+            FROM test
+            | WHERE false
+            | EVAL doubled_id = id * 2
+            | INLINE STATS avg_id = AVG(id) BY doubled_id
+            | WHERE match_phrase(content, "brown fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after INLINE"));
+    }
+
     public void testMatchPhraseWithLookupJoin() {
         var query = """
             FROM test

@@ -7,7 +7,7 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-windows-2022
-      machineType: custom-32-98304
+      machineType: e2-custom-32-98304
       diskType: pd-ssd
       diskSizeGb: 350
     env:

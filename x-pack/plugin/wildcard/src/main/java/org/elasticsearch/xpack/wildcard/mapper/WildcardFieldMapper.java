@@ -67,6 +67,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -215,9 +216,10 @@ public class WildcardFieldMapper extends FieldMapper {
 
         final IndexMode indexMode;
         final IndexVersion indexCreatedVersion;
+        final boolean storeIgnoredFieldsInBinaryDocValues;
 
         public Builder(final String name, IndexVersion indexVersionCreated) {
-            this(name, getIgnoreAboveDefaultValue(IndexMode.STANDARD, indexVersionCreated), IndexMode.STANDARD, indexVersionCreated);
+            this(name, getIgnoreAboveDefaultValue(IndexMode.STANDARD, indexVersionCreated), IndexMode.STANDARD, indexVersionCreated, true);
         }
 
         private Builder(String name, MappingParserContext mappingParserContext) {
@@ -225,15 +227,26 @@ public class WildcardFieldMapper extends FieldMapper {
                 name,
                 IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
                 mappingParserContext.getIndexSettings().getMode(),
-                mappingParserContext.indexVersionCreated()
+                mappingParserContext.indexVersionCreated(),
+                mappingParserContext.getIndexSettings()
+                    .getIndexVersionCreated()
+                    .onOrAfter(IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES)
+                    && mappingParserContext.getIndexSettings().useTimeSeriesDocValuesFormat()
             );
         }
 
-        private Builder(String name, int ignoreAboveDefault, IndexMode indexMode, IndexVersion indexCreatedVersion) {
+        private Builder(
+            String name,
+            int ignoreAboveDefault,
+            IndexMode indexMode,
+            IndexVersion indexCreatedVersion,
+            boolean storeIgnoredFieldsInBinaryDocValues
+        ) {
             super(name);
             this.ignoreAboveDefault = ignoreAboveDefault;
             this.indexMode = indexMode;
             this.indexCreatedVersion = indexCreatedVersion;
+            this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
             this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).ignoreAbove.get(), ignoreAboveDefault);
         }
 
@@ -1012,6 +1025,7 @@ public class WildcardFieldMapper extends FieldMapper {
     private final IgnoreAbove ignoreAbove;
     private final boolean storeIgnored;
     private final String originalName;
+    private final boolean storeIgnoredFieldsInBinaryDocValues;
 
     private WildcardFieldMapper(
         String simpleName,
@@ -1028,6 +1042,7 @@ public class WildcardFieldMapper extends FieldMapper {
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
         this.originalName = storeIgnored ? fullPath() + TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX : null;
+        this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;
     }
 
     @Override
@@ -1063,7 +1078,17 @@ public class WildcardFieldMapper extends FieldMapper {
             if (ignoreAbove.isIgnored(value)) {
                 context.addIgnoredField(fullPath());
                 if (storeIgnored) {
-                    parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
+                    if (storeIgnoredFieldsInBinaryDocValues) {
+                        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) parseDoc.getByKey(originalName());
+                        if (field == null) {
+                            // sort to match the behavior of other field mappers
+                            field = new MultiValuedBinaryDocValuesField.IntegratedCount(originalName(), false);
+                            parseDoc.addWithKey(originalName(), field);
+                        }
+                        field.add(new BytesRef(value));
+                    } else {
+                        parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
+                    }
                 }
             } else {
                 createFields(value, parseDoc, fields);
@@ -1102,7 +1127,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreAboveDefault, indexMode, indexVersionCreated).init(this);
+        return new Builder(leafName(), ignoreAboveDefault, indexMode, indexVersionCreated, storeIgnoredFieldsInBinaryDocValues).init(this);
     }
 
     @Override
@@ -1111,13 +1136,17 @@ public class WildcardFieldMapper extends FieldMapper {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
             layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()));
             if (ignoreAbove.valuesPotentiallyIgnored()) {
-                layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
-                    @Override
-                    protected void writeValue(Object value, XContentBuilder b) throws IOException {
-                        BytesRef r = (BytesRef) value;
-                        b.utf8Value(r.bytes, r.offset, r.length);
-                    }
-                });
+                if (storeIgnoredFieldsInBinaryDocValues) {
+                    layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(originalName()));
+                } else {
+                    layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
+                        @Override
+                        protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                            BytesRef r = (BytesRef) value;
+                            b.utf8Value(r.bytes, r.offset, r.length);
+                        }
+                    });
+                }
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         });

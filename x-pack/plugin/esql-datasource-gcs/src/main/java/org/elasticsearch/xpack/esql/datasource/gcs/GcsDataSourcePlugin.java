@@ -51,7 +51,8 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
                     Objects.toString(config.get("credentials"), null),
                     Objects.toString(config.get("project_id"), null),
                     Objects.toString(config.get("endpoint"), null),
-                    Objects.toString(config.get("token_uri"), null)
+                    Objects.toString(config.get("token_uri"), null),
+                    Objects.toString(config.get("auth"), null)
                 );
                 return new GcsStorageProvider(gcsConfig);
             }

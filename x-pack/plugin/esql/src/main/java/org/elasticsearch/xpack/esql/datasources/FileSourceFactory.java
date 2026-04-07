@@ -147,12 +147,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.maxBufferSize(),
                 context.rowLimit(),
                 context.executor(),
-                context.fileSet(),
+                context.fileList(),
                 context.partitionColumnNames(),
                 partitionValues,
                 context.sliceQueue(),
                 errorPolicy,
-                context.parsingParallelism()
+                context.parsingParallelism(),
+                null
             );
         };
     }

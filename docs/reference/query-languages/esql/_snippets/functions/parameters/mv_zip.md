@@ -3,10 +3,10 @@
 ## Parameters
 
 `string1`
-:   Multivalue expression.
+:   Expression that can be null, a single value, or multiple values.
 
 `string2`
-:   Multivalue expression.
+:   Expression that can be null, a single value, or multiple values.
 
 `delim`
 :   Delimiter. Optional; if omitted, `,` is used as a default delimiter.

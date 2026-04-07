@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -90,7 +91,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBuilder> {
+public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilder> {
     private static final Logger LOGGER = LogManager.getLogger(PercolateQueryBuilder.class);
 
     public static final String NAME = "percolate";
@@ -697,6 +698,21 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             @Override
             public void addNamedQuery(String name, Query query) {
                 source.addNamedQuery(name, query);
+            }
+
+            @Override
+            public void addCircuitBreakerMemory(long bytes, String label) {
+                source.addCircuitBreakerMemory(bytes, label);
+            }
+
+            @Override
+            public long getQueryConstructionMemoryUsed() {
+                return source.getQueryConstructionMemoryUsed();
+            }
+
+            @Override
+            public void releaseQueryConstructionMemory() {
+                source.releaseQueryConstructionMemory();
             }
         };
 

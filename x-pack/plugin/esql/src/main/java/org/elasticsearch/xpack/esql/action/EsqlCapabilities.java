@@ -1211,7 +1211,7 @@ public class EsqlCapabilities {
          * Fix for union types when fields have conflicting types between subqueries.
          * https://github.com/elastic/elasticsearch/issues/142499
          */
-        SUBQUERY_IN_FROM_COMMAND_SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION(Build.current().isSnapshot()),
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
          * Support for views in cluster state (and REST API).

@@ -795,7 +795,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue(
             "union types conflict resolution",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION.isEnabled()
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION.isEnabled()
         );
         doTestSuggestedCast(
             "FROM (FROM index-%s), (FROM index-%s) | LIMIT 100 | KEEP my_field",

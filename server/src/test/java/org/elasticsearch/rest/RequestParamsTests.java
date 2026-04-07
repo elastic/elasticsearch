@@ -178,4 +178,43 @@ public class RequestParamsTests extends ESTestCase {
         assertThat(map.get("b"), equalTo("2"));
         assertThat(RequestParams.from(new URI("http://example.com/path")).isEmpty(), is(true));
     }
+
+    public void testCopyOfPreservesMultiValues() {
+        var original = RequestParams.of(Map.of("format", List.of("json", "yaml"), "size", List.of("10")));
+        var copy = RequestParams.copyOf(original);
+        assertThat(copy.getAll("format"), equalTo(List.of("json", "yaml")));
+        assertThat(copy.get("format"), equalTo("yaml"));
+        assertThat(copy.getAll("size"), equalTo(List.of("10")));
+        assertThat(copy.size(), equalTo(2));
+    }
+
+    public void testCopyOfIsIndependentOfSource() {
+        var original = RequestParams.of(Map.of("format", List.of("json", "yaml")));
+        var copy = RequestParams.copyOf(original);
+        original.clear();
+        assertThat(copy.getAll("format"), equalTo(List.of("json", "yaml")));
+        assertThat(original.isEmpty(), is(true));
+    }
+
+    public void testCopyOfSourceDoesNotReflectMutationsToTheCopy() {
+        var original = RequestParams.of(Map.of("format", List.of("json", "yaml")));
+        var copy = RequestParams.copyOf(original);
+        copy.put("format", "cbor");
+        assertThat(original.getAll("format"), equalTo(List.of("json", "yaml")));
+    }
+
+    public void testPutAllRequestParamsPreservesMultiValues() {
+        var source = RequestParams.of(Map.of("format", List.of("json", "yaml")));
+        var target = RequestParams.empty();
+        target.putAll(source);
+        assertThat(target.getAll("format"), equalTo(List.of("json", "yaml")));
+    }
+
+    public void testPutAllRequestParamsMergesIntoExistingEntries() {
+        var source = RequestParams.of(Map.of("format", List.of("json", "yaml")));
+        var target = RequestParams.of(Map.of("size", List.of("10")));
+        target.putAll(source);
+        assertThat(target.getAll("format"), equalTo(List.of("json", "yaml")));
+        assertThat(target.getAll("size"), equalTo(List.of("10")));
+    }
 }

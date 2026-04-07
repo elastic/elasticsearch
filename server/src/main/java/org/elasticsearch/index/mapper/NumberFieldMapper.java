@@ -2469,11 +2469,10 @@ public class NumberFieldMapper extends FieldMapper {
         }
         // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
         final LuceneDocument doc = context.doc();
-        final IndexType indexType = fieldType.indexType;
         switch (type) {
-            case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue(), indexType);
-            case LONG -> addLongFields(doc, name, numericValue.longValue(), indexType);
-            default -> type.addFields(doc, name, numericValue, indexType, stored);
+            case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue());
+            case LONG -> addLongFields(doc, name, numericValue.longValue());
+            default -> type.addFields(doc, name, numericValue, fieldType.indexType, stored);
         }
 
         if (false == allowMultipleValues && (indexed || docValuesParameters.enabled() || stored)) {
@@ -2489,7 +2488,8 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
-    private void addIntFields(LuceneDocument document, String name, int i, IndexType indexType) {
+    private void addIntFields(LuceneDocument document, String name, int i) {
+        final var indexType = fieldType.indexType();
         if (indexType.hasPoints() && indexType.hasDocValues()) {
             document.add(new IntField(name, i, Field.Store.NO));
         } else if (indexType.hasDocValues()) {
@@ -2506,7 +2506,8 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
-    private void addLongFields(LuceneDocument document, String name, long l, IndexType indexType) {
+    private void addLongFields(LuceneDocument document, String name, long l) {
+        final var indexType = fieldType.indexType();
         if (indexType.hasPoints() && indexType.hasDocValues()) {
             document.add(new LongField(name, l, Field.Store.NO));
         } else if (indexType.hasDocValues()) {

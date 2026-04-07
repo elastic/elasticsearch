@@ -649,9 +649,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 .orElse(false);
     }
 
-    @Override
-    public String getIndexName() {
-        return indexName;
     /**
      * Attempts to delete a snapshot. If the snapshot is already missing, logs and returns.
      * Throws on any other failure.

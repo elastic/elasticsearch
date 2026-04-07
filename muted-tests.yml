@@ -157,15 +157,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143697
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
-  method: testAccumulateSearchLoad
-  issue: https://github.com/elastic/elasticsearch/issues/143708
 - class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
   method: testCliConnectionWithInvalidApiKey
   issue: https://github.com/elastic/elasticsearch/issues/143646
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
-  method: testAccumulateSearchLoad
-  issue: https://github.com/elastic/elasticsearch/issues/143750
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143800

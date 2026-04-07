@@ -18,8 +18,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,9 +49,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -75,7 +79,8 @@ public class TransportService extends AbstractLifecycleComponent
     implements
         ReportingService<TransportInfo>,
         TransportMessageListener,
-        TransportConnectionListener {
+        TransportConnectionListener,
+        RemoteTransportClient {
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
 
@@ -95,7 +100,7 @@ public class TransportService extends AbstractLifecycleComponent
      * Undocumented on purpose, may be removed at any time. Only use this if instructed to do so, can have other unintended consequences
      * including deadlocks.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public static final Setting<Boolean> ENABLE_STACK_OVERFLOW_AVOIDANCE = Setting.boolSetting(
         "transport.enable_stack_protection",
         false,
@@ -128,17 +133,17 @@ public class TransportService extends AbstractLifecycleComponent
         }
     });
 
-    public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {
-    };
+    public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {};
 
     // tracer log
 
     private static final Logger tracerLog = Loggers.getLogger(logger, ".tracer");
-    private final Tracer tracer;
 
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
 
+    private final LinkedProjectConfigService linkedProjectConfigService;
+    private final TelemetryProvider telemetryProvider;
     private final RemoteClusterService remoteClusterService;
 
     /**
@@ -206,18 +211,6 @@ public class TransportService extends AbstractLifecycleComponent
         }
     };
 
-    public TransportService(
-        Settings settings,
-        Transport transport,
-        ThreadPool threadPool,
-        TransportInterceptor transportInterceptor,
-        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-        @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
-    ) {
-        this(settings, transport, threadPool, transportInterceptor, localNodeFactory, clusterSettings, taskHeaders, Tracer.NOOP);
-    }
-
     /**
      * Build the service.
      *
@@ -232,8 +225,7 @@ public class TransportService extends AbstractLifecycleComponent
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        TaskManager taskManager,
-        Tracer tracer
+        TaskManager taskManager
     ) {
         this(
             settings,
@@ -243,12 +235,11 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
-            taskManager,
-            tracer
+            taskManager
         );
     }
 
-    // NOTE: Only for use in tests
+    // Public access for tests.
     public TransportService(
         Settings settings,
         Transport transport,
@@ -256,8 +247,7 @@ public class TransportService extends AbstractLifecycleComponent
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders,
-        Tracer tracer
+        Set<String> taskHeaders
     ) {
         this(
             settings,
@@ -266,9 +256,34 @@ public class TransportService extends AbstractLifecycleComponent
             transportInterceptor,
             localNodeFactory,
             clusterSettings,
-            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
-            new TaskManager(settings, threadPool, taskHeaders),
-            tracer
+            new TaskManager(settings, threadPool, taskHeaders)
+        );
+    }
+
+    // Public access for tests.
+    public TransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor transportInterceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        ConnectionManager connectionManager,
+        TaskManager taskManger
+    ) {
+        this(
+            settings,
+            transport,
+            threadPool,
+            transportInterceptor,
+            localNodeFactory,
+            clusterSettings,
+            connectionManager,
+            taskManger,
+            new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
+            TelemetryProvider.NOOP,
+            CrossProjectModeDecider.NOOP,
+            DefaultProjectResolver.INSTANCE
         );
     }
 
@@ -282,14 +297,16 @@ public class TransportService extends AbstractLifecycleComponent
         @Nullable ClusterSettings clusterSettings,
         ConnectionManager connectionManager,
         TaskManager taskManger,
-        Tracer tracer
+        LinkedProjectConfigService linkedProjectConfigService,
+        TelemetryProvider telemetryProvider,
+        CrossProjectModeDecider crossProjectModeDecider,
+        ProjectResolver projectResolver
     ) {
         this.transport = transport;
         transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
         this.connectionManager = connectionManager;
-        this.tracer = tracer;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         setTracerLogInclude(TransportSettings.TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
@@ -298,15 +315,17 @@ public class TransportService extends AbstractLifecycleComponent
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.enableStackOverflowAvoidance = ENABLE_STACK_OVERFLOW_AVOIDANCE.get(settings);
-        remoteClusterService = new RemoteClusterService(settings, this);
+        this.linkedProjectConfigService = linkedProjectConfigService;
+        this.telemetryProvider = telemetryProvider;
+        remoteClusterService = new RemoteClusterService(settings, this, crossProjectModeDecider, projectResolver);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
-            if (remoteClusterClient) {
-                remoteClusterService.listenForUpdates(clusterSettings);
-            }
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
+        }
+        if (remoteClusterClient) {
+            linkedProjectConfigService.register(remoteClusterService);
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
@@ -344,6 +363,10 @@ public class TransportService extends AbstractLifecycleComponent
         this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
     }
 
+    public TelemetryProvider getTelemetryProvider() {
+        return telemetryProvider;
+    }
+
     @Override
     protected void doStart() {
         transport.setMessageListener(this);
@@ -359,7 +382,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         if (remoteClusterClient) {
             // here we start to connect to the remote clusters
-            remoteClusterService.initializeRemoteClusters();
+            remoteClusterService.initializeRemoteClusters(linkedProjectConfigService.getInitialLinkedProjectConfigs());
         }
     }
 
@@ -641,8 +664,14 @@ public class TransportService extends AbstractLifecycleComponent
         return connectionManager;
     }
 
-    public RecyclerBytesStreamOutput newNetworkBytesStream() {
-        return transport.newNetworkBytesStream();
+    /**
+     * @return a {@link RecyclerBytesStreamOutput} which allocates its pages with {@code org.elasticsearch.transport.netty4.NettyAllocator},
+     * tracking these allocations using the provided {@link CircuitBreaker} if this is not {@code null}.
+     * <p>
+     * In tests in which Netty is not in use, each page is allocated as a {@code new byte[]}.
+     */
+    public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
+        return transport.newNetworkBytesStream(circuitBreaker);
     }
 
     static class HandshakeRequest extends AbstractTransportRequest {
@@ -685,21 +714,21 @@ public class TransportService extends AbstractLifecycleComponent
                 // message, but recognise that this may fail
                 discoveryNode = new DiscoveryNode(in);
             } catch (Exception e) {
-                maybeThrowOnIncompatibleBuild(null, e);
+                maybeWarnOnIncompatibleBuild(null, e);
                 throw e;
             }
-            maybeThrowOnIncompatibleBuild(discoveryNode, null);
+            maybeWarnOnIncompatibleBuild(discoveryNode, null);
             clusterName = new ClusterName(in);
         }
 
-        private void maybeThrowOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
+        private void maybeWarnOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
             if (SERVERLESS_TRANSPORT_FEATURE_FLAG == false && isIncompatibleBuild(version, buildHash)) {
-                throwOnIncompatibleBuild(node, e);
+                warnOnIncompatibleBuild(node, e);
             }
         }
 
-        private void throwOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
-            throw new IllegalArgumentException(
+        private void warnOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
+            logger.warn(
                 "remote node ["
                     + (node == null ? "unidentifiable" : node)
                     + "] is build ["
@@ -759,6 +788,7 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.removeListener(listener);
     }
 
+    @Override
     public <T extends TransportResponse> void sendRequest(
         final DiscoveryNode node,
         final String action,
@@ -1070,7 +1100,7 @@ public class TransportService extends AbstractLifecycleComponent
             @SuppressWarnings("unchecked")
             final RequestHandlerRegistry<TransportRequest> reg = (RequestHandlerRegistry<TransportRequest>) getRequestHandler(action);
             if (reg == null) {
-                assert false : action;
+                assert false : "Action [" + action + "] not found";
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
             final Executor executor = reg.getExecutor();
@@ -1214,8 +1244,7 @@ public class TransportService extends AbstractLifecycleComponent
             handler,
             executor,
             false,
-            true,
-            tracer
+            true
         );
         transport.registerRequestHandler(reg);
     }
@@ -1247,8 +1276,7 @@ public class TransportService extends AbstractLifecycleComponent
             handler,
             executor,
             forceExecution,
-            canTripCircuitBreaker,
-            tracer
+            canTripCircuitBreaker
         );
         transport.registerRequestHandler(reg);
     }

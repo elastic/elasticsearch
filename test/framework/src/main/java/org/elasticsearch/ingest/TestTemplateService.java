@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -33,7 +34,13 @@ public class TestTemplateService extends ScriptService {
     }
 
     private TestTemplateService(boolean compilationException) {
-        super(Settings.EMPTY, Collections.singletonMap(DEFAULT_TEMPLATE_LANG, new MockScriptEngine()), Collections.emptyMap(), () -> 1L);
+        super(
+            Settings.EMPTY,
+            Collections.singletonMap(DEFAULT_TEMPLATE_LANG, new MockScriptEngine()),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.alwaysThrow()
+        );
         this.compilationException = compilationException;
     }
 

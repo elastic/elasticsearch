@@ -95,7 +95,7 @@ public final class StoreTrustConfig implements SslTrustConfig {
         } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(fileTypeForException(), List.of(path), e, configBasePath);
         } catch (IOException e) {
-            throw SslFileUtil.ioException(fileTypeForException(), List.of(path), e, getAdditionalErrorDetails());
+            throw SslFileUtil.ioException(fileTypeForException(), List.of(path), e, getAdditionalErrorDetails(), configBasePath);
         } catch (GeneralSecurityException e) {
             throw keystoreException(path, e);
         }
@@ -161,5 +161,10 @@ public final class StoreTrustConfig implements SslTrustConfig {
         sb.append(", algorithm=").append(algorithm);
         sb.append('}');
         return sb.toString();
+    }
+
+    @Override
+    public boolean hasExplicitConfig() {
+        return true;
     }
 }

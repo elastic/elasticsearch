@@ -109,4 +109,23 @@ public final class OptimizerRules {
 
         protected abstract LogicalPlan rule(SubPlan plan, P context);
     }
+
+    /**
+     * Rule that has a different implementation when applied to a local plan.
+     */
+    public interface LocalAware<SubPlan extends LogicalPlan> {
+        /**
+         * the local version of the rule. {@code null} if the rule should not be applied locally.
+         */
+        Rule<SubPlan, LogicalPlan> local();
+    }
+
+    /**
+     * This rule should only be applied on the coordinator plan, not for a local plan.
+     */
+    public interface CoordinatorOnly extends LocalAware<LogicalPlan> {
+        default Rule<LogicalPlan, LogicalPlan> local() {
+            return null;
+        }
+    }
 }

@@ -89,7 +89,7 @@ public class RemoteClusterSecurityRCS1DeprecationIT extends AbstractRemoteCluste
                   "indices": [
                     {
                       "names": ["index*"],
-                      "privileges": ["read", "read_cross_cluster"]
+                      "privileges": ["read"]
                     }
                   ]
                 }""");

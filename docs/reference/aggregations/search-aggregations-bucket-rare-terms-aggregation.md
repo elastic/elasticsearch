@@ -11,6 +11,49 @@ A multi-bucket value source based aggregation which finds "rare" terms — terms
 
 ## Syntax [_syntax_3]
 
+<!--
+```js
+PUT /products
+{
+  "mappings": {
+    "properties": {
+      "genre": {
+        "type": "keyword"
+      },
+      "product": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+POST /products/_bulk?refresh
+{"index":{"_id":0}}
+{"genre": "rock", "product": "Product A"}
+{"index":{"_id":1}}
+{"genre": "rock"}
+{"index":{"_id":2}}
+{"genre": "rock"}
+{"index":{"_id":3}}
+{"genre": "jazz", "product": "Product Z"}
+{"index":{"_id":4}}
+{"genre": "jazz"}
+{"index":{"_id":5}}
+{"genre": "electronic"}
+{"index":{"_id":6}}
+{"genre": "electronic"}
+{"index":{"_id":7}}
+{"genre": "electronic"}
+{"index":{"_id":8}}
+{"genre": "electronic"}
+{"index":{"_id":9}}
+{"genre": "electronic"}
+{"index":{"_id":10}}
+{"genre": "swing"}
+```
+% NOTCONSOLE
+% TESTSETUP
+-->
+
 A `rare_terms` aggregation looks like this in isolation:
 
 ```js
@@ -21,6 +64,7 @@ A `rare_terms` aggregation looks like this in isolation:
   }
 }
 ```
+% NOTCONSOLE
 
 |     |     |     |     |
 | --- | --- | --- | --- |
@@ -48,6 +92,7 @@ GET /_search
   }
 }
 ```
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
@@ -66,6 +111,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\.//]
 
 In this example, the only bucket that we see is the "swing" bucket, because it is the only term that appears in one document. If we increase the `max_doc_count` to `2`, we’ll see some more buckets:
 
@@ -84,6 +130,7 @@ GET /_search
   }
 }
 ```
+% TEST[s/_search/_search\?filter_path=aggregations/]
 
 This now shows the "jazz" term which has a `doc_count` of 2":
 
@@ -106,7 +153,7 @@ This now shows the "jazz" term which has a `doc_count` of 2":
   }
 }
 ```
-
+% TESTRESPONSE[s/\.\.\.//]
 
 ## Maximum document count [search-aggregations-bucket-rare-terms-aggregation-max-doc-count]
 

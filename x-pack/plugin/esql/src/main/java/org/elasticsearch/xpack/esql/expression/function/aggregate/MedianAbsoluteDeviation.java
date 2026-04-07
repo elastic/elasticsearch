@@ -67,11 +67,11 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
             ), }
     )
     public MedianAbsoluteDeviation(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, NO_WINDOW);
     }
 
-    public MedianAbsoluteDeviation(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public MedianAbsoluteDeviation(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private MedianAbsoluteDeviation(StreamInput in) throws IOException {
@@ -85,17 +85,17 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
 
     @Override
     protected NodeInfo<MedianAbsoluteDeviation> info() {
-        return NodeInfo.create(this, MedianAbsoluteDeviation::new, field(), filter());
+        return NodeInfo.create(this, MedianAbsoluteDeviation::new, field(), filter(), window());
     }
 
     @Override
     public MedianAbsoluteDeviation replaceChildren(List<Expression> newChildren) {
-        return new MedianAbsoluteDeviation(source(), newChildren.get(0), newChildren.get(1));
+        return new MedianAbsoluteDeviation(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public MedianAbsoluteDeviation withFilter(Expression filter) {
-        return new MedianAbsoluteDeviation(source(), field(), filter);
+        return new MedianAbsoluteDeviation(source(), field(), filter, window());
     }
 
     @Override

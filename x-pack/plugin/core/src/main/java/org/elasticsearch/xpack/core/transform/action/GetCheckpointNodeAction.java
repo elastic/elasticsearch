@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -104,11 +103,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             super(in);
             this.shards = in.readCollectionAsImmutableSet(ShardId::new);
             this.originalIndices = OriginalIndices.readOriginalIndices(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.timeout = in.readOptionalTimeValue();
-            } else {
-                this.timeout = null;
-            }
+            this.timeout = in.readOptionalTimeValue();
         }
 
         @Override
@@ -121,9 +116,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             super.writeTo(out);
             out.writeCollection(shards);
             OriginalIndices.writeOriginalIndices(originalIndices, out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeOptionalTimeValue(timeout);
-            }
+            out.writeOptionalTimeValue(timeout);
         }
 
         public Set<ShardId> getShards() {

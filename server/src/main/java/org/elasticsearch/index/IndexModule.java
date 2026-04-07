@@ -43,11 +43,14 @@ import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
@@ -55,12 +58,13 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -179,6 +183,9 @@ public final class IndexModule {
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
     private final IndexingStatsSettings indexingStatsSettings;
+    private final SearchStatsSettings searchStatsSettings;
+    private final MergeMetrics mergeMetrics;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -188,6 +195,7 @@ public final class IndexModule {
      * @param analysisRegistry   the analysis registry
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
+     * @param mergeMetrics
      */
     public IndexModule(
         final IndexSettings indexSettings,
@@ -197,25 +205,30 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final SlowLogFieldProvider slowLogFieldProvider,
+        final ActionLoggingFieldsProvider loggingFieldsProvider,
         final MapperMetrics mapperMetrics,
         final List<SearchOperationListener> searchOperationListeners,
-        final IndexingStatsSettings indexingStatsSettings
+        final IndexingStatsSettings indexingStatsSettings,
+        final SearchStatsSettings searchStatsSettings,
+        final MergeMetrics mergeMetrics,
+        final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // Need to have a mutable arraylist for plugins to add listeners to it
         this.searchOperationListeners = new ArrayList<>(searchOperationListeners);
-        SlowLogFields slowLogFields = slowLogFieldProvider.create(indexSettings);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFields));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFields));
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, loggingFieldsProvider));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, loggingFieldsProvider));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
         this.mapperMetrics = mapperMetrics;
         this.indexingStatsSettings = indexingStatsSettings;
+        this.searchStatsSettings = searchStatsSettings;
+        this.mergeMetrics = mergeMetrics;
+        this.metricHolder = metricHolder;
     }
 
     /**
@@ -486,8 +499,7 @@ public final class IndexModule {
         IdFieldMapper idFieldMapper,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
-        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
-        QueryRewriteInterceptor queryRewriteInterceptor
+        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -551,8 +563,10 @@ public final class IndexModule {
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
                 mapperMetrics,
-                queryRewriteInterceptor,
-                indexingStatsSettings
+                indexingStatsSettings,
+                searchStatsSettings,
+                mergeMetrics,
+                metricHolder
             );
             success = true;
             return indexService;
@@ -649,7 +663,8 @@ public final class IndexModule {
         ClusterService clusterService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
-        ScriptService scriptService
+        ScriptService scriptService,
+        DocumentMapper documentMapper
     ) throws IOException {
         return new MapperService(
             clusterService,
@@ -666,7 +681,9 @@ public final class IndexModule {
             query -> {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
-            mapperMetrics
+            mapperMetrics,
+            documentMapper,
+            null
         );
     }
 

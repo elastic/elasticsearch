@@ -1,7 +1,0 @@
-{
-    "properties" : {
-        "ip_addr" : {
-            "type" : "ip"
-        }
-    }
-}

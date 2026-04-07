@@ -1,44 +1,46 @@
 {
-  "ml.upgrade_job_snapshot":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-upgrade-job-model-snapshot.html",
-      "description":"Upgrades a given job snapshot to the current major version."
+  "ml.upgrade_job_snapshot": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-upgrade-job-snapshot",
+      "description": "Upgrade a snapshot"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_upgrade",
-          "methods":[
+          "path": "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}/_upgrade",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "job_id":{
-              "type":"string",
-              "description":"The ID of the job"
+          "parts": {
+            "job_id": {
+              "type": "string",
+              "description": "The ID of the job"
             },
-            "snapshot_id":{
-              "type":"string",
-              "description":"The ID of the snapshot"
+            "snapshot_id": {
+              "type": "string",
+              "description": "The ID of the snapshot"
             }
           }
         }
       ]
     },
-    "params":{
-      "timeout":{
-        "type":"time",
-        "required":false,
-        "description":"How long should the API wait for the job to be opened and the old snapshot to be loaded."
+    "params": {
+      "timeout": {
+        "type": "time",
+        "default": "30m",
+        "description": "How long should the API wait for the job to be opened and the old snapshot to be loaded."
       },
-      "wait_for_completion":{
-        "type":"boolean",
-        "required":false,
-        "description":"Should the request wait until the task is complete before responding to the caller. Default is false."
+      "wait_for_completion": {
+        "type": "boolean",
+        "default": false,
+        "description": "Should the request wait until the task is complete before responding to the caller. Default is false."
       }
     }
   }

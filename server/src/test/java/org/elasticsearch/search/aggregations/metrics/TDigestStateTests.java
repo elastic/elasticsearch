@@ -9,25 +9,23 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class TDigestStateTests extends ESTestCase {
 
@@ -177,45 +175,58 @@ public class TDigestStateTests extends ESTestCase {
         }
     }
 
-    private TDigestState writeToAndReadFrom(TDigestState state, TransportVersion version) throws IOException {
-        BytesRef serializedAggs = serialize(state, version);
-        try (
-            StreamInput in = new NamedWriteableAwareStreamInput(
-                StreamInput.wrap(serializedAggs.bytes),
-                new NamedWriteableRegistry(Collections.emptyList())
-            )
-        ) {
-            in.setTransportVersion(version);
-            return TDigestState.read(breaker(), in);
-
+    public void testUniqueCentroids() {
+        assertUniqueCentroids(new double[0], new long[0], new HashMap<>(), 100);
+        assertUniqueCentroids(new double[] { 4 }, new long[] { 6 }, Map.of(4.0, 6L), 100);
+        assertUniqueCentroids(new double[] { -2.0, -1.0, -1.0, 0.0 }, new long[] { 3, 3, 2, 5 }, Map.of(-2.0, 3L, -1.0, 5L, 0.0, 5L), 100);
+        assertUniqueCentroids(new double[] { 1, 1, 1, 1 }, new long[] { 1, 1, 1, 1 }, Map.of(1.0, 4L), 100);
+        assertUniqueCentroids(new double[] { 1, 1, 1, 2 }, new long[] { 1, 1, 1, 1 }, Map.of(1.0, 3L, 2.0, 1L), 100);
+        assertUniqueCentroids(new double[] { 1, 2, 2, 2 }, new long[] { 1, 1, 1, 1 }, Map.of(1.0, 1L, 2.0, 3L), 100);
+        assertUniqueCentroids(new double[] { 1, 2, 3, 4 }, new long[] { 4, 3, 2, 1 }, Map.of(1.0, 4L, 2.0, 3L, 3.0, 2L, 4.0, 1L), 100);
+        // We keep this low to avoid losing accuracy
+        int maxRandomSize = randomIntBetween(10, 1000);
+        SortedMap<Double, Long> expected = new TreeMap<>();
+        double[] means = new double[maxRandomSize];
+        long[] counts = new long[maxRandomSize];
+        long totalCount = 0;
+        for (int i = 0; i < maxRandomSize; ++i) {
+            // We choose ints to be able to allow for more duplicates
+            means[i] = randomIntBetween(0, maxRandomSize / 2);
+            counts[i] = randomLongBetween(1, 100);
+            totalCount += counts[i];
+            if (expected.containsKey(means[i])) {
+                expected.put(means[i], expected.get(means[i]) + counts[i]);
+            } else {
+                expected.put(means[i], counts[i]);
+            }
         }
+        // We use compression greater than our samples to ensure predictable centroids
+        assertUniqueCentroids(means, counts, expected, totalCount + 1);
     }
 
-    private static BytesRef serialize(TDigestState state, TransportVersion version) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(version);
-            TDigestState.write(state, out);
-            return out.bytes().toBytesRef();
+    private void assertUniqueCentroids(double[] mean, long[] count, Map<Double, Long> expected, long compression) {
+        try (TDigestState digest = TDigestState.create(breaker(), compression)) {
+            for (int i = 0; i < mean.length; ++i) {
+                digest.add(mean[i], count[i]);
+            }
+            Set<Double> seen = new HashSet<>();
+            if (digest.size() == 0) {
+                assertThat(digest.uniqueCentroids().hasNext(), equalTo(false));
+            } else {
+                Double previous = null;
+                for (Iterator<Centroid> it = digest.uniqueCentroids(); it.hasNext();) {
+                    Centroid centroid = it.next();
+                    assertThat(seen.contains(centroid.mean()), equalTo(false));
+                    assertThat(centroid.count(), equalTo(expected.get(centroid.mean())));
+                    if (previous != null) {
+                        assertThat(centroid.mean(), greaterThan(previous));
+                    }
+                    previous = centroid.mean();
+                    seen.add(centroid.mean());
+                }
+                assertThat(seen.size(), equalTo(expected.size()));
+            }
         }
-    }
-
-    public void testSerialization() throws IOException {
-        // Past default was the accuracy-optimized version.
-        TDigestState state = TDigestState.create(breaker(), 100);
-        TDigestState backwardsCompatible = TDigestState.createOptimizedForAccuracy(breaker(), 100);
-        for (int i = 0; i < 1000; i++) {
-            state.add(i);
-            backwardsCompatible.add(i);
-        }
-
-        TDigestState serialized = writeToAndReadFrom(state, TransportVersions.V_8_9_X);
-        assertEquals(serialized, state);
-
-        TDigestState serializedBackwardsCompatible = writeToAndReadFrom(state, TransportVersions.V_8_8_1);
-        assertNotEquals(serializedBackwardsCompatible, state);
-        assertEquals(serializedBackwardsCompatible, backwardsCompatible);
-
-        Releasables.close(state, backwardsCompatible, serialized, serializedBackwardsCompatible);
     }
 
     private CircuitBreaker breaker() {

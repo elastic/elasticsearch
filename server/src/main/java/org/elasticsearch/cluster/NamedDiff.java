@@ -33,7 +33,7 @@ public interface NamedDiff<T extends Diffable<T>> extends Diff<T>, NamedWriteabl
      * @return {@code true} if the instance should be serialized, {@code false} otherwise
      */
     default boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(getMinimalSupportedVersion());
+        return version.supports(getMinimalSupportedVersion());
     }
 
 }

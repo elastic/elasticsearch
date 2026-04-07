@@ -122,7 +122,7 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         }
 
         assertNotNull(parsedException);
-        assertThat(parsedException.getHeaderKeys(), hasSize(0));
+        assertThat(parsedException.getBodyHeaderKeys(), hasSize(0));
         assertThat(parsedException.getMetadataKeys(), hasSize(1));
         assertThat(parsedException.getMetadata("es.phase"), hasItem(phase));
         // SearchPhaseExecutionException has no cause field

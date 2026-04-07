@@ -33,7 +33,14 @@ public class UpdateConnectorServiceTypeActionRequestBWCSerializingTests extends 
     @Override
     protected UpdateConnectorServiceTypeAction.Request mutateInstance(UpdateConnectorServiceTypeAction.Request instance)
         throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String originalConnectorId = instance.getConnectorId();
+        String serviceType = instance.getServiceType();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> originalConnectorId = randomValueOtherThan(originalConnectorId, () -> randomUUID());
+            case 1 -> serviceType = randomValueOtherThan(serviceType, () -> randomAlphaOfLengthBetween(3, 10));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UpdateConnectorServiceTypeAction.Request(originalConnectorId, serviceType);
     }
 
     @Override

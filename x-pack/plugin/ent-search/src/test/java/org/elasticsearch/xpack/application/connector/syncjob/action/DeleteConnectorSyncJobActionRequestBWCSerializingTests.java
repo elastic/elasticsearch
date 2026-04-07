@@ -30,7 +30,9 @@ public class DeleteConnectorSyncJobActionRequestBWCSerializingTests extends Abst
 
     @Override
     protected DeleteConnectorSyncJobAction.Request mutateInstance(DeleteConnectorSyncJobAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new DeleteConnectorSyncJobAction.Request(
+            randomValueOtherThan(instance.getConnectorSyncJobId(), () -> randomAlphaOfLengthBetween(5, 15))
+        );
     }
 
     @Override

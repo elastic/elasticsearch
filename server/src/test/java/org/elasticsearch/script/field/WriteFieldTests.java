@@ -19,7 +19,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,68 +27,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class WriteFieldTests extends ESTestCase {
-
-    public void testResolveDepthFlat() {
-        Map<String, Object> map = new HashMap<>();
-        map.put("abc.d.ef", "flat");
-
-        Map<String, Object> abc = new HashMap<>();
-        map.put("abc", abc);
-        abc.put("d.ef", "mixed");
-
-        Map<String, Object> d = new HashMap<>();
-        abc.put("d", d);
-        d.put("ef", "nested");
-
-        // { "abc.d.ef", "flat", "abc": { "d.ef": "mixed", "d": { "ef": "nested" } } }
-        WriteField wf = new WriteField("abc.d.ef", () -> map);
-        assertTrue(wf.exists());
-
-        assertEquals("nested", wf.get("missing"));
-        // { "abc.d.ef", "flat", "abc": { "d.ef": "mixed", "d": { } } }
-        d.remove("ef");
-        assertEquals("missing", wf.get("missing"));
-        // { "abc.d.ef", "flat", "abc": { "d.ef": "mixed" }
-        // TODO(stu): this should be inaccessible
-        abc.remove("d");
-        assertEquals("missing", wf.get("missing"));
-
-        // resolution at construction time
-        wf = new WriteField("abc.d.ef", () -> map);
-        assertEquals("mixed", wf.get("missing"));
-        abc.remove("d.ef");
-        assertEquals("missing", wf.get("missing"));
-
-        wf = new WriteField("abc.d.ef", () -> map);
-        // abc is still there
-        assertEquals("missing", wf.get("missing"));
-        map.remove("abc");
-        assertEquals("missing", wf.get("missing"));
-
-        wf = new WriteField("abc.d.ef", () -> map);
-        assertEquals("flat", wf.get("missing"));
-    }
-
-    public void testExists() {
-        Map<String, Object> a = new HashMap<>();
-        a.put("b.c", null);
-        assertTrue(new WriteField("a.b.c", () -> Map.of("a", a)).exists());
-
-        a.clear();
-        Map<String, Object> level1 = new HashMap<>();
-        level1.put("null", null);
-        a.put("level1", level1);
-        a.put("null", null);
-        // WriteField.leaf is null
-        assertFalse(new WriteField("missing.leaf", () -> a).exists());
-
-        // WriteField.leaf non-null but missing
-        assertFalse(new WriteField("missing", () -> a).exists());
-
-        // Check mappings with null values exist
-        assertTrue(new WriteField("level1.null", () -> a).exists());
-        assertTrue(new WriteField("null", () -> a).exists());
-    }
 
     public void testMoveString() {
         String src = "a.b.c";
@@ -397,56 +334,6 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals(new ArrayList<>(List.of("bar")), b.get("c"));
     }
 
-    public void testSizeIsEmpty() {
-        Map<String, Object> root = new HashMap<>();
-        WriteField wf = new WriteField("a.b.c", () -> root);
-        assertTrue(wf.isEmpty());
-        assertEquals(0, wf.size());
-
-        root.put("a.b.c", List.of(1, 2));
-        wf = new WriteField("a.b.c", () -> root);
-        assertFalse(wf.isEmpty());
-        assertEquals(2, wf.size());
-
-        Map<String, Object> d = new HashMap<>();
-        root.put("d", d);
-        wf = new WriteField("d.e", () -> root);
-        assertTrue(wf.isEmpty());
-        assertEquals(0, wf.size());
-        d.put("e", "foo");
-        assertFalse(wf.isEmpty());
-        assertEquals(1, wf.size());
-    }
-
-    public void testIterator() {
-        Map<String, Object> root = new HashMap<>();
-        Map<String, Object> a = new HashMap<>();
-        Map<String, Object> b = new HashMap<>();
-        a.put("b", b);
-        root.put("a", a);
-
-        WriteField wf = new WriteField("a.b.c", () -> root);
-        assertFalse(wf.iterator().hasNext());
-
-        b.put("c", "value");
-        Iterator<Object> it = wf.iterator();
-        assertTrue(it.hasNext());
-        assertEquals("value", it.next());
-        assertFalse(it.hasNext());
-
-        b.put("c", List.of(1, 2, 3));
-        it = wf.iterator();
-        assertTrue(it.hasNext());
-        assertEquals(1, it.next());
-        assertTrue(it.hasNext());
-        assertEquals(2, it.next());
-        assertTrue(it.hasNext());
-        assertEquals(3, it.next());
-        assertFalse(it.hasNext());
-
-        assertFalse(new WriteField("dne.dne", () -> root).iterator().hasNext());
-    }
-
     @SuppressWarnings("unchecked")
     public void testDeduplicate() {
         Map<String, Object> root = new HashMap<>();
@@ -527,42 +414,6 @@ public class WriteFieldTests extends ESTestCase {
         assertNull(wf.get(null));
         wf.removeValue(10);
         assertNull(wf.get(null));
-    }
-
-    public void testHasValue() {
-        Map<String, Object> root = new HashMap<>();
-        Map<String, Object> a = new HashMap<>();
-        Map<String, Object> b = new HashMap<>();
-        a.put("b", b);
-        root.put("a", a);
-        b.put("c", new ArrayList<>(List.of(10, 11, 12)));
-        WriteField wf = new WriteField("a.b.c", () -> root);
-        assertFalse(wf.hasValue(v -> (Integer) v < 10));
-        assertTrue(wf.hasValue(v -> (Integer) v <= 10));
-        wf.append(9);
-        assertTrue(wf.hasValue(v -> (Integer) v < 10));
-
-        root.clear();
-        a.clear();
-        a.put("null", null);
-        a.put("b", List.of(1, 2, 3, 4));
-        root.put("a", a);
-        wf = new WriteField("a.b", () -> root);
-        assertTrue(wf.hasValue(x -> (Integer) x % 2 == 0));
-        assertFalse(wf.hasValue(x -> (Integer) x > 4));
-        assertFalse(new WriteField("d.e", () -> root).hasValue(Objects::isNull));
-        assertTrue(new WriteField("a.null", () -> root).hasValue(Objects::isNull));
-        assertFalse(new WriteField("a.null2", () -> root).hasValue(Objects::isNull));
-    }
-
-    public void testGetIndex() {
-        Map<String, Object> root = new HashMap<>();
-        root.put("a", Map.of("b", List.of(1, 2, 3, 5), "c", "foo"));
-        WriteField wf = new WriteField("a.b", () -> root);
-        assertEquals(5, wf.get(3, 100));
-        assertEquals(100, new WriteField("c.d", () -> root).get(3, 100));
-        assertEquals("bar", new WriteField("a.c", () -> root).get(1, "bar"));
-        assertEquals("foo", new WriteField("a.c", () -> root).get(0, "bar"));
     }
 
     @SuppressWarnings("unchecked")

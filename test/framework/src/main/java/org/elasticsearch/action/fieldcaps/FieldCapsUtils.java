@@ -61,7 +61,12 @@ public enum FieldCapsUtils {
                 .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
             List<String> indices = a[1] == null ? Collections.emptyList() : (List<String>) a[1];
             List<FieldCapabilitiesFailure> failures = a[2] == null ? Collections.emptyList() : (List<FieldCapabilitiesFailure>) a[2];
-            return new FieldCapabilitiesResponse(indices.toArray(String[]::new), responseMap, failures);
+
+            return FieldCapabilitiesResponse.builder()
+                .withIndices(indices.toArray(String[]::new))
+                .withFields(responseMap)
+                .withFailures(failures)
+                .build();
         }
     );
 

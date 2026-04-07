@@ -1,0 +1,6 @@
+pr: 139873
+summary: Add parameter support in PromQL query durations
+area: ES|QL
+type: enhancement
+issues:
+  - 139508

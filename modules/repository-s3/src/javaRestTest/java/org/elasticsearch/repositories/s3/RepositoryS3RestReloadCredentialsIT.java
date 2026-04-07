@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.client.Request;
@@ -43,6 +44,7 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
         true,
         BUCKET,
         BASE_PATH,
+        S3ConsistencyModel::randomConsistencyModel,
         mutableAccessKey(() -> repositoryAccessKey, ANY_REGION, "s3")
     );
 

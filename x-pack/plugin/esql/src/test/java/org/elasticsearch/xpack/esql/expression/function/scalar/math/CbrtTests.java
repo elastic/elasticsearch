@@ -16,12 +16,14 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 public class CbrtTests extends AbstractScalarFunctionTestCase {
@@ -31,48 +33,21 @@ public class CbrtTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String read = "Attribute[channel=0]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        // Valid values
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "CbrtIntEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            Math::cbrt,
-            Integer.MIN_VALUE,
-            Integer.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "CbrtLongEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            Math::cbrt,
-            Long.MIN_VALUE,
-            Long.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            "CbrtUnsignedLongEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            ul -> Math.cbrt(unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
-            BigInteger.ZERO,
-            UNSIGNED_LONG_MAX,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "CbrtDoubleEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            Math::cbrt,
-            Double.MIN_VALUE,
-            Double.MAX_VALUE,
-            List.of()
-        );
+        UnaryTestCaseHelper helper = unary().expectedOutputType(DataType.DOUBLE);
+        helper.ints().expectedFromInt(Math::cbrt).evaluatorToString("CbrtIntEvaluator[val=%0]").build(suppliers);
+        helper.longs().expectedFromLong(Math::cbrt).evaluatorToString("CbrtLongEvaluator[val=%0]").build(suppliers);
+        helper.unsignedLongs(BigInteger.ZERO, UNSIGNED_LONG_MAX)
+            .expectedFromBigInteger(ul -> Math.cbrt(unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))))
+            .evaluatorToString("CbrtUnsignedLongEvaluator[val=%0]")
+            .build(suppliers);
+        helper.doubles(Double.MIN_VALUE, Double.MAX_VALUE)
+            .expectedFromDouble(Math::cbrt)
+            .evaluatorToString("CbrtDoubleEvaluator[val=%0]")
+            .build(suppliers);
         suppliers = anyNullIsNull(true, suppliers);
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

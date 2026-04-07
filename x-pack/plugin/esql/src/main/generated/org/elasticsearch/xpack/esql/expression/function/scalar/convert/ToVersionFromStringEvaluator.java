@@ -7,32 +7,35 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToVersion}.
+ * {@link ExpressionEvaluator} implementation for {@link ToVersion}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final EvalOperator.ExpressionEvaluator asString;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToVersionFromStringEvaluator.class);
 
-  public ToVersionFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator asString,
+  private final ExpressionEvaluator asString;
+
+  public ToVersionFromStringEvaluator(Source source, ExpressionEvaluator asString,
       DriverContext driverContext) {
     super(driverContext, source);
     this.asString = asString;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return asString;
   }
 
@@ -120,12 +123,19 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
     Releasables.closeExpectNoException(asString);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += asString.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory asString;
+    private final ExpressionEvaluator.Factory asString;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory asString) {
+    public Factory(Source source, ExpressionEvaluator.Factory asString) {
       this.source = source;
       this.asString = asString;
     }

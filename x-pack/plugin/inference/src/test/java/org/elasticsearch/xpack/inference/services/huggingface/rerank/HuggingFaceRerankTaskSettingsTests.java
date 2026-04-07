@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.huggingface.rerank;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<HuggingFaceRerankTaskSettings> {
 
     public static HuggingFaceRerankTaskSettings createRandom() {
-        var returnDocuments = randomBoolean() ? randomBoolean() : null;
+        var returnDocuments = randomOptionalBoolean();
         var topNDocsOnly = randomBoolean() ? randomIntBetween(1, 10) : null;
 
         return new HuggingFaceRerankTaskSettings(topNDocsOnly, returnDocuments);
@@ -69,13 +70,13 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     public void UpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new HuggingFaceRerankTaskSettings(5, true);
-        HuggingFaceRerankTaskSettings updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
+        var updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(new HashMap<>());
         assertEquals(initialSettings, updatedSettings);
     }
 
     public void testUpdatedTaskSettings_WithNewReturnDocuments_ReturnsUpdatedSettings() {
         var initialSettings = new HuggingFaceRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS, false);
+        var newSettings = new HashMap<String, Object>(Map.of(HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS, false));
         HuggingFaceRerankTaskSettings updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
         assertEquals(initialSettings.getTopNDocumentsOnly(), updatedSettings.getTopNDocumentsOnly());
@@ -83,7 +84,7 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     public void testUpdatedTaskSettings_WithNewTopNDocsOnly_ReturnsUpdatedSettings() {
         var initialSettings = new HuggingFaceRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY, 7);
+        var newSettings = new HashMap<String, Object>(Map.of(HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY, 7));
         HuggingFaceRerankTaskSettings updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertEquals(7, updatedSettings.getTopNDocumentsOnly().intValue());
         assertEquals(initialSettings.getReturnDocuments(), updatedSettings.getReturnDocuments());
@@ -91,11 +92,8 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
         var initialSettings = new HuggingFaceRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(
-            HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS,
-            false,
-            HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY,
-            7
+        var newSettings = new HashMap<String, Object>(
+            Map.of(HuggingFaceRerankTaskSettings.RETURN_DOCUMENTS, false, HuggingFaceRerankTaskSettings.TOP_N_DOCS_ONLY, 7)
         );
         HuggingFaceRerankTaskSettings updatedSettings = (HuggingFaceRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
@@ -114,7 +112,13 @@ public class HuggingFaceRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     @Override
     protected HuggingFaceRerankTaskSettings mutateInstance(HuggingFaceRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, HuggingFaceRerankTaskSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var topNDocumentsOnly = randomValueOtherThan(instance.getTopNDocumentsOnly(), () -> randomFrom(randomIntBetween(1, 10), null));
+            return new HuggingFaceRerankTaskSettings(topNDocumentsOnly, instance.getReturnDocuments());
+        } else {
+            var returnDocuments = randomValueOtherThan(instance.getReturnDocuments(), ESTestCase::randomOptionalBoolean);
+            return new HuggingFaceRerankTaskSettings(instance.getTopNDocumentsOnly(), returnDocuments);
+        }
     }
 
     @Override

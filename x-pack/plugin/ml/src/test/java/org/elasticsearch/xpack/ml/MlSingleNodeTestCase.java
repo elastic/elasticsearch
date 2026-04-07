@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -113,7 +113,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
     public void tearDown() throws Exception {
         try {
             logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
-            client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+            client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         } finally {
             super.tearDown();
         }
@@ -121,11 +121,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected void waitForMlTemplates() throws Exception {
         // block until the templates are installed
-        ClusterServiceUtils.awaitClusterState(
-            logger,
-            MachineLearning::criticalTemplatesInstalled,
-            getInstanceFromNode(ClusterService.class)
-        );
+        ClusterServiceUtils.awaitClusterState(MachineLearning::criticalTemplatesInstalled, getInstanceFromNode(ClusterService.class));
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)

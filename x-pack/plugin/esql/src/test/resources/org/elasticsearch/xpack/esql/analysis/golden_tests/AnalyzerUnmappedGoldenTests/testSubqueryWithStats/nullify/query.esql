@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees, (FROM sample_data | STATS max_ts = MAX(@timestamp) BY does_not_exist)
+| KEEP emp_no, max_ts, does_not_exist

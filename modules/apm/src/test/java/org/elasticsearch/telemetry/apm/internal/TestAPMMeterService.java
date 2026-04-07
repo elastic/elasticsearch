@@ -9,14 +9,11 @@
 
 package org.elasticsearch.telemetry.apm.internal;
 
-import io.opentelemetry.api.metrics.Meter;
-
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.function.Supplier;
-
 public class TestAPMMeterService extends APMMeterService {
-    public TestAPMMeterService(Settings settings, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
+
+    public TestAPMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
         super(settings, otelMeterSupplier, noopMeterSupplier);
     }
 

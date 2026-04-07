@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -52,6 +52,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
@@ -65,14 +66,12 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -83,9 +82,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -105,6 +107,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
@@ -112,6 +115,7 @@ import static org.hamcrest.Matchers.not;
 public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
+    private static final long MAX_COPY_SIZE_BEFORE_MULTIPART_MB = 5;
 
     private String region;
     private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
@@ -172,22 +176,26 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .setSecureSettings(secureSettings);
 
+        // on my laptop 10K exercises this better but larger values should be fine for nightlies
+        builder.put(
+            S3ClientSettings.MAX_COPY_SIZE_BEFORE_MULTIPART.getConcreteSettingForNamespace("test").getKey(),
+            MAX_COPY_SIZE_BEFORE_MULTIPART_MB + "mb"
+        );
+
         if (randomBoolean()) {
             builder.put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), randomBoolean());
         }
         if (region != null) {
             builder.put(S3ClientSettings.REGION.getConcreteSettingForNamespace("test").getKey(), region);
         }
+        if (randomBoolean()) {
+            // Sometimes explicitly set connection max idle time to ensure it is configurable
+            builder.put(
+                S3ClientSettings.CONNECTION_MAX_IDLE_TIME_SETTING.getConcreteSettingForNamespace("test").getKey(),
+                S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME
+            );
+        }
         return builder.build();
-    }
-
-    @Override
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/88841",
-        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
-    )
-    public void testRequestStats() throws Exception {
-        super.testRequestStats();
     }
 
     public void testAbortRequestStats() throws Exception {
@@ -233,10 +241,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/101608",
-        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
-    )
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
         final String repository = createRepository(randomRepositoryName(), false);
@@ -438,7 +442,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         if (randomBoolean()) {
             repository.blobStore()
                 .blobContainer(repository.basePath())
-                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, true);
+                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, false);
         } else {
             repository.blobStore()
                 .blobContainer(repository.basePath())
@@ -447,7 +451,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     getRepositoryDataBlobName(modifiedRepositoryData.getGenId()),
                     serialized.streamInput(),
                     serialized.length(),
-                    true
+                    false
                 );
         }
 
@@ -581,6 +585,91 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
     }
 
+    public void testFailIfAlreadyExists() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
+            final String blobName = randomAlphaOfLengthBetween(8, 12);
+
+            // initial write: exactly one of these may succeed
+            final var parallelWrites = between(1, 4);
+            final var exceptionCount = new AtomicInteger(0);
+            final var successData = new AtomicReference<byte[]>();
+            final var writeBarrier = new CyclicBarrier(parallelWrites);
+            runInParallel(parallelWrites, ignored -> {
+                final byte[] data = getRandomData(container);
+                safeAwait(writeBarrier);
+                try {
+                    writeBlob(container, blobName, new BytesArray(data), true);
+                    assertTrue(successData.compareAndSet(null, data));
+                } catch (IOException e) {
+                    exceptionCount.incrementAndGet();
+                }
+            });
+
+            // the data in the blob comes from the successful write
+            assertNotNull(successData.get());
+            assertArrayEquals(successData.get(), readBlobFully(container, blobName, successData.get().length));
+
+            // all the other writes failed with an IOException
+            assertEquals(parallelWrites - 1, exceptionCount.get());
+
+            // verify that another write succeeds
+            final var overwriteData = getRandomData(container);
+            writeBlob(container, blobName, new BytesArray(overwriteData), false);
+            assertArrayEquals(overwriteData, readBlobFully(container, blobName, overwriteData.length));
+
+            // throw exception if failIfAlreadyExists is set to true
+            var exception = expectThrows(
+                IOException.class,
+                () -> writeBlob(container, blobName, new BytesArray(getRandomData(container)), true)
+            );
+            assertThat(exception.getMessage(), startsWith("Unable to upload"));
+
+            assertArrayEquals(overwriteData, readBlobFully(container, blobName, overwriteData.length));
+
+            container.delete(randomPurpose());
+        }
+    }
+
+    // Tests that max_copy_size_before_multipart, which was moved from a repository setting to a client setting, still honors
+    // repository-level overrides for backward compatibility
+    public void testRepositorySettingOverridesClient() {
+        final String repoName = randomRepositoryName();
+        createRepository(repoName, repositorySettings(repoName), true);
+        final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
+        BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        BlobStoreWrapper blobStore = asInstanceOf(BlobStoreWrapper.class, repository.blobStore());
+        S3BlobStore delegateBlobStore = asInstanceOf(S3BlobStore.class, blobStore.delegate());
+        assertEquals(ByteSizeUnit.MB.toBytes(MAX_COPY_SIZE_BEFORE_MULTIPART_MB), delegateBlobStore.maxCopySizeBeforeMultipart());
+
+        final long REPO_MAX_COPY_SIZE_BEFORE_MULTIPART_MB = 10;
+        createRepository(
+            repoName,
+            Settings.builder()
+                .put(repositorySettings(repoName))
+                .put("max_copy_size_before_multipart", REPO_MAX_COPY_SIZE_BEFORE_MULTIPART_MB + "mb")
+                .build(),
+            true
+        );
+        repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        blobStore = asInstanceOf(BlobStoreWrapper.class, repository.blobStore());
+        delegateBlobStore = asInstanceOf(S3BlobStore.class, blobStore.delegate());
+        assertEquals(ByteSizeUnit.MB.toBytes(REPO_MAX_COPY_SIZE_BEFORE_MULTIPART_MB), delegateBlobStore.maxCopySizeBeforeMultipart());
+    }
+
+    private static byte[] getRandomData(BlobContainer container) {
+        final byte[] data;
+        if (randomBoolean()) {
+            // single upload
+            data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+        } else {
+            // multipart upload
+            int thresholdInBytes = Math.toIntExact(((S3BlobContainer) container).getLargeBlobThresholdInBytes());
+            data = randomBytes(randomIntBetween(thresholdInBytes, thresholdInBytes + scaledRandomIntBetween(1024, 1 << 16)));
+        }
+        return data;
+    }
+
     /**
      * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
      */
@@ -591,13 +680,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        public List<Setting<?>> getSettings() {
-            final List<Setting<?>> settings = new ArrayList<>(super.getSettings());
-            settings.add(S3ClientSettings.DISABLE_CHUNKED_ENCODING);
-            return settings;
-        }
-
-        @Override
         protected S3Repository createRepository(
             ProjectId projectId,
             RepositoryMetadata metadata,
@@ -605,7 +687,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            S3RepositoriesMetrics s3RepositoriesMetrics
+            S3RepositoriesMetrics s3RepositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return new S3Repository(
                 projectId,
@@ -615,7 +698,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                s3RepositoriesMetrics
+                s3RepositoriesMetrics,
+                snapshotMetrics
             ) {
 
                 @Override
@@ -626,12 +710,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                             return new S3BlobContainer(path, (S3BlobStore) delegate()) {
                                 @Override
                                 long getLargeBlobThresholdInBytes() {
-                                    return ByteSizeUnit.MB.toBytes(1L);
-                                }
-
-                                @Override
-                                long getMaxCopySizeBeforeMultipart() {
-                                    // on my laptop 10K exercises this better but larger values should be fine for nightlies
                                     return ByteSizeUnit.MB.toBytes(1L);
                                 }
 
@@ -649,7 +727,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     protected class S3BlobStoreHttpHandler extends S3HttpHandler implements BlobStoreHttpHandler {
 
         S3BlobStoreHttpHandler(final String bucket) {
-            super(bucket);
+            super(bucket, S3ConsistencyModel.AWS_DEFAULT);
         }
 
         @Override
@@ -718,7 +796,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         private S3HttpHandler.S3Request parseRequest(HttpExchange exchange) {
-            return new S3HttpHandler("bucket").parseRequest(exchange);
+            return new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel()).parseRequest(exchange);
         }
 
         @Override

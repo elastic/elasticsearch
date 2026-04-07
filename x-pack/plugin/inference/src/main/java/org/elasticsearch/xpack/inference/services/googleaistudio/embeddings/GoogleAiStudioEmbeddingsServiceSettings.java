@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googleaistudio.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,9 +68,7 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleAiStudioEmbeddingsServiceSettings(model, maxInputTokens, dims, similarityMeasure, rateLimitSettings);
     }
@@ -154,7 +151,7 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

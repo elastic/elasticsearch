@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -23,7 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
@@ -46,10 +46,10 @@ public final class EnrichCache {
     private static final CacheValue EMPTY_CACHE_VALUE = new CacheValue(List.of(), CacheKey.CACHE_KEY_SIZE);
 
     private final Cache<CacheKey, CacheValue> cache;
+    private final LongAdder sizeInBytes = new LongAdder();
     private final LongSupplier relativeNanoTimeProvider;
-    private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
-    private final AtomicLong missesTimeInNanos = new AtomicLong(0);
-    private final AtomicLong sizeInBytes = new AtomicLong(0);
+    private final LongAdder hitsTimeInNanos = new LongAdder();
+    private final LongAdder missesTimeInNanos = new LongAdder();
 
     EnrichCache(long maxSize) {
         this(maxSize, System::nanoTime);
@@ -72,7 +72,7 @@ public final class EnrichCache {
 
     private Cache<CacheKey, CacheValue> createCache(long maxWeight, ToLongBiFunction<CacheKey, CacheValue> weigher) {
         var builder = CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxWeight).removalListener(notification -> {
-            sizeInBytes.getAndAdd(-1 * notification.getValue().sizeInBytes);
+            sizeInBytes.add(-1 * notification.getValue().sizeInBytes);
         });
         if (weigher != null) {
             builder.weigher(weigher);
@@ -84,14 +84,15 @@ public final class EnrichCache {
      * This method notifies the given listener of the value in this cache for the given search parameters. If there is no value in the cache
      * for these search parameters, then the new cache value is computed using searchResponseFetcher.
      *
-     * @param enrichIndex The enrich index from which the results will be retrieved
-     * @param lookupValue The value that will be used in the search
-     * @param maxMatches The max number of matches that the search will return
+     * @param projectId             The ID of the project
+     * @param enrichIndex           The enrich index from which the results will be retrieved
+     * @param lookupValue           The value that will be used in the search
+     * @param maxMatches            The max number of matches that the search will return
      * @param searchResponseFetcher The function used to compute the value to be put in the cache, if there is no value in the cache already
-     * @param listener A listener to be notified of the value in the cache
+     * @param listener              A listener to be notified of the value in the cache
      */
-    @FixForMultiProject(description = "The enrich cache will currently leak data between projects. We need to either disable or fix it.")
     public void computeIfAbsent(
+        ProjectId projectId,
         String enrichIndex,
         Object lookupValue,
         int maxMatches,
@@ -100,11 +101,11 @@ public final class EnrichCache {
     ) {
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         long cacheStart = relativeNanoTimeProvider.getAsLong();
-        var cacheKey = new CacheKey(enrichIndex, lookupValue, maxMatches);
+        var cacheKey = new CacheKey(projectId, enrichIndex, lookupValue, maxMatches);
         List<Map<?, ?>> response = get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
         if (response != null) {
-            hitsTimeInNanos.addAndGet(cacheRequestTime);
+            hitsTimeInNanos.add(cacheRequestTime);
             listener.onResponse(response);
         } else {
             final long retrieveStart = relativeNanoTimeProvider.getAsLong();
@@ -113,7 +114,7 @@ public final class EnrichCache {
                 put(cacheKey, cacheValue);
                 List<Map<?, ?>> copy = deepCopy(cacheValue.hits, false);
                 long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
-                missesTimeInNanos.addAndGet(cacheRequestTime + databaseQueryAndCachePutTime);
+                missesTimeInNanos.add(cacheRequestTime + databaseQueryAndCachePutTime);
                 listener.onResponse(copy);
             }, listener::onFailure));
         }
@@ -132,20 +133,20 @@ public final class EnrichCache {
     // non-private for unit testing only
     void put(CacheKey cacheKey, CacheValue cacheValue) {
         cache.put(cacheKey, cacheValue);
-        sizeInBytes.addAndGet(cacheValue.sizeInBytes);
+        sizeInBytes.add(cacheValue.sizeInBytes);
     }
 
     public EnrichStatsAction.Response.CacheStats getStats(String localNodeId) {
-        Cache.CacheStats cacheStats = cache.stats();
+        Cache.Stats cacheStats = cache.stats();
         return new EnrichStatsAction.Response.CacheStats(
             localNodeId,
             cache.count(),
             cacheStats.getHits(),
             cacheStats.getMisses(),
             cacheStats.getEvictions(),
-            TimeValue.nsecToMSec(hitsTimeInNanos.get()),
-            TimeValue.nsecToMSec(missesTimeInNanos.get()),
-            sizeInBytes.get()
+            TimeValue.nsecToMSec(hitsTimeInNanos.sum()),
+            TimeValue.nsecToMSec(missesTimeInNanos.sum()),
+            sizeInBytes.sum()
         );
     }
 
@@ -200,11 +201,11 @@ public final class EnrichCache {
      *
      * @param enrichIndex The enrich <i>index</i> (i.e. not the alias, but the concrete index that the alias points to)
      * @param lookupValue The value that is used to find matches in the enrich index
-     * @param maxMatches The max number of matches that the enrich lookup should return. This changes the size of the search response and
-     * should thus be included in the cache key
+     * @param maxMatches  The max number of matches that the enrich lookup should return. This changes the size of the search response and
+     *                    should thus be included in the cache key
      */
     // Visibility for testing
-    record CacheKey(String enrichIndex, Object lookupValue, int maxMatches) {
+    record CacheKey(ProjectId projectId, String enrichIndex, Object lookupValue, int maxMatches) {
         /**
          * In reality, the size in bytes of the cache key is a function of the {@link CacheKey#lookupValue} field plus some constant for
          * the object itself, the string reference for the enrich index (but not the string itself because it's taken from the metadata),

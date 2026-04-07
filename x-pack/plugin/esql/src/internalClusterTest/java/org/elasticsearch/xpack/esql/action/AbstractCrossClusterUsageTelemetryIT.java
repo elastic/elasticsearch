@@ -51,8 +51,7 @@ public class AbstractCrossClusterUsageTelemetryIT extends AbstractMultiClustersT
     }
 
     protected CCSTelemetrySnapshot getTelemetryFromQuery(String query, String client) throws ExecutionException, InterruptedException {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.columnar(randomBoolean());
         request.includeCCSMetadata(randomBoolean());
@@ -78,8 +77,7 @@ public class AbstractCrossClusterUsageTelemetryIT extends AbstractMultiClustersT
     }
 
     protected CCSTelemetrySnapshot getTelemetryFromAsyncQuery(String query) throws Exception {
-        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
-        request.query(query);
+        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.columnar(randomBoolean());
         request.includeCCSMetadata(randomBoolean());
@@ -111,9 +109,8 @@ public class AbstractCrossClusterUsageTelemetryIT extends AbstractMultiClustersT
         return getTelemetrySnapshot(queryNode);
     }
 
-    protected CCSTelemetrySnapshot getTelemetryFromFailedQuery(String query) throws Exception {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
+    protected CCSTelemetrySnapshot getTelemetryFromFailedQuery(String query) {
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.columnar(randomBoolean());
         request.includeCCSMetadata(randomBoolean());

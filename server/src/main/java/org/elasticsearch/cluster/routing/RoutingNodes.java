@@ -88,6 +88,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private int relocatingShards = 0;
 
+    private int relocatingFrozenShards = 0;
+
     private final Map<String, Set<String>> attributeValuesByAttribute;
     private final Map<String, Recoveries> recoveriesPerNode;
 
@@ -152,6 +154,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             assignedShardsAdd(shard);
                             if (shard.relocating()) {
                                 relocatingShards++;
+                                if (isDedicatedFrozenNode(shard.currentNodeId())) {
+                                    relocatingFrozenShards++;
+                                }
                                 ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
                                 addInitialRecovery(targetShardRouting, indexShard.primary);
                                 // LinkedHashMap to preserve order.
@@ -192,6 +197,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.inactivePrimaryCount = routingNodes.inactivePrimaryCount;
         this.inactiveShardCount = routingNodes.inactiveShardCount;
         this.relocatingShards = routingNodes.relocatingShards;
+        this.relocatingFrozenShards = routingNodes.relocatingFrozenShards;
         this.attributeValuesByAttribute = Collections.synchronizedMap(Maps.copyOf(routingNodes.attributeValuesByAttribute, HashSet::new));
         this.recoveriesPerNode = Maps.copyOf(routingNodes.recoveriesPerNode, Recoveries::copy);
     }
@@ -343,6 +349,18 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return relocatingShards;
     }
 
+    public boolean isDedicatedFrozenNode(String nodeId) {
+        RoutingNode node = nodesToShards.get(nodeId);
+        if (node != null && node.node() != null && node.node().isDedicatedFrozenNode()) {
+            return true;
+        }
+        return false;
+    }
+
+    public int getRelocatingFrozenShardCount() {
+        return relocatingFrozenShards;
+    }
+
     /**
      * Returns all shards that are not in the state UNASSIGNED with the same shard
      * ID as the given shard.
@@ -478,6 +496,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     ) {
         ensureMutable();
         relocatingShards++;
+        if (isDedicatedFrozenNode(nodeId)) {
+            relocatingFrozenShards++;
+        }
         ShardRouting source = startedShard.relocate(nodeId, expectedShardSize);
         ShardRouting target = source.getTargetRelocatingShard();
         updateAssigned(startedShard, source);
@@ -726,6 +747,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      */
     private ShardRouting cancelRelocation(ShardRouting shard) {
         relocatingShards--;
+        if (isDedicatedFrozenNode(shard.currentNodeId())) {
+            relocatingFrozenShards--;
+        }
         ShardRouting cancelledShard = shard.cancelRelocation();
         updateAssigned(shard, cancelledShard);
         return cancelledShard;
@@ -881,6 +905,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             && inactivePrimaryCount == that.inactivePrimaryCount
             && inactiveShardCount == that.inactiveShardCount
             && relocatingShards == that.relocatingShards
+            && relocatingFrozenShards == that.relocatingFrozenShards
             && nodesToShards.equals(that.nodesToShards)
             && unassignedShards.equals(that.unassignedShards)
             && assignedShards.equals(that.assignedShards)
@@ -898,6 +923,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             inactivePrimaryCount,
             inactiveShardCount,
             relocatingShards,
+            relocatingFrozenShards,
             attributeValuesByAttribute,
             recoveriesPerNode
         );

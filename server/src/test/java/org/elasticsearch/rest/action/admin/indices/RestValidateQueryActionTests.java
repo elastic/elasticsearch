@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -48,7 +49,7 @@ import static org.mockito.Mockito.mock;
 public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     private ThreadPool threadPool = new TestThreadPool(RestValidateQueryActionTests.class.getName());
-    private NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+    private NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
 
     private UsageService usageService = new UsageService();
     private RestController controller = new RestController(
@@ -105,7 +106,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             """;
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);
@@ -121,7 +122,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final String content = "{\"query\":{}}";
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);
@@ -137,7 +138,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final String content = "{malformed_json}";
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);

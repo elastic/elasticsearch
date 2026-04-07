@@ -64,6 +64,20 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
+    public LongVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (LongVector.FixedBuilder builder = blockFactory().newLongVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendLong(getLong(i));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.LONG;
     }
@@ -79,7 +93,7 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
-    public LongVector filter(int... positions) {
+    public LongVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final LongArray filtered = blockFactory.bigArrays().newLongArray(positions.length);
         for (int i = 0; i < positions.length; i++) {

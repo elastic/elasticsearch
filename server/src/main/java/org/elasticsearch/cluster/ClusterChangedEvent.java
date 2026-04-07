@@ -127,6 +127,18 @@ public class ClusterChangedEvent {
         return state.metadata() != previousState.metadata();
     }
 
+    /// Returns `true` if the master node changed in this cluster state update.
+    public boolean masterChanged() {
+        return Objects.equals(state.nodes().getMasterNodeId(), previousState.nodes().getMasterNodeId()) == false
+            || state.term() != previousState.term();
+    }
+
+    /// Returns `true` if the cluster just finished recovering (the [GatewayService.STATE_NOT_RECOVERED_BLOCK]
+    /// was just removed).
+    public boolean clusterJustRecovered() {
+        return state.clusterRecovered() && previousState.clusterRecovered() == false;
+    }
+
     /**
      * Returns a set of custom meta data types when any custom metadata for the cluster has changed
      * between the previous cluster state and the new cluster state. custom meta data types are
@@ -161,6 +173,19 @@ public class ClusterChangedEvent {
             result.addAll(previousProject.customs().keySet());
         }
         return result;
+    }
+
+    /**
+     * Checks whether custom metadata type for a project has changed between the previous cluster state
+     * and the new cluster state. Custom metadata types are considered changed iff they have been added,
+     * updated or removed between the previous and the current state
+     */
+    public boolean customMetadataChanged(ProjectId projectId, String customMetadataType) {
+        ProjectMetadata previousProject = previousState.metadata().projects().get(projectId);
+        ProjectMetadata project = state.metadata().projects().get(projectId);
+        Object previousValue = previousProject == null ? null : previousProject.customs().get(customMetadataType);
+        Object value = project == null ? null : project.customs().get(customMetadataType);
+        return Objects.equals(previousValue, value) == false;
     }
 
     private <C extends Metadata.MetadataCustom<C>> Set<String> changedCustoms(

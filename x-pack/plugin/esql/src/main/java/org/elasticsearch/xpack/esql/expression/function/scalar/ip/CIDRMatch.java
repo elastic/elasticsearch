@@ -13,12 +13,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -26,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -126,7 +125,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
         return new CIDRMatchEvaluator.Factory(
             source(),
             ipEvaluatorSupplier,
-            matches.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new)
+            matches.stream().map(toEvaluator::apply).toArray(ExpressionEvaluator.Factory[]::new)
         );
     }
 
@@ -189,7 +188,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
         Check.isTrue(Expressions.foldable(matches), "Expected foldable matches, but got [{}]", matches);
 
         String targetFieldName = handler.nameOf(fa.exactAttribute());
-        Set<Object> set = new LinkedHashSet<>(Expressions.fold(FoldContext.small() /* TODO remove me */, matches));
+        Set<Object> set = new LinkedHashSet<>(matches.stream().map(Foldables::literalValueOf).toList());
 
         return new TermsQuery(source(), targetFieldName, set);
     }

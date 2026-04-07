@@ -1,0 +1,7 @@
+area: Search
+issues:
+ - 143032
+pr: 143233
+summary: Fail `MatchQueryParser` if it generates a query with more clauses than allowed
+  by `max_clause_count`
+type: enhancement

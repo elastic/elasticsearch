@@ -10,7 +10,6 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -125,10 +124,6 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
 
     TermVectorsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types no longer relevant so ignore
-            in.readString();
-        }
         id = in.readString();
 
         if (in.readBoolean()) {
@@ -474,10 +469,6 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            // types not supported so send an empty array to previous versions
-            out.writeString("_doc");
-        }
         out.writeString(id);
 
         out.writeBoolean(doc != null);

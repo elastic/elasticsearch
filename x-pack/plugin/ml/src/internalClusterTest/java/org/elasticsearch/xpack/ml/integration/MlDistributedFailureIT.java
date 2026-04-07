@@ -12,7 +12,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -75,7 +74,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.isUnassignedOrMisassigned;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
@@ -126,15 +125,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             logger.info("Stopping dedicated master node");
             Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
             internalCluster().stopCurrentMasterNode();
-            assertBusy(() -> {
-                ClusterState state = client(mlAndDataNode).admin()
-                    .cluster()
-                    .prepareState(TEST_REQUEST_TIMEOUT)
-                    .setLocal(true)
-                    .get()
-                    .getState();
-                assertNull(state.nodes().getMasterNodeId());
-            });
+            awaitMasterNotFound(mlAndDataNode);
             logger.info("Restarting dedicated master node");
             internalCluster().startNode(Settings.builder().put(masterDataPathSettings).put(masterOnlyNode()).build());
             ensureStableCluster();
@@ -725,7 +716,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                 return false;
             }
             for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
-                if (needsReassignment(task.getAssignment(), state.nodes())) {
+                if (isUnassignedOrMisassigned(task.getAssignment(), state.nodes())) {
                     return false;
                 }
             }

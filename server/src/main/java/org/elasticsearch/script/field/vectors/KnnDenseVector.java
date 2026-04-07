@@ -9,7 +9,7 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
 import java.util.List;
@@ -45,13 +45,13 @@ public class KnnDenseVector implements DenseVector {
     }
 
     @Override
-    public int dotProduct(byte[] queryVector) {
+    public double dotProduct(byte[] queryVector) {
         throw new UnsupportedOperationException("use [double dotProduct(float[] queryVector)] instead");
     }
 
     @Override
     public double dotProduct(float[] queryVector) {
-        return VectorUtil.dotProduct(docVector, queryVector);
+        return ESVectorUtil.dotProduct(docVector, queryVector);
     }
 
     @Override
@@ -103,7 +103,7 @@ public class KnnDenseVector implements DenseVector {
 
     @Override
     public double l2Norm(float[] queryVector) {
-        return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
+        return Math.sqrt(ESVectorUtil.squareDistance(docVector, queryVector));
     }
 
     @Override

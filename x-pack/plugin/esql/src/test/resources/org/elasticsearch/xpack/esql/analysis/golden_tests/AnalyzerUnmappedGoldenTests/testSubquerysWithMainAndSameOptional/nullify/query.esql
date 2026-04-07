@@ -1,0 +1,6 @@
+SET unmapped_fields="nullify"; FROM employees,
+    (FROM languages
+     | WHERE does_not_exist1::LONG > 1),
+    (FROM languages
+     | WHERE does_not_exist1::LONG > 2)
+| WHERE does_not_exist2::LONG < 10 AND emp_no > 0 OR does_not_exist1::LONG < 11

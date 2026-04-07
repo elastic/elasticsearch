@@ -15,11 +15,11 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -154,7 +154,7 @@ public class OpenAiCompletionPayload implements SageMakerStreamSchemaPayload {
     }
 
     @Override
-    public InferenceServiceResults responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
+    public ChatCompletionResults responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
         return OpenAiChatCompletionResponseEntity.fromResponse(response.body().asByteArray());
     }
 

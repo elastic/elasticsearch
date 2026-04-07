@@ -31,7 +31,9 @@ public class MinioRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
         .distribution(DistributionType.DEFAULT)
         .keystore("s3.client.repository_test_kit.access_key", "s3_test_access_key")
         .keystore("s3.client.repository_test_kit.secret_key", "s3_test_secret_key")
+        .setting("thread_pool.snapshot.max", "10")
         .setting("s3.client.repository_test_kit.endpoint", minioFixture::getAddress)
+        .setting("repositories.blobstore.testkit.analyze.copy_during_write_contention", "false")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .build();

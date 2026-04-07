@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -51,8 +51,8 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.metadata().getProject().index(index);
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        IndexMetadata idxMeta = currentState.metadata().index(index);
 
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
@@ -69,10 +69,10 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             throw new IllegalStateException("Cannot check shrink allocation as there are no allocation rules by _id");
         }
 
-        var shutdown = clusterState.metadata().nodeShutdowns().get(idShardsShouldBeOn);
+        var shutdown = currentState.cluster().metadata().nodeShutdowns().get(idShardsShouldBeOn);
         boolean nodeBeingRemoved = shutdown != null && shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART;
 
-        final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
+        final IndexRoutingTable routingTable = currentState.routingTable().index(index);
         int foundShards = 0;
         for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.STARTED)) {
             final String currentNodeId = shard.currentNodeId();

@@ -531,7 +531,9 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         DataTier.TIER_PREFERENCE_SETTING,
         IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
         MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
-        DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC
+        DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
+        DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
+        IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

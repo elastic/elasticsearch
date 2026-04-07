@@ -31,9 +31,13 @@ public abstract class BinaryPlan extends LogicalPlan {
         return right;
     }
 
-    public abstract AttributeSet leftReferences();
+    public AttributeSet leftReferences() {
+        return left.references();
+    }
 
-    public abstract AttributeSet rightReferences();
+    public AttributeSet rightReferences() {
+        return right.references();
+    }
 
     @Override
     public final BinaryPlan replaceChildren(List<LogicalPlan> newChildren) {

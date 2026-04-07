@@ -29,46 +29,23 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         """
     }
 
-    @Unroll
-    def "can configure spooling #spooling"() {
-        setup:
-        buildFile << """
-        import org.elasticsearch.gradle.LoggedExec
-        tasks.register('loggedExec', LoggedExec) {
-          commandLine 'ls', '-lh'
-          getSpoolOutput().set($spooling)
-        }
-        """
-        when:
-        def result = gradleRunner("loggedExec").build()
-        then:
-        result.task(':loggedExec').outcome == TaskOutcome.SUCCESS
-        file("build/buffered-output/loggedExec").exists() == spooling
-        where:
-        spooling << [false, true]
-    }
 
-    @Unroll
-    def "failed tasks output logged to console when spooling #spooling"() {
+    def "failed tasks output logged to console"() {
         setup:
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
           commandLine 'ls', 'wtf'
-          getSpoolOutput().set($spooling)
         }
         """
         when:
         def result = gradleRunner("loggedExec").buildAndFail()
         then:
         result.task(':loggedExec').outcome == TaskOutcome.FAILED
-        file("build/buffered-output/loggedExec").exists() == spooling
         assertOutputContains(result.output, """\
             > Task :loggedExec FAILED
             Output for ls:""".stripIndent())
         assertOutputContains(result.output, "No such file or directory")
-        where:
-        spooling << [false, true]
     }
 
     def "can capture output"() {
@@ -91,27 +68,6 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         result.getOutput().contains("OUTPUT HELLO")
     }
 
-    def "capturing output with spooling enabled is not supported"() {
-        setup:
-        buildFile << """
-        import org.elasticsearch.gradle.LoggedExec
-        tasks.register('loggedExec', LoggedExec) {
-          commandLine 'echo', 'HELLO'
-          getCaptureOutput().set(true)
-          getSpoolOutput().set(true)
-        }
-        """
-        when:
-        def result = gradleRunner("loggedExec").buildAndFail()
-        then:
-        result.task(':loggedExec').outcome == TaskOutcome.FAILED
-        assertOutputContains(result.output, '''\
-            FAILURE: Build failed with an exception.
-
-            * What went wrong:
-            Execution failed for task ':loggedExec'.
-            > Capturing output is not supported when spoolOutput is true.'''.stripIndent())
-    }
 
 
     def "can configure output indenting"() {

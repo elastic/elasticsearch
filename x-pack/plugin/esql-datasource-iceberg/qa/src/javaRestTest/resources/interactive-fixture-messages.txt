@@ -1,0 +1,163 @@
+# Interactive Fixture Messages
+# Template file for InteractiveFixtureIT output
+# Variables are replaced using {{variable_name}} syntax
+
+[banner]
+================================================================================
+  ESQL EXTERNAL COMMAND - INTERACTIVE FIXTURE MODE
+================================================================================
+
+[cluster_info]
+
+📊 ELASTICSEARCH CLUSTER
+  URL: {{es_url}}
+  Security: Disabled (no authentication required)
+  License: Trial
+  S3 Endpoint: {{s3_endpoint}}
+
+[fixture_info]
+
+🗄️  S3 HTTP FIXTURE
+  URL: {{fixture_url}}
+  Bucket: {{bucket}}
+  Warehouse: {{warehouse}}
+  Access Key: {{access_key}}
+  Secret Key: {{secret_key}}
+  Protocol: HTTP (no TLS)
+  Port: {{port}} (randomly assigned)
+
+  ℹ️  IMPORTANT: Both protocols use the SAME port!
+    • S3 API:   s3://{{bucket}}/{{warehouse}}/... → {{fixture_url}} (via S3 SDK)
+    • HTTP API: {{fixture_url}}/{{bucket}}/{{warehouse}}/... (direct)
+
+    The fixture is an HTTP server that implements the S3 API.
+    S3 URLs are translated by ES's S3 client into HTTP requests to this port.
+
+[fixtures_header]
+
+📁 AVAILABLE FIXTURES
+  Total files: {{total_files}}
+  Parquet files: {{parquet_count}}
+  Metadata files: {{metadata_count}}
+{{#other_count}}  Other files: {{other_count}}{{/other_count}}
+
+[fixtures_show_all]
+
+  All loaded fixtures:
+
+[fixtures_show_key]
+
+  Key fixtures:
+
+[fixtures_footer]
+
+  (Use -Dtests.fixture.show_blobs=true to see all fixtures)
+
+[example_queries]
+
+🔍 EXAMPLE QUERIES (New WITH Syntax)
+
+  Method 1: S3 Protocol with WITH clause (recommended)
+  ────────────────────────────────────────────────────
+  curl -X POST "{{es_url}}/_query?format=txt" \
+    -H 'Content-Type: application/json' -d'{
+    "query": "EXTERNAL \"s3://{{bucket}}/{{warehouse}}/standalone/employees.parquet\" WITH { \"endpoint\": \"{{s3_endpoint}}\", \"access_key\": \"{{access_key}}\", \"secret_key\": \"{{secret_key}}\" } | LIMIT 5"
+  }'
+
+  Method 2: HTTP Protocol with WITH clause (direct URL)
+  ──────────────────────────────────────────────────────
+  curl -X POST "{{es_url}}/_query?format=txt" \
+    -H 'Content-Type: application/json' -d'{
+    "query": "EXTERNAL \"{{fixture_url}}/{{bucket}}/{{warehouse}}/standalone/employees.parquet\" WITH { \"endpoint\": \"{{s3_endpoint}}\", \"access_key\": \"{{access_key}}\", \"secret_key\": \"{{secret_key}}\" } | LIMIT 5"
+  }'
+
+  Kibana Dev Console (S3 Protocol)
+  ─────────────────────────────────
+  POST /_query?format=txt
+  {
+    "query": "EXTERNAL \"s3://{{bucket}}/{{warehouse}}/standalone/employees.parquet\" WITH { \"endpoint\": \"{{s3_endpoint}}\", \"access_key\": \"{{access_key}}\", \"secret_key\": \"{{secret_key}}\" } | LIMIT 5"
+  }
+
+  More Examples
+  ─────────────
+  # Filter employees (multiline for readability)
+  EXTERNAL "s3://{{bucket}}/{{warehouse}}/standalone/employees.parquet"
+  WITH {
+    "endpoint": "{{s3_endpoint}}",
+    "access_key": "{{access_key}}",
+    "secret_key": "{{secret_key}}"
+  }
+  | WHERE gender == "F" AND salary > 60000
+  | KEEP first_name, last_name, salary
+  | SORT salary DESC
+  | LIMIT 10
+
+  # Aggregate by gender
+  EXTERNAL "s3://{{bucket}}/{{warehouse}}/standalone/employees.parquet"
+  WITH {
+    "endpoint": "{{s3_endpoint}}",
+    "access_key": "{{access_key}}",
+    "secret_key": "{{secret_key}}"
+  }
+  | STATS avg_salary = AVG(salary), count = COUNT(*) BY gender
+
+  # Using HTTP protocol (no S3 credentials needed for HTTP direct access)
+  EXTERNAL "{{fixture_url}}/{{bucket}}/{{warehouse}}/standalone/employees.parquet"
+  | LIMIT 5
+
+[wait_indefinite]
+
+⏳ INTERACTIVE SESSION
+  Fixture and cluster are now running
+  Running indefinitely - Press Ctrl+C to stop
+  (Set time limit with: -Dtests.fixture.wait_minutes=N)
+
+────────────────────────────────────────────────────────────────────────────────
+
+[wait_timed]
+
+⏳ INTERACTIVE SESSION
+  Fixture and cluster are now running
+  Waiting {{wait_minutes}} minute(s) for manual testing...
+  (Run indefinitely with: -Dtests.fixture.wait_minutes=0)
+
+────────────────────────────────────────────────────────────────────────────────
+
+[progress_indefinite]
+  ⏱️  Running for: {{elapsed_time}} (Press Ctrl+C to stop)
+
+[progress_timed]
+  ⏱️  Time remaining: {{remaining_time}}
+
+[request_log_header]
+
+────────────────────────────────────────────────────────────────────────────────
+📝 S3 REQUEST LOG SUMMARY
+────────────────────────────────────────────────────────────────────────────────
+
+[request_log_empty]
+
+  No S3 requests were made during this session.
+  (This is expected if you didn't run any queries)
+
+[request_log_summary]
+
+  Total requests: {{total_requests}}
+
+  Requests by type:
+
+[request_log_paths]
+
+  Unique paths accessed:
+
+[request_log_paths_truncated]
+    ... (showing first 20 paths)
+
+[shutdown]
+
+================================================================================
+  SHUTTING DOWN
+================================================================================
+
+  Fixture and cluster will now stop.
+  Test completed successfully.

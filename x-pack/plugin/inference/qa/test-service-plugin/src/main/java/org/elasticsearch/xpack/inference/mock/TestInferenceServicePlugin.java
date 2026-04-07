@@ -54,6 +54,11 @@ public class TestInferenceServicePlugin extends Plugin {
                 ServiceSettings.class,
                 TestStreamingCompletionServiceExtension.TestServiceSettings.NAME,
                 TestStreamingCompletionServiceExtension.TestServiceSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TestCompletionServiceExtension.TestServiceSettings.NAME,
+                TestCompletionServiceExtension.TestServiceSettings::new
             )
         );
     }

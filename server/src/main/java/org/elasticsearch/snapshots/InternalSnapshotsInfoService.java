@@ -211,7 +211,10 @@ public final class InternalSnapshotsInfoService implements ClusterStateListener,
 
         @Override
         protected void doRun() throws Exception {
-            final Repository repository = repositoriesService.repository(snapshotShard.snapshot.getRepository());
+            final Repository repository = repositoriesService.repository(
+                snapshotShard.snapshot().getProjectId(),
+                snapshotShard.snapshot.getRepository()
+            );
 
             logger.debug("fetching snapshot shard size for {}", snapshotShard);
             final long snapshotShardSize = repository.getShardSnapshotStatus(

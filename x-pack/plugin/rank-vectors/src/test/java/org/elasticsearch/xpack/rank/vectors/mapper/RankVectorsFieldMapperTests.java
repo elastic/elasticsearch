@@ -8,7 +8,17 @@
 package org.elasticsearch.xpack.rank.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.MultiDocValues;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -21,11 +31,12 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import org.elasticsearch.index.mapper.vectors.SyntheticVectorsMapperTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.Source;
@@ -42,24 +53,34 @@ import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.convertToBFloat16List;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.convertToList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RankVectorsFieldMapperTests extends MapperTestCase {
+public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase {
 
     private final ElementType elementType;
     private final int dims;
 
     public RankVectorsFieldMapperTests() {
-        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
-        this.dims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT);
+        int baseDims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+        int randomMultiplier = switch (elementType) {
+            case FLOAT, BFLOAT16 -> randomIntBetween(1, 64);
+            case BYTE, BIT -> 1;
+        };
+        this.dims = baseDims * randomMultiplier;
     }
 
     @Override
@@ -85,11 +106,19 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Object getSampleValueForDocument(boolean binaryFormat) {
+        return getSampleValueForDocument();
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         int numVectors = randomIntBetween(1, 16);
-        return Stream.generate(
-            () -> elementType == ElementType.FLOAT ? List.of(0.5, 0.5, 0.5, 0.5) : List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1)
-        ).limit(numVectors).toList();
+        return Stream.generate(switch (elementType) {
+            case FLOAT -> () -> convertToList(randomNormalizedVector(this.dims));
+            case BFLOAT16 -> () -> convertToBFloat16List(randomNormalizedVector(this.dims));
+            case BYTE -> () -> convertToList(randomByteArrayOfLength(dims));
+            case BIT -> () -> convertToList(randomByteArrayOfLength(dims / Byte.SIZE));
+        }).limit(numVectors).toList();
     }
 
     @Override
@@ -107,6 +136,21 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck(
             "element_type",
             fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "float")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "bfloat16"))
+        );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "byte")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "bfloat16"))
+        );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "float")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims * 8).field("element_type", "bit"))
+        );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "bfloat16")),
             fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims * 8).field("element_type", "bit"))
         );
         checker.registerConflictCheck(
@@ -129,7 +173,6 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(RankVectorsFieldMapper.RankVectorsFieldType.class));
-        assertFalse(fieldType.isIndexed());
         assertFalse(fieldType.isSearchable());
     }
 
@@ -226,7 +269,7 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields.get(0).binaryValue();
-        assertEquals(ElementType.FLOAT.getNumBytes(validVectors[0].length) * validVectors.length, vectorBR.length);
+        assertEquals(DenseVectorFieldMapper.FLOAT_ELEMENT.getNumBytes(validVectors[0].length) * validVectors.length, vectorBR.length);
         float[][] decodedValues = new float[validVectors.length][];
         for (int i = 0; i < validVectors.length; i++) {
             decodedValues[i] = new float[validVectors[i].length];
@@ -368,6 +411,7 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
         SourceToParse source = source(b -> b.field(ft.name(), value));
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
@@ -427,6 +471,7 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
                 }
                 yield vectors;
             }
+            case BFLOAT16 -> throw new AssertionError();
         };
     }
 
@@ -465,10 +510,9 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         @Override
         public SyntheticSourceExample example(int maxValues) {
             Object value = switch (elementType) {
-                case BYTE, BIT:
-                    yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
-                case FLOAT:
-                    yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
+                case BYTE, BIT -> randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
+                case FLOAT -> randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
+                case BFLOAT16 -> throw new AssertionError();
             };
             return new SyntheticSourceExample(value, value, this::mapping);
         }
@@ -490,5 +534,165 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    // This is a copy of the method LuceneTestCase#assertDocValuesEquals with special handling of the magnitude field
+    @Override
+    public void assertDocValuesEquals(String info, IndexReader leftReader, IndexReader rightReader) throws IOException {
+        Set<String> leftFields = getDVFields(leftReader);
+        Set<String> rightFields = getDVFields(rightReader);
+        assertEquals(info, leftFields, rightFields);
+
+        for (String field : leftFields) {
+            {
+                NumericDocValues leftValues = MultiDocValues.getNumericValues(leftReader, field);
+                NumericDocValues rightValues = MultiDocValues.getNumericValues(rightReader, field);
+                if (leftValues != null && rightValues != null) {
+                    assertDocValuesEquals(info, leftReader.maxDoc(), leftValues, rightValues);
+                } else {
+                    assertTrue(
+                        info + ": left numeric doc values for field=\"" + field + "\" are not null",
+                        leftValues == null || leftValues.nextDoc() == NO_MORE_DOCS
+                    );
+                    assertTrue(
+                        info + ": right numeric doc values for field=\"" + field + "\" are not null",
+                        rightValues == null || rightValues.nextDoc() == NO_MORE_DOCS
+                    );
+                }
+            }
+
+            {
+                BinaryDocValues leftValues = MultiDocValues.getBinaryValues(leftReader, field);
+                BinaryDocValues rightValues = MultiDocValues.getBinaryValues(rightReader, field);
+                if (leftValues != null && rightValues != null) {
+                    while (true) {
+                        int docID = leftValues.nextDoc();
+                        assertEquals(docID, rightValues.nextDoc());
+                        if (docID == NO_MORE_DOCS) {
+                            break;
+                        }
+                        if (field.equals("field._magnitude")) {
+                            // The magnitude field is computed from the incoming vectors. This computation might use the Panama
+                            // vector API. This API might compute different values depending on the code is being interpreted or
+                            // the code is compiled by the JIT. Therefore we need to assert the actual floats with a delta.
+                            assertEquals(leftValues.binaryValue().length, rightValues.binaryValue().length);
+                            assertEquals(0, leftValues.binaryValue().length % Float.BYTES);
+                            int numFloats = leftValues.binaryValue().length / 4;
+                            ByteBuffer b1 = ByteBuffer.wrap(
+                                leftValues.binaryValue().bytes,
+                                leftValues.binaryValue().offset,
+                                leftValues.binaryValue().length
+                            ).order(ByteOrder.LITTLE_ENDIAN);
+                            ByteBuffer b2 = ByteBuffer.wrap(
+                                rightValues.binaryValue().bytes,
+                                rightValues.binaryValue().offset,
+                                rightValues.binaryValue().length
+                            ).order(ByteOrder.LITTLE_ENDIAN);
+                            for (int i = 0; i < numFloats; i++) {
+                                float leftFloat = b1.getFloat(i * Float.BYTES);
+                                float rightFloat = b2.getFloat(i * Float.BYTES);
+                                assertEquals(leftFloat, rightFloat, 0.001f);
+                            }
+                        } else {
+                            assertEquals(leftValues.binaryValue(), rightValues.binaryValue());
+                        }
+                    }
+                } else {
+                    assertTrue(info, leftValues == null || leftValues.nextDoc() == NO_MORE_DOCS);
+                    assertTrue(info, rightValues == null || rightValues.nextDoc() == NO_MORE_DOCS);
+                }
+            }
+
+            {
+                SortedDocValues leftValues = MultiDocValues.getSortedValues(leftReader, field);
+                SortedDocValues rightValues = MultiDocValues.getSortedValues(rightReader, field);
+                if (leftValues != null && rightValues != null) {
+                    // numOrds
+                    assertEquals(info, leftValues.getValueCount(), rightValues.getValueCount());
+                    // ords
+                    for (int i = 0; i < leftValues.getValueCount(); i++) {
+                        final BytesRef left = BytesRef.deepCopyOf(leftValues.lookupOrd(i));
+                        final BytesRef right = rightValues.lookupOrd(i);
+                        assertEquals(info, left, right);
+                    }
+                    // bytes
+                    while (true) {
+                        int docID = leftValues.nextDoc();
+                        assertEquals(docID, rightValues.nextDoc());
+                        if (docID == NO_MORE_DOCS) {
+                            break;
+                        }
+                        final BytesRef left = BytesRef.deepCopyOf(leftValues.lookupOrd(leftValues.ordValue()));
+                        final BytesRef right = rightValues.lookupOrd(rightValues.ordValue());
+                        assertEquals(info, left, right);
+                    }
+                } else {
+                    assertNull(info, leftValues);
+                    assertNull(info, rightValues);
+                }
+            }
+
+            {
+                SortedSetDocValues leftValues = MultiDocValues.getSortedSetValues(leftReader, field);
+                SortedSetDocValues rightValues = MultiDocValues.getSortedSetValues(rightReader, field);
+                if (leftValues != null && rightValues != null) {
+                    // numOrds
+                    assertEquals(info, leftValues.getValueCount(), rightValues.getValueCount());
+                    // ords
+                    for (int i = 0; i < leftValues.getValueCount(); i++) {
+                        final BytesRef left = BytesRef.deepCopyOf(leftValues.lookupOrd(i));
+                        final BytesRef right = rightValues.lookupOrd(i);
+                        assertEquals(info, left, right);
+                    }
+                    // ord lists
+                    while (true) {
+                        int docID = leftValues.nextDoc();
+                        assertEquals(docID, rightValues.nextDoc());
+                        if (docID == NO_MORE_DOCS) {
+                            break;
+                        }
+                        assertEquals(info, leftValues.docValueCount(), rightValues.docValueCount());
+                        for (int i = 0; i < leftValues.docValueCount(); i++) {
+                            assertEquals(info, leftValues.nextOrd(), rightValues.nextOrd());
+                        }
+                    }
+                } else {
+                    assertNull(info, leftValues);
+                    assertNull(info, rightValues);
+                }
+            }
+
+            {
+                SortedNumericDocValues leftValues = MultiDocValues.getSortedNumericValues(leftReader, field);
+                SortedNumericDocValues rightValues = MultiDocValues.getSortedNumericValues(rightReader, field);
+                if (leftValues != null && rightValues != null) {
+                    while (true) {
+                        int docID = leftValues.nextDoc();
+                        assertEquals(docID, rightValues.nextDoc());
+                        if (docID == NO_MORE_DOCS) {
+                            break;
+                        }
+                        assertEquals(info, leftValues.docValueCount(), rightValues.docValueCount());
+                        for (int j = 0; j < leftValues.docValueCount(); j++) {
+                            assertEquals(info, leftValues.nextValue(), rightValues.nextValue());
+                        }
+                    }
+                } else {
+                    assertNull(info, leftValues);
+                    assertNull(info, rightValues);
+                }
+            }
+        }
+    }
+
+    private static Set<String> getDVFields(IndexReader reader) {
+        Set<String> fields = new HashSet<>();
+        for (FieldInfo fi : FieldInfos.getMergedFieldInfos(reader)) {
+            if (fi.getDocValuesType() != DocValuesType.NONE) {
+                fields.add(fi.name);
+            }
+        }
+
+        return fields;
     }
 }

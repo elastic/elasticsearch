@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.containsString;
 public class CohereRerankTaskSettingsTests extends AbstractWireSerializingTestCase<CohereRerankTaskSettings> {
 
     public static CohereRerankTaskSettings createRandom() {
-        var returnDocuments = randomBoolean() ? randomBoolean() : null;
+        var returnDocuments = randomOptionalBoolean();
         var topNDocsOnly = randomBoolean() ? randomIntBetween(1, 10) : null;
         var maxChunksPerDoc = randomBoolean() ? randomIntBetween(1, 20) : null;
 
@@ -90,13 +90,13 @@ public class CohereRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     public void UpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new CohereRerankTaskSettings(5, true, 10);
-        CohereRerankTaskSettings updatedSettings = (CohereRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
+        CohereRerankTaskSettings updatedSettings = (CohereRerankTaskSettings) initialSettings.updatedTaskSettings(new HashMap<>());
         assertEquals(initialSettings, updatedSettings);
     }
 
     public void testUpdatedTaskSettings_WithNewReturnDocuments_ReturnsUpdatedSettings() {
         var initialSettings = new CohereRerankTaskSettings(5, true, 10);
-        Map<String, Object> newSettings = Map.of(CohereRerankTaskSettings.RETURN_DOCUMENTS, false);
+        var newSettings = new HashMap<String, Object>(Map.of(CohereRerankTaskSettings.RETURN_DOCUMENTS, false));
         CohereRerankTaskSettings updatedSettings = (CohereRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
         assertEquals(initialSettings.getTopNDocumentsOnly(), updatedSettings.getTopNDocumentsOnly());
@@ -105,7 +105,7 @@ public class CohereRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     public void testUpdatedTaskSettings_WithNewTopNDocsOnly_ReturnsUpdatedSettings() {
         var initialSettings = new CohereRerankTaskSettings(5, true, 10);
-        Map<String, Object> newSettings = Map.of(CohereRerankTaskSettings.TOP_N_DOCS_ONLY, 7);
+        var newSettings = new HashMap<String, Object>(Map.of(CohereRerankTaskSettings.TOP_N_DOCS_ONLY, 7));
         CohereRerankTaskSettings updatedSettings = (CohereRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertEquals(7, updatedSettings.getTopNDocumentsOnly().intValue());
         assertEquals(initialSettings.getReturnDocuments(), updatedSettings.getReturnDocuments());
@@ -114,7 +114,7 @@ public class CohereRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     public void testUpdatedTaskSettings_WithNewMaxChunksPerDoc_ReturnsUpdatedSettings() {
         var initialSettings = new CohereRerankTaskSettings(5, true, 10);
-        Map<String, Object> newSettings = Map.of(CohereRerankTaskSettings.MAX_CHUNKS_PER_DOC, 15);
+        var newSettings = new HashMap<String, Object>(Map.of(CohereRerankTaskSettings.MAX_CHUNKS_PER_DOC, 15));
         CohereRerankTaskSettings updatedSettings = (CohereRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertEquals(15, updatedSettings.getMaxChunksPerDoc().intValue());
         assertEquals(initialSettings.getReturnDocuments(), updatedSettings.getReturnDocuments());
@@ -123,13 +123,15 @@ public class CohereRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
         var initialSettings = new CohereRerankTaskSettings(5, true, 10);
-        Map<String, Object> newSettings = Map.of(
-            CohereRerankTaskSettings.RETURN_DOCUMENTS,
-            false,
-            CohereRerankTaskSettings.TOP_N_DOCS_ONLY,
-            7,
-            CohereRerankTaskSettings.MAX_CHUNKS_PER_DOC,
-            15
+        var newSettings = new HashMap<String, Object>(
+            Map.of(
+                CohereRerankTaskSettings.RETURN_DOCUMENTS,
+                false,
+                CohereRerankTaskSettings.TOP_N_DOCS_ONLY,
+                7,
+                CohereRerankTaskSettings.MAX_CHUNKS_PER_DOC,
+                15
+            )
         );
         CohereRerankTaskSettings updatedSettings = (CohereRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
@@ -149,6 +151,14 @@ public class CohereRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     @Override
     protected CohereRerankTaskSettings mutateInstance(CohereRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, CohereRerankTaskSettingsTests::createRandom);
+        var topNDocsOnly = instance.getTopNDocumentsOnly();
+        var returnDocuments = instance.getReturnDocuments();
+        var maxChunksPerDoc = instance.getMaxChunksPerDoc();
+        switch (randomInt(2)) {
+            case 0 -> topNDocsOnly = randomValueOtherThan(topNDocsOnly, () -> randomFrom(randomIntBetween(1, 10), null));
+            case 1 -> returnDocuments = returnDocuments == null ? randomBoolean() : returnDocuments == false;
+            case 2 -> maxChunksPerDoc = randomValueOtherThan(maxChunksPerDoc, () -> randomFrom(randomIntBetween(1, 20), null));
+        }
+        return new CohereRerankTaskSettings(topNDocsOnly, returnDocuments, maxChunksPerDoc);
     }
 }

@@ -15,6 +15,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -49,6 +50,8 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
     public static final String NAME = "_inference_fields";
     public static final String CONTENT_TYPE = "_inference_fields";
 
+    public static final NodeFeature INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES = new NodeFeature("inference_fields.get_via_source_includes");
+
     protected InferenceMetadataFieldsMapper(MappedFieldType inferenceFieldType) {
         super(inferenceFieldType);
     }
@@ -65,7 +68,7 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
 
     public abstract static class InferenceMetadataFieldType extends MappedFieldType {
         public InferenceMetadataFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
+            super(NAME, IndexType.NONE, false, Map.of());
         }
 
         /**

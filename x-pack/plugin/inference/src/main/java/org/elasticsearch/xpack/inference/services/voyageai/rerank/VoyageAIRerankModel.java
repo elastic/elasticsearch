@@ -88,6 +88,16 @@ public class VoyageAIRerankModel extends VoyageAIModel {
         );
     }
 
+    public VoyageAIRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((VoyageAIRerankServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            buildUri(VoyageAIService.NAME, VoyageAIRerankModel::buildRequestUri)
+        );
+    }
+
     private VoyageAIRerankModel(VoyageAIRerankModel model, VoyageAIRerankTaskSettings taskSettings) {
         super(model, taskSettings);
     }
@@ -109,8 +119,8 @@ public class VoyageAIRerankModel extends VoyageAIModel {
 
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
-     * @param visitor _
-     * @param taskSettings _
+     * @param visitor          Interface for creating {@link ExecutableAction} instances for Voyage AI models.
+     * @param taskSettings     Settings in the request to override the model's defaults
      * @return the rerank action
      */
     @Override

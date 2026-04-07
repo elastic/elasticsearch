@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.Header;
 import org.apache.http.HeaderElement;
 import org.apache.http.HttpResponse;
@@ -17,7 +19,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.hamcrest.MatcherAssert;
@@ -32,62 +33,77 @@ import static org.mockito.Mockito.when;
 
 public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
 
+    public record FailureTestCase(int inputStatusCode, RestStatus expectedStatus, String errorMessage, boolean shouldRetry) {}
+
+    private final FailureTestCase failureTestCase;
+
+    public ElasticInferenceServiceResponseHandlerTests(FailureTestCase failureTestCase) {
+        this.failureTestCase = failureTestCase;
+    }
+
+    @ParametersFactory
+    public static Iterable<FailureTestCase[]> parameters() throws Exception {
+        return java.util.Arrays.asList(
+            new FailureTestCase[][] {
+                {
+                    new FailureTestCase(
+                        400,
+                        RestStatus.BAD_REQUEST,
+                        "Received a bad request status code for request from inference entity id [id] status [400]",
+                        false
+                    ) },
+                {
+                    new FailureTestCase(
+                        402,
+                        RestStatus.PAYMENT_REQUIRED,
+                        "Received an unsuccessful status code for request from inference entity id [id] status [402]",
+                        false
+                    ) },
+                {
+                    new FailureTestCase(
+                        405,
+                        RestStatus.METHOD_NOT_ALLOWED,
+                        "Received a method not allowed status code for request from inference entity id [id] status [405]",
+                        false
+                    ) },
+                {
+                    new FailureTestCase(
+                        413,
+                        RestStatus.REQUEST_ENTITY_TOO_LARGE,
+                        "Received a content too large status code for request from inference entity id [id] status [413]",
+                        true
+                    ) },
+                {
+                    new FailureTestCase(
+                        500,
+                        RestStatus.BAD_REQUEST,
+                        "Received a server error status code for request from inference entity id [id] status [500]",
+                        true
+                    ) },
+                {
+                    new FailureTestCase(
+                        503,
+                        RestStatus.BAD_REQUEST,
+                        "Received a server error status code for request from inference entity id [id] status [503]",
+                        true
+                    ) },
+
+            }
+        );
+    }
+
+    public void testCheckForFailureStatusCode_Throws_WithErrorMessage() {
+        var exception = expectThrows(
+            RetryException.class,
+            () -> callCheckForFailureStatusCode(failureTestCase.inputStatusCode, failureTestCase.errorMessage, "id")
+        );
+        assertThat(exception.shouldRetry(), is(failureTestCase.shouldRetry));
+        MatcherAssert.assertThat(exception.getCause().getMessage(), containsString(failureTestCase.errorMessage));
+        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(failureTestCase.expectedStatus));
+    }
+
     public void testCheckForFailureStatusCode_DoesNotThrowFor200() {
-        callCheckForFailureStatusCode(200, "id");
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor400() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(400, "id"));
-        assertFalse(exception.shouldRetry());
-        MatcherAssert.assertThat(
-            exception.getCause().getMessage(),
-            containsString("Received a bad request status code for request from inference entity id [id] status [400]")
-        );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor405() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(405, "id"));
-        assertFalse(exception.shouldRetry());
-        MatcherAssert.assertThat(
-            exception.getCause().getMessage(),
-            containsString("Received a method not allowed status code for request from inference entity id [id] status [405]")
-        );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.METHOD_NOT_ALLOWED));
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor413() {
-        var exception = expectThrows(ContentTooLargeException.class, () -> callCheckForFailureStatusCode(413, "id"));
-        assertTrue(exception.shouldRetry());
-        MatcherAssert.assertThat(
-            exception.getCause().getMessage(),
-            containsString("Received a content too large status code for request from inference entity id [id] status [413]")
-        );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(500, "id"));
-        assertTrue(exception.shouldRetry());
-        MatcherAssert.assertThat(
-            exception.getCause().getMessage(),
-            containsString("Received a server error status code for request from inference entity id [id] status [500]")
-        );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
-    }
-
-    public void testCheckForFailureStatusCode_ThrowsFor402() {
-        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(402, "id"));
-        assertFalse(exception.shouldRetry());
-        MatcherAssert.assertThat(
-            exception.getCause().getMessage(),
-            containsString("Received an unsuccessful status code for request from inference entity id [id] status [402]")
-        );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.PAYMENT_REQUIRED));
-    }
-
-    private static void callCheckForFailureStatusCode(int statusCode, String modelId) {
-        callCheckForFailureStatusCode(statusCode, null, modelId);
+        callCheckForFailureStatusCode(200, null, "id");
     }
 
     private static void callCheckForFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {

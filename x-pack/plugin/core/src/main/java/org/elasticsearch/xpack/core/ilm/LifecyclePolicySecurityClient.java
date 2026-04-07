@@ -33,7 +33,7 @@ public class LifecyclePolicySecurityClient extends AbstractClient {
     private final String origin;
 
     public LifecyclePolicySecurityClient(Client client, String origin, Map<String, String> headers) {
-        super(client.settings(), client.threadPool());
+        super(client.settings(), client.threadPool(), client.projectResolver());
         this.client = client;
         this.origin = origin;
         this.headers = headers;

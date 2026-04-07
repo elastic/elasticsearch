@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -48,7 +49,7 @@ import static org.mockito.Mockito.mock;
 public class RestTermsEnumActionTests extends ESTestCase {
 
     private static ThreadPool threadPool = new TestThreadPool(RestTermsEnumActionTests.class.getName());
-    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
 
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(
@@ -123,7 +124,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
             }""";
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);
@@ -151,7 +152,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
             }""";
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);

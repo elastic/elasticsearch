@@ -23,6 +23,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -86,7 +87,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().metadata(true);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        RestUtils.consumeDeprecatedLocalParameter(request);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse clusterStateResponse) throws Exception {

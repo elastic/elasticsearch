@@ -72,7 +72,7 @@ public class SignumTests extends AbstractScalarFunctionTestCase {
 
         suppliers = anyNullIsNull(true, suppliers);
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

@@ -11,27 +11,41 @@ import org.elasticsearch.Version;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
+    private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
+
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
+    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster(CSV_DATA_PATH);
+
+    @Override
+    protected Path getCsvDataPath() {
+        return CSV_DATA_PATH;
+    }
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
-    static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    static final Version bwcVersion = Version.fromString(
+        System.getProperty("tests.old_cluster_version") != null
+            ? System.getProperty("tests.old_cluster_version").replace("-SNAPSHOT", "")
+            : null
+    );
 
     private static TestFeatureService oldClusterTestFeatureService = null;
 
@@ -40,11 +54,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         if (oldClusterTestFeatureService == null) {
             oldClusterTestFeatureService = testFeatureService;
         }
-    }
-
-    protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterTestFeatureService != null;
-        return oldClusterTestFeatureService.clusterHasFeature(featureId);
     }
 
     @AfterClass
@@ -58,10 +67,9 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         String testName,
         Integer lineNumber,
         CsvTestCase testCase,
-        String instructions,
-        Mode mode
+        String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override
@@ -71,27 +79,27 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportTimeSeriesCommand() {
-        return false;
-    }
-
-    @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
     }
 
     @Override
-    protected boolean supportsInferenceTestService() {
+    protected boolean supportsSemanticTextInference() {
         return false;
     }
 
     @Override
-    protected boolean supportsIndexModeLookup() throws IOException {
-        return hasCapabilities(List.of(JOIN_LOOKUP_V12.capabilityName()));
+    protected boolean supportsInferenceTestServiceOnLocalCluster() {
+        return false;
     }
 
     @Override
-    protected boolean supportsSourceFieldMapping() throws IOException {
+    protected boolean supportsIndexModeLookup() {
+        return hasCapabilities(adminClient(), List.of(JOIN_LOOKUP_V12.capabilityName()));
+    }
+
+    @Override
+    protected boolean supportsSourceFieldMapping() {
         return false;
     }
 

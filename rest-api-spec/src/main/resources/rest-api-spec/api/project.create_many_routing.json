@@ -1,0 +1,26 @@
+{
+  "project.create_many_routing": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
+      "description": "Create or update named project routing expressions"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_project_routing",
+          "methods": ["PUT"]
+        }
+      ]
+    },
+    "body": {
+      "description": "Project routing expressions to save",
+      "required": true
+    }
+  }
+}

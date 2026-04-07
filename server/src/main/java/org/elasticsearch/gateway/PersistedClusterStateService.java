@@ -69,6 +69,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
@@ -690,7 +691,7 @@ public class PersistedClusterStateService {
             Long.parseLong(userData.get(LAST_ACCEPTED_VERSION_KEY)),
             userData.get(NODE_ID_KEY),
             userData.get(CLUSTER_UUID_KEY),
-            userData.get(CLUSTER_UUID_COMMITTED_KEY) != null ? Boolean.parseBoolean(userData.get(CLUSTER_UUID_COMMITTED_KEY)) : null
+            userData.get(CLUSTER_UUID_COMMITTED_KEY) != null ? Booleans.parseBoolean(userData.get(CLUSTER_UUID_COMMITTED_KEY)) : null
         );
     }
 
@@ -783,7 +784,7 @@ public class PersistedClusterStateService {
     private static final ToXContent.Params FORMAT_PARAMS;
 
     static {
-        Map<String, String> params = Maps.newMapWithExpectedSize(2);
+        Map<String, String> params = Maps.newMapWithExpectedSize(4);
         params.put("binary", "true");
         params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
         params.put(Metadata.DEDUPLICATED_MAPPINGS_PARAM, Boolean.TRUE.toString());
@@ -1272,7 +1273,7 @@ public class PersistedClusterStateService {
         private void writePages(ToXContent metadata, PageWriter pageWriter) throws IOException {
             try (
                 PageWriterOutputStream paginatedStream = new PageWriterOutputStream(documentBuffer, pageWriter);
-                OutputStream compressedStream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(paginatedStream);
+                OutputStream compressedStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(paginatedStream);
                 XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.SMILE, compressedStream)
             ) {
                 xContentBuilder.startObject();

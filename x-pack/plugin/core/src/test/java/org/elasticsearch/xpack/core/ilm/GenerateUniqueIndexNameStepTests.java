@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState.Builder;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexVersion;
 
@@ -67,14 +67,12 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
             .numberOfReplicas(randomIntBetween(0, 5));
 
         final IndexMetadata indexMetadata = indexMetadataBuilder.build();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
-            .build();
+        final ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, false));
 
         GenerateUniqueIndexNameStep generateUniqueIndexNameStep = createRandomInstance();
-        ClusterState newClusterState = generateUniqueIndexNameStep.performAction(indexMetadata.getIndex(), clusterState);
+        ProjectState newState = generateUniqueIndexNameStep.performAction(indexMetadata.getIndex(), state);
 
-        LifecycleExecutionState executionState = newClusterState.metadata().getProject().index(indexName).getLifecycleExecutionState();
+        LifecycleExecutionState executionState = newState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(
             "the " + GenerateUniqueIndexNameStep.NAME + " step must generate an index name",
             executionState.shrinkIndexName(),

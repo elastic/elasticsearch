@@ -26,15 +26,16 @@ import java.util.Map;
  *  with the inverted index. */
 public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
-    public TermBasedFieldType(
-        String name,
-        boolean isIndexed,
-        boolean isStored,
-        boolean hasDocValues,
-        TextSearchInfo textSearchInfo,
-        Map<String, String> meta
-    ) {
-        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+    protected final TextSearchInfo textSearchInfo;
+
+    public TermBasedFieldType(String name, IndexType indexType, boolean isStored, TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, indexType, isStored, meta);
+        this.textSearchInfo = textSearchInfo;
+    }
+
+    @Override
+    public TextSearchInfo getTextSearchInfo() {
+        return this.textSearchInfo;
     }
 
     /** Returns the indexed value used to construct search "values".

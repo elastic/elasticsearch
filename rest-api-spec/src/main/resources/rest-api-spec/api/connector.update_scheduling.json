@@ -1,10 +1,10 @@
 {
   "connector.update_scheduling": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-scheduling-api.html",
-      "description": "Updates the scheduling field in the connector document."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-scheduling",
+      "description": "Update the connector scheduling"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

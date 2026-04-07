@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
@@ -23,12 +23,12 @@ public interface ResourceDeprecationChecker {
     /**
      * This runs the checks for the current deprecation checker.
      *
-     * @param clusterState The cluster state provided for the checker
+     * @param project The project metadata provided for the checker
      * @param request The deprecation request that triggered this check
      * @param precomputedData Data that have been remotely retrieved and might be useful in the checks
      */
     Map<String, List<DeprecationIssue>> check(
-        ClusterState clusterState,
+        ProjectMetadata project,
         DeprecationInfoAction.Request request,
         TransportDeprecationInfoAction.PrecomputedData precomputedData
     );

@@ -12,13 +12,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -42,7 +42,7 @@ public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerial
             newSettingsMap.put(GoogleVertexAiRerankTaskSettings.TOP_N, newSettings.topN());
         }
         GoogleVertexAiRerankTaskSettings updatedSettings = (GoogleVertexAiRerankTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            newSettingsMap
         );
         if (newSettings.topN() == null) {
             assertEquals(initialSettings.topN(), updatedSettings.topN());
@@ -134,7 +134,7 @@ public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerial
 
     @Override
     protected GoogleVertexAiRerankTaskSettings mutateInstance(GoogleVertexAiRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, GoogleVertexAiRerankTaskSettingsTests::createRandom);
+        return new GoogleVertexAiRerankTaskSettings(randomValueOtherThan(instance.topN(), ESTestCase::randomNonNegativeIntOrNull));
     }
 
     @Override
@@ -146,7 +146,7 @@ public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerial
     }
 
     private static GoogleVertexAiRerankTaskSettings createRandom() {
-        return new GoogleVertexAiRerankTaskSettings(randomFrom(new Integer[] { null, randomNonNegativeInt() }));
+        return new GoogleVertexAiRerankTaskSettings(randomNonNegativeIntOrNull());
     }
 
     private static Map<String, Object> getTaskSettingsMap(@Nullable Object topN) {

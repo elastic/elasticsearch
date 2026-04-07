@@ -10,10 +10,7 @@ package org.elasticsearch.datastreams;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.filter.RegexFilter;
-import org.apache.logging.log4j.message.Message;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -21,11 +18,13 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -196,7 +195,8 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
     public void testUpdateTimeSeriesTemporalRange_NoUpdateBecauseRegularDataStream() {
         String dataStreamName = "logs-app1";
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        ClusterState in = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+        ClusterState in = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
 
         now = now.plus(1, ChronoUnit.HOURS);
         ClusterState result = instance.updateTimeSeriesTemporalRange(in, now);
@@ -243,7 +243,13 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
             DataStreamTestHelper.getClusterStateWithDataStream(mbBuilder, dataStreamName, List.of(new Tuple<>(start, end)));
         }
 
-        Settings settings = Settings.builder().put("index.mode", "logsdb").build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
+            .put(
+                IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start.minus(1, ChronoUnit.SECONDS))
+            )
+            .build();
         var im = createIndexMetadata(getDefaultBackingIndexName(dataStreamName2, 2, start.toEpochMilli()), true, settings, 0);
         mbBuilder.put(im, true);
         var ds2 = mbBuilder.dataStreamMetadata().dataStreams().get(dataStreamName2);
@@ -258,6 +264,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                 2,
                 ds2.getMetadata(),
                 ds2.getSettings(),
+                ds2.getMappings(),
                 ds2.isHidden(),
                 ds2.isReplicated(),
                 ds2.isSystem(),
@@ -347,28 +354,4 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Settings indexSettings = project.index(dataStream.getIndices().get(index)).getSettings();
         return IndexSettings.TIME_SERIES_START_TIME.get(indexSettings);
     }
-
-    static class MockAppender extends AbstractAppender {
-        public LogEvent lastEvent;
-
-        MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
-        }
-
-        @Override
-        public void append(LogEvent event) {
-            lastEvent = event.toImmutable();
-        }
-
-        Message lastMessage() {
-            return lastEvent.getMessage();
-        }
-
-        public LogEvent getLastEventAndReset() {
-            LogEvent toReturn = lastEvent;
-            lastEvent = null;
-            return toReturn;
-        }
-    }
-
 }

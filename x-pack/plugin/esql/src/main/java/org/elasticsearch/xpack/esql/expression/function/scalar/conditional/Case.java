@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,9 +17,8 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.ToMask;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -62,23 +62,32 @@ public final class Case extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = {
+            "aggregate_metric_double",
             "boolean",
             "cartesian_point",
             "cartesian_shape",
             "date",
             "date_nanos",
+            "dense_vector",
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
+            "histogram",
             "integer",
             "ip",
             "keyword",
             "long",
+            "tdigest",
             "unsigned_long",
-            "version" },
+            "version",
+            "exponential_histogram" },
         description = """
             Accepts pairs of conditions and values. The function returns the value that
-            belongs to the first condition that evaluates to `true`.
+            belongs to the first condition that evaluates to `true`. Both the conditions
+            and the returned values can be any expression, including column references.
 
             If the number of arguments is odd, the last argument is the default value which
             is returned when no condition matches. If the number of arguments is even, and
@@ -94,6 +103,11 @@ public final class Case extends EsqlScalarFunction {
                 description = "Calculate an hourly error rate as a percentage of the total number of log messages:",
                 file = "conditional",
                 tag = "docsCaseHourlyErrorRate"
+            ),
+            @Example(
+                description = "Extract error messages and count distinct ones using a column expression:",
+                file = "conditional",
+                tag = "docsCaseColumnExpression"
             ) }
     )
     public Case(
@@ -102,23 +116,31 @@ public final class Case extends EsqlScalarFunction {
         @Param(
             name = "trueValue",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
-                "version" },
-            description = "The value that’s returned when the corresponding condition is the first to evaluate to `true`. "
-                + "The default value is returned when no condition matches."
+                "version",
+                "exponential_histogram" },
+            description = "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. "
+                + "Can be a column reference or any other expression. The default value is returned when no condition matches."
         ) List<Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
@@ -195,12 +217,19 @@ public final class Case extends EsqlScalarFunction {
 
     private TypeResolution resolveValueType(Expression value, int position) {
         if (dataType == null || dataType == NULL) {
+            boolean originalWasNull = dataType == NULL;
             dataType = value.dataType().noText();
-            return TypeResolution.TYPE_RESOLVED;
+            return TypeResolutions.isType(
+                value,
+                t -> t != DataType.DATE_RANGE,
+                sourceText(),
+                TypeResolutions.ParamOrdinal.fromIndex(position),
+                originalWasNull ? NULL.typeName() : "any but date_range"
+            );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType,
+            t -> t.noText() == dataType && t != DataType.DATE_RANGE,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()
@@ -246,6 +275,22 @@ public final class Case extends EsqlScalarFunction {
             }
         }
         return elseValue.foldable();
+    }
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        DataType type = dataType();
+        if (type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION) {
+            // These can't be managed by evaluators, we have to fold them manually.
+            // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
+            for (Condition condition : conditions) {
+                if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+                    return condition.value.fold(ctx);
+                }
+            }
+            return elseValue.fold(ctx);
+        }
+        return super.fold(ctx);
     }
 
     /**
@@ -342,12 +387,7 @@ public final class Case extends EsqlScalarFunction {
                  * Rather than go into depth about this in the warning message,
                  * we just say "false".
                  */
-                Warnings.createWarningsTreatedAsFalse(
-                    driverContext.warningsMode(),
-                    conditionSource.source().getLineNumber(),
-                    conditionSource.source().getColumnNumber(),
-                    conditionSource.text()
-                ),
+                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
                 condition.get(driverContext),
                 value.get(driverContext)
             );
@@ -359,11 +399,10 @@ public final class Case extends EsqlScalarFunction {
         }
     }
 
-    record ConditionEvaluator(
-        Warnings conditionWarnings,
-        EvalOperator.ExpressionEvaluator condition,
-        EvalOperator.ExpressionEvaluator value
-    ) implements Releasable {
+    record ConditionEvaluator(Warnings conditionWarnings, ExpressionEvaluator condition, ExpressionEvaluator value) implements Releasable {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+
         @Override
         public void close() {
             Releasables.closeExpectNoException(condition, value);
@@ -376,6 +415,10 @@ public final class Case extends EsqlScalarFunction {
 
         public void registerMultivalue() {
             conditionWarnings.registerException(new IllegalArgumentException("CASE expects a single-valued boolean"));
+        }
+
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + condition.baseRamBytesUsed() + value.baseRamBytesUsed();
         }
     }
 
@@ -412,8 +455,11 @@ public final class Case extends EsqlScalarFunction {
         BlockFactory blockFactory,
         ElementType resultType,
         List<ConditionEvaluator> conditions,
-        EvalOperator.ExpressionEvaluator elseVal
-    ) implements EvalOperator.ExpressionEvaluator {
+        ExpressionEvaluator elseVal
+    ) implements ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+
         @Override
         public Block eval(Page page) {
             /*
@@ -431,7 +477,9 @@ public final class Case extends EsqlScalarFunction {
                     int[] positions = new int[] { p };
                     Page limited = new Page(
                         1,
-                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                        IntStream.range(0, page.getBlockCount())
+                            .mapToObj(b -> page.getBlock(b).filter(false, positions))
+                            .toArray(Block[]::new)
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (ConditionEvaluator condition : conditions) {
@@ -459,6 +507,16 @@ public final class Case extends EsqlScalarFunction {
                 }
                 return result.build();
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+            for (ConditionEvaluator condition : conditions) {
+                baseRamBytesUsed += condition.baseRamBytesUsed();
+            }
+            baseRamBytesUsed += elseVal.baseRamBytesUsed();
+            return baseRamBytesUsed;
         }
 
         @Override
@@ -502,8 +560,11 @@ public final class Case extends EsqlScalarFunction {
         ElementType resultType,
         BlockFactory blockFactory,
         ConditionEvaluator condition,
-        EvalOperator.ExpressionEvaluator elseVal
-    ) implements EvalOperator.ExpressionEvaluator {
+        ExpressionEvaluator elseVal
+    ) implements ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+
         @Override
         public Block eval(Page page) {
             try (BooleanBlock lhsOrRhsBlock = (BooleanBlock) condition.condition.eval(page); ToMask lhsOrRhs = lhsOrRhsBlock.toMask()) {
@@ -540,6 +601,11 @@ public final class Case extends EsqlScalarFunction {
         @Override
         public void close() {
             Releasables.closeExpectNoException(condition, elseVal);
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + condition.baseRamBytesUsed() + elseVal.baseRamBytesUsed();
         }
 
         @Override

@@ -596,7 +596,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             listener.get();
         } else {
             ElasticsearchException t = new ElasticsearchException("test");
-            t.addHeader("header", "is here");
+            t.addBodyHeader("header", "is here");
             transport.handleRemoteError(capturedRequest.requestId(), t);
             assertTrue(listener.isDone());
             try {
@@ -607,7 +607,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 assertThat(cause, instanceOf(ElasticsearchException.class));
                 final ElasticsearchException es = (ElasticsearchException) cause;
                 assertThat(es.getMessage(), equalTo(t.getMessage()));
-                assertThat(es.getHeader("header"), equalTo(t.getHeader("header")));
+                assertThat(es.getBodyHeader("header"), equalTo(t.getBodyHeader("header")));
             }
         }
     }

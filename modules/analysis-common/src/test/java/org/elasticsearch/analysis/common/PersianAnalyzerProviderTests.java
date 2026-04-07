@@ -32,7 +32,6 @@ public class PersianAnalyzerProviderTests extends ESTokenStreamTestCase {
 
     public void testPersianAnalyzerPostLucene10() throws IOException {
         IndexVersion postLucene10Version = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
             IndexVersion.current()
         );
@@ -55,7 +54,6 @@ public class PersianAnalyzerProviderTests extends ESTokenStreamTestCase {
 
     public void testPersianAnalyzerPreLucene10() throws IOException {
         IndexVersion preLucene10Version = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersionUtils.getLowestReadCompatibleVersion(),
             IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
         );

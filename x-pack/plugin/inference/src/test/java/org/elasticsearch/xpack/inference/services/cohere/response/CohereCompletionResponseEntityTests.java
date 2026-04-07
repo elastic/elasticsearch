@@ -64,6 +64,42 @@ public class CohereCompletionResponseEntityTests extends ESTestCase {
         assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
     }
 
+    public void testFromResponseV2() throws IOException {
+        String responseJson = """
+            {
+              "id": "abc123",
+              "finish_reason": "COMPLETE",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Response from the llm"
+                  }
+                ]
+              },
+              "usage": {
+                "billed_units": {
+                  "input_tokens": 1,
+                  "output_tokens": 4
+                },
+                "tokens": {
+                  "input_tokens": 2,
+                  "output_tokens": 5
+                }
+              }
+            }
+            """;
+
+        ChatCompletionResults chatCompletionResults = CohereCompletionResponseEntity.fromResponse(
+            mock(Request.class),
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(chatCompletionResults.getResults().size(), is(1));
+        assertThat(chatCompletionResults.getResults().get(0).content(), is("Response from the llm"));
+    }
+
     public void testFromResponse_FailsWhenTextIsNotPresent() {
         String responseJson = """
             {

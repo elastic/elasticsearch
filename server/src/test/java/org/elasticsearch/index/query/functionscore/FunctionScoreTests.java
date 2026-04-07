@@ -16,11 +16,9 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
@@ -31,7 +29,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -50,6 +48,8 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -183,7 +183,7 @@ public class FunctionScoreTests extends ESTestCase {
         public LeafNumericFieldData load(LeafReaderContext context) {
             return new LeafNumericFieldData() {
                 @Override
-                public SortedNumericDocValues getLongValues() {
+                public SortedNumericLongValues getLongValues() {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
@@ -241,8 +241,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        protected boolean isIndexed() {
-            return false;
+        protected IndexType indexType() {
+            return IndexType.NONE;
         }
     }
 
@@ -653,7 +653,7 @@ public class FunctionScoreTests extends ESTestCase {
 
     public void testWeightOnlyCreatesBoostFunction() throws IOException {
         FunctionScoreQuery filtersFunctionScoreQueryWithWeights = new FunctionScoreQuery(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             new WeightFactorFunction(2),
             CombineFunction.MULTIPLY,
             0.0f,
@@ -665,7 +665,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testMinScoreExplain() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         Explanation queryExpl = searcher.explain(query, 0);
 
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, 0f, Float.POSITIVE_INFINITY);
@@ -692,7 +692,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testPropagatesApproximations() throws IOException {
-        Query query = new RandomApproximationQuery(new MatchAllDocsQuery(), random());
+        Query query = new RandomApproximationQuery(Queries.ALL_DOCS_INSTANCE, random());
         IndexSearcher searcher = newSearcher(reader);
         searcher.setQueryCache(null); // otherwise we could get a cached entry that does not have approximations
 
@@ -944,7 +944,7 @@ public class FunctionScoreTests extends ESTestCase {
             null,
             Float.POSITIVE_INFINITY
         );
-        ElasticsearchException exc = expectThrows(ElasticsearchException.class, () -> localSearcher.search(query1, 1));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(query1, 1));
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NaN));
         FunctionScoreQuery query2 = new FunctionScoreQuery(
             new TermQuery(new Term(FIELD, "out")),
@@ -953,7 +953,7 @@ public class FunctionScoreTests extends ESTestCase {
             null,
             Float.POSITIVE_INFINITY
         );
-        exc = expectThrows(ElasticsearchException.class, () -> localSearcher.search(query2, 1));
+        exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(query2, 1));
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NEGATIVE_INFINITY));
     }
 

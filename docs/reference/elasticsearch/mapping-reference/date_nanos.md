@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Date nanoseconds"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/date_nanos.html
@@ -16,6 +19,7 @@ Date formats can be customised, but if no `format` is specified then it uses the
 ```js
     "strict_date_optional_time_nanos||epoch_millis"
 ```
+% NOTCONSOLE
 
 For instance:
 
@@ -59,6 +63,7 @@ GET my-index-000001/_search
   ]
 }
 ```
+% TEST[s/_search/_search?filter_path=hits.hits/]
 
 1. The `date` field uses the default `format`.
 2. This document uses a plain date.
@@ -72,7 +77,7 @@ GET my-index-000001/_search
 You can also specify multiple date formats separated by `||`. The same mapping parameters than with the `date` field can be used.
 
 ::::{warning}
-Date nanoseconds will accept numbers with a decimal point like `{"date": 1618249875.123456}` but there are some cases ({{es-issue}}70085[#70085]) where we’ll lose precision on those dates so they should be avoided.
+Date nanoseconds will accept numbers with a decimal point like `{"date": 1618249875.123456}` but there are some cases ([#70085]({{es-issue}}70085)) where we’ll lose precision on those dates so they should be avoided.
 
 ::::
 
@@ -84,11 +89,6 @@ Aggregations are still on millisecond resolution, even when using a `date_nanos`
 <hr>
 
 ## Synthetic `_source` [date-nanos-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 Synthetic source may sort `date_nanos` field values. For example:
 
@@ -117,6 +117,7 @@ PUT idx/_doc/1
   "date": ["2015-01-01T12:10:30.000Z", "2014-01-01T12:10:30.000Z"]
 }
 ```
+% TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
 Will become:
 
@@ -125,5 +126,5 @@ Will become:
   "date": ["2014-01-01T12:10:30.000Z", "2015-01-01T12:10:30.000Z"]
 }
 ```
-
+% TEST[s/^/{"_source":/ s/\n$/}/]
 

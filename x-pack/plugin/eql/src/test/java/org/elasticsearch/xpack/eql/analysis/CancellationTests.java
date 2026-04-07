@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
+import org.elasticsearch.xpack.eql.logging.EqlLogContext;
 import org.elasticsearch.xpack.eql.plugin.TransportEqlSearchAction;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
@@ -63,6 +65,8 @@ public class CancellationTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private TransportService transportService;
+    @SuppressWarnings("unchecked")
+    private ActivityLogger<EqlLogContext> logger = mock(ActivityLogger.class);
 
     @Before
     public void mockTransportService() {
@@ -74,6 +78,8 @@ public class CancellationTests extends ESTestCase {
             TransportVersion.current(),
             threadPool
         );
+        // Always return first argument
+        when(logger.wrap(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @After
@@ -97,6 +103,7 @@ public class CancellationTests extends ESTestCase {
             "",
             transportService,
             mockClusterService,
+            logger,
             new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse eqlSearchResponse) {
@@ -114,6 +121,7 @@ public class CancellationTests extends ESTestCase {
         countDownLatch.await();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -157,6 +165,7 @@ public class CancellationTests extends ESTestCase {
             "",
             transportService,
             mockClusterService,
+            logger,
             new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse eqlSearchResponse) {
@@ -175,6 +184,7 @@ public class CancellationTests extends ESTestCase {
         verify(client).fieldCaps(any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -224,6 +234,7 @@ public class CancellationTests extends ESTestCase {
             "",
             transportService,
             mockClusterService,
+            logger,
             new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse eqlSearchResponse) {
@@ -244,6 +255,7 @@ public class CancellationTests extends ESTestCase {
         verify(client).execute(any(), any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 

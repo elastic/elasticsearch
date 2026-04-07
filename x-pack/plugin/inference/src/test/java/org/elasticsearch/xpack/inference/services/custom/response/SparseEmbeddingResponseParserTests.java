@@ -13,12 +13,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.io.IOException;
@@ -345,6 +345,12 @@ public class SparseEmbeddingResponseParserTests extends AbstractBWCWireSerializa
 
     @Override
     protected SparseEmbeddingResponseParser mutateInstance(SparseEmbeddingResponseParser instance) throws IOException {
-        return randomValueOtherThan(instance, SparseEmbeddingResponseParserTests::createRandom);
+        if (randomBoolean()) {
+            var tokenPath = randomValueOtherThan(instance.getTokenPath(), () -> randomAlphaOfLength(5));
+            return new SparseEmbeddingResponseParser(tokenPath, instance.getWeightPath());
+        } else {
+            var weightPath = randomValueOtherThan(instance.getWeightPath(), () -> randomAlphaOfLength(5));
+            return new SparseEmbeddingResponseParser(instance.getTokenPath(), weightPath);
+        }
     }
 }

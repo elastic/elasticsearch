@@ -11,6 +11,7 @@ package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
@@ -50,6 +51,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 
 public class ESTestCaseTests extends ESTestCase {
@@ -174,9 +176,75 @@ public class ESTestCaseTests extends ESTestCase {
         assertThat(randomUnique(() -> randomAlphaOfLengthBetween(1, 20), 10), hasSize(greaterThan(0)));
     }
 
+    public void testRandomSubsetOfWithVarargs() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+
+        // 0 <= subsetSize <= listSize
+        int randomSubsetSize = randomInt(randomList.size());
+
+        // Uses the spread syntax to pass the list as an array of values (matching the var args parameter definition)
+        List<Integer> result = ESTestCase.randomSubsetOf(randomSubsetSize, randomList.toArray(new Integer[0]));
+        assertEquals(randomSubsetSize, result.size());
+        assertTrue(randomList.containsAll(result));
+    }
+
+    public void testRandomSubsetOfWithVarargsAndSizeTooLarge() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+
+        // listSize < subsetSize
+        int randomSubsetSize = randomIntBetween(randomList.size() + 1, 20);
+
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomSubsetSize, randomList.toArray(new Integer[0])));
+    }
+
+    public void testRandomSubsetOfWithVarargsAndNegativeSubsetSize() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+        int randomNegativeSubsetSize = -1 * randomIntBetween(1, 10);
+
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomNegativeSubsetSize, randomList));
+    }
+
+    public void testRandomSubsetOfWithCollection() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+        List<Integer> result = ESTestCase.randomSubsetOf(randomList);
+        assertTrue(result.size() >= 0 && result.size() <= randomList.size());
+        assertTrue(randomList.containsAll(result));
+    }
+
+    public void testRandomNonEmptySubsetOf() {
+        List<Integer> randomList = randomList(1, 10, () -> randomIntBetween(-100, 100));
+        List<Integer> result = ESTestCase.randomNonEmptySubsetOf(randomList);
+        assertTrue(result.size() >= 1 && result.size() <= randomList.size());
+        assertTrue(randomList.containsAll(result));
+    }
+
     public void testRandomNonEmptySubsetOfThrowsOnEmptyCollection() {
         final var ex = expectThrows(IllegalArgumentException.class, () -> randomNonEmptySubsetOf(Collections.emptySet()));
         assertThat(ex.getMessage(), equalTo("Can't pick non-empty subset of an empty collection"));
+    }
+
+    public void testRandomSubsetOfWithCollectionAndSizeTooLarge() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+
+        // listSize < subsetSize
+        int randomSubsetSize = randomIntBetween(randomList.size() + 1, 20);
+
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomSubsetSize, randomList));
+    }
+
+    public void testRandomSubsetOfWithCollectionAndNegativeSubsetSize() {
+        List<Integer> randomList = randomList(10, () -> randomIntBetween(-100, 100));
+        int randomNegativeSubsetSize = -1 * randomIntBetween(1, 10);
+
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomNegativeSubsetSize, randomList));
+    }
+
+    public void testShuffledList() {
+        List<Integer> randomList = randomList(100, () -> randomIntBetween(-100, 100));
+        List<Integer> result = ESTestCase.shuffledList(randomList);
+        assertEquals(randomList.size(), result.size());
+        assertTrue(randomList.containsAll(result));
+        assertTrue(result.containsAll(randomList));
     }
 
     public void testRandomNonNegativeLong() {
@@ -387,5 +455,56 @@ public class ESTestCaseTests extends ESTestCase {
     public void testRandomUnsignedLongBetweenDegenerate() {
         BigInteger target = BigInteger.valueOf(randomLong()).subtract(BigInteger.valueOf(Long.MIN_VALUE));
         assertThat(randomUnsignedLongBetween(target, target), equalTo(target));
+    }
+
+    public void testAssertArrayEqualsPercentDifferentSize() {
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2 }, 0.1f, 0));
+        assertThat(ex.getMessage(), is("array lengths differed, expected.length=3 actual.length=2"));
+    }
+
+    public void testAssertArrayEqualsPercentNull() {
+        var ex1 = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(null, new float[] { 1, 2 }, 0.1f, 0.0f));
+        var ex2 = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(new float[] { 1, 2, 3 }, null, 0.1f, 0.0f));
+
+        assertThat(ex1.getMessage(), is("expected array was null"));
+        assertThat(ex2.getMessage(), is("actual array was null"));
+    }
+
+    public void testAssertArrayEqualsPercentMessage() {
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent("test message", null, new float[] { 1, 2 }, 0.1f, 0.0f));
+        assertThat(ex.getMessage(), is("test message: expected array was null"));
+    }
+
+    public void testAssertArrayEqualsPercentElementsAreEqual() {
+        assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 1, 2, 3 }, 1e-9f, 0.0f);
+    }
+
+    public void testAssertArrayEqualsPercentElementsAreSimilar() {
+        assertArrayEqualsPercent(new float[] { 1, 2, 3 }, new float[] { 0.99f, 1.99f, 2.99f }, 0.01f, 0.0f);
+    }
+
+    public void testAssertArrayEqualsPercentElementsAreNotSimilarEnough() {
+        var ex = expectThrows(
+            AssertionError.class,
+            () -> assertArrayEqualsPercent(new float[] { 100, 2, 3 }, new float[] { 99, 1.99f, 2.99f }, 0.001f, 0.0f)
+        );
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [0]"));
+    }
+
+    public void testAssertArrayEqualsPercentElementsAreWithinAbsoluteDelta() {
+        float[] expected = { 1, 2, 3, 0 };
+        float[] actual = { 0.99f, 1.99f, 2.99f, 0.01f };
+        var ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(expected, actual, 0.001f, 0.0f));
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [0]"));
+        ex = expectThrows(AssertionError.class, () -> assertArrayEqualsPercent(expected, actual, 0.01f, 0.0f));
+        assertThat(ex.getMessage(), startsWith("arrays first differed at element [3]"));
+        assertArrayEqualsPercent(expected, actual, 0.001f, 0.02f);
+    }
+
+    public void testEmbedInRandomBytes() {
+        BytesRef v = new BytesRef(randomByteArrayOfLength(between(1, 10)));
+        BytesRef withGarbage = embedInRandomBytes(v);
+        assertThat(withGarbage, equalTo(v));
+        assertThat(withGarbage.bytes.length, greaterThan(withGarbage.length));
     }
 }

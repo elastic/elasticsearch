@@ -11,9 +11,9 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 
 import java.io.Closeable;
 import java.util.EnumSet;
@@ -22,8 +22,6 @@ import java.util.Map;
 import java.util.Set;
 
 public interface InferenceService extends Closeable {
-
-    default void init(Client client) {}
 
     String name();
 
@@ -53,32 +51,25 @@ public interface InferenceService extends Closeable {
     void parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<Model> parsedModelListener);
 
     /**
-     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
-     * secrets and service settings be in two separate maps.
+     * Parse model from an {@link UnparsedModel} and return the fully parsed {@link Model}.
      * This function modifies {@code config map}, fields are removed from the map as they are read.
+     * <p>
+     * If the map contains unrecognized configuration option an
+     * {@code ElasticsearchStatusException} is thrown.
      *
-     * If the map contains unrecognized configuration options, no error is thrown.
-     *
-     * @param modelId Model Id
-     * @param taskType The model task type
-     * @param config Configuration options
-     * @param secrets Sensitive configuration options (e.g. api key)
-     * @return The parsed {@link Model}
+     * @param unparsedModel the unparsed model
+     * @return the fully parsed model
      */
-    Model parsePersistedConfigWithSecrets(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
+    Model parsePersistedConfig(UnparsedModel unparsedModel);
 
     /**
-     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}.
-     * This function modifies {@code config map}, fields are removed from the map as they are read.
-     *
-     * If the map contains unrecognized configuration options, no error is thrown.
-     *
-     * @param modelId Model Id
-     * @param taskType The model task type
-     * @param config Configuration options
-     * @return The parsed {@link Model}
+     * Create a new model from {@link ModelConfigurations} and {@link ModelSecrets} objects.
+     * This method is used for creating updated model instances.
+     * @param config The model configurations
+     * @param secrets The model secrets
+     * @return The created model
      */
-    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
+    Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets);
 
     InferenceServiceConfiguration getConfiguration();
 
@@ -107,7 +98,9 @@ public interface InferenceService extends Closeable {
      * @param stream          Stream inference results
      * @param taskSettings    Settings in the request to override the model's defaults
      * @param inputType       For search, ingest etc
-     * @param timeout         The timeout for the request
+     * @param timeout         The timeout for the request. Callers should normally pass in a timeout.
+     *                        Passing in null is specifically for query-time inference, when the timeout is managed by the
+     *                        xpack.inference.query_timeout cluster setting.
      * @param listener        Inference result listener
      */
     void infer(
@@ -119,7 +112,7 @@ public interface InferenceService extends Closeable {
         boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
-        TimeValue timeout,
+        @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
 
@@ -137,6 +130,16 @@ public interface InferenceService extends Closeable {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
+
+    /**
+     * Perform multimodal embedding inference on the model using the embedding schema.
+     *
+     * @param model The model
+     * @param request Parameters for the request
+     * @param timeout The timeout for the request
+     * @param listener Inference result listener
+     */
+    void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
 
     /**
      * Chunk long text.
@@ -248,4 +251,14 @@ public interface InferenceService extends Closeable {
      * after ensuring the node's internals are set up (for example if this ensures the internal ES client is ready for use).
      */
     default void onNodeStarted() {}
+
+    /**
+     * Get the service integration validator for the given task type.
+     * This allows services to provide custom validation logic.
+     * @param taskType The task type
+     * @return The service integration validator or null if the default should be used
+     */
+    default ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
+        return null;
+    }
 }

@@ -21,10 +21,10 @@ The following gce settings (prefixed with `cloud.gce`) are supported:
 `project_id`
 :   Your Google project id. By default the project id will be derived from the instance metadata.
 
-    ```
-    Note: Deriving the project id from system properties or environment variables
+    :::{note}
+    Deriving the project id from system properties or environment variables
     (`GOOGLE_CLOUD_PROJECT` or `GCLOUD_PROJECT`) is not supported.
-    ```
+    :::
 
 
 `zone`
@@ -40,7 +40,6 @@ The following gce settings (prefixed with `cloud.gce`) are supported:
 :   How long the list of hosts is cached to prevent further requests to the GCE API. `0s` disables caching. A negative value will cause infinite caching. Defaults to `0s`.
 
 ::::{admonition} Binding the network host
-:class: important
 
 It’s important to define `network.host` as by default it’s bound to `localhost`.
 

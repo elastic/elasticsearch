@@ -22,11 +22,10 @@ public class UnsafePlainActionFutureTests extends ESTestCase {
         UnsafePlainActionFuture<?> future = new UnsafePlainActionFuture<Void>(unsafeExecutorName);
         Thread other1 = getThread(otherExecutorName);
         Thread other2 = getThread(otherExecutorName);
-        assertFalse(future.allowedExecutors(other1, other2));
         Thread unsafe1 = getThread(unsafeExecutorName);
         Thread unsafe2 = getThread(unsafeExecutorName);
+        assertFalse(future.allowedExecutors(other1, other2));
         assertTrue(future.allowedExecutors(unsafe1, unsafe2));
-
         assertTrue(future.allowedExecutors(unsafe1, other1));
     }
 
@@ -51,8 +50,8 @@ public class UnsafePlainActionFutureTests extends ESTestCase {
     }
 
     private static Thread getThread(String executorName) {
-        Thread t = new Thread("[" + executorName + "][]");
+        Thread t = EsExecutors.daemonThreadFactory("node", executorName).newThread(() -> {});
         assertThat(EsExecutors.executorName(t), equalTo(executorName));
-        return t;
+        return t; // note: t is never started
     }
 }

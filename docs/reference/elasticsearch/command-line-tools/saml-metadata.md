@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/saml-metadata.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # elasticsearch-saml-metadata [saml-metadata]
@@ -112,6 +115,6 @@ bin/elasticsearch-saml-metadata --realm saml2 \
     --locale en-GB \
     --contacts \
     --organisation-name "Mega Corp. Finance Team" \
-    --organisation-url "http://mega.example.com/finance/"
+    --organisation-url "<EXAMPLE_URL>/finance/"
 ```
 

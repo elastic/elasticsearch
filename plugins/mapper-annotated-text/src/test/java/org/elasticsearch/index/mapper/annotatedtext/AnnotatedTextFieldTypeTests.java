@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -24,7 +25,7 @@ import java.util.List;
 public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testIntervals() throws IOException {
-        MappedFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
+        TextFamilyFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
         IntervalsSource source = ft.termIntervals(new BytesRef("donald"), null);
         assertEquals(Intervals.term("donald"), source);
     }
@@ -34,6 +35,7 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
             "field",
             IndexVersion.current(),
             createDefaultIndexAnalyzers(),
+            false,
             false
         ).build(MapperBuilderContext.root(false, false)).fieldType();
 

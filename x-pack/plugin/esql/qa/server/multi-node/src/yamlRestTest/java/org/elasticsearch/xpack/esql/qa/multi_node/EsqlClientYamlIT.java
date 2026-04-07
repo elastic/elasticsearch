@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
@@ -19,7 +20,7 @@ import org.junit.ClassRule;
 
 public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {});
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS));
 
     @Override
     protected String getTestRestCluster() {

@@ -8,20 +8,32 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -35,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardGetServiceTests extends IndexShardTestCase {
 
     private GetResult getForUpdate(IndexShard indexShard, String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
-        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, new String[] { RoutingFieldMapper.NAME });
+        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE);
     }
 
     public void testGetForUpdate() throws IOException {
@@ -129,7 +141,39 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 "foo": "foo"
             }
             """, Arrays.toString(vector));
-        runGetFromTranslogWithOptions(docToIndex, "\"enabled\": true", null, docToIndex, "\"text\"", "foo", "\"dense_vector\"", false);
+        runGetFromTranslogWithOptions(
+            docToIndex,
+            "\"enabled\": true",
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build(),
+            docToIndex,
+            "\"text\"",
+            "foo",
+            "\"dense_vector\"",
+            false
+        );
+    }
+
+    public void testGetFromTranslogWithSyntheticVector() throws IOException {
+        float[] vector = new float[2048];
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = randomByte();
+        }
+        String docToIndex = Strings.format("""
+            {
+                "bar": %s,
+                "foo": "foo"
+            }
+            """, Arrays.toString(vector));
+        runGetFromTranslogWithOptions(
+            docToIndex,
+            "\"enabled\": true",
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build(),
+            docToIndex,
+            "\"text\"",
+            "foo",
+            "\"dense_vector\"",
+            true
+        );
     }
 
     private void runGetFromTranslogWithOptions(
@@ -163,7 +207,6 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         String fieldTypeBar,
         boolean sourceOnlyFetchCreatesInMemoryReader
     ) throws IOException {
-
         var indexSettingsBuilder = indexSettings(IndexVersion.current(), 1, 1);
         if (additionalSettings != null) {
             indexSettingsBuilder.put(additionalSettings);
@@ -191,7 +234,12 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertFalse(testGet.getFields().containsKey(RoutingFieldMapper.NAME));
         assertFalse(testGet.getFields().containsKey("foo"));
         assertFalse(testGet.getFields().containsKey("bar"));
-        assertThat(testGet.sourceRef() == null ? "" : testGet.sourceRef().utf8ToString(), equalTo(expectedResult));
+        var asserter = TranslogOperationAsserter.withEngineConfig(primary.getEngine().getEngineConfig());
+        if (testGet.sourceRef() == null) {
+            assertThat("", equalTo(expectedResult));
+        } else {
+            asserter.assertSameIndexOperation(toIndexOp(testGet.sourceRef().utf8ToString()), toIndexOp(expectedResult));
+        }
         try (Engine.Searcher searcher = primary.getEngine().acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
             assertEquals(searcher.getIndexReader().maxDoc(), 1); // we refreshed
         }
@@ -199,7 +247,11 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         indexDoc(primary, "1", docToIndex, XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet1 = getForUpdate(primary, "1", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
-        assertEquals(testGet1.sourceRef() == null ? "" : testGet1.sourceRef().utf8ToString(), expectedResult);
+        if (testGet1.sourceRef() == null) {
+            assertThat("", equalTo(expectedResult));
+        } else {
+            asserter.assertSameIndexOperation(toIndexOp(testGet1.sourceRef().utf8ToString()), toIndexOp(expectedResult));
+        }
         assertTrue(testGet1.getFields().containsKey(RoutingFieldMapper.NAME));
         assertFalse(testGet.getFields().containsKey("foo"));
         assertFalse(testGet.getFields().containsKey("bar"));
@@ -219,8 +271,22 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Engine.IndexResult test2 = indexDoc(primary, "2", docToIndex, XContentType.JSON, "foobar");
         assertTrue(primary.getEngine().refreshNeeded());
         GetResult testGet2 = primary.getService()
-            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
-        assertEquals(testGet2.sourceRef() == null ? "" : testGet2.sourceRef().utf8ToString(), expectedResult);
+            .get(
+                "2",
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
+        if (testGet2.sourceRef() == null) {
+            assertThat("", equalTo(expectedResult));
+        } else {
+            asserter.assertSameIndexOperation(toIndexOp(testGet2.sourceRef().utf8ToString()), toIndexOp(expectedResult));
+        }
         assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
         assertTrue(testGet2.getFields().containsKey("foo"));
         assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
@@ -234,8 +300,22 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         }
 
         testGet2 = primary.getService()
-            .get("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
-        assertEquals(testGet2.sourceRef() == null ? "" : testGet2.sourceRef().utf8ToString(), expectedResult);
+            .get(
+                "2",
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
+        if (testGet2.sourceRef() == null) {
+            assertThat("", equalTo(expectedResult));
+        } else {
+            asserter.assertSameIndexOperation(toIndexOp(testGet2.sourceRef().utf8ToString()), toIndexOp(expectedResult));
+        }
         assertTrue(testGet2.getFields().containsKey(RoutingFieldMapper.NAME));
         assertTrue(testGet2.getFields().containsKey("foo"));
         assertEquals(expectedFooVal, testGet2.getFields().get("foo").getValue());
@@ -283,7 +363,16 @@ public class ShardGetServiceTests extends IndexShardTestCase {
 
         // Issue a get that would enforce safe access mode and switches the maps from unsafe to safe
         var getResult = primary.getService()
-            .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .getFromTranslog(
+                "2",
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertNull(getResult);
         var lastUnsafeGeneration = engine.getLastUnsafeSegmentGenerationForGets();
         // last unsafe generation is set to last committed gen after the refresh triggered by realtime get
@@ -295,7 +384,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         PlainActionFuture<Engine.FlushResult> flushFuture = new PlainActionFuture<>();
         engine.flush(true, true, flushFuture);
         var flushResult = flushFuture.actionGet();
-        assertTrue(flushResult.flushPerformed());
+        assertFalse(flushResult.skippedDueToCollision());
         assertThat(flushResult.generation(), equalTo(lastUnsafeGeneration + 1));
         assertThat(engine.getLastUnsafeSegmentGenerationForGets(), equalTo(lastUnsafeGeneration));
         // No longer in translog
@@ -307,12 +396,23 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 1,
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
-                false
+                false,
+                SplitShardCountSummary.UNSET
             );
         assertNull(getResult);
         // But normal get would still work!
         getResult = primary.getService()
-            .get(indexResult.getId(), new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .get(
+                indexResult.getId(),
+                null,
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertNotNull(getResult);
         assertTrue(getResult.isExists());
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
@@ -323,11 +423,29 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         // The first get in safe mode, would trigger a refresh, since we need to start tracking translog locations in the live version map
         getResult = primary.getService()
-            .getFromTranslog("1", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .getFromTranslog(
+                "1",
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertTrue(getResult.isExists());
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
         getResult = primary.getService()
-            .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .getFromTranslog(
+                "2",
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertNull(getResult);
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
 
@@ -345,7 +463,16 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertTrue(LiveVersionMapTestUtils.isUnsafe(map));
         getResult = primary.getService()
-            .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+            .getFromTranslog(
+                "2",
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false,
+                SplitShardCountSummary.UNSET
+            );
         assertNull(getResult);
         var lastUnsafeGeneration2 = engine.getLastUnsafeSegmentGenerationForGets();
         assertTrue(lastUnsafeGeneration2 > lastUnsafeGeneration);
@@ -353,5 +480,100 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
 
         closeShards(primary);
+    }
+
+    public void testShouldExcludeInferenceFieldsFromSource() {
+        for (int i = 0; i < 100; i++) {
+            ExcludeInferenceFieldsTestScenario scenario = new ExcludeInferenceFieldsTestScenario();
+            assertThat(
+                ShardGetService.shouldExcludeInferenceFieldsFromSource(scenario.fetchSourceContext),
+                equalTo(scenario.shouldExcludeInferenceFields())
+            );
+        }
+    }
+
+    Translog.Index toIndexOp(String source) throws IOException {
+        XContentParser parser = createParser(XContentType.JSON.xContent(), source);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.copyCurrentStructure(parser);
+        return new Translog.Index(
+            "1",
+            0,
+            1,
+            1,
+            new BytesArray(org.elasticsearch.common.Strings.toString(builder)),
+            null,
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP
+        );
+    }
+
+    private static class ExcludeInferenceFieldsTestScenario {
+        private final FetchSourceContext fetchSourceContext;
+
+        private ExcludeInferenceFieldsTestScenario() {
+            this.fetchSourceContext = generateRandomFetchSourceContext();
+        }
+
+        private boolean shouldExcludeInferenceFields() {
+            if (fetchSourceContext != null) {
+                if (fetchSourceContext.fetchSource() == false) {
+                    return true;
+                }
+
+                SourceFilter filter = fetchSourceContext.filter();
+                if (filter != null) {
+                    if (Arrays.asList(filter.getExcludes()).contains(InferenceMetadataFieldsMapper.NAME)) {
+                        return true;
+                    } else if (filter.getIncludes().length > 0) {
+                        return Arrays.asList(filter.getIncludes()).contains(InferenceMetadataFieldsMapper.NAME) == false;
+                    }
+                }
+
+                Boolean excludeInferenceFieldsExplicit = fetchSourceContext.excludeInferenceFields();
+                if (excludeInferenceFieldsExplicit != null) {
+                    return excludeInferenceFieldsExplicit;
+                }
+            }
+
+            return true;
+        }
+
+        private static FetchSourceContext generateRandomFetchSourceContext() {
+            FetchSourceContext fetchSourceContext = switch (randomIntBetween(0, 4)) {
+                case 0 -> FetchSourceContext.FETCH_SOURCE;
+                case 1 -> FetchSourceContext.FETCH_ALL_SOURCE;
+                case 2 -> FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS;
+                case 3 -> FetchSourceContext.DO_NOT_FETCH_SOURCE;
+                case 4 -> null;
+                default -> throw new IllegalStateException("Unhandled randomized case");
+            };
+
+            if (fetchSourceContext != null && fetchSourceContext.fetchSource()) {
+                String[] includes = null;
+                String[] excludes = null;
+                if (randomBoolean()) {
+                    // Randomly include a non-existent field to test explicit inclusion handling
+                    String field = randomBoolean() ? InferenceMetadataFieldsMapper.NAME : randomIdentifier();
+                    includes = new String[] { field };
+                }
+                if (randomBoolean()) {
+                    // Randomly exclude a non-existent field to test implicit inclusion handling
+                    String field = randomBoolean() ? InferenceMetadataFieldsMapper.NAME : randomIdentifier();
+                    excludes = new String[] { field };
+                }
+
+                if (includes != null || excludes != null) {
+                    fetchSourceContext = FetchSourceContext.of(
+                        fetchSourceContext.fetchSource(),
+                        fetchSourceContext.excludeVectors(),
+                        fetchSourceContext.excludeInferenceFields(),
+                        includes,
+                        excludes
+                    );
+                }
+            }
+
+            return fetchSourceContext;
+        }
     }
 }

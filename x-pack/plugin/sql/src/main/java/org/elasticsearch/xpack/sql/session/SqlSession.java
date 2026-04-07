@@ -166,6 +166,8 @@ public class SqlSession implements Session {
                 IndexResolver.ALL_FIELDS,
                 includeFrozen,
                 configuration.runtimeMappings(),
+                configuration.crossProject(),
+                configuration.projectRouting(),
                 listener.delegateFailureAndWrap((l, indexResult) -> l.onResponse(action.apply(indexResult)))
             );
         } else {

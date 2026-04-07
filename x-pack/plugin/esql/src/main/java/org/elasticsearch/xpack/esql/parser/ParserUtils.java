@@ -14,11 +14,20 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -140,15 +149,69 @@ public final class ParserUtils {
     }
 
     /**
-     * Extract the name or the position of a parameter.
+     * Extract the name or the position of an ES|QL parameter.
      */
     public static String nameOrPosition(Token token) {
         int tokenType = token.getType();
-        // Retrieve text from the token only when necessary, when the token type is known.
         return switch (tokenType) {
             case EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> token.getText().substring(SINGLE_PARAM);
             case EsqlBaseLexer.NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> token.getText().substring(DOUBLE_PARAM);
             default -> EMPTY;
         };
+    }
+
+    /**
+     * Extract the name or the position of a PromQL parameter.
+     * Kept separate from {@link #nameOrPosition} since the two lexers assign independent token type IDs
+     * that can collide after grammar changes.
+     */
+    public static String promqlNameOrPosition(Token token) {
+        int tokenType = token.getType();
+        return switch (tokenType) {
+            case PromqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> token.getText().substring(SINGLE_PARAM);
+            default -> EMPTY;
+        };
+    }
+
+    public static String unquoteIdString(String quotedString) {
+        return quotedString.substring(1, quotedString.length() - 1).replace("``", "`");
+    }
+
+    public static String quoteIdString(String unquotedString) {
+        return "`" + unquotedString.replace("`", "``") + "`";
+    }
+
+    public record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {}
+
+    public static Stats buildStats(Source source, List<Expression> groupings, List<NamedExpression> aggregates) {
+        if (aggregates.isEmpty() && groupings.isEmpty()) {
+            throw new ParsingException(source, "At least one aggregation or grouping expression required in [{}]", source.text());
+        }
+        // grouping keys are automatically added as aggregations however the user is not allowed to specify them
+        if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
+            var groupNames = new LinkedHashSet<>(Expressions.names(groupings));
+            var groupRefNames = new LinkedHashSet<>(Expressions.names(Expressions.references(groupings)));
+
+            for (Expression aggregate : aggregates) {
+                Expression e = Alias.unwrap(aggregate);
+                if (e.resolved() == false && e instanceof UnresolvedFunction == false) {
+                    String name = e.sourceText();
+                    if (groupNames.contains(name)) {
+                        throw new VerificationException(
+                            Collections.singletonList(Failure.fail(e, "grouping key [{}] already specified in the STATS BY clause", name))
+                        );
+                    } else if (groupRefNames.contains(name)) {
+                        throw new VerificationException(
+                            Collections.singletonList(Failure.fail(e, "Cannot specify grouping expression [{}] as an aggregate", name))
+                        );
+                    }
+                }
+            }
+        }
+        // since groupings are aliased, add refs to it in the aggregates
+        for (Expression group : groupings) {
+            aggregates.add(Expressions.attribute(group));
+        }
+        return new Stats(new ArrayList<>(groupings), aggregates);
     }
 }

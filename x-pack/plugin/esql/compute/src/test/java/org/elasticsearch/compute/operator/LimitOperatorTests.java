@@ -9,28 +9,32 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.test.RandomBlock.randomElementType;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
     protected LimitOperator.Factory simple(SimpleOptions options) {
-        return new LimitOperator.Factory(100, 500);
+        return new LimitOperator.Factory(100);
     }
 
     @Override
@@ -48,30 +52,6 @@ public class LimitOperatorTests extends OperatorTestCase {
         return equalTo("LimitOperator[limit = 100/100]");
     }
 
-    private ElementType elementType;
-
-    @Before
-    public void setUpElementTypes() throws Exception {
-        elementType = randomFrom(ElementType.INT, ElementType.NULL, ElementType.BYTES_REF);
-    }
-
-    private Page randomPage(BlockFactory blockFactory, int size) {
-        if (randomBoolean()) {
-            return new Page(blockFactory.newConstantNullBlock(size));
-        }
-        Block block = RandomBlock.randomBlock(
-            blockFactory,
-            elementType,
-            size,
-            elementType == ElementType.NULL || randomBoolean(),
-            1,
-            1,
-            0,
-            0
-        ).block();
-        return new Page(block);
-    }
-
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
         int inputPositionCount = input.stream().mapToInt(p -> p.getPositionCount()).sum();
@@ -87,14 +67,11 @@ public class LimitOperatorTests extends OperatorTestCase {
         assertThat(status.limit(), equalTo(100));
         assertThat(status.limitRemaining(), equalTo(100));
         assertThat(status.pagesProcessed(), equalTo(0));
-
-        Page p = new Page(blockFactory.newConstantNullBlock(10));
-        try {
+        try (Page p = new Page(blockFactory.newConstantNullBlock(10))) {
             op.addInput(p);
-            op.finish();
-            assertSame(p, op.getOutput());
-        } finally {
-            p.releaseBlocks();
+            try (Page output = op.getOutput()) {
+                assertThat(output, equalTo(p));
+            }
         }
         status = op.status();
         assertThat(status.limit(), equalTo(100));
@@ -104,24 +81,10 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     public void testNeedInput() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        // small page size
-        try (LimitOperator op = new LimitOperator(new Limiter(100), blockFactory, 5)) {
+        try (LimitOperator op = simple(SimpleOptions.DEFAULT).get(driverContext())) {
             assertTrue(op.needsInput());
-            Page p = randomPage(blockFactory, 10);
+            Page p = new Page(blockFactory.newConstantNullBlock(10));
             op.addInput(p);
-            assertFalse(op.needsInput());
-            op.getOutput().releaseBlocks();
-            assertTrue(op.needsInput());
-            op.finish();
-            assertFalse(op.needsInput());
-        }
-        // small page size
-        try (LimitOperator op = new LimitOperator(new Limiter(100), blockFactory, 50)) {
-            for (int i = 0; i < 5; i++) {
-                assertTrue(op.needsInput());
-                Page p = randomPage(blockFactory, 10);
-                op.addInput(p);
-            }
             assertFalse(op.needsInput());
             op.getOutput().releaseBlocks();
             assertTrue(op.needsInput());
@@ -135,7 +98,7 @@ public class LimitOperatorTests extends OperatorTestCase {
         for (int i = 0; i < 100; i++) {
             try (var op = simple().get(driverContext())) {
                 assertTrue(op.needsInput());
-                Page p = randomPage(blockFactory, 200);  // test doesn't close because operator returns a view
+                Page p = new Page(randomBlock(blockFactory, 200));  // test doesn't close because operator returns a view
                 op.addInput(p);
                 assertFalse(op.needsInput());
                 Page result = op.getOutput();
@@ -155,14 +118,11 @@ public class LimitOperatorTests extends OperatorTestCase {
         for (int i = 0; i < 100; i++) {
             try (var op = simple().get(driverContext())) {
                 assertTrue(op.needsInput());
-                Page p = randomPage(blockFactory, 100);  // test doesn't close because operator returns same page
+                Page p = new Page(randomBlock(blockFactory, 100));  // test doesn't close because operator returns same page
                 op.addInput(p);
                 assertFalse(op.needsInput());
-                Page result = op.getOutput();
-                try {
-                    assertThat(result, sameInstance(p));
-                } finally {
-                    result.releaseBlocks();
+                try (Page output = op.getOutput()) {
+                    assertThat(output, equalTo(p));
                 }
                 assertFalse(op.needsInput());
                 assertTrue(op.isFinished());
@@ -170,11 +130,29 @@ public class LimitOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testTruncatePageWithZeroBlocks() {
+        try (var op = simple().get(driverContext())) {
+            assertTrue(op.needsInput());
+            Page p = new Page(200);
+            op.addInput(p);
+            assertFalse(op.needsInput());
+            Page result = op.getOutput();
+            try {
+                assertThat(result.getPositionCount(), equalTo(100));
+                assertThat(result.getBlockCount(), equalTo(0));
+            } finally {
+                result.releaseBlocks();
+            }
+            assertFalse(op.needsInput());
+            assertTrue(op.isFinished());
+        }
+    }
+
     public void testEarlyTermination() {
         int numDrivers = between(1, 4);
         final List<Driver> drivers = new ArrayList<>();
         final int limit = between(1, 10_000);
-        final LimitOperator.Factory limitFactory = new LimitOperator.Factory(limit, between(1024, 2048));
+        final LimitOperator.Factory limitFactory = new LimitOperator.Factory(limit);
         final AtomicInteger receivedRows = new AtomicInteger();
         for (int i = 0; i < numDrivers; i++) {
             DriverContext driverContext = driverContext();
@@ -193,8 +171,7 @@ public class LimitOperatorTests extends OperatorTestCase {
 
                 @Override
                 public Page getOutput() {
-                    return randomPage(blockFactory(), between(1, 100));
-
+                    return new Page(randomBlock(driverContext.blockFactory(), between(1, 100)));
                 }
 
                 @Override
@@ -224,7 +201,7 @@ public class LimitOperatorTests extends OperatorTestCase {
                 )
             );
         }
-        runDriver(drivers);
+        new TestDriverRunner().run(drivers);
         assertThat(receivedRows.get(), equalTo(limit));
     }
 
@@ -233,5 +210,21 @@ public class LimitOperatorTests extends OperatorTestCase {
             return blockFactory.newConstantNullBlock(size);
         }
         return RandomBlock.randomBlock(blockFactory, randomElementType(), size, false, 1, 1, 0, 0).block();
+    }
+
+    @Override
+    protected final void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
+        var emittedRows = output.stream().mapToInt(Page::getPositionCount).sum();
+        var inputRows = input.stream().mapToInt(Page::getPositionCount).sum();
+
+        // Once LimitOperator has received enough pages to fill the limit, it no longer receives
+        // input pages which is why we cannot just check that rows_received is the total number of input pages rows.
+        var mapMatcher = matchesMap().entry("rows_received", allOf(greaterThanOrEqualTo(emittedRows), lessThanOrEqualTo(inputRows)))
+            .entry("pages_processed", output.size())
+            .entry("rows_emitted", emittedRows)
+            .entry("limit", 100)
+            .entry("limit_remaining", 100 - emittedRows);
+
+        assertMap(map, mapMatcher);
     }
 }

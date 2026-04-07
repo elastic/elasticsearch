@@ -11,6 +11,7 @@ package org.elasticsearch.common.network;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Predicates;
 
 import java.io.IOException;
@@ -44,7 +45,11 @@ public abstract class NetworkUtils {
      * @deprecated transition mechanism only
      */
     @Deprecated
-    static final boolean PREFER_V6 = Boolean.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"));
+    static final boolean PREFER_V6 = preferIPv6Addresses();
+
+    private static boolean preferIPv6Addresses() {
+        return Booleans.parseBooleanLenient(System.getProperty("java.net.preferIPv6Addresses", "false"), false);
+    }
 
     /**
      * True if we can bind to a v6 address. Its silly, but for *binding* we have a need to know

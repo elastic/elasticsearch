@@ -8,23 +8,18 @@
 package org.elasticsearch.xpack.esql.spatial;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class SpatialExtentAggregationTestCase extends AbstractEsqlIntegTestCase {
+public abstract class SpatialExtentAggregationTestCase extends AbstractSpatialAggregationTestCase {
 
     @Before
     public void setupIndex() throws Exception {
@@ -75,42 +70,5 @@ public abstract class SpatialExtentAggregationTestCase extends AbstractEsqlInteg
             """, index);
         ElasticsearchException e = expectThrows(VerificationException.class, () -> run(query));
         assertThat(e.getMessage(), containsString("current license is non-compliant for [ST_EXTENT_AGG(location)]"));
-    }
-
-    private void createAndPopulateIndexes(double minX, double maxX, double minY, double maxY) throws Exception {
-        int numX = 21;
-        int numY = 21;
-        initIndex("index_", "geo_point");
-        initIndex("index_", "geo_shape");
-        BulkRequestBuilder points = client().prepareBulk();
-        BulkRequestBuilder shapes = client().prepareBulk();
-        for (int xi = 0; xi < numX; xi++) {
-            for (int yi = 0; yi < numY; yi++) {
-                double x = minX + xi * (maxX - minX) / (numX - 1);
-                double y = minY + yi * (maxY - minY) / (numY - 1);
-                String point = "POINT(" + x + " " + y + ")";
-                points.add(new IndexRequest("index_geo_point").id(x + ":" + y).source("location", point));
-                if (xi > 0 && yi > 0) {
-                    double px = minX + (xi - 1) * (maxX - minX) / numX;
-                    double py = minY + (yi - 1) * (maxY - minY) / numY;
-                    String shape = "BBOX(" + px + ", " + x + ", " + y + ", " + py + ")";
-                    shapes.add(new IndexRequest("index_geo_shape").id(x + ":" + y).source("location", shape));
-                }
-            }
-        }
-        points.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        shapes.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        ensureYellow("index_geo_point");
-        ensureYellow("index_geo_shape");
-    }
-
-    protected void initIndex(String prefix, String fieldType) {
-        assertAcked(prepareCreate(prefix + fieldType).setMapping(String.format(Locale.ROOT, """
-            {
-              "properties" : {
-                "location": { "type" : "%s" }
-              }
-            }
-            """, fieldType)));
     }
 }

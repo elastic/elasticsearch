@@ -347,7 +347,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             false,
             false,
             false,
-            false
+            false,
+            PluginDescriptor.DeploymentTarget.ALL
         );
         final PluginRuntimeInfo pluginRuntimeInfo = new PluginRuntimeInfo(pluginDescriptor);
         when(mockPluginsAndModules.getPluginInfos()).thenReturn(List.of(pluginRuntimeInfo));
@@ -434,7 +435,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             AnalysisStats.of(metadata, () -> {}),
             VersionStats.of(metadata, singletonList(mockNodeResponse)),
             ClusterSnapshotStats.EMPTY,
-            null
+            null,
+            false
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -584,7 +586,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_tokenizers": [],
                     "built_in_filters": [],
                     "built_in_analyzers": [],
-                    "synonyms": {}
+                    "synonyms": {},
+                    "multiple_synonym_graph_filters": {
+                      "analyzer_count": 0,
+                      "index_count": 0
+                    }
                   },
                   "versions": [],
                   "search": {
@@ -592,7 +598,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "queries": {},
                     "rescorers": {},
                     "sections": {},
-                    "retrievers": {}
+                    "retrievers": {},
+                    "extended": {}
                   },
                   "dense_vector": {
                     "value_count": 0

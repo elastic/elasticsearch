@@ -123,4 +123,28 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + expectedMediaType + "]"));
     }
+
+    public void testCreateWithCopyFrom() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("copy_from", "field2");
+        String processorTag = randomAlphaOfLength(10);
+        AppendProcessor appendProcessor = factory.create(null, processorTag, null, config, null);
+        assertThat(appendProcessor.getTag(), equalTo(processorTag));
+        assertThat(appendProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(appendProcessor.getCopyFrom(), equalTo("field2"));
+    }
+
+    public void testCreateWithCopyFromAndValue() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("copy_from", "field2");
+        config.put("value", "value1");
+        String processorTag = randomAlphaOfLength(10);
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config, null)
+        );
+        assertThat(exception.getMessage(), equalTo("[copy_from] cannot set both `copy_from` and `value` in the same processor"));
+    }
 }

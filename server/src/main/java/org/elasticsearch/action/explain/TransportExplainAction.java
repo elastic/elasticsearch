@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.FixForMultiProject;
@@ -101,9 +102,25 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             super.doExecute(task, request, l);
         });
 
+        // Set cluster alias to null because this request targets a single shard and thus there cannot be any multi-cluster resource
+        // conflicts. This is also consistent with the cluster alias value set downstream in the SearchExecutionContext used in this
+        // code path.
+        // Set CCS minimize round-trips to false because this transport implementation runs coordinator rewrite only on the local cluster.
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices, null), rewriteListener);
+        Rewriteable.rewriteAndFetch(
+            request.query(),
+            searchService.getRewriteContext(
+                timeProvider,
+                clusterService.state().getMinTransportVersion(),
+                null,
+                resolvedIndices,
+                null,
+                false
+            ),
+            threadPool.executor(ThreadPool.Names.GET),
+            rewriteListener
+        );
     }
 
     @Override
@@ -113,7 +130,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected void resolveRequest(ProjectState state, InternalRequest request) {
-        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
             state.metadata(),
             request.request().index()
         );
@@ -142,8 +159,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
         try {
+            // TODO remove SplitShardCountSummary.UNSET
             // No need to check the type, IndexShard#get does it for us
-            result = context.indexShard().get(new Engine.Get(false, false, request.id()));
+            result = context.indexShard().get(new Engine.Get(false, false, request.id()), SplitShardCountSummary.UNSET);
             if (result.exists() == false) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }

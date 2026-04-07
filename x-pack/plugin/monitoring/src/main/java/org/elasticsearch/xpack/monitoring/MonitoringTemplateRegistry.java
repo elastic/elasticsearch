@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -78,7 +77,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
      * writes monitoring data in ECS format as of 8.0. These templates define the ECS schema as well as alias fields for the old monitoring
      * mappings that point to the corresponding ECS fields.
      */
-    public static final int STACK_MONITORING_REGISTRY_VERSION = 8_00_00_99 + 21;
+    public static final int STACK_MONITORING_REGISTRY_VERSION = 8_00_00_99 + 24;
     private static final String STACK_MONITORING_REGISTRY_VERSION_VARIABLE = "xpack.stack.monitoring.template.release.version";
     private static final String STACK_TEMPLATE_VERSION = "8";
     private static final String STACK_TEMPLATE_VERSION_VARIABLE = "xpack.stack.monitoring.template.version";
@@ -244,10 +243,9 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        ProjectResolver projectResolver
+        NamedXContentRegistry xContentRegistry
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.clusterService = clusterService;
         this.monitoringTemplatesEnabled = MONITORING_TEMPLATES_ENABLED.get(nodeSettings);
     }
@@ -306,7 +304,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
         BEATS_STACK_INDEX_TEMPLATE,
         ES_STACK_INDEX_TEMPLATE,
         KIBANA_STACK_INDEX_TEMPLATE,
@@ -316,7 +314,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return monitoringTemplatesEnabled ? COMPOSABLE_INDEX_TEMPLATE_CONFIGS : Map.of();
+        return monitoringTemplatesEnabled ? composableIndexTemplates : Map.of();
     }
 
     @Override

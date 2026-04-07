@@ -186,7 +186,7 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             expectedSettings.put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), action.getTotalShardsPerNode());
         }
 
-        assertThat(firstStep.getSettings(), equalTo(expectedSettings.build()));
+        assertThat(firstStep.getSettingsSupplier().apply(null), equalTo(expectedSettings.build()));
         AllocationRoutedStep secondStep = (AllocationRoutedStep) steps.get(1);
         assertEquals(expectedSecondStepKey, secondStep.getKey());
         assertEquals(nextStepKey, secondStep.getNextStepKey());
@@ -204,13 +204,15 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
-        assertEquals(totalShardsPerNode, firstStep.getSettings().getAsInt(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), null));
+        Settings actualSettings = firstStep.getSettingsSupplier().apply(null);
+        assertEquals(totalShardsPerNode, actualSettings.getAsInt(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), null));
 
         totalShardsPerNode = null;
         action = new AllocateAction(numberOfReplicas, totalShardsPerNode, null, null, null);
         steps = action.toSteps(null, phase, nextStepKey);
         firstStep = (UpdateSettingsStep) steps.get(0);
-        assertEquals(null, firstStep.getSettings().get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
+        actualSettings = firstStep.getSettingsSupplier().apply(null);
+        assertNull(actualSettings.get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
 
         // allow an allocate action that only specifies total shards per node (don't expect any exceptions in this case)
         action = new AllocateAction(null, 5, null, null, null);

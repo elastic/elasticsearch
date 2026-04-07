@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -62,35 +61,22 @@ public class IlmPolicyDeprecationCheckerTests extends ESTestCase {
             randomOptionalBoolean()
         );
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(
-                            Map.of(
-                                "deprecated-tiers",
-                                new LifecyclePolicyMetadata(
-                                    deprecatedTiersPolicy,
-                                    Map.of(),
-                                    randomNonNegativeLong(),
-                                    randomNonNegativeLong()
-                                ),
-                                "other-attribute",
-                                new LifecyclePolicyMetadata(
-                                    otherAttributePolicy,
-                                    Map.of(),
-                                    randomNonNegativeLong(),
-                                    randomNonNegativeLong()
-                                )
-                            ),
-                            OperationMode.RUNNING
-                        )
-                    )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(
+                IndexLifecycleMetadata.TYPE,
+                new IndexLifecycleMetadata(
+                    Map.of(
+                        "deprecated-tiers",
+                        new LifecyclePolicyMetadata(deprecatedTiersPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong()),
+                        "other-attribute",
+                        new LifecyclePolicyMetadata(otherAttributePolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())
+                    ),
+                    OperationMode.RUNNING
+                )
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(project);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Configuring tiers via filtered allocation is not recommended.",
@@ -115,28 +101,20 @@ public class IlmPolicyDeprecationCheckerTests extends ESTestCase {
             randomOptionalBoolean()
         );
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(
-                            Map.of(
-                                "deprecated-action",
-                                new LifecyclePolicyMetadata(
-                                    deprecatedTiersPolicy,
-                                    Map.of(),
-                                    randomNonNegativeLong(),
-                                    randomNonNegativeLong()
-                                )
-                            ),
-                            OperationMode.RUNNING
-                        )
-                    )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(
+                IndexLifecycleMetadata.TYPE,
+                new IndexLifecycleMetadata(
+                    Map.of(
+                        "deprecated-action",
+                        new LifecyclePolicyMetadata(deprecatedTiersPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())
+                    ),
+                    OperationMode.RUNNING
+                )
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(project);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "ILM policy [deprecated-action] contains the action 'freeze' that is deprecated and will be removed in a future version.",

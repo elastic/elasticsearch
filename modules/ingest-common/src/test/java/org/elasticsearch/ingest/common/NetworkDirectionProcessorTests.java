@@ -93,6 +93,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("'invalid' is not an IP string literal."));
     }
 
+    // These tests copy the data from the NetworkDirectionUtils tests
     public void testCIDR() throws Exception {
         testNetworkDirectionProcessor(buildEvent("10.0.1.1", "192.168.1.2"), new String[] { "10.0.0.0/8" }, "outbound");
         testNetworkDirectionProcessor(buildEvent("192.168.1.2", "10.0.1.1"), new String[] { "10.0.0.0/8" }, "inbound");

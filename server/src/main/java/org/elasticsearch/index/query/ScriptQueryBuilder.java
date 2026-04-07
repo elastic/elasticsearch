@@ -23,7 +23,6 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +38,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
+public class ScriptQueryBuilder extends LeafQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
 
     private final Script script;
@@ -229,6 +228,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.model;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +30,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 /**
  * Maintains mutable settings for SageMaker. Model-specific settings are stored in {@link SageMakerStoredTaskSchema}.
  */
-record SageMakerTaskSettings(
+public record SageMakerTaskSettings(
     @Nullable String customAttributes,
     @Nullable String enableExplanations,
     @Nullable String inferenceIdForDataCapture,
@@ -46,6 +45,7 @@ record SageMakerTaskSettings(
     private static final String INFERENCE_ID = "inference_id";
     private static final String SESSION_ID = "session_id";
     private static final String TARGET_VARIANT = "target_variant";
+    private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
     SageMakerTaskSettings(StreamInput in) throws IOException {
         this(
@@ -71,11 +71,21 @@ record SageMakerTaskSettings(
     @Override
     public SageMakerTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         var validationException = new ValidationException();
-
         var updateTaskSettings = fromMap(newSettings, apiTaskSettings.updatedTaskSettings(newSettings), validationException);
-
         validationException.throwIfValidationErrorsExist();
 
+        return override(updateTaskSettings);
+    }
+
+    public SageMakerTaskSettings override(Map<String, Object> newSettings) {
+        var validationException = new ValidationException();
+        var updateTaskSettings = fromMap(newSettings, apiTaskSettings.override(newSettings), validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        return override(updateTaskSettings);
+    }
+
+    private SageMakerTaskSettings override(SageMakerTaskSettings updateTaskSettings) {
         var updatedExtraTaskSettings = updateTaskSettings.apiTaskSettings().equals(SageMakerStoredTaskSchema.NO_OP)
             ? apiTaskSettings
             : updateTaskSettings.apiTaskSettings();
@@ -101,7 +111,13 @@ record SageMakerTaskSettings(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_SAGEMAKER;
+        assert false : "should never be called when supportsVersion is used";
+        return ML_INFERENCE_SAGEMAKER;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.supports(ML_INFERENCE_SAGEMAKER);
     }
 
     @Override

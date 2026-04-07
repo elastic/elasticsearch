@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
@@ -25,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -90,7 +90,7 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
  * Permission is granted if both:
  * <ul>
  * <li>
- * there is no match in exclusivePaths, and
+ * there is no match in {@link FileAccessTree#forbiddenPaths}, and
  * </li>
  * <li>
  * there is a match in the array corresponding to the desired operation (read or write).
@@ -187,10 +187,11 @@ public final class FileAccessTree {
 
     private final FileAccessTreeComparison comparison;
     /**
-     * lists paths that are forbidden for this component+module because some other component has granted exclusive access to one of its
-     * modules
+     * lists paths that are forbidden for this component+module
+     * A path can be forbidden unconditionally, or because some other component has granted exclusive
+     * access to one of its modules
      */
-    private final String[] exclusivePaths;
+    private final String[] forbiddenPaths;
     /**
      * lists paths for which the component has granted read or read_write access to the module
      */
@@ -200,26 +201,27 @@ public final class FileAccessTree {
      */
     private final String[] writePaths;
 
-    private static String[] buildUpdatedAndSortedExclusivePaths(
+    private static String[] buildFinalSortedForbiddenPaths(
         String componentName,
         String moduleName,
         List<ExclusivePath> exclusivePaths,
+        Collection<String> forbiddenPaths,
         FileAccessTreeComparison comparison
     ) {
-        List<String> updatedExclusivePaths = new ArrayList<>();
+        List<String> finalForbiddenPathList = new ArrayList<>(forbiddenPaths);
         for (ExclusivePath exclusivePath : exclusivePaths) {
             if (exclusivePath.componentName().equals(componentName) == false || exclusivePath.moduleNames().contains(moduleName) == false) {
-                updatedExclusivePaths.add(exclusivePath.path());
+                finalForbiddenPathList.add(exclusivePath.path());
             }
         }
-        updatedExclusivePaths.sort(comparison.pathComparator());
-        return updatedExclusivePaths.toArray(new String[0]);
+        finalForbiddenPathList.sort(comparison.pathComparator());
+        return finalForbiddenPathList.toArray(new String[0]);
     }
 
     FileAccessTree(
         FilesEntitlement filesEntitlement,
         PathLookup pathLookup,
-        Path componentPath,
+        Collection<Path> componentPaths,
         String[] sortedExclusivePaths,
         FileAccessTreeComparison comparison
     ) {
@@ -267,9 +269,7 @@ public final class FileAccessTree {
         pathLookup.getBaseDirPaths(TEMP).forEach(tempPath -> addPathAndMaybeLink.accept(tempPath, READ_WRITE));
         // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
         pathLookup.getBaseDirPaths(CONFIG).forEach(configPath -> addPathAndMaybeLink.accept(configPath, Mode.READ));
-        if (componentPath != null) {
-            addPathAndMaybeLink.accept(componentPath, Mode.READ);
-        }
+        componentPaths.forEach(p -> addPathAndMaybeLink.accept(p, Mode.READ));
 
         // TODO: watcher uses javax.activation which looks for known mime types configuration, should this be global or explicit in watcher?
         Path jdk = Paths.get(System.getProperty("java.home"));
@@ -278,14 +278,14 @@ public final class FileAccessTree {
         readPaths.sort(comparison.pathComparator());
         writePaths.sort(comparison.pathComparator());
 
-        this.exclusivePaths = sortedExclusivePaths;
+        this.forbiddenPaths = sortedExclusivePaths;
         this.readPaths = pruneSortedPaths(readPaths, comparison).toArray(new String[0]);
         this.writePaths = pruneSortedPaths(writePaths, comparison).toArray(new String[0]);
 
         logger.debug(
             () -> Strings.format(
-                "Created FileAccessTree with paths: exclusive [%s], read [%s], write [%s]",
-                String.join(",", this.exclusivePaths),
+                "Created FileAccessTree with paths: forbidden [%s], read [%s], write [%s]",
+                String.join(",", this.forbiddenPaths),
                 String.join(",", this.readPaths),
                 String.join(",", this.writePaths)
             )
@@ -314,14 +314,15 @@ public final class FileAccessTree {
         String moduleName,
         FilesEntitlement filesEntitlement,
         PathLookup pathLookup,
-        @Nullable Path componentPath,
-        List<ExclusivePath> exclusivePaths
+        Collection<Path> componentPaths,
+        List<ExclusivePath> exclusivePaths,
+        Collection<String> forbiddenPaths
     ) {
         return new FileAccessTree(
             filesEntitlement,
             pathLookup,
-            componentPath,
-            buildUpdatedAndSortedExclusivePaths(componentName, moduleName, exclusivePaths, DEFAULT_COMPARISON),
+            componentPaths,
+            buildFinalSortedForbiddenPaths(componentName, moduleName, exclusivePaths, forbiddenPaths, DEFAULT_COMPARISON),
             DEFAULT_COMPARISON
         );
     }
@@ -332,9 +333,16 @@ public final class FileAccessTree {
     public static FileAccessTree withoutExclusivePaths(
         FilesEntitlement filesEntitlement,
         PathLookup pathLookup,
-        @Nullable Path componentPath
+        Collection<String> forbiddenPaths,
+        Collection<Path> componentPaths
     ) {
-        return new FileAccessTree(filesEntitlement, pathLookup, componentPath, new String[0], DEFAULT_COMPARISON);
+        return new FileAccessTree(
+            filesEntitlement,
+            pathLookup,
+            componentPaths,
+            forbiddenPaths.stream().sorted(DEFAULT_COMPARISON.pathComparator()).toArray(String[]::new),
+            DEFAULT_COMPARISON
+        );
     }
 
     public boolean canRead(Path path) {
@@ -370,8 +378,8 @@ public final class FileAccessTree {
             return false;
         }
 
-        int endx = Arrays.binarySearch(exclusivePaths, path, comparison.pathComparator());
-        if (endx < -1 && comparison.isParent(exclusivePaths[-endx - 2], path) || endx >= 0) {
+        int endx = Arrays.binarySearch(forbiddenPaths, path, comparison.pathComparator());
+        if (endx < -1 && comparison.isParent(forbiddenPaths[-endx - 2], path) || endx >= 0) {
             return false;
         }
 

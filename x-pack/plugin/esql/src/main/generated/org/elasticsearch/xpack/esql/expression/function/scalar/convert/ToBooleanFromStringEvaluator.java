@@ -7,31 +7,34 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToBoolean}.
+ * {@link ExpressionEvaluator} implementation for {@link ToBoolean}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final EvalOperator.ExpressionEvaluator keyword;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToBooleanFromStringEvaluator.class);
 
-  public ToBooleanFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator keyword,
+  private final ExpressionEvaluator keyword;
+
+  public ToBooleanFromStringEvaluator(Source source, ExpressionEvaluator keyword,
       DriverContext driverContext) {
     super(driverContext, source);
     this.keyword = keyword;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return keyword;
   }
 
@@ -102,12 +105,19 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
     Releasables.closeExpectNoException(keyword);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += keyword.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory keyword;
+    private final ExpressionEvaluator.Factory keyword;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory keyword) {
+    public Factory(Source source, ExpressionEvaluator.Factory keyword) {
       this.source = source;
       this.keyword = keyword;
     }

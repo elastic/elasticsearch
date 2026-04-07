@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -335,19 +336,13 @@ public class TransformUpdater {
         final String destinationIndex = config.getDestination().getIndex();
         String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destinationIndex);
 
-        String[] src = indexNameExpressionResolver.concreteIndexNames(
-            clusterState,
-            IndicesOptions.lenientExpandOpen(),
-            true,
-            config.getSource().getIndex()
-        );
         // If we are running, we should verify that the destination index exists and create it if it does not
-        if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, config.getId()) != null && dest.length == 0
-        // Verify we have source indices. The user could defer_validations and if the task is already running
-        // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
-        // the transform will just have to dynamically create the destination index without special mapping.
-            && src.length > 0) {
-            TransformIndex.createDestinationIndex(
+        if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, config.getId()) != null && dest.length == 0) {
+            // Resolve source indices (including remote) to verify they exist before creating the dest index.
+            // The user could defer_validations and if the task is already running we allow source indices to
+            // disappear. If the source and destination indices do not exist, don't do anything -- the transform
+            // will just have to dynamically create the destination index without special mapping.
+            resolveSourceIndicesAndCreateDestIfNeeded(
                 client,
                 auditor,
                 indexNameExpressionResolver,
@@ -360,6 +355,53 @@ public class TransformUpdater {
         } else {
             createDestinationListener.onResponse(null);
         }
+    }
+
+    private static void resolveSourceIndicesAndCreateDestIfNeeded(
+        Client client,
+        TransformAuditor auditor,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterState clusterState,
+        TransformConfig config,
+        Settings destIndexSettings,
+        Map<String, String> destIndexMappings,
+        ActionListener<Boolean> listener
+    ) {
+        ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
+            config.getSource().getIndex(),
+            config.getSource().indicesOptions()
+        );
+        ClientHelper.executeAsyncWithOrigin(
+            client,
+            ClientHelper.TRANSFORM_ORIGIN,
+            ResolveIndexAction.INSTANCE,
+            resolveRequest,
+            ActionListener.wrap(resolveResponse -> {
+                boolean hasSourceIndices = resolveResponse.getIndices().isEmpty() == false
+                    || resolveResponse.getAliases().isEmpty() == false
+                    || resolveResponse.getDataStreams().isEmpty() == false;
+                if (hasSourceIndices) {
+                    TransformIndex.createDestinationIndex(
+                        client,
+                        auditor,
+                        indexNameExpressionResolver,
+                        clusterState,
+                        config,
+                        destIndexSettings,
+                        destIndexMappings,
+                        listener
+                    );
+                } else {
+                    listener.onResponse(null);
+                }
+            }, e -> {
+                logger.debug(
+                    () -> "[" + config.getId() + "] failed to resolve source indices during update, skipping dest index creation",
+                    e
+                );
+                listener.onResponse(null);
+            })
+        );
     }
 
     private TransformUpdater() {}

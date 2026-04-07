@@ -1,0 +1,215 @@
+testMvIntersectionWithIntValues
+required_capability: fn_mv_intersection
+
+// tag::testMvIntersectionWithIntValues[]
+ROW a = [1, 2, 3, 4, 5], b = [2, 3, 4, 5, 6]
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue
+// end::testMvIntersectionWithIntValues[]
+;
+
+// tag::testMvIntersectionWithIntValues-result[]
+finalValue:integer 
+[2, 3, 4, 5]
+// end::testMvIntersectionWithIntValues-result[]
+;
+
+testMvIntersectionWithLongValues
+required_capability: fn_mv_intersection
+
+// tag::testMvIntersectionWithLongValues[]
+ROW a = [1, 2, 3, 4, 5]::long, b = [2, 3, 4, 5, 6]::long
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue
+// end::testMvIntersectionWithLongValues[]
+;
+
+// tag::testMvIntersectionWithLongValues-result[]
+finalValue:long 
+[2, 3, 4, 5]
+// end::testMvIntersectionWithLongValues-result[]
+;
+
+testMvIntersectionWithBooleanValues
+required_capability: fn_mv_intersection
+
+// tag::testMvIntersectionWithBooleanValues[]
+ROW a = [true, false, false, false], b = [false]
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue
+// end::testMvIntersectionWithBooleanValues[]
+;
+
+// tag::testMvIntersectionWithBooleanValues-result[]
+finalValue:boolean 
+[false]
+// end::testMvIntersectionWithBooleanValues-result[]
+;
+
+testMvIntersectionWithDoubleValues
+required_capability: fn_mv_intersection
+
+// tag::testMvIntersectionWithDoubleValues[]
+ROW a = [5.2, 10.5, 1.12345, 2.6928], b = [10.5, 2.6928]
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue
+// end::testMvIntersectionWithDoubleValues[]
+;
+
+// tag::testMvIntersectionWithDoubleValues-result[]
+finalValue:double 
+[10.5, 2.6928]
+// end::testMvIntersectionWithDoubleValues-result[]
+;
+
+testMvIntersectionWithBytesRefValues
+required_capability: fn_mv_intersection
+
+// tag::testMvIntersectionWithBytesRefValues[]
+ROW a = ["one", "two", "three", "four", "five"], b = ["one", "four"]
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue
+// end::testMvIntersectionWithBytesRefValues[]
+;
+
+// tag::testMvIntersectionWithBytesRefValues-result[]
+finalValue:keyword
+["one", "four"]
+// end::testMvIntersectionWithBytesRefValues-result[]
+;
+
+testMvIntersectionGeoPoint
+required_capability: fn_mv_intersection
+
+ROW a = ["POINT(42.97109629958868 14.7552534006536)", "POINT(23.23 14.7)"]::geo_point, b = ["POINT(42.97109629958868 14.7552534006536)", "POINT(12.12 11.22)"]::geo_point
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue;
+
+finalValue:geo_point
+POINT (42.97109629958868 14.7552534006536)
+;
+
+testMvIntersectionGeoShape
+required_capability: fn_mv_intersection
+
+ROW a = ["POLYGON((-9 -9, -1 -9, -1 -1, -9 -1, -9 -9))","POLYGON((1 1, 9 1, 9 9, 1 9, 1 1))"], b = ["POLYGON((-5 -5, -1 -5, -1 -1, -5 -1, -5 -5))","POLYGON((1 1, 9 1, 9 9, 1 9, 1 1))"]
+| EVAL finalValue = MV_INTERSECTION(TO_GEOSHAPE(a), TO_GEOSHAPE(b)) 
+| KEEP finalValue;
+
+finalValue:geo_shape
+"POLYGON((1 1, 9 1, 9 9, 1 9, 1 1))"
+;
+
+
+testMvIntersectionIp
+required_capability: fn_mv_intersection
+
+ROW a = ["1.1.1.1", "2.2.2.2"]::ip, b = ["3.3.3.3", "2.2.2.2"]::ip
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue;
+
+finalValue:ip
+"2.2.2.2"
+;
+
+testMvIntersectionVersion
+required_capability: fn_mv_intersection
+
+ROW a = ["1.2.3", "9.3.0"]::version, b = ["4.5", "9.3.0"]::version
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue;
+
+finalValue:version
+"9.3.0"
+;
+
+testMvIntersectionNullReturnedWhenNoIntersection
+required_capability: fn_mv_intersection
+
+ROW a = [1, 2, 3, 4], b = [5, 6, 7, 8]
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue;
+
+finalValue:integer
+null
+;
+
+testMvIntersectionSingleValueReturnedWhenOnlyOneIntersection
+required_capability: fn_mv_intersection
+
+ROW a = [1, 2, 3, 4], b = [4, 5, 6, 7]
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue;
+
+finalValue:integer
+4
+;
+
+testMvIntersectionWithSingleValueParam
+required_capability: fn_mv_intersection
+
+ROW a = 4, b = [4, 5, 6, 7]
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue;
+
+finalValue:integer
+4
+;
+
+testMvIntersectionWithSecondSingleValueParam
+required_capability: fn_mv_intersection
+
+ROW a = [1, 2, 3, 4], b = 4
+| EVAL finalValue = MV_INTERSECTION(a, b) 
+| KEEP finalValue;
+
+finalValue:integer
+4
+;
+
+testMvIntersectionAgainstAnIndex
+required_capability: fn_mv_intersection
+
+FROM employees
+| WHERE MV_COUNT(MV_INTERSECTION(salary_change, [-7.26, 12.09])) > 0
+| SORT emp_no
+| LIMIT 5
+| KEEP emp_no, hire_date, salary_change;
+
+emp_no:integer | hire_date:datetime       | salary_change:double
+10019          | 1999-04-30T00:00:00.000Z | [-7.26, -6.84, 8.42]
+10022          | 1995-08-22T00:00:00.000Z | [2.85, 12.09]
+;
+
+testMvIntersectionNullReturnedWhenFirstArgIsNull
+required_capability: fn_mv_intersection
+
+ROW a = [1, 2, 3, 4]
+| EVAL finalValue = MV_INTERSECTION(null, a) 
+| KEEP finalValue;
+
+finalValue:integer
+null
+;
+
+testMvIntersectionNullReturnedWhenSecondArgIsNull
+required_capability: fn_mv_intersection
+
+ROW a = [1, 2, 3, 4]
+| EVAL finalValue = MV_INTERSECTION(a, null) 
+| KEEP finalValue;
+
+finalValue:integer
+null
+;
+
+testMvIntersectionNullReturnedWhenBothArgsIsNull
+required_capability: fn_mv_intersection
+
+ROW a = [1, 2, 3, 4]
+| EVAL finalValue = MV_INTERSECTION(null, null) 
+| KEEP finalValue;
+
+finalValue:null
+null
+;

@@ -28,6 +28,11 @@ public abstract class StringSortScript extends AbstractSortScript {
      */
     public interface LeafFactory {
         StringSortScript newInstance(DocReader reader) throws IOException;
+
+        /**
+         * Return {@code true} if the script needs {@code _score} calculated, or {@code false} otherwise.
+         */
+        boolean needs_score();
     }
 
     /**

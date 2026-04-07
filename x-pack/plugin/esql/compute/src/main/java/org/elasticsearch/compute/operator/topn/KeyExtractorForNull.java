@@ -17,9 +17,8 @@ class KeyExtractorForNull implements KeyExtractor {
     }
 
     @Override
-    public int writeKey(BreakingBytesRefBuilder values, int position) {
+    public void writeKey(BreakingBytesRefBuilder values, int position) {
         values.append(nul);
-        return 1;
     }
 
     @Override

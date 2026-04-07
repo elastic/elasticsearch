@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.application;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,20 +27,9 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
         super(input);
         indicesCount = input.readVInt();
         indicesWithSyntheticSource = input.readVInt();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            numDocs = input.readVLong();
-            sizeInBytes = input.readVLong();
-        } else {
-            numDocs = 0;
-            sizeInBytes = 0;
-        }
-        var transportVersion = input.getTransportVersion();
-        if (transportVersion.isPatchFrom(TransportVersions.V_8_17_0)
-            || transportVersion.onOrAfter(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE)) {
-            hasCustomCutoffDate = input.readBoolean();
-        } else {
-            hasCustomCutoffDate = false;
-        }
+        numDocs = input.readVLong();
+        sizeInBytes = input.readVLong();
+        hasCustomCutoffDate = input.readBoolean();
     }
 
     @Override
@@ -49,15 +37,9 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
         super.writeTo(out);
         out.writeVInt(indicesCount);
         out.writeVInt(indicesWithSyntheticSource);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-            out.writeVLong(numDocs);
-            out.writeVLong(sizeInBytes);
-        }
-        var transportVersion = out.getTransportVersion();
-        if (transportVersion.isPatchFrom(TransportVersions.V_8_17_0)
-            || transportVersion.onOrAfter(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE)) {
-            out.writeBoolean(hasCustomCutoffDate);
-        }
+        out.writeVLong(numDocs);
+        out.writeVLong(sizeInBytes);
+        out.writeBoolean(hasCustomCutoffDate);
     }
 
     public LogsDBFeatureSetUsage(
@@ -79,7 +61,7 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_17_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

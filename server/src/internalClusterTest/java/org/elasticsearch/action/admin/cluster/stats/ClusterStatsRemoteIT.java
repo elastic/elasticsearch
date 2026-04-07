@@ -97,8 +97,8 @@ public class ClusterStatsRemoteIT extends AbstractMultiClustersTestCase {
             assertThat(remoteStats.get(clusterAlias).clusterUUID(), not(equalTo("")));
             assertThat(remoteStats.get(clusterAlias).mode(), oneOf("sniff", "proxy"));
         }
-        assertFalse(remoteStats.get(REMOTE1).skipUnavailable());
-        assertTrue(remoteStats.get(REMOTE2).skipUnavailable());
+        assertFalse(remoteStats.get(REMOTE1).skipUnavailable().get());
+        assertTrue(remoteStats.get(REMOTE2).skipUnavailable().get());
     }
 
     private void setupClusters() {

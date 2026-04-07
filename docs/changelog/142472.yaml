@@ -1,0 +1,5 @@
+area: Performance
+issues: []
+pr: 142472
+summary: Allow intermediate builds in PR-based benchmarks
+type: enhancement

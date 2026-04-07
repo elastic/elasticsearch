@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier.COMPLETE;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
@@ -41,7 +43,14 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Furthermore, ChangePoint should be called with at most 1000 data points. That's
  * enforced by the Limit in the surrogate plan.
  */
-public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, LicenseAware {
+@SupportsObservabilityTier(tier = COMPLETE)
+public class ChangePoint extends UnaryPlan
+    implements
+        SurrogateLogicalPlan,
+        PostAnalysisVerificationAware,
+        SortPreserving,
+        LicenseAware,
+        ExecutesOn.Coordinator {
 
     private final Attribute value;
     private final Attribute key;
@@ -127,7 +136,7 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
     }
 
     private Order order() {
-        return new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.ANY);
+        return new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
     }
 
     @Override
@@ -147,13 +156,16 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
     @Override
     public void postAnalysisVerification(Failures failures) {
         // Key must be sortable
-        Order order = order();
-        if (DataType.isSortable(order.dataType()) == false) {
-            failures.add(fail(this, "change point key [" + key.name() + "] must be sortable"));
+        DataType type = key.dataType();
+        if (DataType.isSortable(type) == false) {
+            failures.add(fail(key, "CHANGE_POINT only supports sortable keys, found expression [{}] type [{}]", key.sourceText(), type));
         }
         // Value must be a number
-        if (value.dataType().isNumeric() == false) {
-            failures.add(fail(this, "change point value [" + value.name() + "] must be numeric"));
+        type = value.dataType();
+        if (DataType.isNullOrNumeric(type) == false) {
+            failures.add(
+                fail(value, "CHANGE_POINT only supports numeric values, found expression [{}] type [{}]", value.sourceText(), type)
+            );
         }
     }
 

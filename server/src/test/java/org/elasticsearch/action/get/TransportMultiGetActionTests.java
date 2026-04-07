@@ -185,7 +185,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
 
     public void testTransportMultiGetAction() {
         final Task task = createTask();
-        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client);
         request.add(new MultiGetRequest.Item("index1", "1"));
         request.add(new MultiGetRequest.Item("index1", "2"));
@@ -219,7 +219,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
 
     public void testTransportMultiGetAction_withMissingRouting() {
         final Task task = createTask();
-        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client);
         request.add(new MultiGetRequest.Item("index2", "1").routing("1"));
         request.add(new MultiGetRequest.Item("index2", "2"));
@@ -244,7 +244,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
                 assertEquals(2, responses.length());
                 assertNull(responses.get(0));
                 assertThat(responses.get(1).getFailure().getFailure(), instanceOf(RoutingMissingException.class));
-                assertThat(responses.get(1).getFailure().getFailure().getMessage(), equalTo("routing is required for [index2]/[_doc]/[2]"));
+                assertThat(responses.get(1).getFailure().getFailure().getMessage(), equalTo("routing is required for [index2]/[2]"));
             }
         };
 

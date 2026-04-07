@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -19,12 +20,14 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -55,6 +58,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
@@ -96,13 +100,21 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.gpu.GPUPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
+import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryClusterStateMetadata;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskParams;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementService;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
+import org.junit.After;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -135,6 +147,9 @@ import static org.hamcrest.Matchers.is;
  */
 abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
+    @Rule
+    public final TestRule templateDecoratorRule = TemplateDecoratorRule.initDefault();
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
@@ -164,7 +179,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             EsqlCorePlugin.class,
             EsqlPlugin.class,
             // basic multi-project functionality
-            TestOnlyMultiProjectPlugin.class
+            TestOnlyMultiProjectPlugin.class,
+            // GPU plugin needed for node features published by DEFAULT distribution nodes
+            GPUPlugin.class
         );
     }
 
@@ -274,12 +291,14 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     }
 
     protected void cleanUpResources() {
-        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+        client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
     }
 
     protected void setUpgradeModeTo(boolean enabled) {
-        AcknowledgedResponse response = client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(enabled))
-            .actionGet();
+        AcknowledgedResponse response = client().execute(
+            SetUpgradeModeAction.INSTANCE,
+            new SetUpgradeModeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, enabled)
+        ).actionGet();
         assertThat(response.isAcknowledged(), is(true));
         assertThat(upgradeMode(), is(enabled));
     }
@@ -343,8 +362,11 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return messages;
     }
 
-    @Override
-    protected void ensureClusterStateConsistency() throws IOException {
+    /**
+     * Asserts that all ML named writeables pass a cluster state round-trip (de)serialization.
+     */
+    @After
+    protected void assertClusterRoundTrip() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedWriteables());
             entries.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
@@ -427,11 +449,78 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             );
 
             entries.add(
-                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new)
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::new
+                )
             );
-            entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::readDiffFrom
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
+                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::new
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
+                    in -> AbstractNamedDiffable.readDiffFrom(
+                        Metadata.ProjectCustom.class,
+                        ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
+                        in
+                    )
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    CCMEnablementService.EnablementMetadata.NAME,
+                    CCMEnablementService.EnablementMetadata::new
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    CCMEnablementService.EnablementMetadata.NAME,
+                    in -> AbstractNamedDiffable.readDiffFrom(Metadata.ProjectCustom.class, CCMEnablementService.EnablementMetadata.NAME, in)
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, AuthorizationPoller.TASK_NAME, AuthorizationTaskParams::new)
+            );
 
-            doEnsureClusterStateConsistency(new NamedWriteableRegistry(entries));
+            // Retrieve the cluster state from a random node, and serialize and deserialize it.
+            final ClusterStateResponse clusterStateResponse = client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .all()
+                .get(TEST_REQUEST_TIMEOUT);
+            byte[] clusterStateBytes = ClusterState.Builder.toBytes(clusterStateResponse.getState());
+            final ClusterState parsedClusterState = ClusterState.Builder.fromBytes(
+                clusterStateBytes,
+                clusterStateResponse.getState().nodes().getLocalNode(),
+                new NamedWriteableRegistry(entries)
+            );
+            final var responseMap = XContentTestUtils.convertToMap(clusterStateResponse.getState());
+            final var parsedMap = XContentTestUtils.convertToMap(parsedClusterState);
+            final var diff = XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(responseMap, parsedMap);
+            if (diff != null) {
+                logger.error(
+                    "Cluster state response:\n{}\nParsed cluster state:\n{}",
+                    clusterStateResponse.getState().toString(),
+                    parsedClusterState.toString()
+                );
+                assertNull("cluster state JSON serialization does not match", diff);
+            }
         }
     }
 

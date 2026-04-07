@@ -1,34 +1,36 @@
 {
-  "security.get_user_profile":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user-profile.html",
-      "description":"Retrieves user profiles for the given unique ID(s)."
+  "security.get_user_profile": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-user-profile",
+      "description": "Get a user profile"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/profile/{uid}",
-          "methods":[
+          "path": "/_security/profile/{uid}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "uid":{
-              "type":"list",
-              "description":"A comma-separated list of unique identifier for user profiles"
+          "parts": {
+            "uid": {
+              "type": "list",
+              "description": "A comma-separated list of unique identifier for user profiles"
             }
           }
         }
       ]
     },
-    "params":{
-      "data":{
-        "type":"list",
-        "description":"A comma-separated list of keys for which the corresponding application data are retrieved."
+    "params": {
+      "data": {
+        "type": "list",
+        "description": "A comma-separated list of keys for which the corresponding application data are retrieved."
       }
     }
   }

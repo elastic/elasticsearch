@@ -13,7 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -46,7 +45,7 @@ class DateObjectValueSource extends FieldDataValueSource {
     @Override
     public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
         LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
-        NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
+        DoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -47,9 +45,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
 
         var commonFields = fromMap(map, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AnthropicChatCompletionTaskSettings(commonFields);
     }
@@ -62,7 +58,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        return fromRequestMap(new HashMap<>(newSettings));
+        return fromRequestMap(newSettings);
     }
 
     private record CommonFields(int maxTokens, Double temperature, Double topP, Integer topK) {}
@@ -167,7 +163,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

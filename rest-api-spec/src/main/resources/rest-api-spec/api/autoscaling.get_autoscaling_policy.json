@@ -1,34 +1,37 @@
 {
-  "autoscaling.get_autoscaling_policy":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-get-autoscaling-policy.html",
-      "description": "Retrieves an autoscaling policy. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+  "autoscaling.get_autoscaling_policy": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-capacity",
+      "description": "Get an autoscaling policy"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_autoscaling/policy/{name}",
-          "methods":[
+          "path": "/_autoscaling/policy/{name}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"the name of the autoscaling policy"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "the name of the autoscaling policy"
             }
           }
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for processing on master node"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for processing on master node"
       }
     }
   }

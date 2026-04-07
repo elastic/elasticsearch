@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -198,6 +197,6 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 }

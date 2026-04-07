@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -24,7 +25,10 @@ public class IngestOtelClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("ingest-otel").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("ingest-otel")
+        .feature(FeatureFlag.LOGS_STREAM)
+        .build();
 
     @Override
     protected String getTestRestCluster() {

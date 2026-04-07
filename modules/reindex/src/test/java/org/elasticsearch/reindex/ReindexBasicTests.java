@@ -10,6 +10,8 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
@@ -22,7 +24,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -175,4 +180,59 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(prepareSearch(destIndexName).setSize(0), 4);
     }
 
+    public void testReindexIncludeVectors() throws Exception {
+        var resp1 = prepareCreate("test").setSettings(
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build()
+        ).setMapping("foo", "type=dense_vector,similarity=l2_norm", "bar", "type=sparse_vector").get();
+        assertAcked(resp1);
+
+        var resp2 = prepareCreate("test_reindex").setSettings(
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build()
+        ).setMapping("foo", "type=dense_vector,similarity=l2_norm", "bar", "type=sparse_vector").get();
+        assertAcked(resp2);
+
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", List.of(3f, 2f, 1.5f), "bar", Map.of("token_1", 4f, "token_2", 7f))
+        );
+
+        var searchResponse = prepareSearch("test").get();
+        try {
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+            var sourceMap = searchResponse.getHits().getAt(0).getSourceAsMap();
+            assertThat(sourceMap.size(), equalTo(0));
+        } finally {
+            searchResponse.decRef();
+        }
+
+        // Copy all the docs
+        ReindexRequestBuilder copy = reindex().source("test").destination("test_reindex").refresh(true);
+        var reindexResponse = copy.get();
+        assertThat(reindexResponse, matcher().created(1));
+
+        searchResponse = prepareSearch("test_reindex").get();
+        try {
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+            var sourceMap = searchResponse.getHits().getAt(0).getSourceAsMap();
+            assertThat(sourceMap.size(), equalTo(0));
+        } finally {
+            searchResponse.decRef();
+        }
+
+        searchResponse = prepareSearch("test_reindex").setExcludeVectors(false).get();
+        try {
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+            var sourceMap = searchResponse.getHits().getAt(0).getSourceAsMap();
+            assertThat(sourceMap.get("foo"), anyOf(equalTo(List.of(3f, 2f, 1.5f)), equalTo(List.of(3d, 2d, 1.5d))));
+            assertThat(
+                sourceMap.get("bar"),
+                anyOf(equalTo(Map.of("token_1", 4f, "token_2", 7f)), equalTo(Map.of("token_1", 4d, "token_2", 7d)))
+            );
+        } finally {
+            searchResponse.decRef();
+        }
+    }
 }

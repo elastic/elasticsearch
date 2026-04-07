@@ -1,0 +1,8 @@
+version: ${xpack.prometheus.template.version}
+_meta:
+  description: Default settings for Prometheus metrics data streams
+  managed: true
+template:
+  data_stream_options:
+    failure_store:
+      enabled: true

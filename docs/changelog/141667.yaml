@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 139296
+pr: 141667
+summary: "Add METRICS_INFO command"
+type: enhancement

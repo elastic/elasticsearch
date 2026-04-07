@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -37,22 +38,22 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        try (var mockLog = MockLog.capture(SnapshotsService.class)) {
+        try (var mockLog = MockLog.capture(SnapshotsService.class, SnapshotDeletionStartBatcher.class)) {
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "[does-not-exist]",
-                    SnapshotsService.class.getName(),
+                    SnapshotDeletionStartBatcher.class.getName(),
                     Level.INFO,
-                    "deleting snapshots [does-not-exist] from repository [test-repo]"
+                    "deleting snapshots [does-not-exist] from repository [default/test-repo]"
                 )
             );
 
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "[deleting test-snapshot]",
-                    SnapshotsService.class.getName(),
+                    SnapshotDeletionStartBatcher.class.getName(),
                     Level.INFO,
-                    "deleting snapshots [test-snapshot] from repository [test-repo]"
+                    "deleting snapshots [test-snapshot] from repository [default/test-repo]"
                 )
             );
 
@@ -61,7 +62,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                     "[test-snapshot deleted]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
-                    "snapshots [test-snapshot/*] deleted"
+                    "snapshots [test-snapshot/*] deleted in repository [default/test-repo]"
                 )
             );
 
@@ -90,7 +91,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                     "[test-snapshot]",
                     SnapshotsService.class.getName(),
                     Level.WARN,
-                    "failed to complete snapshot deletion for [test-snapshot] from repository [test-repo]"
+                    "failed to complete snapshot deletion for [test-snapshot] from repository [default/test-repo]"
                 )
             );
 
@@ -176,10 +177,10 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 return false;
             }
             if (deleteHasStarted.get() == false) {
-                deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(repositoryName));
+                deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(ProjectId.DEFAULT, repositoryName));
                 return false;
             } else {
-                return deletionsInProgress.hasExecutingDeletion(repositoryName) == false;
+                return deletionsInProgress.hasExecutingDeletion(ProjectId.DEFAULT, repositoryName) == false;
             }
         });
     }

@@ -88,9 +88,9 @@ public class TransportBulkActionTookTests extends ESTestCase {
         super.setUp();
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
-                VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                VersionUtils.randomCompatibleVersion(Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.randomCompatibleVersion(random())
+                IndexVersionUtils.randomCompatibleVersion()
             )
             .build();
         clusterService = createClusterService(threadPool, discoveryNode);
@@ -117,7 +117,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         IndexNameExpressionResolver resolver = new Resolver();
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
 
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

@@ -10,20 +10,15 @@ package org.elasticsearch.xpack.application.connector;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.JsonIngestPipelineConfig;
 
-import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -65,45 +60,32 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
     private static final String JSON_EXTENSION = ".json";
 
-    static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
-
-    static {
-        final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        for (IndexTemplateConfig config : List.of(
-            new IndexTemplateConfig(
-                CONNECTOR_TEMPLATE_NAME + MAPPINGS_SUFFIX,
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + MAPPINGS_SUFFIX + JSON_EXTENSION,
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX,
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX + JSON_EXTENSION,
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + MAPPINGS_SUFFIX,
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + MAPPINGS_SUFFIX + JSON_EXTENSION,
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + SETTINGS_SUFFIX,
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX + JSON_EXTENSION,
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            )
-        )) {
-
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())) {
-                componentTemplates.put(config.getTemplateName(), ComponentTemplate.parse(parser));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-        COMPONENT_TEMPLATES = Map.copyOf(componentTemplates);
-    }
+    final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
+        new IndexTemplateConfig(
+            CONNECTOR_TEMPLATE_NAME + MAPPINGS_SUFFIX,
+            ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + MAPPINGS_SUFFIX + JSON_EXTENSION,
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX,
+            ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX + JSON_EXTENSION,
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + MAPPINGS_SUFFIX,
+            ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + MAPPINGS_SUFFIX + JSON_EXTENSION,
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + SETTINGS_SUFFIX,
+            ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX + JSON_EXTENSION,
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        )
+    );
 
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
@@ -145,10 +127,9 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        ProjectResolver projectResolver
+        NamedXContentRegistry xContentRegistry
     ) {
-        super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry, projectResolver);
+        super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
     }
 
     @Override
@@ -158,7 +139,7 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return COMPONENT_TEMPLATES;
+        return componentTemplates;
     }
 
     @Override

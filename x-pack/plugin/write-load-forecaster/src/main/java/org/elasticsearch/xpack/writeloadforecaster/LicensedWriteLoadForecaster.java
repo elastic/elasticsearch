@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -23,8 +22,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalDouble;
@@ -33,7 +30,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterPlugin.OVERRIDE_WRITE_LOAD_FORECAST_SETTING;
 
-class LicensedWriteLoadForecaster implements WriteLoadForecaster {
+class LicensedWriteLoadForecaster extends AbstractLicenseCheckingWriteLoadForecaster {
 
     private static final Logger logger = LogManager.getLogger(LicensedWriteLoadForecaster.class);
 
@@ -44,12 +41,10 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    private final BooleanSupplier hasValidLicenseSupplier;
     private final ThreadPool threadPool;
     private volatile TimeValue maxIndexAge;
 
-    @SuppressWarnings("unused") // modified via VH_HAS_VALID_LICENSE_FIELD
-    private volatile boolean hasValidLicense;
+    // hasValidLicense is a protected field in AbstractLicenseCheckingWriteLoadForecaster
 
     LicensedWriteLoadForecaster(
         BooleanSupplier hasValidLicenseSupplier,
@@ -63,7 +58,7 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
 
     // exposed for tests only
     LicensedWriteLoadForecaster(BooleanSupplier hasValidLicenseSupplier, ThreadPool threadPool, TimeValue maxIndexAge) {
-        this.hasValidLicenseSupplier = hasValidLicenseSupplier;
+        super(hasValidLicenseSupplier);
         this.threadPool = threadPool;
         this.maxIndexAge = maxIndexAge;
     }
@@ -108,7 +103,12 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         }
 
         final IndexMetadata writeIndex = metadata.getSafe(dataStream.getWriteIndex());
-        metadata.put(IndexMetadata.builder(writeIndex).indexWriteLoadForecast(forecastIndexWriteLoad.getAsDouble()).build(), false);
+        metadata.put(
+            IndexMetadata.builder(writeIndex)
+                .indexWriteLoadForecast(forecastIndexWriteLoad.getAsDouble() / writeIndex.getNumberOfShards())
+                .build(),
+            false
+        );
 
         return metadata;
     }
@@ -120,8 +120,9 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
             final IndexMetadata.Builder previousWriteIndexMetadataBuilder = IndexMetadata.builder(previousWriteIndexMetadata)
                 .indexWriteLoadForecast(null);
             if (previousWriteIndexMetadata.getSettings().hasValue(OVERRIDE_WRITE_LOAD_FORECAST_SETTING.getKey())) {
-                Settings.Builder previousWriteIndexSettings = Settings.builder().put(previousWriteIndexMetadata.getSettings());
-                previousWriteIndexSettings.remove(OVERRIDE_WRITE_LOAD_FORECAST_SETTING.getKey());
+                Settings.Builder previousWriteIndexSettings = Settings.builder()
+                    .put(previousWriteIndexMetadata.getSettings())
+                    .remove(OVERRIDE_WRITE_LOAD_FORECAST_SETTING.getKey());
                 previousWriteIndexMetadataBuilder.settings(previousWriteIndexSettings);
                 previousWriteIndexMetadataBuilder.settingsVersion(previousWriteIndexMetadata.getSettingsVersion() + 1);
             }
@@ -129,11 +130,20 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         }
     }
 
+    /**
+     * This calculates the weighted average total write-load for all recent indices.
+     *
+     * @param indicesWriteLoadWithinMaxAgeRange The indices considered "recent"
+     * @return The weighted average total write-load. To get the per-shard write load, this number must be divided by the number of shards
+     */
     // Visible for testing
     static OptionalDouble forecastIndexWriteLoad(List<IndexWriteLoad> indicesWriteLoadWithinMaxAgeRange) {
-        double totalWeightedWriteLoad = 0;
-        long totalShardUptime = 0;
+        double allIndicesWriteLoad = 0;
+        long allIndicesUptime = 0;
         for (IndexWriteLoad writeLoad : indicesWriteLoadWithinMaxAgeRange) {
+            double totalShardWriteLoad = 0;
+            long totalShardUptimeInMillis = 0;
+            long maxShardUptimeInMillis = 0;
             for (int shardId = 0; shardId < writeLoad.numberOfShards(); shardId++) {
                 final OptionalDouble writeLoadForShard = writeLoad.getWriteLoadForShard(shardId);
                 final OptionalLong uptimeInMillisForShard = writeLoad.getUptimeInMillisForShard(shardId);
@@ -141,13 +151,33 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
                     assert uptimeInMillisForShard.isPresent();
                     double shardWriteLoad = writeLoadForShard.getAsDouble();
                     long shardUptimeInMillis = uptimeInMillisForShard.getAsLong();
-                    totalWeightedWriteLoad += shardWriteLoad * shardUptimeInMillis;
-                    totalShardUptime += shardUptimeInMillis;
+                    totalShardWriteLoad += shardWriteLoad * shardUptimeInMillis;
+                    totalShardUptimeInMillis += shardUptimeInMillis;
+                    maxShardUptimeInMillis = Math.max(maxShardUptimeInMillis, shardUptimeInMillis);
                 }
             }
+            // An index only contributes to the weighted average proportionally to its uptime
+            if (totalShardUptimeInMillis == 0) {
+                continue;
+            }
+            double weightedAverageShardWriteLoad = totalShardWriteLoad / totalShardUptimeInMillis;
+            double totalIndexWriteLoad = weightedAverageShardWriteLoad * writeLoad.numberOfShards();
+            // We need to weight the contribution from each index somehow, but we only know
+            // the write-load from the final allocation of each shard at rollover time. It's
+            // possible the index is much older than any of those shards, but we don't have
+            // any write-load data beyond their lifetime.
+            // To avoid making assumptions about periods for which we have no data, we'll weight
+            // each index's contribution to the forecast by the maximum shard uptime observed in
+            // that index. It should be safe to extrapolate our weighted average out to the
+            // maximum uptime observed, based on the assumption that write-load is roughly
+            // evenly distributed across shards of a datastream index.
+            assert Double.isFinite(totalIndexWriteLoad) : "Invalid total index write load: " + totalIndexWriteLoad;
+            assert maxShardUptimeInMillis > 0 : "Invalid max shard uptime in millis: " + maxShardUptimeInMillis;
+            allIndicesWriteLoad += totalIndexWriteLoad * maxShardUptimeInMillis;
+            allIndicesUptime += maxShardUptimeInMillis;
         }
 
-        return totalShardUptime == 0 ? OptionalDouble.empty() : OptionalDouble.of(totalWeightedWriteLoad / totalShardUptime);
+        return allIndicesUptime == 0 ? OptionalDouble.empty() : OptionalDouble.of(allIndicesWriteLoad / allIndicesUptime);
     }
 
     @Override
@@ -163,30 +193,5 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         }
 
         return indexMetadata.getForecastedWriteLoad();
-    }
-
-    /**
-     * Used to atomically {@code getAndSet()} the {@link #hasValidLicense} field. This is better than an
-     * {@link java.util.concurrent.atomic.AtomicBoolean} because it takes one less pointer dereference on each read.
-     */
-    private static final VarHandle VH_HAS_VALID_LICENSE_FIELD;
-
-    static {
-        try {
-            VH_HAS_VALID_LICENSE_FIELD = MethodHandles.lookup()
-                .in(LicensedWriteLoadForecaster.class)
-                .findVarHandle(LicensedWriteLoadForecaster.class, "hasValidLicense", boolean.class);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public void refreshLicense() {
-        final var newValue = hasValidLicenseSupplier.getAsBoolean();
-        final var oldValue = (boolean) VH_HAS_VALID_LICENSE_FIELD.getAndSet(this, newValue);
-        if (newValue != oldValue) {
-            logger.info("license state changed, now [{}]", newValue ? "valid" : "not valid");
-        }
     }
 }

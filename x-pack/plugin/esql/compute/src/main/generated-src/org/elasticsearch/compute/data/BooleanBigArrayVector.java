@@ -89,6 +89,20 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     }
 
     @Override
+    public BooleanVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (BooleanVector.FixedBuilder builder = blockFactory().newBooleanVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBoolean(getBoolean(i));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BOOLEAN;
     }
@@ -104,7 +118,7 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     }
 
     @Override
-    public BooleanVector filter(int... positions) {
+    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
         for (int i = 0; i < positions.length; i++) {

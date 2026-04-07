@@ -7,6 +7,10 @@ mapped_pages:
 
 Promotes selected documents to rank higher than those matching a given query. This feature is typically used to guide searchers to curated documents that are promoted over and above any "organic" matches for a search. The promoted or "pinned" documents are identified using the document IDs stored in the [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md) field.
 
+::::{note}
+Pinned queries are designed to work only with relevance-based sorting. Using explicit `sort` criteria overrides the pinned document promotion.
+::::
+
 ## Example request [_example_request]
 
 ```console

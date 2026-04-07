@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -42,6 +44,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -66,6 +69,7 @@ import org.elasticsearch.xpack.rollup.RollupResponseTranslator;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -88,6 +92,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
+    private final ProjectResolver projectResolver;
     private static final Logger logger = LogManager.getLogger(RollupSearchAction.class);
 
     @Inject
@@ -99,7 +104,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         BigArrays bigArrays,
         ScriptService scriptService,
         ClusterService clusterService,
-        IndexNameExpressionResolver resolver
+        IndexNameExpressionResolver resolver,
+        ProjectResolver projectResolver
     ) {
         super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -108,6 +114,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.resolver = resolver;
+        this.projectResolver = projectResolver;
 
         transportService.registerRequestHandler(
             actionName,
@@ -123,31 +130,34 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request);
-        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetadata().getProject().indices());
+        final var project = projectResolver.getProjectMetadata(clusterService.state());
+        RollupSearchContext rollupSearchContext = separateIndices(indices, project.indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
             AggregationReduceContext.Builder reduceContextBuilder = new AggregationReduceContext.Builder() {
                 @Override
-                public AggregationReduceContext forPartialReduction() {
+                public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
                     return new AggregationReduceContext.ForPartial(
                         bigArrays,
                         scriptService,
                         ((CancellableTask) task)::isCancelled,
                         request.source().aggregations(),
-                        b -> {}
+                        b -> {},
+                        topHitsToRelease
                     );
                 }
 
                 @Override
-                public AggregationReduceContext forFinalReduction() {
+                public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
                     return new AggregationReduceContext.ForFinal(
                         bigArrays,
                         scriptService,
                         ((CancellableTask) task)::isCancelled,
                         request.source().aggregations(),
-                        b -> {}
+                        b -> {},
+                        topHitsToRelease
                     );
                 }
             };

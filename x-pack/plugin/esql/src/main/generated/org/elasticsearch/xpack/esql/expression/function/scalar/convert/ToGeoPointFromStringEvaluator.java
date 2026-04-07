@@ -8,30 +8,33 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToGeoPoint}.
+ * {@link ExpressionEvaluator} implementation for {@link ToGeoPoint}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToGeoPointFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final EvalOperator.ExpressionEvaluator in;
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToGeoPointFromStringEvaluator.class);
 
-  public ToGeoPointFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
+  private final ExpressionEvaluator in;
+
+  public ToGeoPointFromStringEvaluator(Source source, ExpressionEvaluator in,
       DriverContext driverContext) {
     super(driverContext, source);
     this.in = in;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return in;
   }
 
@@ -116,12 +119,19 @@ public final class ToGeoPointFromStringEvaluator extends AbstractConvertFunction
     Releasables.closeExpectNoException(in);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += in.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory in;
+    private final ExpressionEvaluator.Factory in;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in) {
+    public Factory(Source source, ExpressionEvaluator.Factory in) {
       this.source = source;
       this.in = in;
     }

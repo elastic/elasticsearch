@@ -10,19 +10,14 @@ package org.elasticsearch.xpack.deprecation.logging;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
-import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,45 +45,32 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        ProjectResolver projectResolver
+        NamedXContentRegistry xContentRegistry
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, projectResolver);
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
     }
 
-    private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
-
-    static {
-        final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        for (IndexTemplateConfig config : List.of(
-            new IndexTemplateConfig(
-                DEPRECATION_INDEXING_MAPPINGS_NAME,
-                "/deprecation/deprecation-indexing-mappings.json",
-                INDEX_TEMPLATE_VERSION,
-                DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                DEPRECATION_INDEXING_SETTINGS_NAME,
-                "/deprecation/deprecation-indexing-settings.json",
-                INDEX_TEMPLATE_VERSION,
-                DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE
-            )
-        )) {
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())) {
-                componentTemplates.put(config.getTemplateName(), ComponentTemplate.parse(parser));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-        COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(componentTemplates);
-    }
+    private final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
+        new IndexTemplateConfig(
+            DEPRECATION_INDEXING_MAPPINGS_NAME,
+            "/deprecation/deprecation-indexing-mappings.json",
+            INDEX_TEMPLATE_VERSION,
+            DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            DEPRECATION_INDEXING_SETTINGS_NAME,
+            "/deprecation/deprecation-indexing-settings.json",
+            INDEX_TEMPLATE_VERSION,
+            DEPRECATION_INDEXING_TEMPLATE_VERSION_VARIABLE
+        )
+    );
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return COMPONENT_TEMPLATE_CONFIGS;
+        return componentTemplates;
     }
 
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+    private final Map<String, ComposableIndexTemplate> composableIndexTemplateConfigs = parseComposableTemplates(
         new IndexTemplateConfig(
             DEPRECATION_INDEXING_TEMPLATE_NAME,
             "/deprecation/deprecation-indexing-template.json",
@@ -117,7 +99,7 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+        return composableIndexTemplateConfigs;
     }
 
     private static final LifecyclePolicyConfig LIFECYCLE_POLICY_CONFIG = new LifecyclePolicyConfig(

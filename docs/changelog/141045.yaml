@@ -1,0 +1,6 @@
+pr: 141045
+summary: Add support for nested NDJSON records in `TextStructure` endpoints
+area: Machine Learning
+type: enhancement
+issues:
+ - 127777

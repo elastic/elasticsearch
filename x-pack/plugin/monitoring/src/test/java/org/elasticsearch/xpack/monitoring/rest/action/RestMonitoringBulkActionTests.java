@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
@@ -47,7 +48,18 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
     public void testSupportsBulkContent() {
         // if you change this, it's a very breaking change for Monitoring
-        assertThat(action.supportsBulkContent(), is(true));
+        final var route = action.routes().get(0);
+        for (var xContentType : XContentType.values()) {
+            final var request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(route.getMethod())
+                .withPath(route.getPath())
+                .withHeaders(Map.of("Content-Type", List.of(xContentType.mediaType())))
+                .build();
+            assertEquals(
+                xContentType.toString(),
+                XContentType.supportsDelimitedBulkRequests(request.getXContentType()),
+                action.mediaTypesValid(request)
+            );
+        }
     }
 
     public void testMissingSystemId() {

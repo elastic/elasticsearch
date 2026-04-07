@@ -9,7 +9,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +28,10 @@ import java.util.Iterator;
 import java.util.Map;
 
 public class TransportStats implements Writeable, ChunkedToXContent {
+
+    private static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED = TransportVersion.fromName(
+        "transport_stats_handling_time_required"
+    );
 
     private final long serverOpen;
     private final long totalOutboundConnections;
@@ -69,8 +73,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
-        if (in.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)
-            && in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false) {
+        if (in.getTransportVersion().supports(TRANSPORT_STATS_HANDLING_TIME_REQUIRED) == false) {
             in.readBoolean();
         }
         inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
@@ -81,11 +84,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
             outboundHandlingTimeBucketFrequencies[i] = in.readVLong();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            transportActionStats = Collections.unmodifiableMap(in.readOrderedMap(StreamInput::readString, TransportActionStats::new));
-        } else {
-            transportActionStats = Map.of();
-        }
+        transportActionStats = Collections.unmodifiableMap(in.readOrderedMap(StreamInput::readString, TransportActionStats::new));
         assert assertHistogramsConsistent();
     }
 
@@ -99,8 +98,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         out.writeVLong(txSize);
         assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
         assert outboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
-        if (out.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)
-            && out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0) == false) {
+        if (out.getTransportVersion().supports(TRANSPORT_STATS_HANDLING_TIME_REQUIRED) == false) {
             out.writeBoolean(true);
         }
         for (long handlingTimeBucketFrequency : inboundHandlingTimeBucketFrequencies) {
@@ -109,9 +107,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         for (long handlingTimeBucketFrequency : outboundHandlingTimeBucketFrequencies) {
             out.writeVLong(handlingTimeBucketFrequency);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeMap(transportActionStats, StreamOutput::writeWriteable);
-        } // else just drop these stats
+        out.writeMap(transportActionStats, StreamOutput::writeWriteable);
     }
 
     public long serverOpen() {

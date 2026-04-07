@@ -18,6 +18,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
@@ -33,8 +35,9 @@ import static org.mockito.Mockito.when;
 public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
 
     public void testEquivalence() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+        final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, bigArrays, 0);
         final int numBuckets = randomIntBetween(2, 100);
         final int numValues = randomIntBetween(1, 100000);
         final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 1000000);
@@ -45,7 +48,7 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
         }
         for (int i = 0; i < numBuckets; i++) {
             // test clone
-            AbstractHyperLogLogPlusPlus clone = single.clone(i, BigArrays.NON_RECYCLING_INSTANCE);
+            AbstractHyperLogLogPlusPlus clone = single.clone(i, bigArrays);
             if (single.getAlgorithm(i) == AbstractHyperLogLogPlusPlus.LINEAR_COUNTING) {
                 assertTrue(clone instanceof HyperLogLogPlusPlusSparse);
             } else {
@@ -55,7 +58,8 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
             // test serialize
             BytesStreamOutput out = new BytesStreamOutput();
             single.writeTo(i, out);
-            clone = AbstractHyperLogLogPlusPlus.readFrom(out.bytes().streamInput(), BigArrays.NON_RECYCLING_INSTANCE);
+            clone.close();
+            clone = AbstractHyperLogLogPlusPlus.readFrom(out.bytes().streamInput(), bigArrays);
             if (single.getAlgorithm(i) == AbstractHyperLogLogPlusPlus.LINEAR_COUNTING) {
                 assertTrue(clone instanceof HyperLogLogPlusPlusSparse);
             } else {
@@ -63,10 +67,12 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
             }
             checkEquivalence(single, i, clone, 0);
             // test merge
-            final HyperLogLogPlusPlus merge = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+            final HyperLogLogPlusPlus merge = new HyperLogLogPlusPlus(p, bigArrays, 0);
             merge.merge(0, clone, 0);
             checkEquivalence(merge, 0, clone, 0);
+            Releasables.close(clone, merge);
         }
+        Releasables.close(single);
     }
 
     private void checkEquivalence(

@@ -30,7 +30,7 @@ public class RoutingPathFieldsTests extends ESTestCase {
                 .build(),
             Settings.EMPTY
         );
-        IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+        IndexRouting.ExtractFromSource.ForRoutingPath routing = (IndexRouting.ExtractFromSource.ForRoutingPath) settings.getIndexRouting();
 
         var routingPathFields = new RoutingPathFields(routing.builder());
         BytesReference current, previous;

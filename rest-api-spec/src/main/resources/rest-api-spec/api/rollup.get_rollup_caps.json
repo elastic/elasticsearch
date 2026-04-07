@@ -1,31 +1,37 @@
 {
-  "rollup.get_rollup_caps":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-get-rollup-caps.html",
-      "description":"Returns the capabilities of any rollup jobs that have been configured for a specific index or index pattern."
+  "rollup.get_rollup_caps": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-rollup-get-rollup-caps",
+      "description": "Get the rollup job capabilities"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "experimental",
+    "visibility": "public",
+    "deprecated": {
+      "version": "8.11.0",
+      "description": "Rollup APIs are deprecated, use downsampling with time series data stream instead"
     },
-    "url":{
-      "paths":[
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
         {
-          "path":"/_rollup/data/{id}",
-          "methods":[
+          "path": "/_rollup/data/{id}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The ID of the index to check rollup capabilities on, or left blank for all jobs"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the index to check rollup capabilities on, or left blank for all jobs"
             }
           }
         },
         {
-          "path":"/_rollup/data",
-          "methods":[
+          "path": "/_rollup/data",
+          "methods": [
             "GET"
           ]
         }

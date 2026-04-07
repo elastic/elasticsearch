@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -39,13 +38,10 @@ public class GetMappingsRequest extends LocalClusterStateRequest implements Indi
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public GetMappingsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readStringArray();
-        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 

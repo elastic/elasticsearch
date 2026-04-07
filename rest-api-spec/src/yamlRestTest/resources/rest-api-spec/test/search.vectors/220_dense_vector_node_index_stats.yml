@@ -6,6 +6,9 @@
            capabilities: [ dense_vector_off_heap_stats ]
        test_runner_features: [ capabilities ]
        reason: Capability required to run test
+   - requires:
+      cluster_features: [ "search.vectors.flat_index_threshold" ]
+      reason: "Uses index_options.flat_index_threshold"
 
    - do:
       indices.create:
@@ -25,6 +28,7 @@
                 similarity: l2_norm
                 index_options:
                   type: hnsw
+                  flat_index_threshold: 0
               vector2:
                 type: dense_vector
                 "element_type": "float"
@@ -41,6 +45,7 @@
                 similarity: l2_norm
                 index_options:
                   type: hnsw
+                  flat_index_threshold: 0
               vector4:
                 type: dense_vector
                 "element_type": "byte"
@@ -123,30 +128,40 @@
    - gt:    { indices.non_quantized.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
    - match: { indices.non_quantized.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
    - gt:    { indices.non_quantized.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.total_cenivf_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.total_clivf_size_bytes
    # vector1, hnsw (float)
    - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vec_size_bytes: 0 }
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veb_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.cenivf_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.clivf_size_bytes
    # vector2, flat (float)
    - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.cenivf_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.clivf_size_bytes
    # vector3, hnsw (byte)
    - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vec_size_bytes: 0 }
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vex_size_bytes: 0 }
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veb_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veq_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.cenivf_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.clivf_size_bytes
    # vector4, flat (byte)
    - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4
    - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vec_size_bytes: 0 }
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veb_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veq_size_bytes
    - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vex_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.cenivf_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.clivf_size_bytes
 
 ---
 "index node stats int8_and int4_quantized":
@@ -155,10 +170,16 @@
         - method: GET
           path: /_nodes/stats
           capabilities: [ dense_vector_off_heap_stats ]
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, "allowed_warnings" ]
       reason: Capability required to run test
+   - requires:
+      cluster_features: [ "search.vectors.flat_index_threshold" ]
+      reason: "Uses index_options.flat_index_threshold"
 
    - do:
+      allowed_warnings:
+        - "Parameter [confidence_interval] in [index_options] for dense_vector field [vector3] is deprecated and will be removed in a future version"
+        - "Parameter [confidence_interval] in [index_options] for dense_vector field [vector4] is deprecated and will be removed in a future version"
       indices.create:
         index: int8_and_4_quantized
         body:
@@ -175,6 +196,7 @@
                 similarity: l2_norm
                 index_options:
                   type: int8_hnsw
+                  flat_index_threshold: 0
               vector2:
                 type: dense_vector
                 dims: 4
@@ -189,6 +211,8 @@
                 similarity: l2_norm
                 index_options:
                   type: int4_hnsw
+                  flat_index_threshold: 0
+                  confidence_interval: 0.0
               vector4:
                 type: dense_vector
                 dims: 4
@@ -196,6 +220,7 @@
                 similarity: l2_norm
                 index_options:
                   type: int4_flat
+                  confidence_interval: 0.0
 
    - do:
       index:
@@ -276,24 +301,32 @@
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes: 0 }
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veb_size_bytes
-   # vector2, int8_flat
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.cenivf_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.clivf_size_bytes
+  # vector2, int8_flat
    - is_true: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes: 0 }
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.cenivf_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.clivf_size_bytes
    # vector3, int4_hnsw
    - is_true: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vec_size_bytes: 0 }
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veq_size_bytes: 0 }
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vex_size_bytes: 0 }
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veb_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.cenivf_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.clivf_size_bytes
    # vector4, int4_flat
    - is_true: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vec_size_bytes: 0 }
    - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veq_size_bytes: 0 }
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veb_size_bytes
    - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vex_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.cenivf_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.clivf_size_bytes
 
 ---
 "index node stats bbq_quantized":
@@ -304,6 +337,9 @@
           capabilities: [ dense_vector_off_heap_stats ]
       test_runner_features: [ capabilities ]
       reason: Capability required to run test
+   - requires:
+      cluster_features: [ "search.vectors.flat_index_threshold" ]
+      reason: "Uses index_options.flat_index_threshold"
    - requires:
       capabilities:
         - method: POST
@@ -329,6 +365,7 @@
                 similarity: l2_norm
                 index_options:
                   type: bbq_hnsw
+                  flat_index_threshold: 0
               vector2:
                 type: dense_vector
                 dims: 64
@@ -429,12 +466,16 @@
    - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vec_size_bytes: 0 }
    - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
    - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.cenivf_size_bytes
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.clivf_size_bytes
    # vector2, bbq_flat
    - is_true: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2
    - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes: 0 }
    - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
    - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes
    - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.cenivf_size_bytes
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.clivf_size_bytes
 
 ---
 "index node stats bit_vectors":
@@ -445,6 +486,9 @@
           capabilities: [ dense_vector_off_heap_stats ]
       test_runner_features: [ capabilities ]
       reason: Capability required to run test
+   - requires:
+      cluster_features: [ "search.vectors.flat_index_threshold" ]
+      reason: "Uses index_options.flat_index_threshold"
 
    - do:
       indices.create:
@@ -464,6 +508,7 @@
                 similarity: l2_norm
                 index_options:
                   type: hnsw
+                  flat_index_threshold: 0
               vector2:
                 type: dense_vector
                 "element_type": "bit"
@@ -539,12 +584,16 @@
    - gt:    { indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
    - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.veb_size_bytes
    - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.cenivf_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.clivf_size_bytes
    # vector2, flat
    - is_true: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2
    - gt: { indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
    - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes
    - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes
    - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.cenivf_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.clivf_size_bytes
 
 ---
 "index node stats empty":
@@ -555,6 +604,9 @@
           capabilities: [ dense_vector_off_heap_stats ]
       test_runner_features: [ capabilities ]
       reason: Capability required to run test
+   - requires:
+      cluster_features: [ "search.vectors.flat_index_threshold" ]
+      reason: "Uses index_options.flat_index_threshold"
 
    - do:
       indices.create:
@@ -573,6 +625,7 @@
                 similarity: l2_norm
                 index_options:
                   type: int8_hnsw
+                  flat_index_threshold: 0
               vector2:
                 type: dense_vector
                 dims: 5
@@ -580,6 +633,7 @@
                 similarity: l2_norm
                 index_options:
                   type: int8_hnsw
+                  flat_index_threshold: 0
 
    - do:
       nodes.stats:
@@ -616,6 +670,8 @@
    - match: { indices.empty_index.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
    - is_false: indices.empty_index.primaries.dense_vector.off_heap.fielddata
 
+
+
 ---
 "index node stats multiple indices":
    - requires:
@@ -625,6 +681,9 @@
           capabilities: [ dense_vector_off_heap_stats ]
       test_runner_features: [ capabilities ]
       reason: Capability required to run test
+   - requires:
+      cluster_features: [ "search.vectors.flat_index_threshold" ]
+      reason: "Uses index_options.flat_index_threshold"
    - requires:
        capabilities:
          - method: POST
@@ -650,6 +709,7 @@
                 similarity: l2_norm
                 index_options:
                   type: bbq_hnsw
+                  flat_index_threshold: 0
 
    - do:
       indices.create:
@@ -685,6 +745,7 @@
                 similarity: l2_norm
                 index_options:
                   type: hnsw
+                  flat_index_threshold: 0
 
    - do:
       index:
@@ -752,6 +813,8 @@
    - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
    - match: { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
    - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.total_cenivf_size_bytes
+   - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.total_clivf_size_bytes
    - is_true: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata
    # foo.foo, bbq_hnsw
    - is_true: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo
@@ -759,6 +822,8 @@
    - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.vec_size_bytes: 0 }
    - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.vex_size_bytes: 0 }
    - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.veq_size_bytes
+   - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.cenivf_size_bytes
+   - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.clivf_size_bytes
 
    # index type bbq_flat
    - is_true: indices.bbq_quantized2.primaries.dense_vector
@@ -774,6 +839,8 @@
    - gt:    { indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.vec_size_bytes: 0 }
    - is_false: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.veq_size_bytes
    - is_false: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.vex_size_bytes
+   - is_false: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.cenivf_size_bytes
+   - is_false: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.clivf_size_bytes
 
    # index type hnsw_idx
    - is_true: indices.hnsw_idx.primaries.dense_vector
@@ -782,6 +849,8 @@
    - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
    - match: { indices.hnsw_idx.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
    - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.total_cenivf_size_bytes
+   - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.total_clivf_size_bytes
    - is_true: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata
    # baz, hnsw (float)
    - is_true: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz
@@ -789,6 +858,8 @@
    - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.vex_size_bytes: 0 }
    - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.veb_size_bytes
    - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.veq_size_bytes
+   - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.cenivf_size_bytes
+   - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.clivf_size_bytes
 
 ---
 "index node stats non-indexed":
@@ -799,6 +870,9 @@
           capabilities: [ dense_vector_off_heap_stats ]
       test_runner_features: [ capabilities ]
       reason: Capability required to run test
+  - requires:
+      cluster_features: [ "search.vectors.flat_index_threshold" ]
+      reason: "Uses index_options.flat_index_threshold"
 
   - do:
       indices.create:

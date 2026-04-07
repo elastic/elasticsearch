@@ -14,7 +14,12 @@ import java.util.Map;
 
 public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
     static DateEsField randomDateEsField(int maxPropertiesDepth) {
-        return DateEsField.dateEsField(randomAlphaOfLength(5), randomProperties(maxPropertiesDepth), randomBoolean());
+        return DateEsField.dateEsField(
+            randomAlphaOfLength(5),
+            randomProperties(maxPropertiesDepth),
+            randomBoolean(),
+            randomFrom(EsField.TimeSeriesFieldType.values())
+        );
     }
 
     @Override
@@ -23,16 +28,18 @@ public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
     }
 
     @Override
-    protected DateEsField mutate(DateEsField instance) {
+    protected DateEsField mutateInstance(DateEsField instance) {
         String name = instance.getName();
         Map<String, EsField> properties = instance.getProperties();
         boolean aggregatable = instance.isAggregatable();
-        switch (between(0, 2)) {
+        EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
+        switch (between(0, 3)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> aggregatable = false == aggregatable;
+            case 3 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             default -> throw new IllegalArgumentException();
         }
-        return DateEsField.dateEsField(name, properties, aggregatable);
+        return DateEsField.dateEsField(name, properties, aggregatable, tsType);
     }
 }

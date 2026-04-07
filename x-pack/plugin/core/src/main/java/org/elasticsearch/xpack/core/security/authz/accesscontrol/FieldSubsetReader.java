@@ -28,8 +28,9 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -39,9 +40,13 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -54,6 +59,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
@@ -68,36 +74,52 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * Note that for convenience, the returned reader
      * can be used normally (e.g. passed to {@link DirectoryReader#openIfChanged(DirectoryReader)})
      * and so on.
-     * @param in reader to filter
-     * @param filter fields to filter.
+     *
+     * @param in       reader to filter
+     * @param filter   fields to filter.
+     * @param isMapped whether a field is mapped or not.
      */
-    public static DirectoryReader wrap(DirectoryReader in, CharacterRunAutomaton filter) throws IOException {
-        return new FieldSubsetDirectoryReader(in, filter);
+    public static DirectoryReader wrap(
+        DirectoryReader in,
+        CharacterRunAutomaton filter,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+        Function<String, Boolean> isMapped
+    ) throws IOException {
+        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
     }
 
     // wraps subreaders with fieldsubsetreaders.
     static class FieldSubsetDirectoryReader extends FilterDirectoryReader {
 
         private final CharacterRunAutomaton filter;
+        private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        private final Function<String, Boolean> isMapped;
 
-        FieldSubsetDirectoryReader(DirectoryReader in, final CharacterRunAutomaton filter) throws IOException {
+        FieldSubsetDirectoryReader(
+            DirectoryReader in,
+            final CharacterRunAutomaton filter,
+            final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+            Function<String, Boolean> isMapped
+        ) throws IOException {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     try {
-                        return new FieldSubsetReader(reader, filter);
+                        return new FieldSubsetReader(reader, filter, ignoredSourceFormat, isMapped);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 }
             });
             this.filter = filter;
+            this.ignoredSourceFormat = ignoredSourceFormat;
+            this.isMapped = isMapped;
             verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldSubsetDirectoryReader(in, filter);
+            return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
         }
 
         /** Return the automaton that is used to filter fields. */
@@ -127,22 +149,38 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     private final FieldInfos fieldInfos;
     /** An automaton that only accepts authorized fields. */
     private final CharacterRunAutomaton filter;
+    private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
     /** {@link Terms} cache with filtered stats for the {@link FieldNamesFieldMapper} field. */
     private volatile Optional<Terms> fieldNamesFilterTerms;
 
     /**
      * Wrap a single segment, exposing a subset of its fields.
      */
-    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter) throws IOException {
+    FieldSubsetReader(
+        LeafReader in,
+        CharacterRunAutomaton filter,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+        Function<String, Boolean> isMapped
+    ) throws IOException {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            if (filter.run(fi.name)) {
+            String name = fi.name;
+            if (fi.getName().endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
+                name = fi.getName().substring(0, fi.getName().length() - TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX.length());
+            }
+            if (fi.getName().endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
+                && isMapped.apply(fi.getName()) == false) {
+                name = fi.getName()
+                    .substring(0, fi.getName().length() - IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX.length());
+            }
+            if (filter.run(name)) {
                 filteredInfos.add(fi);
             }
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
+        this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
     /** returns true if this field is allowed. */
@@ -178,7 +216,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         return new StoredFields() {
             @Override
             public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-                storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
+                storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor, ignoredSourceFormat));
             }
         };
     }
@@ -255,7 +293,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
-        return new FieldSubsetStoredFieldsReader(reader);
+        return new FieldSubsetStoredFieldsReader(reader, ignoredSourceFormat);
     }
 
     @Override
@@ -270,7 +308,24 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     public BinaryDocValues getBinaryDocValues(String field) throws IOException {
-        return hasField(field) ? super.getBinaryDocValues(field) : null;
+        if (hasField(field) == false) {
+            return null;
+        }
+
+        BinaryDocValues dv = super.getBinaryDocValues(field);
+        if (isIgnoredSourceDocValues(dv, field)) {
+            return new FilteredIgnoredSourceDocValues(in, dv, ignoredSourceFormat, filter);
+        }
+        return dv;
+    }
+
+    /**
+     * Returns whether these binary doc values are for ignored source.
+     */
+    private boolean isIgnoredSourceDocValues(BinaryDocValues dv, String field) {
+        return dv != null
+            && IgnoredSourceFieldMapper.NAME.equals(field)
+            && ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
     }
 
     @Override
@@ -288,6 +343,92 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         return hasField(field) ? super.getSortedSetDocValues(field) : null;
     }
 
+    /**
+     * Wraps {@link BinaryDocValues} for the {@code _ignored_source} field to apply field-level security filtering.
+     * <p>
+     * Per-document values are decoded via {@link MultiValuedSortedBinaryDocValues} (which handles both
+     * {@link MultiValuedBinaryDocValuesField.SeparateCount} and {@link MultiValuedBinaryDocValuesField.IntegratedCount}
+     * formats), filtered through the FLS field automaton, and re-encoded in the
+     * {@link MultiValuedBinaryDocValuesField.IntegratedCount} format so that callers only observe field values
+     * the current user is authorised to see. Returning the integrated-count format allows the caller to treat
+     * the counts numeric field as absent, avoiding stale count mismatches after filtering.
+     */
+    private static final class FilteredIgnoredSourceDocValues extends BinaryDocValues {
+
+        private final BinaryDocValues delegate;
+        private final MultiValuedSortedBinaryDocValues multiValues;
+        private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        private final CharacterRunAutomaton filter;
+
+        private BytesRef filteredValue;
+
+        FilteredIgnoredSourceDocValues(
+            LeafReader reader,
+            BinaryDocValues dv,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+            CharacterRunAutomaton filter
+        ) throws IOException {
+            this.delegate = dv;
+            this.ignoredSourceFormat = ignoredSourceFormat;
+            this.filter = filter;
+            // convert incoming binary doc values to reuse the code provided by MultiValuedSortedBinaryDocValues
+            this.multiValues = MultiValuedSortedBinaryDocValues.from(reader, IgnoredSourceFieldMapper.NAME, dv);
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            filteredValue = null;
+            if (multiValues.advanceExact(target) == false) {
+                return false;
+            }
+
+            // iterate over all ignored-source entries for this document and apply FLS filtering
+            List<BytesRef> filteredValues = new ArrayList<>();
+            int count = multiValues.docValueCount();
+            for (int i = 0; i < count; i++) {
+                BytesRef value = multiValues.nextValue();
+                BytesRef filtered = ignoredSourceFormat.filterValue(value, v -> filter(v, filter, 0));
+                if (filtered != null) {
+                    // deep copy because nextValue() reuses an internal scratch buffer
+                    filteredValues.add(BytesRef.deepCopyOf(filtered));
+                }
+            }
+
+            if (filteredValues.isEmpty()) {
+                return false;
+            }
+
+            // re-encode surviving values into IntegratedCount format
+            filteredValue = MultiValuedBinaryDocValuesField.IntegratedCount.encode(filteredValues);
+            return true;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return filteredValue;
+        }
+
+        @Override
+        public int docID() {
+            return delegate.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return delegate.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return delegate.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return delegate.cost();
+        }
+    }
+
     @Override
     public NumericDocValues getNormValues(String field) throws IOException {
         return hasField(field) ? super.getNormValues(field) : null;
@@ -299,7 +440,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+    public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
         if (hasField(field)) {
             super.searchNearestVectors(field, target, collector, acceptDocs);
         }
@@ -311,7 +452,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+    public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
         if (hasField(field)) {
             super.searchNearestVectors(field, target, collector, acceptDocs);
         }
@@ -334,24 +475,26 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      */
     class FieldSubsetStoredFieldsReader extends StoredFieldsReader {
         final StoredFieldsReader reader;
+        final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-        FieldSubsetStoredFieldsReader(StoredFieldsReader reader) {
+        FieldSubsetStoredFieldsReader(StoredFieldsReader reader, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat) {
             this.reader = reader;
+            this.ignoredSourceFormat = ignoredSourceFormat;
         }
 
         @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            reader.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
+            reader.document(docID, new FieldSubsetStoredFieldVisitor(visitor, ignoredSourceFormat));
         }
 
         @Override
         public StoredFieldsReader clone() {
-            return new FieldSubsetStoredFieldsReader(reader.clone());
+            return new FieldSubsetStoredFieldsReader(reader.clone(), ignoredSourceFormat);
         }
 
         @Override
         public StoredFieldsReader getMergeInstance() {
-            return new FieldSubsetStoredFieldsReader(reader.getMergeInstance());
+            return new FieldSubsetStoredFieldsReader(reader.getMergeInstance(), ignoredSourceFormat);
         }
 
         @Override
@@ -370,9 +513,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      */
     class FieldSubsetStoredFieldVisitor extends StoredFieldVisitor {
         final StoredFieldVisitor visitor;
+        final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-        FieldSubsetStoredFieldVisitor(StoredFieldVisitor visitor) {
+        FieldSubsetStoredFieldVisitor(StoredFieldVisitor visitor, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat) {
             this.visitor = visitor;
+            this.ignoredSourceFormat = ignoredSourceFormat;
         }
 
         @Override
@@ -385,22 +530,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                 visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
             } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
-                // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
-                IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
-                Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
-                if (transformedField.isEmpty() == false) {
-                    // The unfiltered map contains at least one element, the field name with its value. If the field contains
-                    // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,
-                    // it's a single leaf value, e.g. a string or a number.
-                    var topValue = mappedNameValue.map().values().iterator().next();
-                    if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
-                        // The field contains an object or an array, reconstruct it from the transformed map in case
-                        // any subfield has been filtered out.
-                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
-                    } else {
-                        // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
-                        visitor.binaryField(fieldInfo, value);
-                    }
+                assert ignoredSourceFormat != IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+                BytesRef valueRef = new BytesRef(value);
+                BytesRef filtered = ignoredSourceFormat.filterValue(valueRef, v -> filter(v, filter, 0));
+                if (filtered != null) {
+                    byte[] filteredBytes = ArrayUtil.copyOfSubArray(filtered.bytes, filtered.offset, filtered.offset + filtered.length);
+                    visitor.binaryField(fieldInfo, filteredBytes);
                 }
             } else {
                 visitor.binaryField(fieldInfo, value);

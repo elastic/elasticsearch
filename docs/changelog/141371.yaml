@@ -1,0 +1,6 @@
+pr: 141371
+summary: Fix Analyzer infinite loop for subquery referencing indices with empty mappings
+area: ES|QL
+type: bug
+issues:
+ - 141029

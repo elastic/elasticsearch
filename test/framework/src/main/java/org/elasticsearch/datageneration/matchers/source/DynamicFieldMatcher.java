@@ -17,29 +17,32 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.datageneration.matchers.Messages.formatErrorMessage;
 import static org.elasticsearch.datageneration.matchers.Messages.prettyPrintCollections;
 
 class DynamicFieldMatcher {
+    private static final double FLOAT_ERROR_MARGIN = 1e-8;
     private final XContentBuilder actualMappings;
     private final Settings.Builder actualSettings;
     private final XContentBuilder expectedMappings;
     private final Settings.Builder expectedSettings;
+    private final boolean ignoringSort;
 
     DynamicFieldMatcher(
         XContentBuilder actualMappings,
         Settings.Builder actualSettings,
         XContentBuilder expectedMappings,
-        Settings.Builder expectedSettings
+        Settings.Builder expectedSettings,
+        boolean ignoringSort
     ) {
         this.actualMappings = actualMappings;
         this.actualSettings = actualSettings;
         this.expectedMappings = expectedMappings;
         this.expectedSettings = expectedSettings;
+        this.ignoringSort = ignoringSort;
     }
 
     /**
@@ -60,33 +63,59 @@ class DynamicFieldMatcher {
         if (isDouble) {
             assert expected.stream().allMatch(o -> o == null || o instanceof Double);
 
-            var normalizedActual = normalizeDoubles(actual);
-            var normalizedExpected = normalizeDoubles(expected);
+            var normalizedActual = normalizeDoubles(actual, ignoringSort);
+            var normalizedExpected = normalizeDoubles(expected, ignoringSort);
+            Supplier<MatchResult> noMatchSupplier = () -> MatchResult.noMatch(
+                formatErrorMessage(
+                    actualMappings,
+                    actualSettings,
+                    expectedMappings,
+                    expectedSettings,
+                    "Values of dynamically mapped field containing double values don't match after normalization, normalized "
+                        + prettyPrintCollections(normalizedActual, normalizedExpected)
+                )
+            );
 
-            return normalizedActual.equals(normalizedExpected)
-                ? MatchResult.match()
-                : MatchResult.noMatch(
-                    formatErrorMessage(
-                        actualMappings,
-                        actualSettings,
-                        expectedMappings,
-                        expectedSettings,
-                        "Values of dynamically mapped field containing double values don't match after normalization, normalized "
-                            + prettyPrintCollections(normalizedActual, normalizedExpected)
-                    )
-                );
+            if (normalizedActual.size() != normalizedExpected.size()) {
+                return noMatchSupplier.get();
+            }
+
+            for (int i = 0; i < normalizedActual.size(); i++) {
+                if (floatEquals(normalizedActual.get(i), normalizedExpected.get(i)) == false) {
+                    return noMatchSupplier.get();
+                }
+            }
+
+            return MatchResult.match();
         }
 
         return matchWithGenericMatcher(actual, expected);
     }
 
-    private static Set<Float> normalizeDoubles(List<Object> values) {
+    /**
+     * We make the normalisation of double values stricter than {@link SourceTransforms#normalizeValues} to facilitate the equality of the
+     * values within a margin of error. Synthetic source does support duplicate values and preserves the order, but it loses some accuracy,
+     * this is why the margin of error is very important. In the future, we can make {@link SourceTransforms#normalizeValues} also stricter.
+     */
+    private static List<Float> normalizeDoubles(List<Object> values, boolean ignoringSort) {
         if (values == null) {
-            return Set.of();
+            return List.of();
         }
 
         Function<Object, Float> toFloat = (o) -> o instanceof Number n ? n.floatValue() : Float.parseFloat((String) o);
-        return values.stream().filter(Objects::nonNull).map(toFloat).collect(Collectors.toSet());
+
+        // We skip nulls because they trip the pretty print collections.
+        var stream = values.stream().filter(Objects::nonNull).map(toFloat);
+
+        if (ignoringSort) {
+            stream = stream.sorted();
+        }
+
+        return stream.toList();
+    }
+
+    private static boolean floatEquals(Float actual, Float expected) {
+        return Math.abs(actual - expected) < FLOAT_ERROR_MARGIN;
     }
 
     private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {
@@ -97,7 +126,7 @@ class DynamicFieldMatcher {
             expectedSettings,
             SourceTransforms.normalizeValues(actualValues),
             SourceTransforms.normalizeValues(expectedValues),
-            true
+            ignoringSort
         );
 
         return genericListMatcher.match();

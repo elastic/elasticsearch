@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.schema;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,6 +19,9 @@ import java.util.Map;
  */
 public interface SageMakerStoredTaskSchema extends TaskSettings {
     SageMakerStoredTaskSchema NO_OP = new SageMakerStoredTaskSchema() {
+
+        private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
+
         @Override
         public boolean isEmpty() {
             return true;
@@ -39,7 +41,13 @@ public interface SageMakerStoredTaskSchema extends TaskSettings {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ML_INFERENCE_SAGEMAKER;
+            assert false : "should never be called when supportsVersion is used";
+            return ML_INFERENCE_SAGEMAKER;
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.supports(ML_INFERENCE_SAGEMAKER);
         }
 
         @Override
@@ -61,4 +69,8 @@ public interface SageMakerStoredTaskSchema extends TaskSettings {
 
     @Override
     SageMakerStoredTaskSchema updatedTaskSettings(Map<String, Object> newSettings);
+
+    default SageMakerStoredTaskSchema override(Map<String, Object> newSettings) {
+        return updatedTaskSettings(newSettings);
+    }
 }

@@ -21,7 +21,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -41,14 +40,11 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MockBigArrays extends BigArrays {
     private static final Logger logger = LogManager.getLogger(MockBigArrays.class);
@@ -142,8 +138,7 @@ public class MockBigArrays extends BigArrays {
      * Create {@linkplain BigArrays} with a configured limit.
      */
     public MockBigArrays(PageCacheRecycler recycler, ByteSizeValue limit) {
-        this(recycler, mock(CircuitBreakerService.class), true);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new LimitedBreaker(CircuitBreaker.REQUEST, limit));
+        this(recycler, LimitedBreaker.service(CircuitBreaker.REQUEST, limit), true);
     }
 
     /**
@@ -715,49 +710,4 @@ public class MockBigArrays extends BigArrays {
         }
     }
 
-    public static class LimitedBreaker extends NoopCircuitBreaker {
-        private final AtomicLong used = new AtomicLong();
-        private final ByteSizeValue max;
-
-        public LimitedBreaker(String name, ByteSizeValue max) {
-            super(name);
-            this.max = max;
-        }
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            while (true) {
-                long old = used.get();
-                long total = old + bytes;
-                if (total < 0) {
-                    throw new AssertionError("total must be >= 0 but was [" + total + "]");
-                }
-                if (total > max.getBytes()) {
-                    throw new CircuitBreakingException(ERROR_MESSAGE, bytes, max.getBytes(), Durability.TRANSIENT);
-                }
-                if (used.compareAndSet(old, total)) {
-                    break;
-                }
-            }
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            long total = used.addAndGet(bytes);
-            if (total < 0) {
-                throw new AssertionError("total must be >= 0 but was [" + total + "]");
-            }
-        }
-
-        @Override
-        public long getUsed() {
-            return used.get();
-        }
-
-        @Override
-        public String toString() {
-            long u = used.get();
-            return "LimitedBreaker[" + u + "/" + max.getBytes() + "][" + ByteSizeValue.ofBytes(u) + "/" + max + "]";
-        }
-    }
 }

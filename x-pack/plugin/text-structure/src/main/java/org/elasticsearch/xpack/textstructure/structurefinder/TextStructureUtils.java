@@ -50,6 +50,8 @@ public final class TextStructureUtils {
     public static final String NULL_TIMESTAMP_FORMAT = "null";
 
     private static final PatternBank EXTENDED_PATTERNS;
+    public static final String DOT_DELIMITER = ".";
+
     static {
         Map<String, String> patterns = new HashMap<>();
         patterns.put("GEO_POINT", "%{NUMBER} %{NUMBER}");
@@ -111,7 +113,7 @@ public final class TextStructureUtils {
      * @return A tuple of (field name, timestamp format finder) if one can be found, or <code>null</code> if
      *         there is no consistent timestamp.
      */
-    static Tuple<String, TimestampFormatFinder> guessTimestampField(
+    public static Tuple<String, TimestampFormatFinder> guessTimestampField(
         List<String> explanation,
         List<Map<String, ?>> sampleRecords,
         TextStructureOverrides overrides,
@@ -268,77 +270,45 @@ public final class TextStructureUtils {
      * @param sampleRecords The sampled records.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
+     * @param mappingDepthLimit How deep into the nested objects we should look for keys.
+     *                          For example, with depth=2 and input:
+     *                          {"a": [{"b": {"c": 1}}]}
+     *                          the mapping will reach down to "a.b" and map it as an object,
+     *                          but will not dive into "c". Increasing the depth allows for deeper mapping.
      * @return A map of field name to mapping settings.
      */
-    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
+    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
         List<String> explanation,
         List<Map<String, ?>> sampleRecords,
         TimeoutChecker timeoutChecker,
-        String timestampFormatOverride
+        String timestampFormatOverride,
+        int mappingDepthLimit
     ) {
-        return guessMappingsAndCalculateFieldStats(
-            explanation,
-            sampleRecords,
-            timeoutChecker,
-            DEFAULT_ECS_COMPATIBILITY,
-            timestampFormatOverride
-        );
-    }
-
-    /**
-     * Given the sampled records, guess appropriate Elasticsearch mappings.
-     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
-     *                    can be appended by this method.
-     * @param sampleRecords The sampled records.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @param ecsCompatibility The mode of compatibility with ECS Grok patterns.
-     * @return A map of field name to mapping settings.
-     */
-    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
-        List<String> explanation,
-        List<Map<String, ?>> sampleRecords,
-        TimeoutChecker timeoutChecker,
-        boolean ecsCompatibility
-    ) {
-        return guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, ecsCompatibility, null);
-    }
-
-    /**
-     * Given the sampled records, guess appropriate Elasticsearch mappings.
-     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
-     *                    can be appended by this method.
-     * @param sampleRecords The sampled records.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @param ecsCompatibility The mode of compatibility with ECS Grok patterns.
-     * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
-     * @return A map of field name to mapping settings.
-     */
-    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
-        List<String> explanation,
-        List<Map<String, ?>> sampleRecords,
-        TimeoutChecker timeoutChecker,
-        boolean ecsCompatibility,
-        String timestampFormatOverride
-    ) {
+        if (mappingDepthLimit < 1) {
+            throw new IllegalArgumentException("Mapping depth limit must be at least 1");
+        }
 
         SortedMap<String, Object> mappings = new TreeMap<>();
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 
-        Set<String> uniqueFieldNames = sampleRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
+        Map<String, List<Object>> fieldToValues = sampleRecords.stream()
+            .map(record -> flattenRecord(record, timeoutChecker, mappingDepthLimit))
+            .flatMap(flattened -> flattened.entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> new ArrayList<>(entry.getValue()), (list1, list2) -> {
+                list1.addAll(list2);
+                return list1;
+            }));
 
-        for (String fieldName : uniqueFieldNames) {
-
-            List<Object> fieldValues = sampleRecords.stream()
-                .map(record -> record.get(fieldName))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        for (Map.Entry<String, List<Object>> entry : fieldToValues.entrySet()) {
+            String fieldName = entry.getKey();
+            List<Object> fieldValues = entry.getValue();
 
             Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = guessMappingAndCalculateFieldStats(
                 explanation,
                 fieldName,
                 fieldValues,
                 timeoutChecker,
-                ecsCompatibility,
+                DEFAULT_ECS_COMPATIBILITY,
                 timestampFormatOverride
             );
             if (mappingAndFieldStats != null) {
@@ -356,25 +326,119 @@ public final class TextStructureUtils {
 
     /**
      * Given the sampled records, guess appropriate Elasticsearch mappings.
-     * @param explanation List of reasons for choosing the overall text structure.  This list
-     *                    may be non-empty when the method is called, and this method may
-     *                    append to it.
-     * @param fieldName Name of the field for which mappings are to be guessed.
-     * @param fieldValues Values of the field for which mappings are to be guessed.  The guessed
-     *                    mapping will be compatible with all the provided values.  Must not be
-     *                    empty.
+     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
+     *                    can be appended by this method.
+     * @param sampleRecords The sampled records.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @param ecsCompatibility The mode of compatibility with ECS Grok patterns.
-     * @return A tuple comprised of the field mappings and field stats.
+     * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
+     * @return A map of field name to mapping settings.
      */
-    static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
+    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
         List<String> explanation,
-        String fieldName,
-        List<Object> fieldValues,
+        List<Map<String, ?>> sampleRecords,
         TimeoutChecker timeoutChecker,
-        boolean ecsCompatibility
+        String timestampFormatOverride
     ) {
-        return guessMappingAndCalculateFieldStats(explanation, fieldName, fieldValues, timeoutChecker, ecsCompatibility, null);
+        return guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, timestampFormatOverride, 1);
+    }
+
+    /**
+     * Flattens a map with nested objects into a flat map with dot-notation keys.
+     * For example, {"host": {"id": 1}, "name": "test", "tags": [{"tag": "dev"}, {"tag": "test"}]}
+     * becomes {"host.id": [1], "name": ["test"], "tags.tag": ["dev", "test"]}
+     * @param record The record with potentially nested objects.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param mappingDepthLimit How deep into the nested objects we should look for keys.
+     *                          For example, with depth=2 and input:
+     *                          {"a": [{"b": {"c": 1}}]}
+     *                          the mapping will reach down to "a.b" and map it as an object,
+     *                          but will not dive into "c". Increasing the depth allows for deeper mapping.
+     * @return A flattened map with dot-notation keys, where each key maps to a list of values.
+     */
+    private static Map<String, List<Object>> flattenRecord(Map<String, ?> record, TimeoutChecker timeoutChecker, int mappingDepthLimit) {
+        ObjectValueTrie objectValueTrie = new ObjectValueTrie();
+        List<String> keyParts = new ArrayList<>();
+        flattenRecordRecursive(keyParts, record, objectValueTrie, timeoutChecker, mappingDepthLimit);
+        return objectValueTrie.flatten();
+    }
+
+    private static void flattenRecordRecursive(
+        List<String> keyParts,
+        Object record,
+        ObjectValueTrie objectValueTrie,
+        TimeoutChecker timeoutChecker,
+        int remainingDepth
+    ) {
+        timeoutChecker.check("record flattening");
+        if (record instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> nestedMap = (Map<String, ?>) record;
+            flattenMap(keyParts, nestedMap, objectValueTrie, timeoutChecker, remainingDepth);
+        } else if (record instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) record;
+            flattenList(keyParts, list, objectValueTrie, timeoutChecker, remainingDepth);
+        } else { // concrete value
+            tryAddConcreteValue(keyParts, record, objectValueTrie);
+        }
+    }
+
+    /**
+     * Adds a concrete value to the objectValueTrie.
+     * @param keyParts The current key parts.
+     * @param value The concrete value to add.
+     * @param objectValueTrie A structure that helps keep track of keys which were used for concrete values
+     */
+    private static void tryAddConcreteValue(List<String> keyParts, Object value, ObjectValueTrie objectValueTrie) {
+        if (value == null) {
+            // null values are ignored
+            return;
+        }
+
+        List<String> conflict = objectValueTrie.tryAdd(keyParts, value);
+        if (conflict != null) {
+            String conflictPath = String.join(DOT_DELIMITER, conflict);
+            throw new IllegalArgumentException(
+                "Field [" + conflictPath + "] has both object and non-object values - this is not supported by Elasticsearch"
+            );
+        }
+    }
+
+    private static void flattenMap(
+        List<String> keyParts,
+        Map<String, ?> record,
+        ObjectValueTrie objectValueTrie,
+        TimeoutChecker timeoutChecker,
+        int remainingDepth
+    ) {
+        timeoutChecker.check("map flattening");
+
+        if (record.isEmpty() || remainingDepth <= 0) {
+            // Empty nested objects or max depth reached - will be mapped as "object" type
+            objectValueTrie.markAsObject(keyParts);
+            return;
+        }
+
+        for (Map.Entry<String, ?> entry : record.entrySet()) {
+            keyParts.add(entry.getKey());
+            var recordValue = entry.getValue();
+            flattenRecordRecursive(keyParts, recordValue, objectValueTrie, timeoutChecker, remainingDepth - 1);
+            keyParts.removeLast();
+        }
+    }
+
+    private static void flattenList(
+        List<String> keyParts,
+        List<Object> list,
+        ObjectValueTrie objectValueTrie,
+        TimeoutChecker timeoutChecker,
+        int remainingDepth
+    ) {
+        timeoutChecker.check("list flattening");
+
+        for (Object record : list) {
+            flattenRecordRecursive(keyParts, record, objectValueTrie, timeoutChecker, remainingDepth);
+        }
     }
 
     /**
@@ -391,7 +455,7 @@ public final class TextStructureUtils {
      * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
      * @return A tuple comprised of the field mappings and field stats.
      */
-    static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
+    private static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
         List<String> explanation,
         String fieldName,
         List<Object> fieldValues,
@@ -409,9 +473,6 @@ public final class TextStructureUtils {
             if (fieldValues.stream().allMatch(value -> value instanceof Map)) {
                 return new Tuple<>(Collections.singletonMap(MAPPING_TYPE_SETTING, "object"), null);
             }
-            throw new IllegalArgumentException(
-                "Field [" + fieldName + "] has both object and non-object values - this is not supported by Elasticsearch"
-            );
         }
 
         if (fieldValues.stream().anyMatch(value -> value instanceof List || value instanceof Object[])) {

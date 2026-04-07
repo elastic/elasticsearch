@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+
 @FunctionName("st_disjoint")
 public class SpatialDisjointTests extends SpatialRelatesFunctionTestCase {
     public SpatialDisjointTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -29,17 +31,17 @@ public class SpatialDisjointTests extends SpatialRelatesFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        SpatialRelatesFunctionTestCase.addSpatialGridCombinations(suppliers, GEO_POINT);
         DataType[] geoDataTypes = { DataType.GEO_POINT, DataType.GEO_SHAPE };
         SpatialRelatesFunctionTestCase.addSpatialCombinations(suppliers, geoDataTypes);
         DataType[] cartesianDataTypes = { DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE };
         SpatialRelatesFunctionTestCase.addSpatialCombinations(suppliers, cartesianDataTypes);
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialDisjointTests::typeErrorMessage)
-        );
+        return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new SpatialDisjoint(source, args.get(0), args.get(1));
     }
+
 }

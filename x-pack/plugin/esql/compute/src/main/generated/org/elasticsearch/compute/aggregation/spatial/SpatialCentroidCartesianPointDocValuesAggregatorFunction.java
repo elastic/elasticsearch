@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SpatialCentroidCartesianPointDocValuesAggregator}.
@@ -39,16 +40,14 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction impl
 
   private final List<Integer> channels;
 
-  public SpatialCentroidCartesianPointDocValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, CentroidPointAggregator.CentroidState state) {
+  private final CoordinateEncoder encoder;
+
+  SpatialCentroidCartesianPointDocValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels, CoordinateEncoder encoder) {
+    this.encoder = encoder;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialCentroidCartesianPointDocValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialCentroidCartesianPointDocValuesAggregatorFunction(driverContext, channels, SpatialCentroidCartesianPointDocValuesAggregator.initSingle());
+    this.state = SpatialCentroidCartesianPointDocValuesAggregator.initSingle(encoder);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -64,69 +63,79 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction impl
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      LongBlock block = page.getBlock(channels.get(0));
-      LongVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    LongBlock block = page.getBlock(channels.get(0));
-    LongVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(LongVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vector.getLong(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(LongVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawVector(LongVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(LongVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vector.getLong(i));
+      long vValue = vVector.getLong(valuesPosition);
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawBlock(LongBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(LongBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SpatialCentroidCartesianPointDocValuesAggregator.combine(state, block.getLong(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        long vValue = vBlock.getLong(vOffset);
+        SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
       }
     }
   }
 
-  private void addRawBlock(LongBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(LongBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SpatialCentroidCartesianPointDocValuesAggregator.combine(state, block.getLong(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        long vValue = vBlock.getLong(vOffset);
+        SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
       }
     }
   }

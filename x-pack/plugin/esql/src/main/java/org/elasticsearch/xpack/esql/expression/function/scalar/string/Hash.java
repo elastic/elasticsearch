@@ -11,11 +11,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Result;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -142,7 +143,7 @@ public class Hash extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (algorithm.foldable()) {
             try {
                 // hash function is created here in order to validate the algorithm is valid before evaluator is created
@@ -200,6 +201,14 @@ public class Hash extends EsqlScalarFunction {
         public static HashFunction create(BytesRef literal) throws NoSuchAlgorithmException {
             var algorithm = literal.utf8ToString();
             return new HashFunction(algorithm, MessageDigest.getInstance(algorithm));
+        }
+
+        public static Result<HashFunction, NoSuchAlgorithmException> tryCreate(String algorithm) {
+            try {
+                return Result.of(new HashFunction(algorithm, MessageDigest.getInstance(algorithm)));
+            } catch (NoSuchAlgorithmException e) {
+                return Result.failure(e);
+            }
         }
 
         public HashFunction copy() {

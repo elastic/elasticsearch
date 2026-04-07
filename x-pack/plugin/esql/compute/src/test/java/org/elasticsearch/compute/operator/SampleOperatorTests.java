@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -21,7 +21,6 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.matchesPattern;
 
 public class SampleOperatorTests extends OperatorTestCase {
 
@@ -46,7 +45,7 @@ public class SampleOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesPattern("SampleOperator\\[probability = 0.5, seed = -?\\d+]");
+        return equalTo("SampleOperator[probability = 0.5]");
     }
 
     @Override

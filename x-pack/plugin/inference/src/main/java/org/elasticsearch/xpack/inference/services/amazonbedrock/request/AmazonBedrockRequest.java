@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockMod
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 
 import java.net.URI;
+import java.util.Objects;
 
 public abstract class AmazonBedrockRequest implements Request {
 
@@ -24,7 +26,7 @@ public abstract class AmazonBedrockRequest implements Request {
     protected final TimeValue timeout;
 
     protected AmazonBedrockRequest(AmazonBedrockModel model, @Nullable TimeValue timeout) {
-        this.amazonBedrockModel = model;
+        this.amazonBedrockModel = Objects.requireNonNull(model);
         this.inferenceId = model.getInferenceEntityId();
         this.timeout = timeout;
     }
@@ -39,8 +41,8 @@ public abstract class AmazonBedrockRequest implements Request {
      * Amazon Bedrock uses the AWS SDK, and will not create its own Http Request
      */
     @Override
-    public final HttpRequest createHttpRequest() {
-        throw new UnsupportedOperationException("Amazon Bedrock does not use Http Requests");
+    public final void createHttpRequest(ActionListener<HttpRequest> listener) {
+        listener.onFailure(new UnsupportedOperationException("Amazon Bedrock does not use Http Requests"));
     }
 
     /**

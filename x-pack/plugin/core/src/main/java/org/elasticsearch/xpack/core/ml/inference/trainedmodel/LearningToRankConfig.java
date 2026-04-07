@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -225,7 +224,7 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

@@ -89,8 +89,9 @@ public final class StoreRecovery {
     void recoverFromStore(final IndexShard indexShard, ActionListener<Boolean> listener) {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
-            assert recoveryType == RecoverySource.Type.EMPTY_STORE || recoveryType == RecoverySource.Type.EXISTING_STORE
-                : "expected store recovery type but was: " + recoveryType;
+            assert recoveryType == RecoverySource.Type.EMPTY_STORE
+                || recoveryType == RecoverySource.Type.EXISTING_STORE
+                || recoveryType == RecoverySource.Type.RESHARD_SPLIT : "expected one of store recovery types but was: " + recoveryType;
             logger.debug("starting recovery from store ...");
             final var recoveryListener = recoveryListener(indexShard, listener);
             try {
@@ -127,15 +128,16 @@ public final class StoreRecovery {
                 mappingUpdateConsumer.accept(sourceMetadata.mapping(), mappingStep);
             }
             mappingStep.addListener(outerListener.delegateFailure((listener, ignored) -> {
-                indexShard.mapperService().merge(sourceMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
-                // now that the mapping is merged we can validate the index sort configuration.
-                Sort indexSort = indexShard.getIndexSort();
-                final boolean hasNested = indexShard.mapperService().hasNested();
-                final boolean isSplit = sourceMetadata.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
-
                 final var recoveryListener = recoveryListener(indexShard, listener);
-                logger.debug("starting recovery from local shards {}", shards);
+
                 try {
+                    indexShard.mapperService().merge(sourceMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+                    // now that the mapping is merged we can validate the index sort configuration.
+                    Sort indexSort = indexShard.getIndexSort();
+                    final boolean hasNested = indexShard.mapperService().hasNested();
+                    final boolean isSplit = sourceMetadata.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
+
+                    logger.debug("starting recovery from local shards {}", shards);
                     final Directory directory = indexShard.store().directory(); // don't close this directory!!
                     final Directory[] sources = shards.stream().map(LocalShardSnapshot::getSnapshotDirectory).toArray(Directory[]::new);
                     final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();

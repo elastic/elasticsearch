@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ssl.cert;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,40 +55,26 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
     }
 
     public CertificateInfo(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.path = in.readOptionalString();
-        } else {
-            this.path = in.readString();
-        }
+        this.path = in.readOptionalString();
         this.format = in.readString();
         this.alias = in.readOptionalString();
         this.subjectDn = in.readString();
         this.serialNumber = in.readString();
         this.hasPrivateKey = in.readBoolean();
         this.expiry = Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            this.issuer = in.readString();
-        } else {
-            this.issuer = "";
-        }
+        this.issuer = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeOptionalString(this.path);
-        } else {
-            out.writeString(this.path == null ? "" : this.path);
-        }
+        out.writeOptionalString(this.path);
         out.writeString(format);
         out.writeOptionalString(alias);
         out.writeString(subjectDn);
         out.writeString(serialNumber);
         out.writeBoolean(hasPrivateKey);
         out.writeLong(expiry.toInstant().toEpochMilli());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeString(issuer);
-        }
+        out.writeString(issuer);
     }
 
     @Nullable

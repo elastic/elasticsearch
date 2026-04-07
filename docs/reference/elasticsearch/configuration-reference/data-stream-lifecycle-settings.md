@@ -3,8 +3,7 @@ navigation_title: "Data stream lifecycle settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/data-stream-lifecycle-settings.html
 applies_to:
-  deployment:
-    self:
+  stack: all
 ---
 
 # Data stream lifecycle settings in {{es}} [data-stream-lifecycle-settings]
@@ -58,21 +57,24 @@ $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 
 ## Index level settings [_index_level_settings]
 
+:::{include} ../index-settings/_snippets/serverless-availability.md
+:::
+
 The following index-level settings are typically configured on the backing indices of a data stream.
 
 $$$index-lifecycle-prefer-ilm$$$
 
 `index.lifecycle.prefer_ilm`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), boolean) This setting determines which feature is managing the backing index of a data stream if, and only if, the backing index has an [{{ilm}}](docs-content://manage-data/lifecycle/index-lifecycle-management.md) ({{ilm-init}}) policy and the data stream has also a built-in lifecycle. When `true` this index is managed by {{ilm-init}}, when `false` the backing index is managed by the data stream lifecycle. Defaults to `true`.
+:   ([Dynamic](../index-settings/index.md#index-modules-settings-description), boolean) This setting determines which feature is managing the backing index of a data stream if, and only if, the backing index has an [{{ilm}}](docs-content://manage-data/lifecycle/index-lifecycle-management.md) ({{ilm-init}}) policy and the data stream has also a built-in lifecycle. When `true` this index is managed by {{ilm-init}}, when `false` the backing index is managed by the data stream lifecycle. Defaults to `true`.
 
 $$$index-data-stream-lifecycle-origination-date$$$
 
-`index.lifecycle.origination_date`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), long) If specified, this is the timestamp used to calculate the backing index generation age after this backing index has been [rolled over](docs-content://manage-data/lifecycle/index-lifecycle-management/rollover.md). The generation age is used to determine data retention, consequently, you can use this setting if you create a backing index that contains older data and want to ensure that the retention period or other parts of the lifecycle will be applied based on the data’s original timestamp and not the timestamp they got indexed. Specified as a Unix epoch value in milliseconds.
+`index.lifecycle.origination_date` {applies_to}`serverless: all`
+:   ([Dynamic](../index-settings/index.md#index-modules-settings-description), long) If specified, this is the timestamp used to calculate the backing index generation age after this backing index has been [rolled over](docs-content://manage-data/lifecycle/index-lifecycle-management/rollover.md). The generation age is used to determine data retention, consequently, you can use this setting if you create a backing index that contains older data and want to ensure that the retention period or other parts of the lifecycle will be applied based on the data’s original timestamp and not the timestamp they got indexed. Specified as a Unix epoch value in milliseconds.
 
 ## Reindex settings [reindex-data-stream-settings]
 
-You can use the following settings to control the behavior of the reindex data stream API:
+You can use the following cluster-level settings to control the behavior of the reindex data stream API:
 
 `migrate.max_concurrent_indices_reindexed_per_data_stream` ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The number of backing indices within a given data stream which will be reindexed concurrently. Defaults to `1`.
 

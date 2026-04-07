@@ -7,31 +7,37 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
-import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
  * Lookup join - specialized LEFT (OUTER) JOIN between the main left side and a lookup index (index_mode = lookup) on the right.
+ * This is only used during parsing and substituted to a regular {@link Join} during analysis.
  */
-public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
+public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware {
 
-    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
-        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList());
+    public LookupJoin(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        List<Attribute> joinFields,
+        @Nullable Expression joinOnConditions
+    ) {
+        this(source, left, right, LEFT, joinFields, joinFields, false, joinOnConditions);
     }
 
     public LookupJoin(
@@ -39,15 +45,20 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
         LogicalPlan left,
         LogicalPlan right,
         JoinType type,
-        List<Attribute> joinFields,
         List<Attribute> leftFields,
-        List<Attribute> rightFields
+        List<Attribute> rightFields,
+        boolean isRemote,
+        Expression joinOnConditions
     ) {
-        this(source, left, right, new JoinConfig(type, joinFields, leftFields, rightFields));
+        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), isRemote);
     }
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig) {
-        super(source, left, right, joinConfig);
+        this(source, left, right, joinConfig, false);
+    }
+
+    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, boolean isRemote) {
+        super(source, left, right, joinConfig, isRemote);
     }
 
     /**
@@ -56,12 +67,12 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
     @Override
     public LogicalPlan surrogate() {
         // TODO: decide whether to introduce USING or just basic ON semantics - keep the ordering out for now
-        return new Join(source(), left(), right(), config());
+        return new Join(source(), left(), right(), config(), isRemote());
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new LookupJoin(source(), left, right, config());
+        return new LookupJoin(source(), left, right, config(), isRemote());
     }
 
     @Override
@@ -72,36 +83,35 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
             left(),
             right(),
             config().type(),
-            config().matchFields(),
             config().leftFields(),
-            config().rightFields()
+            config().rightFields(),
+            isRemote(),
+            config().joinOnConditions()
         );
     }
 
     @Override
     public String telemetryLabel() {
-        return "LOOKUP JOIN";
+        if (config().joinOnConditions() == null) {
+            return "LOOKUP JOIN";
+        }
+        return "LOOKUP JOIN ON EXPRESSION";
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
-        right().forEachDown(EsRelation.class, esr -> {
-            var indexNameWithModes = esr.indexNameWithModes();
-            if (indexNameWithModes.size() != 1) {
-                failures.add(
-                    fail(esr, "invalid [{}] resolution in lookup mode to [{}] indices", esr.indexPattern(), indexNameWithModes.size())
-                );
-            } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
-                failures.add(
-                    fail(
-                        esr,
-                        "invalid [{}] resolution in lookup mode to an index in [{}] mode",
-                        esr.indexPattern(),
-                        indexNameWithModes.values().iterator().next()
-                    )
-                );
-            }
+        if (isRemote()) {
+            checkRemoteJoin(failures);
+        }
+    }
+
+    private void checkRemoteJoin(Failures failures) {
+        // Check only for LIMITs, Join will check the rest post-optimization
+        this.forEachUp(Limit.class, f -> {
+            failures.add(
+                fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.source().text() + "]" + f.source().source())
+            );
         });
     }
 }

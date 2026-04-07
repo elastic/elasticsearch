@@ -6,7 +6,7 @@ setup:
           parameters: [method, path, parameters, capabilities]
           capabilities: [union_types, union_types_remove_fields, casting_operator]
       reason: "Union types and casting operator introduced in 8.15.0"
-      test_runner_features: [capabilities, allowed_warnings_regex, warnings_regex]
+      test_runner_features: [capabilities, allowed_warnings_regex, warnings_regex, allowed_warnings]
 
   - do:
       indices.create:
@@ -913,10 +913,12 @@ suggested_type:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [recommended_cast]
-      reason: "uses recommended_cast"
+          capabilities: [suggested_cast, implicit_casting_date_and_date_nanos, aggregate_metric_double_v0]
+      reason: "date and date_nanos should no longer produce suggested_cast column"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: metrics_1
         body:
@@ -969,9 +971,7 @@ suggested_type:
   - match: { columns.0.original_types: ["aggregate_metric_double", "long"] }
   - match: { columns.0.suggested_cast: "aggregate_metric_double" }
   - match: { columns.1.name: "my_date" }
-  - match: { columns.1.type: "unsupported" }
-  - match: { columns.1.original_types: ["date_nanos", "datetime"] }
-  - match: { columns.1.suggested_cast: "date_nanos" }
+  - match: { columns.1.type: "date_nanos" }
   - match: { columns.2.name: "my_double" }
   - match: { columns.2.type: "double" }
   - is_false: columns.2.original_types

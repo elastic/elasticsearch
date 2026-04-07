@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -37,6 +38,11 @@ import java.util.List;
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.stringListSetting(
         "reindex.remote.whitelist",
+        Property.NodeScope
+    );
+    // Hosts matching the blocklist are not allowed, even if they match the whitelist
+    public static final Setting<List<String>> REMOTE_CLUSTER_BLOCKLIST = Setting.stringListSetting(
+        "reindex.remote.blocklist",
         Property.NodeScope
     );
 
@@ -58,7 +64,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Client client,
         TransportService transportService,
         ReindexSslConfig sslConfig,
-        @Nullable ReindexMetrics reindexMetrics
+        @Nullable ReindexMetrics reindexMetrics,
+        ReindexRelocationNodePicker relocationNodePicker,
+        FeatureService featureService
     ) {
         this(
             ReindexAction.NAME,
@@ -73,7 +81,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             client,
             transportService,
             sslConfig,
-            reindexMetrics
+            reindexMetrics,
+            relocationNodePicker,
+            featureService
         );
     }
 
@@ -90,7 +100,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Client client,
         TransportService transportService,
         ReindexSslConfig sslConfig,
-        @Nullable ReindexMetrics reindexMetrics
+        @Nullable ReindexMetrics reindexMetrics,
+        ReindexRelocationNodePicker relocationNodePicker,
+        FeatureService featureService
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -101,12 +113,24 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             projectResolver,
             autoCreateIndex
         );
-        this.reindexer = new Reindexer(clusterService, projectResolver, client, threadPool, scriptService, sslConfig, reindexMetrics);
+        this.reindexer = new Reindexer(
+            clusterService,
+            projectResolver,
+            client,
+            threadPool,
+            scriptService,
+            sslConfig,
+            reindexMetrics,
+            transportService,
+            relocationNodePicker,
+            featureService
+        );
     }
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         validate(request);
+        normalize(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         reindexer.initTask(
             bulkByScrollTask,
@@ -130,5 +154,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      */
     protected void validate(ReindexRequest request) {
         reindexValidator.initialValidation(request);
+    }
+
+    /**
+     * This method can be overridden if different than usual normalization is needed.
+     * This method should throw an exception if normalization fails.
+     */
+    protected void normalize(ReindexRequest request) {
+        reindexValidator.normalize(request);
     }
 }

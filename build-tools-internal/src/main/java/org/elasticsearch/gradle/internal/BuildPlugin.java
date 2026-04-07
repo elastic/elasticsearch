@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.internal.conventions.LicensingPlugin;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.internal.snyk.SnykDependencyMonitoringGradlePlugin;
@@ -59,9 +60,9 @@ public class BuildPlugin implements Plugin<Project> {
         }
 
         project.getPluginManager().apply("elasticsearch.java");
-        project.getPluginManager().apply("elasticsearch.publish");
         project.getPluginManager().apply(ElasticsearchJavadocPlugin.class);
         project.getPluginManager().apply(DependenciesInfoPlugin.class);
+        project.getPluginManager().apply(LicensingPlugin.class);
         project.getPluginManager().apply(SnykDependencyMonitoringGradlePlugin.class);
         project.getPluginManager().apply(ClusterFeaturesMetadataPlugin.class);
         InternalPrecommitTasks.create(project, true);

@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -148,7 +148,7 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         // TODO: Get the real FoldContext here
         var wildcardQuery = QueryParser.escape(BytesRefs.toString(prefix.fold(FoldContext.small()))) + "*";
 
-        return new WildcardQuery(source(), fieldName, wildcardQuery);
+        return new WildcardQuery(source(), fieldName, wildcardQuery, false, false);
     }
 
     @Override
@@ -160,7 +160,7 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         return str;
     }
 
-    Expression prefix() {
+    public Expression prefix() {
         return prefix;
     }
 }

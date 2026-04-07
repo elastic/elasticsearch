@@ -8,10 +8,10 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
-import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
-import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.component.ComponentIdentifier;
 import org.gradle.api.file.Directory;
@@ -21,6 +21,11 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.problems.Problem;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.ProblemReporter;
+import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Spec;
@@ -39,13 +44,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -94,7 +100,7 @@ import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createFil
  * comply with the license terms.
  */
 @CacheableTask
-public abstract class DependencyLicensesTask extends DefaultTask {
+public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
 
     private final Pattern regex = Pattern.compile("-v?\\d+.*");
 
@@ -113,11 +119,6 @@ public abstract class DependencyLicensesTask extends DefaultTask {
     private final DirectoryProperty licensesDir;
 
     /**
-     * A map of patterns to prefix, used to find the LICENSE and NOTICE file.
-     */
-    private Map<String, String> mappings = new LinkedHashMap<>();
-
-    /**
      * Names of dependencies whose shas should not exist.
      */
     private Set<String> ignoreShas = new HashSet<>();
@@ -127,30 +128,14 @@ public abstract class DependencyLicensesTask extends DefaultTask {
      */
     private LinkedHashSet<String> ignoreFiles = new LinkedHashSet<>();
     private ProjectLayout projectLayout;
-
-    /**
-     * Add a mapping from a regex pattern for the jar name, to a prefix to find
-     * the LICENSE and NOTICE file for that jar.
-     */
-    public void mapping(Map<String, String> props) {
-        String from = props.get("from");
-        if (from == null) {
-            throw new InvalidUserDataException("Missing \"from\" setting for license name mapping");
-        }
-        String to = props.get("to");
-        if (to == null) {
-            throw new InvalidUserDataException("Missing \"to\" setting for license name mapping");
-        }
-        if (props.size() > 2) {
-            throw new InvalidUserDataException("Unknown properties for mapping on dependencyLicenses: " + props.keySet());
-        }
-        mappings.put(from, to);
-    }
+    private final ProblemReporter problemReporter;
+    private List<Problem> collectedProblems;
 
     @Inject
-    public DependencyLicensesTask(ObjectFactory objects, ProjectLayout projectLayout) {
+    public DependencyLicensesTask(ObjectFactory objects, ProjectLayout projectLayout, Problems problems) {
         this.projectLayout = projectLayout;
         licensesDir = objects.directoryProperty().convention(projectLayout.getProjectDirectory().dir("licenses"));
+        this.problemReporter = problems.getReporter();
     }
 
     @InputFiles
@@ -200,21 +185,32 @@ public abstract class DependencyLicensesTask extends DefaultTask {
 
     @TaskAction
     public void checkDependencies() {
+        collectedProblems = new ArrayList<>();
         if (dependencies == null) {
             throw new GradleException("No dependencies variable defined.");
         }
         File licensesDirAsFile = licensesDir.get().getAsFile();
         if (dependencies.isEmpty()) {
             if (licensesDirAsFile.exists() && allIgnored() == false) {
-                throw new GradleException("Licenses dir " + licensesDirAsFile + " exists, but there are no dependencies");
+                reportProblem(
+                    "no-dependencies",
+                    "Licenses dir exists without dependencies",
+                    "Licenses dir " + licensesDirAsFile + " exists, but there are no dependencies",
+                    "Remove the licenses directory or add dependencies"
+                );
             }
+            throwIfProblems();
             return; // no dependencies to check
         } else if (licensesDirAsFile.exists() == false) {
-            String deps = "";
-            for (File file : dependencies) {
-                deps += file.getName() + "\n";
-            }
-            throw new GradleException("Licences dir " + licensesDirAsFile + " does not exist, but there are dependencies: " + deps);
+            String deps = dependencies.getFiles().stream().map(File::getName).collect(Collectors.joining("\n"));
+            reportProblem(
+                "missing-licenses-dir",
+                "Licenses directory missing",
+                "Licenses dir " + licensesDirAsFile + " does not exist, but there are dependencies: " + deps,
+                "Create a licenses directory with LICENSE, NOTICE, and SHA files for each dependency"
+            );
+            throwIfProblems();
+            return;
         }
 
         Map<String, Boolean> licenses = new HashMap<>();
@@ -238,11 +234,29 @@ public abstract class DependencyLicensesTask extends DefaultTask {
 
         checkDependencies(licenses, notices, sources);
 
-        licenses.forEach((item, exists) -> failIfAnyMissing(item, exists, "license"));
+        licenses.forEach((item, exists) -> checkUnused(item, exists, "license"));
+        notices.forEach((item, exists) -> checkUnused(item, exists, "notice"));
+        sources.forEach((item, exists) -> checkUnused(item, exists, "sources"));
 
-        notices.forEach((item, exists) -> failIfAnyMissing(item, exists, "notice"));
+        throwIfProblems();
+    }
 
-        sources.forEach((item, exists) -> failIfAnyMissing(item, exists, "sources"));
+    private void throwIfProblems() {
+        if (collectedProblems.isEmpty() == false) {
+            problemReporter.report(collectedProblems);
+            throw new GradleException(
+                "Dependency license check failed with " + collectedProblems.size() + " problem" + (collectedProblems.size() == 1 ? "" : "s")
+            );
+        }
+    }
+
+    private void reportProblem(String id, String displayName, String details, String solution) {
+        collectedProblems.add(
+            problemReporter.create(
+                ProblemId.create(id, displayName, ElasticsearchBuildProblems.DEPENDENCY_LICENSES),
+                spec -> spec.contextualLabel(details).details(details).severity(Severity.ERROR).solution(solution)
+            )
+        );
     }
 
     private boolean allIgnored() {
@@ -257,9 +271,14 @@ public abstract class DependencyLicensesTask extends DefaultTask {
         return projectLayout.getBuildDirectory().dir("dependencyLicense");
     }
 
-    private void failIfAnyMissing(String item, Boolean exists, String type) {
+    private void checkUnused(String item, Boolean exists, String type) {
         if (exists == false) {
-            throw new GradleException("Unused " + type + " " + item);
+            reportProblem(
+                "unused-" + type,
+                "Unused " + type + " file",
+                "Unused " + type + " " + item,
+                "Remove the unused " + type + " file " + item
+            );
         }
     }
 
@@ -267,15 +286,18 @@ public abstract class DependencyLicensesTask extends DefaultTask {
         for (File dependency : dependencies) {
             String jarName = dependency.getName();
             String depName = regex.matcher(jarName).replaceFirst("");
-            String dependencyName = getDependencyName(mappings, depName);
+            String dependencyName = getDependencyName(getMappings().get(), depName);
             logger.info("mapped dependency name {} to {} for license/notice check", depName, dependencyName);
             checkFile(dependencyName, jarName, licenses, "LICENSE");
             checkFile(dependencyName, jarName, notices, "NOTICE");
 
-            File licenseFile = new File(licensesDir.get().getAsFile(), getFileName(dependencyName, licenses, "LICENSE"));
-            LicenseInfo licenseInfo = LicenseAnalyzer.licenseType(licenseFile);
-            if (licenseInfo.sourceRedistributionRequired()) {
-                checkFile(dependencyName, jarName, sources, "SOURCES");
+            String licenseFileName = getFileName(dependencyName, licenses, "LICENSE");
+            if (licenses.containsKey(licenseFileName)) {
+                File licenseFile = new File(licensesDir.get().getAsFile(), licenseFileName);
+                LicenseInfo licenseInfo = LicenseAnalyzer.licenseType(licenseFile);
+                if (licenseInfo.sourceRedistributionRequired()) {
+                    checkFile(dependencyName, jarName, sources, "SOURCES");
+                }
             }
         }
     }
@@ -299,7 +321,13 @@ public abstract class DependencyLicensesTask extends DefaultTask {
         String fileName = getFileName(name, counters, type);
 
         if (counters.containsKey(fileName) == false) {
-            throw new GradleException("Missing " + type + " for " + jarName + ", expected in " + fileName);
+            reportProblem(
+                "missing-" + type.toLowerCase(Locale.ROOT),
+                "Missing " + type + " file",
+                "Missing " + type + " for " + jarName + ", expected in " + fileName,
+                "Add a " + type + " file named " + fileName + " to the licenses directory"
+            );
+            return;
         }
 
         counters.put(fileName, true);
@@ -319,11 +347,6 @@ public abstract class DependencyLicensesTask extends DefaultTask {
     @Optional
     public LinkedHashSet<String> getIgnoreFiles() {
         return new LinkedHashSet<>(ignoreFiles);
-    }
-
-    @Input
-    public LinkedHashMap<String, String> getMappings() {
-        return new LinkedHashMap<>(mappings);
     }
 
     /**

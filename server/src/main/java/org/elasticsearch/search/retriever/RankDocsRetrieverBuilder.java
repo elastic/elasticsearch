@@ -9,10 +9,12 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RankDocsQueryBuilder;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,18 +30,23 @@ import java.util.function.Supplier;
  */
 public class RankDocsRetrieverBuilder extends RetrieverBuilder {
 
+    public static final NodeFeature NESTED_RETRIEVER_MIN_SCORE_TOTAL_HITS_FIX = new NodeFeature(
+        "nested_retriever_min_score_total_hits_fix"
+    );
+
     public static final String NAME = "rank_docs_retriever";
     final int rankWindowSize;
     final List<RetrieverBuilder> sources;
     final Supplier<RankDoc[]> rankDocs;
 
-    public RankDocsRetrieverBuilder(int rankWindowSize, List<RetrieverBuilder> sources, Supplier<RankDoc[]> rankDocs) {
+    public RankDocsRetrieverBuilder(int rankWindowSize, List<RetrieverBuilder> sources, Supplier<RankDoc[]> rankDocs, Float minScore) {
         this.rankWindowSize = rankWindowSize;
         this.rankDocs = rankDocs;
         if (sources == null || sources.isEmpty()) {
             throw new IllegalArgumentException("sources must not be null or empty");
         }
         this.sources = sources;
+        this.minScore = minScore;
     }
 
     @Override
@@ -47,8 +54,9 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         return NAME;
     }
 
-    private boolean sourceHasMinScore() {
-        return minScore != null || sources.stream().anyMatch(x -> x.minScore() != null);
+    @Override
+    protected boolean hasMinScore() {
+        return this.minScore != null || sources.stream().anyMatch(RetrieverBuilder::hasMinScore);
     }
 
     private boolean sourceShouldRewrite(QueryRewriteContext ctx) throws IOException {
@@ -123,7 +131,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
                 );
             }
         } else {
-            rankQuery = new RankDocsQueryBuilder(rankDocResults, null, false);
+            rankQuery = new RankDocsQueryBuilder(rankDocResults, null, true);
         }
         rankQuery.queryName(retrieverName());
         // ignore prefilters of this level, they were already propagated to children
@@ -131,9 +139,14 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         if (searchSourceBuilder.size() < 0) {
             searchSourceBuilder.size(rankWindowSize);
         }
-        if (sourceHasMinScore()) {
-            searchSourceBuilder.minScore(this.minScore() == null ? Float.MIN_VALUE : this.minScore());
+        if (hasMinScore()) {
+            searchSourceBuilder.minScore(this.minScore == null ? Float.MIN_VALUE : this.minScore);
         }
+
+        if (searchSourceBuilder.from() < 0) {
+            searchSourceBuilder.from(SearchService.DEFAULT_FROM);
+        }
+
         if (searchSourceBuilder.size() + searchSourceBuilder.from() > rankDocResults.length) {
             searchSourceBuilder.size(Math.max(0, rankDocResults.length - searchSourceBuilder.from()));
         }

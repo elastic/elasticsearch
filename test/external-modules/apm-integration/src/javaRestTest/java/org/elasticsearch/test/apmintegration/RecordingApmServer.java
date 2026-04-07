@@ -15,7 +15,6 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.junit.rules.ExternalResource;
 
 import java.io.BufferedReader;
@@ -25,7 +24,6 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -35,14 +33,12 @@ import java.util.function.Consumer;
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
-    private static final XContentProvider.FormatProvider XCONTENT = XContentProvider.provider().getJsonXContent();
-
-    final ArrayBlockingQueue<String> received = new ArrayBlockingQueue<>(1000);
+    final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
 
     private static HttpServer server;
     private final Thread messageConsumerThread = consumerThread();
-    private volatile Consumer<String> consumer;
-    private volatile boolean consumerRunning = true;
+    private volatile Consumer<ReceivedTelemetry> consumer;
+    private volatile boolean running = true;
 
     @Override
     protected void before() throws Throwable {
@@ -56,16 +52,18 @@ public class RecordingApmServer extends ExternalResource {
 
     private Thread consumerThread() {
         return new Thread(() -> {
-            while (consumerRunning) {
+            while (running && Thread.currentThread().isInterrupted() == false) {
                 if (consumer != null) {
                     try {
-                        String msg = received.poll(1L, TimeUnit.SECONDS);
-                        if (msg != null && msg.isEmpty() == false) {
+                        ReceivedTelemetry msg = received.poll(1L, TimeUnit.SECONDS);
+                        if (msg != null) {
                             consumer.accept(msg);
                         }
-
                     } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                        Thread.currentThread().interrupt();
+                        return;
+                    } catch (Exception e) {
+                        logger.warn("failed to process message", e);
                     }
                 }
             }
@@ -74,28 +72,50 @@ public class RecordingApmServer extends ExternalResource {
 
     @Override
     protected void after() {
-        server.stop(1);
-        consumerRunning = false;
+        running = false;
+        messageConsumerThread.interrupt();
+        if (server != null) {
+            server.stop(1);
+        }
+        consumer = null;
+        try {
+            messageConsumerThread.join(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
-            try {
+            String path = exchange.getRequestURI().getPath();
+            if (running) {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
-                        var read = readJsonMessages(requestBody);
-                        received.addAll(read);
+                        if ("/v1/metrics".equals(path)) {
+                            received.addAll(OtlpMetricsParser.parse(requestBody));
+                        } else {
+                            List<String> lines = readJsonMessages(requestBody);
+                            for (String line : lines) {
+                                ApmIntakeMessageParser.parseLine(line).ifPresent(received::add);
+                            }
+                        }
                     }
+                } catch (Throwable t) {
+                    // The lifetime of HttpServer makes message handling "brittle": we need to start handling and recording received
+                    // messages before the test starts running. We should also stop handling them before the test ends (and the test
+                    // cluster is torn down), or we may run into IOException as the communication channel is interrupted.
+                    // Coordinating the lifecycle of the mock HttpServer and of the test ES cluster is difficult and error-prone, so
+                    // we just handle Throwable and don't care (log, but don't care): if we have an error in communicating to/from
+                    // the mock server while the test is running, the test would fail anyway as the expected messages will not arrive, and
+                    // if we have an error outside the test scope (before or after) that is OK.
+                    logger.warn("failed to parse request", t);
                 }
-
-            } catch (RuntimeException e) {
-                logger.warn("failed to parse request", e);
             }
             exchange.sendResponseHeaders(201, 0);
         }
     }
 
-    private List<String> readJsonMessages(InputStream input) throws IOException {
+    private List<String> readJsonMessages(InputStream input) {
         // parse NDJSON
         return new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)).lines().toList();
     }
@@ -104,13 +124,19 @@ public class RecordingApmServer extends ExternalResource {
         return server.getAddress().getPort();
     }
 
-    public List<String> getMessages() {
-        List<String> list = new ArrayList<>(received.size());
-        received.drainTo(list);
-        return list;
+    /**
+     * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+     */
+    public String getHttpAddress() {
+        String host = server.getAddress().getHostString();
+        if (host.contains(":")) {
+            // IPv6 address needs brackets
+            host = "[" + host + "]";
+        }
+        return host + ":" + getPort();
     }
 
-    public void addMessageConsumer(Consumer<String> messageConsumer) {
+    public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {
         this.consumer = messageConsumer;
     }
 

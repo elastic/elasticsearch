@@ -2,9 +2,10 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-network.html
 applies_to:
-  deployment:
-    ess:
-    self:
+  stack: ga
+  serverless: unavailable
+products:
+  - id: elasticsearch
 ---
 
 # Networking settings [modules-network]
@@ -434,7 +435,9 @@ The compression settings do not configure compression for responses. {{es}} will
 
 ## Advanced remote cluster (API key based model) settings [remote-cluster-network-settings]
 
-Use the following advanced settings to configure the remote cluster interface (API key based model) independently of the [transport interface](#transport-settings). You can also configure both interfaces together using the [network settings](#common-network-settings).
+The section describes the advanced settings to configure the remote cluster interface ([API key-based security model](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md)) independently of the [transport interface](#transport-settings). You can also configure both interfaces together using the [network settings](#common-network-settings).
+
+For client settings that control how your local cluster connects to remote clusters, refer to [Remote cluster settings](/reference/elasticsearch/configuration-reference/remote-clusters.md).
 
 `remote_cluster_server.enabled`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), boolean) Determines whether the remote cluster server should be enabled. This setting must be `true` for `remote_cluster.port` and all following remote cluster settings to take effect. Enabling it allows the cluster to serve cross-cluster requests using the API key based model. Defaults to `false`.
@@ -663,11 +666,6 @@ It may also be possible to identify some reasons for delays from the server logs
 
 
 ## TCP readiness port [tcp-readiness-port]
-
-::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 If configured, a node can open a TCP port when the node is in a ready state. A node is deemed ready when it has successfully joined a cluster. In a single node configuration, the node is said to be ready, when it’s able to accept requests.
 

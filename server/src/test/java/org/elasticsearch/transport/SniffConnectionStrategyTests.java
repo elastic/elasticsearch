@@ -9,13 +9,13 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,6 +37,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -58,6 +59,13 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
+import static org.elasticsearch.transport.LinkedProjectConfig.SniffLinkedProjectConfig;
+import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTERS_PROXY;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
+import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS;
+import static org.elasticsearch.transport.RemoteClusterSettings.toConfig;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
@@ -67,7 +75,8 @@ import static org.hamcrest.Matchers.oneOf;
 public class SniffConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
-    private final String modeKey = RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+    private final String modeKey = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey();
+    private final String seedNodesKey = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey();
     private Settings clientSettings;
     private ConnectionProfile profile;
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
@@ -77,17 +86,20 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         hasClusterCredentials = randomBoolean();
-        final Settings.Builder builder = Settings.builder().put(modeKey, "sniff");
+        final Settings.Builder builder = Settings.builder().put(modeKey, "sniff").put(seedNodesKey, "localhost:8080");
         if (hasClusterCredentials) {
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString(
-                RemoteClusterService.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS.getConcreteSettingForNamespace(clusterAlias).getKey(),
                 randomAlphaOfLength(20)
             );
             builder.setSecureSettings(secureSettings);
         }
         clientSettings = builder.build();
-        profile = RemoteConnectionStrategy.buildConnectionProfile(clusterAlias, clientSettings, hasClusterCredentials);
+        profile = RemoteConnectionStrategy.buildConnectionProfile(
+            toConfig(clusterAlias, clientSettings),
+            hasClusterCredentials ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE : TransportSettings.DEFAULT_PROFILE
+        );
     }
 
     @Override
@@ -126,7 +138,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             newService.registerRequestHandler(
                 ClusterStateAction.NAME,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                ClusterStateRequest::new,
+                RemoteClusterStateRequest::new,
                 (request, channel, task) -> {
                     DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
                     for (DiscoveryNode node : knownNodes) {
@@ -201,14 +213,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        sniffStrategyConfig(clusterAlias, 3, seedNodes(seedNode)),
                         localService,
-                        remoteConnectionManager,
-                        null,
-                        clientSettings,
-                        3,
-                        n -> true,
-                        seedNodes(seedNode)
+                        remoteConnectionManager
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
@@ -275,15 +282,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        sniffStrategyConfig(clusterAlias, 3, seedNodes(seedNode)),
+                        Collections.singletonList(seedNodeSupplier),
                         localService,
-                        remoteConnectionManager,
-                        null,
-                        Settings.EMPTY,
-                        3,
-                        n -> true,
-                        seedNodes(seedNode),
-                        Collections.singletonList(seedNodeSupplier)
+                        remoteConnectionManager
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
@@ -353,14 +355,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        sniffStrategyConfig(clusterAlias, 2, seedNodes(seedNode)),
                         localService,
-                        remoteConnectionManager,
-                        null,
-                        Settings.EMPTY,
-                        2,
-                        n -> true,
-                        seedNodes(seedNode)
+                        remoteConnectionManager
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
@@ -393,7 +390,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.minimumCompatible(),
+            true
+        );
         try (
             MockTransportService seedTransport = startTransport(
                 "seed_node",
@@ -445,14 +445,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        sniffStrategyConfig(clusterAlias, 3, seedNodes(seedNode)),
                         localService,
-                        remoteConnectionManager,
-                        null,
-                        Settings.EMPTY,
-                        3,
-                        n -> true,
-                        seedNodes(seedNode)
+                        remoteConnectionManager
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
@@ -476,7 +471,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
-        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
+        TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.minimumCompatible(),
+            true
+        );
         try (
             MockTransportService incompatibleSeedTransport = startTransport(
                 "seed_node",
@@ -511,14 +509,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        sniffStrategyConfig(clusterAlias, 3, seedNodes(incompatibleSeedNode)),
                         localService,
-                        remoteConnectionManager,
-                        null,
-                        Settings.EMPTY,
-                        3,
-                        n -> true,
-                        seedNodes(incompatibleSeedNode)
+                        remoteConnectionManager
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
@@ -578,14 +571,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        sniffStrategyConfig(clusterAlias, 3, n -> n.equals(rejectedNode) == false, seedNodes(seedNode)),
                         localService,
-                        remoteConnectionManager,
-                        null,
-                        Settings.EMPTY,
-                        3,
-                        n -> n.equals(rejectedNode) == false,
-                        seedNodes(seedNode)
+                        remoteConnectionManager
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
@@ -607,6 +595,21 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     public void testConnectFailsIfNoConnectionsOpened() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        final boolean incompatibleDiscoverableNode = randomBoolean();
+        final VersionInformation discoverableNodeVersion;
+        final TransportVersion discoverableNodeTransportVersion;
+        if (incompatibleDiscoverableNode) {
+            discoverableNodeVersion = new VersionInformation(
+                Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion(),
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersion.current()
+            );
+            discoverableNodeTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.minimumCompatible(), true);
+        } else {
+            discoverableNodeVersion = VersionInformation.CURRENT;
+            discoverableNodeTransportVersion = TransportVersion.current();
+        }
+
         try (
             MockTransportService seedTransport = startTransport(
                 "seed_node",
@@ -617,14 +620,16 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             MockTransportService closedTransport = startTransport(
                 "discoverable_node",
                 knownNodes,
-                VersionInformation.CURRENT,
-                TransportVersion.current()
+                discoverableNodeVersion,
+                discoverableNodeTransportVersion
             )
         ) {
             DiscoveryNode seedNode = getLocalNode(seedTransport);
             DiscoveryNode discoverableNode = getLocalNode(closedTransport);
             knownNodes.add(discoverableNode);
-            closedTransport.close();
+            if (incompatibleDiscoverableNode == false) {
+                closedTransport.close();
+            }
 
             try (
                 MockTransportService localService = MockTransportService.createNewService(
@@ -650,21 +655,26 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        sniffStrategyConfig(clusterAlias, 3, n -> n.equals(seedNode) == false, seedNodes(seedNode)),
                         localService,
-                        remoteConnectionManager,
-                        null,
-                        Settings.EMPTY,
-                        3,
-                        n -> n.equals(seedNode) == false,
-                        seedNodes(seedNode)
+                        remoteConnectionManager
                     )
                 ) {
-                    PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
-                    strategy.connect(connectFuture);
-                    final IllegalStateException ise = expectThrows(IllegalStateException.class, connectFuture::actionGet);
-                    assertEquals("Unable to open any connections to remote cluster [cluster-alias]", ise.getMessage());
-                    assertTrue(strategy.assertNoRunningConnections());
+                    MockLog.assertThatLogger(() -> {
+                        PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
+                        strategy.connect(connectFuture);
+                        final IllegalStateException ise = expectThrows(IllegalStateException.class, connectFuture::actionGet);
+                        assertEquals("Unable to open any connections to remote cluster [cluster-alias]", ise.getMessage());
+                        assertTrue(strategy.assertNoRunningConnections());
+                    },
+                        SniffConnectionStrategy.class,
+                        new MockLog.SeenEventExpectation(
+                            "warning",
+                            SniffConnectionStrategy.class.getCanonicalName(),
+                            Level.WARN,
+                            "[" + clusterAlias + "] failed to open managed connection to node [{discoverable_node}*"
+                        )
+                    );
                 }
             }
         }
@@ -731,14 +741,10 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        sniffStrategyConfig(clusterAlias, 3, seedNodes(seedNode, otherSeedNode)),
                         localService,
-                        remoteConnectionManager,
-                        null,
-                        Settings.EMPTY,
-                        3,
-                        n -> true,
-                        seedNodes(seedNode, otherSeedNode)
+                        remoteConnectionManager
+
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
@@ -824,14 +830,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        sniffStrategyConfig(clusterAlias, 3, seedNodes(seedNode)),
                         localService,
-                        remoteConnectionManager,
-                        null,
-                        Settings.EMPTY,
-                        3,
-                        n -> true,
-                        seedNodes(seedNode)
+                        remoteConnectionManager
                     )
                 ) {
                     assertFalse(connectionManager.nodeConnected(seedNode));
@@ -926,7 +927,6 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     }
                 });
 
-                List<String> seedNodes = Collections.singletonList(accessibleNode.toString());
                 TransportAddress proxyAddress = accessibleNode.getAddress();
                 final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
                     profile,
@@ -940,14 +940,13 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(clusterAlias).maxNumConnections(3)
+                            .nodePredicate(n -> true)
+                            .seedNodes(seedNodes(accessibleNode))
+                            .proxyAddress(proxyAddress.toString())
+                            .build(),
                         localService,
-                        remoteConnectionManager,
-                        proxyAddress.toString(),
-                        Settings.EMPTY,
-                        3,
-                        n -> true,
-                        seedNodes
+                        remoteConnectionManager
                     )
                 ) {
                     assertFalse(connectionManager.nodeConnected(unaddressableSeedNode));
@@ -1013,14 +1012,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         connectionManager
                     );
                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(
-                        clusterAlias,
+                        sniffStrategyConfig(clusterAlias, 3, seedNodes(seedNode)),
                         localService,
-                        remoteConnectionManager,
-                        null,
-                        Settings.EMPTY,
-                        3,
-                        n -> true,
-                        seedNodes(seedNode)
+                        remoteConnectionManager
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
@@ -1031,31 +1025,29 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(strategy.assertNoRunningConnections());
 
-                    Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> proxySetting = SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("cluster-alias");
-                    Setting<?> numConnections = SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(
-                        "cluster-alias"
-                    );
+                    Setting<?> seedSetting = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> proxySetting = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace("cluster-alias");
+                    Setting<?> numConnections = REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace("cluster-alias");
 
                     Settings noChange = Settings.builder()
                         .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
                         .put(numConnections.getKey(), 3)
                         .build();
-                    assertFalse(strategy.shouldRebuildConnection(noChange));
+                    assertFalse(strategy.shouldRebuildConnection(toConfig(clusterAlias, noChange)));
                     Settings seedsChanged = Settings.builder()
                         .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(discoverableNode).toArray()))
                         .build();
-                    assertTrue(strategy.shouldRebuildConnection(seedsChanged));
+                    assertTrue(strategy.shouldRebuildConnection(toConfig(clusterAlias, seedsChanged)));
                     Settings proxyChanged = Settings.builder()
                         .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
                         .put(proxySetting.getKey(), "proxy_address:9300")
                         .build();
-                    assertTrue(strategy.shouldRebuildConnection(proxyChanged));
+                    assertTrue(strategy.shouldRebuildConnection(toConfig(clusterAlias, proxyChanged)));
                     Settings connectionsChanged = Settings.builder()
                         .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
                         .put(numConnections.getKey(), 4)
                         .build();
-                    assertTrue(strategy.shouldRebuildConnection(connectionsChanged));
+                    assertTrue(strategy.shouldRebuildConnection(toConfig(clusterAlias, connectionsChanged)));
                 }
             }
         }
@@ -1063,7 +1055,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     public void testGetNodePredicateNodeRoles() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(Settings.EMPTY);
+        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategySettings.getNodePredicate(Settings.EMPTY);
         {
             DiscoveryNode all = DiscoveryNodeUtils.create("id", address);
             assertThat(nodePredicate, trueWith(all));
@@ -1130,8 +1122,8 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     public void testGetNodePredicateNodeVersion() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
-        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(Settings.EMPTY);
-        Version version = VersionUtils.randomVersion(random());
+        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategySettings.getNodePredicate(Settings.EMPTY);
+        Version version = VersionUtils.randomVersion();
         DiscoveryNode node = DiscoveryNodeUtils.builder("id")
             .address(address)
             .version(version, IndexVersions.ZERO, IndexVersion.current())
@@ -1143,28 +1135,28 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
         Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
         Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
-        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(settings);
+        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategySettings.getNodePredicate(settings);
         {
             DiscoveryNode nonGatewayNode = DiscoveryNodeUtils.create("id", address, Collections.singletonMap("gateway", "false"), roles);
             assertThat(nodePredicate, falseWith(nonGatewayNode));
-            assertThat(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY), trueWith(nonGatewayNode));
+            assertThat(SniffConnectionStrategySettings.getNodePredicate(Settings.EMPTY), trueWith(nonGatewayNode));
         }
         {
             DiscoveryNode gatewayNode = DiscoveryNodeUtils.create("id", address, Collections.singletonMap("gateway", "true"), roles);
             assertThat(nodePredicate, trueWith(gatewayNode));
-            assertThat(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY), trueWith(gatewayNode));
+            assertThat(SniffConnectionStrategySettings.getNodePredicate(Settings.EMPTY), trueWith(gatewayNode));
         }
         {
             DiscoveryNode noAttrNode = DiscoveryNodeUtils.create("id", address, Collections.emptyMap(), roles);
             assertThat(nodePredicate, falseWith(noAttrNode));
-            assertThat(SniffConnectionStrategy.getNodePredicate(Settings.EMPTY), trueWith(noAttrNode));
+            assertThat(SniffConnectionStrategySettings.getNodePredicate(Settings.EMPTY), trueWith(noAttrNode));
         }
     }
 
     public void testGetNodePredicatesCombination() {
         TransportAddress address = new TransportAddress(TransportAddress.META_ADDRESS, 0);
         Settings settings = Settings.builder().put("cluster.remote.node.attr", "gateway").build();
-        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategy.getNodePredicate(settings);
+        Predicate<DiscoveryNode> nodePredicate = SniffConnectionStrategySettings.getNodePredicate(settings);
         Set<DiscoveryNodeRole> allRoles = DiscoveryNodeRole.roles();
         Set<DiscoveryNodeRole> dedicatedMasterRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE);
         {
@@ -1202,19 +1194,19 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
     public void testModeSettingsCannotBeUsedWhenInDifferentMode() {
         List<Tuple<Setting.AffixSetting<?>, String>> restrictedSettings = Arrays.asList(
-            new Tuple<>(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, "192.168.0.1:8080"),
-            new Tuple<>(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS, "2")
+            new Tuple<>(REMOTE_CLUSTER_SEEDS, "192.168.0.1:8080"),
+            new Tuple<>(REMOTE_NODE_CONNECTIONS, "2")
         );
 
         RemoteConnectionStrategy.ConnectionStrategy proxy = RemoteConnectionStrategy.ConnectionStrategy.PROXY;
 
         String clusterName = "cluster_name";
         Settings settings = Settings.builder()
-            .put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterName).getKey(), proxy.name())
+            .put(REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterName).getKey(), proxy.name())
             .build();
 
         Set<Setting<?>> clusterSettings = new HashSet<>();
-        clusterSettings.add(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE);
+        clusterSettings.add(REMOTE_CONNECTION_MODE);
         clusterSettings.addAll(restrictedSettings.stream().map(Tuple::v1).toList());
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, clusterSettings);
 
@@ -1255,5 +1247,23 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         } else {
             return transportService.getLocalNode();
         }
+    }
+
+    private static SniffLinkedProjectConfig sniffStrategyConfig(String linkedProjectAlias, int maxNumConnections, List<String> seedNodes) {
+        return sniffStrategyConfig(linkedProjectAlias, maxNumConnections, n -> true, seedNodes);
+    }
+
+    private static SniffLinkedProjectConfig sniffStrategyConfig(
+        String linkedProjectAlias,
+        int maxNumConnections,
+        Predicate<DiscoveryNode> nodePredicate,
+        List<String> seedNodes
+    ) {
+        final var builder = new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(linkedProjectAlias).maxNumConnections(maxNumConnections)
+            .nodePredicate(nodePredicate);
+        if (seedNodes != null && seedNodes.isEmpty() == false) {
+            builder.seedNodes(seedNodes);
+        }
+        return builder.build();
     }
 }

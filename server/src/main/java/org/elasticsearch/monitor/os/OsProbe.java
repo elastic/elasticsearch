@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -72,6 +73,7 @@ public class OsProbe {
     private static final Method getTotalSwapSpaceSize;
     private static final Method getSystemLoadAverage;
     private static final Method getSystemCpuLoad;
+    private static final Method getAvailableProcessors;
 
     static {
         getFreePhysicalMemorySize = getMethod("getFreePhysicalMemorySize");
@@ -80,6 +82,7 @@ public class OsProbe {
         getTotalSwapSpaceSize = getMethod("getTotalSwapSpaceSize");
         getSystemLoadAverage = getMethod("getSystemLoadAverage");
         getSystemCpuLoad = getMethod("getSystemCpuLoad");
+        getAvailableProcessors = getMethod("getAvailableProcessors");
     }
 
     /**
@@ -101,6 +104,47 @@ public class OsProbe {
             logger.warn("exception retrieving free physical memory", e);
             return 0;
         }
+    }
+
+    /**
+     * Returns the amount of actual free physical memory in bytes.
+     * <p>
+     * This method accounts for memory that can be reclaimed under pressure, reading {@code MemAvailable} from {@code /proc/meminfo}
+     * when available, or otherwise falling back to {@code MemFree + Buffers + Cached}.
+     * When {@code /proc/meminfo} can't be read or parsed, this falls back to {@link #getFreePhysicalMemorySize()}.
+     */
+    public long getActualFreePhysicalMemorySize() {
+        if (Constants.LINUX == false) {
+            return getFreePhysicalMemorySize();
+        }
+        try {
+            List<String> meminfoLines = readProcMeminfo();
+            long available = parseMeminfoKbToBytes(meminfoLines, "MemAvailable:");
+            if (available >= 0) {
+                return available;
+            }
+            long free = parseMeminfoKbToBytes(meminfoLines, "MemFree:");
+            long buffers = parseMeminfoKbToBytes(meminfoLines, "Buffers:");
+            long cached = parseMeminfoKbToBytes(meminfoLines, "Cached:");
+            if (free >= 0 && buffers >= 0 && cached >= 0) {
+                return free + buffers + cached;
+            }
+        } catch (Exception e) {
+            logger.warn("exception retrieving actual free physical memory", e);
+        }
+        return getFreePhysicalMemorySize();
+    }
+
+    private static long parseMeminfoKbToBytes(List<String> meminfoLines, String prefix) {
+        for (String line : meminfoLines) {
+            if (line.startsWith(prefix) == false) {
+                continue;
+            }
+            int end = line.lastIndexOf(" kB");
+            String number = line.substring(prefix.length(), end).trim();
+            return Long.parseLong(number) * 1024;
+        }
+        return -1;
     }
 
     /**
@@ -257,6 +301,24 @@ public class OsProbe {
 
     public static short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
+    }
+
+    public static int getAvailableProcessors() {
+        if (getAvailableProcessors == null) {
+            logger.warn("getAvailableProcessors is not available");
+            return 0;
+        }
+        try {
+            int availableProcessors = (int) getAvailableProcessors.invoke(osMxBean);
+            if (availableProcessors <= 0) {
+                logger.debug("OS reported a non-positive number of available processors [{}]", availableProcessors);
+                return 0;
+            }
+            return availableProcessors;
+        } catch (Exception e) {
+            logger.warn("exception retrieving available processors", e);
+            return 0;
+        }
     }
 
     /**
@@ -773,7 +835,32 @@ public class OsProbe {
 
     }
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(OsProbe.class);
+
+    public OptionalLong getCgroupMemoryUsageInBytes() {
+        OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
+        return cgroup == null ? OptionalLong.empty() : parseCgroupBytes(cgroup.getMemoryUsageInBytes());
+    }
+
+    public OptionalLong getCgroupMemoryLimitInBytes() {
+        OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
+        return cgroup == null ? OptionalLong.empty() : parseCgroupBytes(cgroup.getMemoryLimitInBytes());
+    }
+
+    private static OptionalLong parseCgroupBytes(String value) {
+        if (value == null || "max".equals(value)) {
+            return OptionalLong.empty();
+        }
+        try {
+            BigInteger bigInt = new BigInteger(value);
+            if (bigInt.signum() < 0) {
+                return OptionalLong.empty();
+            }
+            return OptionalLong.of(bigInt.longValueExact());
+        } catch (NumberFormatException | ArithmeticException e) {
+            return OptionalLong.empty();
+        }
+    }
 
     OsInfo osInfo(long refreshInterval, Processors processors) throws IOException {
         return new OsInfo(
@@ -855,6 +942,9 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /proc/meminfo")
     List<String> readProcMeminfo() throws IOException {
         final List<String> lines;
+        if (Constants.LINUX == false) {
+            return Collections.emptyList();
+        }
         if (Files.exists(PathUtils.get("/proc/meminfo"))) {
             lines = Files.readAllLines(PathUtils.get("/proc/meminfo"));
             assert lines != null && lines.isEmpty() == false;
@@ -869,28 +959,7 @@ public class OsProbe {
      */
     long getTotalMemFromProcMeminfo() throws IOException {
         List<String> meminfoLines = readProcMeminfo();
-        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).toList();
-        assert memTotalLines.size() <= 1 : memTotalLines;
-        if (memTotalLines.size() == 1) {
-            final String memTotalLine = memTotalLines.get(0);
-            int beginIdx = memTotalLine.indexOf("MemTotal:");
-            int endIdx = memTotalLine.lastIndexOf(" kB");
-            if (beginIdx + 9 < endIdx) {
-                final String memTotalString = memTotalLine.substring(beginIdx + 9, endIdx).trim();
-                try {
-                    long memTotalInKb = Long.parseLong(memTotalString);
-                    return memTotalInKb * 1024;
-                } catch (NumberFormatException e) {
-                    logger.warn("Unable to retrieve total memory from meminfo line [" + memTotalLine + "]");
-                    return 0;
-                }
-            } else {
-                logger.warn("Unable to retrieve total memory from meminfo line [" + memTotalLine + "]");
-                return 0;
-            }
-        } else {
-            return 0;
-        }
+        return Math.max(0, parseMeminfoKbToBytes(meminfoLines, "MemTotal:"));
     }
 
     boolean isDebian8() throws IOException {
@@ -902,7 +971,7 @@ public class OsProbe {
     }
 
     public OsStats osStats() {
-        final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
+        final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage(), getAvailableProcessors());
         final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getAdjustedTotalMemorySize(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
@@ -913,10 +982,12 @@ public class OsProbe {
      * Returns a given method of the OperatingSystemMXBean, or null if the method is not found or unavailable.
      */
     private static Method getMethod(String methodName) {
+        String className = "com.sun.management.OperatingSystemMXBean";
         try {
-            return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
+            return Class.forName(className).getMethod(methodName);
         } catch (Exception e) {
             // not available
+            logger.debug(() -> "failed to get method [" + methodName + "] from class [" + className + "]", e);
             return null;
         }
     }

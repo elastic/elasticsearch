@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -41,27 +41,27 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
     );
 
     /**
-     * @param clusterState The cluster state provided for the checker
+     * @param project The project metadata provided for the checker
      * @param request not used yet in these checks
      * @param precomputedData not used yet in these checks
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     @Override
     public Map<String, List<DeprecationIssue>> check(
-        ClusterState clusterState,
+        ProjectMetadata project,
         DeprecationInfoAction.Request request,
         TransportDeprecationInfoAction.PrecomputedData precomputedData
     ) {
-        return check(clusterState);
+        return check(project);
     }
 
     /**
-     * @param clusterState The cluster state provided for the checker
+     * @param project The project metadata provided for the checker
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
-    Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
-        var indexTemplates = clusterState.metadata().getProject().templatesV2().entrySet();
-        var componentTemplates = clusterState.metadata().getProject().componentTemplates().entrySet();
+    Map<String, List<DeprecationIssue>> check(ProjectMetadata project) {
+        var indexTemplates = project.templatesV2().entrySet();
+        var componentTemplates = project.componentTemplates().entrySet();
         if (indexTemplates.isEmpty() && componentTemplates.isEmpty()) {
             return Map.of();
         }

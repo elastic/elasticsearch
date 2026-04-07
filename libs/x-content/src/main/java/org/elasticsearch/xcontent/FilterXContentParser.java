@@ -100,6 +100,14 @@ public abstract class FilterXContentParser implements XContentParser {
         return delegate().textOrNull();
     }
 
+    public XContentString optimizedText() throws IOException {
+        return delegate().optimizedText();
+    }
+
+    public XContentString optimizedTextOrNull() throws IOException {
+        return delegate().optimizedTextOrNull();
+    }
+
     @Override
     public CharBuffer charBufferOrNull() throws IOException {
         return delegate().charBufferOrNull();
@@ -218,6 +226,11 @@ public abstract class FilterXContentParser implements XContentParser {
     @Override
     public XContentLocation getTokenLocation() {
         return delegate().getTokenLocation();
+    }
+
+    @Override
+    public XContentLocation getCurrentLocation() {
+        return delegate().getCurrentLocation();
     }
 
     @Override

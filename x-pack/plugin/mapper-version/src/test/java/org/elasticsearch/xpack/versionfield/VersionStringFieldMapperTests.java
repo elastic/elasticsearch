@@ -198,4 +198,14 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
             return List.of();
         }
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
 }

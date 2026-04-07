@@ -1,0 +1,2 @@
+Caffeine (High performance caching library)
+Copyright Ben Manes. All Rights Reserved.

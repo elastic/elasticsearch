@@ -78,7 +78,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                 return new TransportAddress[] { poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress()) };
             }
         };
-        return new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        return MockTransportService.createMockTransportService(transport, threadPool);
     }
 
     protected List<TransportAddress> buildDynamicHosts(Settings nodeSettings, int nodes) {

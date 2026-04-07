@@ -28,7 +28,18 @@ public abstract class AbstractAsyncBulkByScrollActionTestCase<
     @Before
     public void setupForTest() {
         threadPool = new TestThreadPool(getTestName());
-        task = new BulkByScrollTask(1, "test", "test", "test", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+        task = new BulkByScrollTask(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            "test",
+            "test",
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false,
+            randomBoolean()
+                ? null
+                : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()), randomNonNegativeLong())
+        );
         task.setWorker(Float.POSITIVE_INFINITY, null);
 
     }

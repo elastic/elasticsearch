@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -116,7 +116,7 @@ public class Space extends UnaryScalarFunction {
             Object folded = field.fold(toEvaluator.foldCtx());
             if (folded instanceof Integer num) {
                 checkNumber(num);
-                return toEvaluator.apply(new Literal(source(), " ".repeat(num), KEYWORD));
+                return toEvaluator.apply(Literal.keyword(source(), " ".repeat(num)));
             }
         }
 

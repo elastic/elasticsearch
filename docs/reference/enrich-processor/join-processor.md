@@ -30,4 +30,5 @@ $$$join-options$$$
   }
 }
 ```
+% NOTCONSOLE
 

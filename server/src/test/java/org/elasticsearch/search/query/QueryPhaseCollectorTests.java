@@ -27,7 +27,6 @@ import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.FilterScorable;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.ScoreMode;
@@ -41,6 +40,7 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
@@ -118,7 +118,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null,
                 null
             );
-            Result<TopDocs, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<TopDocs, Void> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertFalse(result.terminatedAfter);
             assertEquals(numDocs, result.topDocs.totalHits.value());
         }
@@ -148,7 +148,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 aggsManager,
                 null
             );
-            Result<TopDocs, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<TopDocs, Integer> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertFalse(result.terminatedAfter);
             assertEquals(numDocs, result.topDocs.totalHits.value());
             assertEquals(numDocs, result.aggs.intValue());
@@ -182,7 +182,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null,
                 null
             );
-            Result<TopDocs, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<TopDocs, Void> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertFalse(result.terminatedAfter);
             assertEquals(numField2Docs, result.topDocs.totalHits.value());
         }
@@ -197,7 +197,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null,
                 null
             );
-            Result<TopDocs, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<TopDocs, Void> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertFalse(result.terminatedAfter);
             assertEquals(numDocs, result.topDocs.totalHits.value());
         }
@@ -216,7 +216,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 aggsManager,
                 null
             );
-            Result<TopDocs, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<TopDocs, Integer> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertFalse(result.terminatedAfter);
             assertEquals(numDocs, result.topDocs.totalHits.value());
             assertEquals(numDocs, result.aggs.intValue());
@@ -233,7 +233,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 aggsManager,
                 null
             );
-            Result<TopDocs, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<TopDocs, Integer> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertFalse(result.terminatedAfter);
             assertEquals(numField2Docs, result.topDocs.totalHits.value());
             // post_filter is not applied to aggs
@@ -489,7 +489,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null,
                 null
             );
-            Result<Integer, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<Integer, Void> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertTrue(result.terminatedAfter);
             assertEquals(terminateAfter, result.topDocs.intValue());
         }
@@ -502,7 +502,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null,
                 null
             );
-            Result<Integer, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<Integer, Void> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertFalse(result.terminatedAfter);
             assertEquals(numDocs, result.topDocs.intValue());
         }
@@ -520,7 +520,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 aggsManager,
                 null
             );
-            Result<Integer, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<Integer, Integer> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertTrue(result.terminatedAfter);
             assertEquals(terminateAfter, result.topDocs.intValue());
             assertEquals(terminateAfter, result.aggs.intValue());
@@ -535,7 +535,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 aggsManager,
                 null
             );
-            Result<Integer, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<Integer, Integer> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertFalse(result.terminatedAfter);
             assertEquals(numDocs, result.topDocs.intValue());
             assertEquals(numDocs, result.aggs.intValue());
@@ -555,7 +555,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null,
                 null
             );
-            Result<Integer, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<Integer, Void> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertTrue(result.terminatedAfter);
             assertEquals(terminateAfter, result.topDocs.intValue());
         }
@@ -569,7 +569,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 null,
                 null
             );
-            Result<Integer, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<Integer, Void> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertFalse(result.terminatedAfter);
             assertEquals(numField2Docs, result.topDocs.intValue());
         }
@@ -589,7 +589,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 aggsManager,
                 null
             );
-            Result<Integer, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<Integer, Integer> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertTrue(result.terminatedAfter);
             assertEquals(terminateAfter, result.topDocs.intValue());
             // aggs see more docs because they are not filtered
@@ -606,7 +606,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
                 aggsManager,
                 null
             );
-            Result<Integer, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
+            Result<Integer, Integer> result = searcher.search(Queries.ALL_DOCS_INSTANCE, manager);
             assertFalse(result.terminatedAfter);
             assertEquals(numField2Docs, result.topDocs.intValue());
             // aggs see more docs because they are not filtered
@@ -737,7 +737,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
 
     public void testScoreModeTopDocsOnly() throws IOException {
         ScoreMode scoreMode = randomFrom(ScoreMode.values());
-        Weight weight = randomBoolean() ? searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1.0f) : null;
+        Weight weight = randomBoolean() ? searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
         QueryPhaseCollector qpc = new QueryPhaseCollector(
             new MockCollector(scoreMode),
@@ -750,7 +750,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testScoreModeTopDocsOnlyWithMinScore() throws IOException {
-        Weight weight = randomBoolean() ? searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1.0f) : null;
+        Weight weight = randomBoolean() ? searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
         {
             QueryPhaseCollector qpc = new QueryPhaseCollector(
@@ -776,7 +776,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testScoreModeWithAggsSameScoreMode() throws IOException {
-        Weight weight = randomBoolean() ? searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1.0f) : null;
+        Weight weight = randomBoolean() ? searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
         ScoreMode scoreMode = randomScoreModeExceptTopScores();
         QueryPhaseCollector qpc = new QueryPhaseCollector(
@@ -790,7 +790,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testScoreModeWithAggsSameScoreModeWithMinScore() throws IOException {
-        Weight weight = randomBoolean() ? searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1.0f) : null;
+        Weight weight = randomBoolean() ? searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
         ScoreMode scoreMode = randomScoreModeExceptTopScores();
         QueryPhaseCollector qpc = new QueryPhaseCollector(
@@ -804,7 +804,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testScoreModeWithAggsExhaustive() throws IOException {
-        Weight weight = randomBoolean() ? searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1.0f) : null;
+        Weight weight = randomBoolean() ? searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
         Float minScore = randomBoolean() ? 100f : null;
         Collector complete = new MockCollector(ScoreMode.COMPLETE);
@@ -882,7 +882,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testScoreModeWithAggsTopScores() throws IOException {
-        Weight weight = randomBoolean() ? searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1.0f) : null;
+        Weight weight = randomBoolean() ? searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
         Float minScore = randomBoolean() ? 100f : null;
         Collector topScores = new MockCollector(ScoreMode.TOP_SCORES);
@@ -929,7 +929,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testScoreModeWithAggsTopDocs() throws IOException {
-        Weight weight = randomBoolean() ? searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1.0f) : null;
+        Weight weight = randomBoolean() ? searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
         Float minScore = randomBoolean() ? 100f : null;
         Collector topDocs = new MockCollector(ScoreMode.TOP_DOCS);
@@ -976,7 +976,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     }
 
     public void testScoreModeWithAggsTopDocsWithScores() throws IOException {
-        Weight weight = randomBoolean() ? searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1.0f) : null;
+        Weight weight = randomBoolean() ? searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE, 1.0f) : null;
         int terminateAfter = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
         Float minScore = randomBoolean() ? 100f : null;
         Collector topDocsWithScores = new MockCollector(ScoreMode.TOP_DOCS_WITH_SCORES);
@@ -1021,7 +1021,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             null,
             null
         );
-        searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
         assertTrue(topDocsCollector.setWeightCalled);
     }
 
@@ -1035,7 +1035,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             aggsCollector,
             null
         );
-        searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
         assertTrue(topDocsCollector.setWeightCalled);
         assertTrue(aggsCollector.setWeightCalled);
     }
@@ -1052,7 +1052,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             null,
             null
         );
-        searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
         assertFalse(mockCollector.setWeightCalled);
     }
 
@@ -1069,7 +1069,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             aggsCollector,
             null
         );
-        searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
         assertFalse(topDocsCollector.setWeightCalled);
         assertTrue(aggsCollector.setWeightCalled);
     }
@@ -1084,7 +1084,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             null,
             100f
         );
-        searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
         assertFalse(queryPhaseCollector.isTerminatedAfter());
         assertFalse(topDocsCollector.setWeightCalled);
     }
@@ -1100,7 +1100,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             aggsCollector,
             100f
         );
-        searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
         assertFalse(queryPhaseCollector.isTerminatedAfter());
         assertFalse(topDocsCollector.setWeightCalled);
         assertFalse(aggsCollector.setWeightCalled);
@@ -1122,7 +1122,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             new TerminateAfterCollector(collector2, terminateAfter2),
             null
         );
-        searcher.search(new MatchAllDocsQuery(), queryPhaseCollector);
+        searcher.search(Queries.ALL_DOCS_INSTANCE, queryPhaseCollector);
         assertEquals(expectedCount1, collector1.getTotalHits());
         assertEquals(expectedCount2, collector2.getTotalHits());
     }
@@ -1179,7 +1179,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         Float minScore = null;
         if (randomBoolean()) {
             if (randomBoolean()) {
-                filterWeight = new MatchAllDocsQuery().createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
+                filterWeight = Queries.ALL_DOCS_INSTANCE.createWeight(searcher, ScoreMode.TOP_DOCS, 1f);
             }
             if (randomBoolean()) {
                 terminateAfter = randomIntBetween(1, Integer.MAX_VALUE);
@@ -1317,7 +1317,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
     public void testCompetitiveIteratorNoAggs() throws IOException {
         // use a post_filter so that we wrap the top docs leaf collector, as this test verifies that
         // the wrapper calls competitiveIterator when appropriated
-        Weight postFilterWeight = searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        Weight postFilterWeight = searcher.createWeight(Queries.ALL_DOCS_INSTANCE, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         MockCollector mockCollector = new MockCollector(randomFrom(ScoreMode.values()));
         QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
             mockCollector,

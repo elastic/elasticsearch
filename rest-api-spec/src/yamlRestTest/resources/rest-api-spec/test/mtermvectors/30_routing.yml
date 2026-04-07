@@ -7,11 +7,10 @@ routing:
           settings:
            index:
               number_of_shards: 5
-              number_of_replicas: 0
 
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_no_initializing_shards: true
 
   - do:
       index:
@@ -52,10 +51,13 @@ requires routing:
           settings:
             index:
               number_of_shards: 5
-              number_of_replicas: 0
           mappings:
             _routing:
               required: true
+
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
 
   - do:
       index:

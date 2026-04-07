@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Geoshape"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/geo-shape.html
@@ -47,7 +50,7 @@ In [GeoJSON](https://datatracker.ietf.org/doc/html/rfc7946) and [WKT](https://ww
 
 ### Indexing approach [geoshape-indexing-approach]
 
-Geoshape types are indexed by decomposing the shape into a triangular mesh and indexing each triangle as a 7 dimension point in a BKD tree. This provides near perfect spatial resolution (down to 1e-7 decimal degree precision) since all spatial relations are computed using an encoded vector representation of the original shape. Performance of the tessellator primarily depends on the number of vertices that define the polygon/multi-polygon.
+Geoshape types are indexed by decomposing the shape into a triangular mesh and indexing each triangle as a 7 dimension point in a BKD tree. This provides near perfect spatial resolution (down to 1e-7 decimal degree precision) because all spatial relations are computed using an encoded vector representation of the original shape. Performance of the tessellator primarily depends on the number of vertices that define the polygon/multi-polygon. For how `intersects`, `contains`, `within`, and `disjoint` are interpreted at query time—including 2D versus geodesic behavior and indexing effects—see [Spatial relations semantics](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md#geo-shape-spatial-relations-semantics) in the `geo_shape` query documentation.
 
 
 #### Example [_example]
@@ -64,7 +67,7 @@ PUT /example
   }
 }
 ```
-
+% TESTSETUP
 
 ### Input Structure [input-structure]
 
@@ -365,12 +368,3 @@ Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [cir
 ### Sorting and Retrieving index Shapes [_sorting_and_retrieving_index_shapes]
 
 Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `geo_shape` value is only retrievable through the `_source` field.
-
-## Synthetic source [geo-shape-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
-
-

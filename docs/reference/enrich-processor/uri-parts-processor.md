@@ -15,8 +15,8 @@ $$$uri-parts-options$$$
 | --- | --- | --- | --- |
 | `field` | yes | - | Field containing the URI string. |
 | `target_field` | no | `url` | Output field for the URI object. |
-| `keep_original` | no | true | If `true`, the processor copies theunparsed URI to `<target_field>.original`. |
-| `remove_if_successful` | no | false | If `true`, the processor removesthe `field` after parsing the URI string. If parsing fails, the processor does notremove the `field`. |
+| `keep_original` | no | true | If `true`, the processor copies the unparsed URI to `<target_field>.original`. |
+| `remove_if_successful` | no | false | If `true`, the processor removes the `field` after parsing the URI string. If parsing fails, the processor does notremove the `field`. |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |
 | `description` | no | - | Description of the processor. Useful for describing the purpose of the processor or its configuration. |
 | `if` | no | - | Conditionally execute the processor. See [Conditionally run a processor](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#conditionally-run-processor). |
@@ -41,28 +41,30 @@ Here is an example definition of the URI parts processor:
   ]
 }
 ```
+% NOTCONSOLE
 
 When the above processor executes on the following document:
 
 ```js
 {
   "_source": {
-    "input_field": "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment"
+    "input_field": "http://myusername:mypassword@<example-url>:80/foo.gif?key1=val1&key2=val2#fragment"
   }
 }
 ```
+% NOTCONSOLE
 
 It produces this result:
 
 ```js
 "_source" : {
-  "input_field" : "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment",
+  "input_field" : "http://myusername:mypassword@<example-url>:80/foo.gif?key1=val1&key2=val2#fragment",
   "url" : {
     "path" : "/foo.gif",
     "fragment" : "fragment",
     "extension" : "gif",
     "password" : "mypassword",
-    "original" : "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment",
+    "original" : "http://myusername:mypassword@<example-url>:80/foo.gif?key1=val1&key2=val2#fragment",
     "scheme" : "http",
     "port" : 80,
     "user_info" : "myusername:mypassword",
@@ -72,4 +74,5 @@ It produces this result:
   }
 }
 ```
+% NOTCONSOLE
 

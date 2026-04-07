@@ -32,11 +32,13 @@ import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.NumberType;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
@@ -194,6 +196,11 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public CompletionFieldMapper build(MapperBuilderContext context) {
             checkCompletionContextsLimit();
             NamedAnalyzer completionAnalyzer = new NamedAnalyzer(
@@ -249,7 +256,13 @@ public class CompletionFieldMapper extends FieldMapper {
         private ContextMappings contextMappings = null;
 
         public CompletionFieldType(String name, NamedAnalyzer searchAnalyzer, Map<String, String> meta) {
-            super(name, true, false, false, new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer), meta);
+            super(
+                name,
+                IndexType.terms(true, false),
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer),
+                meta
+            );
         }
 
         public void setContextMappings(ContextMappings contextMappings) {
@@ -708,6 +721,14 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
+        public XContentString optimizedTextOrNull() throws IOException {
+            if (parsingObject == false) {
+                return new Text(textValue);
+            }
+            return super.optimizedTextOrNull();
+        }
+
+        @Override
         public String textOrNull() throws IOException {
             if (parsingObject == false) {
                 return textValue;
@@ -740,8 +761,14 @@ public class CompletionFieldMapper extends FieldMapper {
 
         @Override
         public XContentLocation getTokenLocation() {
-            // return fixed token location: it's not possible to match the token location while parsing through the object structure,
+            // return fixed location: it's not possible to match the real location while parsing through the object structure,
             // because completion metadata have been rewritten hence they won't match the incoming document
+            return locationOffset;
+        }
+
+        @Override
+        public XContentLocation getCurrentLocation() {
+            // same as getTokenLocation() — real positions are not available for rewritten metadata
             return locationOffset;
         }
     }

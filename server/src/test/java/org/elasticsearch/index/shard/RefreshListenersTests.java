@@ -20,10 +20,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -33,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -41,6 +44,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -77,6 +81,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -91,6 +96,7 @@ public class RefreshListenersTests extends ESTestCase {
     private Engine engine;
     private volatile int maxListeners;
     private ThreadPool threadPool;
+    private NodeEnvironment nodeEnvironment;
     private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private Store store;
 
@@ -104,7 +110,12 @@ public class RefreshListenersTests extends ESTestCase {
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(threadPool, settings);
+        nodeEnvironment = newNodeEnvironment(settings);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            ClusterSettings.createBuiltInClusterSettings(settings),
+            nodeEnvironment
+        );
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),
@@ -148,7 +159,7 @@ public class RefreshListenersTests extends ESTestCase {
             newMergePolicy(),
             iwc.getAnalyzer(),
             iwc.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
             eventListener,
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
@@ -167,7 +178,9 @@ public class RefreshListenersTests extends ESTestCase {
             null,
             true,
             EngineTestCase.createMapperService(),
-            new EngineResetLock()
+            new EngineResetLock(),
+            MergeMetrics.NOOP,
+            Function.identity()
         );
         engine = new InternalEngine(config);
         EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);
@@ -178,8 +191,11 @@ public class RefreshListenersTests extends ESTestCase {
 
     @After
     public void tearDownListeners() throws Exception {
-        IOUtils.close(engine, store);
-        terminate(threadPool);
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+        IOUtils.close(engine, store, nodeEnvironment, () -> terminate(threadPool));
     }
 
     public void testBeforeRefresh() throws Exception {
@@ -441,6 +457,7 @@ public class RefreshListenersTests extends ESTestCase {
                                 get,
                                 mapperService.mappingLookup(),
                                 mapperService.documentParser(),
+                                SplitShardCountSummary.IRRELEVANT,
                                 EngineTestCase.randomSearcherWrapper()
                             )
                         ) {

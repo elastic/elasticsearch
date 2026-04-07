@@ -358,5 +358,6 @@ public class CCSUsageTelemetryTests extends ESTestCase {
         assertThat(snapshot.getTook().count(), equalTo(2L));
         assertThat(snapshot.getTookMrtFalse().count(), equalTo(0L));
         assertThat(snapshot.getTookMrtTrue().count(), equalTo(0L));
+        assertThat(snapshot.getFeatureCounts().size(), equalTo(0));
     }
 }

@@ -16,11 +16,9 @@ import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 
@@ -176,24 +174,6 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
 
         channel.read();
         asInstanceOf(LastHttpContent.class, channel.readInbound()).release();
-    }
-
-    public void testWithAggregator() {
-        channel.pipeline().addLast(new Netty4HttpAggregator(8192, (req) -> true, new HttpRequestDecoder()));
-
-        channel.writeInbound(newHttpRequest());
-        channel.writeInbound(newHttpContent());
-        channel.writeInbound(newLastHttpContent());
-
-        channel.read();
-        assertNull("should ignore read while validating", channel.readInbound());
-
-        var validationRequest = validatorRequestQueue.poll();
-        assertNotNull(validationRequest);
-        validationRequest.listener.onResponse(null);
-        channel.runPendingTasks();
-
-        asInstanceOf(FullHttpRequest.class, channel.readInbound()).release();
     }
 
     public void testBufferPipelinedRequestsWhenValidating() {

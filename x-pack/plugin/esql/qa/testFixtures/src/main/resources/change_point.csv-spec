@@ -33,6 +33,41 @@ count:long | @timestamp:datetime      | type:keyword | pvalue:double
 ;
 
 
+detect nothing (long) with reversed arguments
+required_capability: change_point_args_any_order
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | CHANGE_POINT count AS type, pvalue ON @timestamp
+;
+
+count:long | @timestamp:datetime      | type:keyword | pvalue:double
+4          | 2024-05-10T00:00:00.000Z | null         | null
+4          | 2024-05-10T00:01:00.000Z | null         | null
+8          | 2024-05-10T00:02:00.000Z | null         | null
+8          | 2024-05-10T00:03:00.000Z | null         | null
+5          | 2024-05-10T00:04:00.000Z | null         | null
+8          | 2024-05-10T00:05:00.000Z | null         | null
+10         | 2024-05-10T00:06:00.000Z | null         | null
+5          | 2024-05-10T00:07:00.000Z | null         | null
+12         | 2024-05-10T00:08:00.000Z | null         | null
+20         | 2024-05-10T00:09:00.000Z | null         | null
+5          | 2024-05-10T00:10:00.000Z | null         | null
+7          | 2024-05-10T00:11:00.000Z | null         | null
+8          | 2024-05-10T00:12:00.000Z | null         | null
+9          | 2024-05-10T00:13:00.000Z | null         | null
+9          | 2024-05-10T00:14:00.000Z | null         | null
+11         | 2024-05-10T00:15:00.000Z | null         | null
+7          | 2024-05-10T00:16:00.000Z | null         | null
+15         | 2024-05-10T00:17:00.000Z | null         | null
+17         | 2024-05-10T00:18:00.000Z | null         | null
+5          | 2024-05-10T00:19:00.000Z | null         | null
+10         | 2024-05-10T00:20:00.000Z | null         | null
+4          | 2024-05-10T00:21:00.000Z | null         | null
+9          | 2024-05-10T00:22:00.000Z | null         | null
+;
+
+
 detect spike (long; default output columns)
 required_capability: change_point
 
@@ -40,32 +75,26 @@ FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
   | EVAL count=count+CASE(@timestamp=="2024-05-10T00:08:00.000Z", 100, 0)
   | CHANGE_POINT count ON @timestamp
+  | WHERE type IS NOT NULL
 ;
 
 @timestamp:datetime      | count:long | type:keyword | pvalue:double
-2024-05-10T00:00:00.000Z | 4          | null         | null
-2024-05-10T00:01:00.000Z | 4          | null         | null
-2024-05-10T00:02:00.000Z | 8          | null         | null
-2024-05-10T00:03:00.000Z | 8          | null         | null
-2024-05-10T00:04:00.000Z | 5          | null         | null
-2024-05-10T00:05:00.000Z | 8          | null         | null
-2024-05-10T00:06:00.000Z | 10         | null         | null
-2024-05-10T00:07:00.000Z | 5          | null         | null
 2024-05-10T00:08:00.000Z | 112        | spike        | 1.7502597878858522E-193
-2024-05-10T00:09:00.000Z | 20         | null         | null
-2024-05-10T00:10:00.000Z | 5          | null         | null
-2024-05-10T00:11:00.000Z | 7          | null         | null
-2024-05-10T00:12:00.000Z | 8          | null         | null
-2024-05-10T00:13:00.000Z | 9          | null         | null
-2024-05-10T00:14:00.000Z | 9          | null         | null
-2024-05-10T00:15:00.000Z | 11         | null         | null
-2024-05-10T00:16:00.000Z | 7          | null         | null
-2024-05-10T00:17:00.000Z | 15         | null         | null
-2024-05-10T00:18:00.000Z | 17         | null         | null
-2024-05-10T00:19:00.000Z | 5          | null         | null
-2024-05-10T00:20:00.000Z | 10         | null         | null
-2024-05-10T00:21:00.000Z | 4          | null         | null
-2024-05-10T00:22:00.000Z | 9          | null         | null
+;
+
+
+detect spike (long; default output columns) with reversed arguments
+required_capability: change_point_args_any_order
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp=="2024-05-10T00:08:00.000Z", 100, 0)
+  | CHANGE_POINT count AS type, pvalue ON @timestamp
+  | WHERE type IS NOT NULL
+;
+
+@timestamp:datetime      | count:long | type:keyword | pvalue:double
+2024-05-10T00:08:00.000Z | 112        | spike        | 1.7502597878858522E-193
 ;
 
 
@@ -76,32 +105,26 @@ FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
   | EVAL count=count+CASE(@timestamp>="2024-05-10T00:11:00.000Z", 100, 0)
   | CHANGE_POINT count AS type, pvalue
+  | WHERE type IS NOT NULL
 ;
 
 @timestamp:datetime      | count:long | type:keyword | pvalue:double
-2024-05-10T00:00:00.000Z | 4          | null         | null
-2024-05-10T00:01:00.000Z | 4          | null         | null
-2024-05-10T00:02:00.000Z | 8          | null         | null
-2024-05-10T00:03:00.000Z | 8          | null         | null
-2024-05-10T00:04:00.000Z | 5          | null         | null
-2024-05-10T00:05:00.000Z | 8          | null         | null
-2024-05-10T00:06:00.000Z | 10         | null         | null
-2024-05-10T00:07:00.000Z | 5          | null         | null
-2024-05-10T00:08:00.000Z | 12         | null         | null
-2024-05-10T00:09:00.000Z | 20         | null         | null
-2024-05-10T00:10:00.000Z | 5          | null         | null
 2024-05-10T00:11:00.000Z | 107        | step_change  | 3.0924162021968114E-23
-2024-05-10T00:12:00.000Z | 108        | null         | null
-2024-05-10T00:13:00.000Z | 109        | null         | null
-2024-05-10T00:14:00.000Z | 109        | null         | null
-2024-05-10T00:15:00.000Z | 111        | null         | null
-2024-05-10T00:16:00.000Z | 107        | null         | null
-2024-05-10T00:17:00.000Z | 115        | null         | null
-2024-05-10T00:18:00.000Z | 117        | null         | null
-2024-05-10T00:19:00.000Z | 105        | null         | null
-2024-05-10T00:20:00.000Z | 110        | null         | null
-2024-05-10T00:21:00.000Z | 104        | null         | null
-2024-05-10T00:22:00.000Z | 109        | null         | null
+;
+
+
+detect step change (long; default timestamp) with reversed arguments
+required_capability: change_point_args_any_order
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp>="2024-05-10T00:11:00.000Z", 100, 0)
+  | CHANGE_POINT count AS type, pvalue ON @timestamp
+  | WHERE type IS NOT NULL
+;
+
+@timestamp:datetime      | count:long | type:keyword | pvalue:double
+2024-05-10T00:11:00.000Z | 107        | step_change  | 3.0924162021968114E-23
 ;
 
 
@@ -112,62 +135,25 @@ FROM employees
   | STATS salary=AVG(salary) BY height
   | EVAL salary=CASE(height==2.1, 0.0, salary)
   | CHANGE_POINT salary ON height AS type, pvalue
+  | WHERE type IS NOT NULL
 ;
 
 height:double | salary:double      | type:keyword | pvalue:double       
-1.41          | 40031.0            | null         | null                
-1.42          | 34142.5            | null         | null                
-1.44          | 40266.0            | null         | null                
-1.45          | 49095.0            | null         | null                
-1.46          | 39878.0            | null         | null                
-1.47          | 60408.0            | null         | null                
-1.48          | 44307.0            | null         | null                
-1.5           | 31120.0            | null         | null                
-1.51          | 28035.0            | null         | null                
-1.52          | 41243.5            | null         | null                
-1.53          | 60079.333333333336 | null         | null                
-1.54          | 61358.0            | null         | null                
-1.55          | 36876.5            | null         | null                
-1.56          | 60335.0            | null         | null                
-1.57          | 38486.0            | null         | null                
-1.58          | 41701.5            | null         | null                
-1.59          | 36575.666666666664 | null         | null                
-1.61          | 55299.5            | null         | null                
-1.63          | 70011.0            | null         | null                
-1.64          | 38992.0            | null         | null                
-1.66          | 28946.0            | null         | null                
-1.68          | 42155.5            | null         | null                
-1.69          | 45656.0            | null         | null                
-1.7           | 65092.25           | null         | null                
-1.74          | 53178.0            | null         | null                
-1.75          | 43429.0            | null         | null                
-1.77          | 54184.25           | null         | null                
-1.78          | 44147.5            | null         | null                
-1.79          | 55360.0            | null         | null                
-1.8           | 52833.0            | null         | null                
-1.81          | 56475.666666666664 | null         | null                
-1.82          | 56039.333333333336 | null         | null                
-1.83          | 54195.333333333336 | null         | null                
-1.85          | 66174.0            | null         | null                
-1.87          | 47411.0            | null         | null                
-1.89          | 58121.0            | null         | null                
-1.9           | 37112.0            | null         | null                
-1.91          | 39638.0            | null         | null                
-1.92          | 67492.0            | null         | null                
-1.93          | 33956.0            | null         | null                
-1.94          | 48193.333333333336 | null         | null                
-1.96          | 43026.0            | null         | null                
-1.97          | 52851.0            | null         | null                
-1.99          | 56068.0            | null         | null                
-2.0           | 36314.666666666664 | null         | null                
-2.01          | 35742.0            | null         | null                
-2.03          | 51130.5            | null         | null                
-2.04          | 49281.0            | null         | null                
-2.05          | 63528.0            | null         | null                
-2.06          | 56722.5            | null         | null                
-2.07          | 39984.0            | null         | null                
-2.08          | 60523.0            | null         | null                
-2.09          | 38645.0            | null         | null                
+2.1           | 0.0                | dip          | 9.590143836835097E-6  
+;
+
+
+detect dip (double) with reversed arguments
+required_capability: change_point_args_any_order
+
+FROM employees
+  | STATS salary=AVG(salary) BY height
+  | EVAL salary=CASE(height==2.1, 0.0, salary)
+  | CHANGE_POINT salary AS type, pvalue ON height
+  | WHERE type IS NOT NULL
+;
+
+height:double | salary:double      | type:keyword | pvalue:double              
 2.1           | 0.0                | dip          | 9.590143836835097E-6  
 ;
 
@@ -362,6 +348,45 @@ emp_no:integer | salary:integer | type:keyword | pvalue:double
 ;
 
 
+where after change point with reversed arguments
+required_capability: change_point_args_any_order
+
+FROM employees
+  | KEEP emp_no, salary
+  | EVAL salary = CASE(emp_no==10022, 100000, salary)
+  | EVAL salary = CASE(emp_no==10033, 1000000, salary)
+  | CHANGE_POINT salary AS type, pvalue ON emp_no
+  | WHERE emp_no < 10025
+;
+
+emp_no:integer | salary:integer | type:keyword | pvalue:double
+10001          | 57305          | null         | null                 
+10002          | 56371          | null         | null                 
+10003          | 61805          | null         | null                 
+10004          | 36174          | null         | null                 
+10005          | 63528          | null         | null                 
+10006          | 60335          | null         | null                 
+10007          | 74572          | null         | null                 
+10008          | 43906          | null         | null                 
+10009          | 66174          | null         | null                 
+10010          | 45797          | null         | null                 
+10011          | 31120          | null         | null                 
+10012          | 48942          | null         | null                 
+10013          | 48735          | null         | null                 
+10014          | 37137          | null         | null                 
+10015          | 25324          | null         | null                 
+10016          | 61358          | null         | null                 
+10017          | 58715          | null         | null                 
+10018          | 56760          | null         | null                 
+10019          | 73717          | null         | null                 
+10020          | 40031          | null         | null                 
+10021          | 60408          | null         | null                 
+10022          | 100000         | null         | null
+10023          | 47896          | null         | null                 
+10024          | 64675          | null         | null        
+;
+
+
 where with shadowing
 required_capability: change_point
 
@@ -386,6 +411,23 @@ FROM employees
   | KEEP emp_no, salary
   | EVAL salary=CASE(emp_no==10042, 1000000, salary)
   | CHANGE_POINT salary ON emp_no
+  | STATS COUNT() by type
+  | SORT type
+;
+
+COUNT():long | type:keyword
+1            | spike
+99           | null
+;
+
+
+stats after change point with reversed arguments
+required_capability: change_point_args_any_order
+
+FROM employees
+  | KEEP emp_no, salary
+  | EVAL salary=CASE(emp_no==10042, 1000000, salary)
+  | CHANGE_POINT salary AS type, pvalue ON emp_no
   | STATS COUNT() by type
   | SORT type
 ;
@@ -1016,7 +1058,7 @@ null     | 1             | null         | null
 ;
 
 
-values null column
+values int column with all nulls
 required_capability: change_point
 
 ROW time=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24], values=NULL::INTEGER
@@ -1054,6 +1096,94 @@ time:integer | values:integer | type:keyword | pvalue:double
 23           | null           | null         | null         
 24           | null           | null         | null         
 25           | null           | null         | null         
+;
+
+
+values null column
+required_capability: change_point_support_null_column
+
+ROW time=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24], values=NULL
+  | MV_EXPAND time
+  | CHANGE_POINT values ON time
+;
+
+warning: Line 3:3: evaluation of [CHANGE_POINT values ON time] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 3:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]
+warning: Line 3:3: java.lang.IllegalArgumentException: values contain nulls; skipping them
+
+time:integer | values:null | type:keyword | pvalue:double
+1            | null        | null         | null         
+2            | null        | null         | null         
+3            | null        | null         | null         
+4            | null        | null         | null         
+5            | null        | null         | null         
+6            | null        | null         | null         
+7            | null        | null         | null         
+8            | null        | null         | null         
+9            | null        | null         | null         
+10           | null        | null         | null         
+11           | null        | null         | null         
+12           | null        | null         | null         
+13           | null        | null         | null         
+14           | null        | null         | null         
+15           | null        | null         | null         
+16           | null        | null         | null         
+17           | null        | null         | null         
+18           | null        | null         | null         
+19           | null        | null         | null         
+20           | null        | null         | null         
+21           | null        | null         | null         
+22           | null        | null         | null         
+23           | null        | null         | null         
+24           | null        | null         | null         
+25           | null        | null         | null         
+;
+
+
+values evals to null
+required_capability: change_point
+
+FROM employees
+  | KEEP emp_no
+  | EVAL values = emp_no + NULL
+  | CHANGE_POINT values ON emp_no
+  | LIMIT 5
+;
+
+warning: Line 4:3: evaluation of [CHANGE_POINT values ON emp_no] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 4:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]
+warning: Line 4:3: java.lang.IllegalArgumentException: values contain nulls; skipping them
+
+emp_no:integer | values:integer | type:keyword | pvalue:double
+10001          | null           | null         | null
+10002          | null           | null         | null
+10003          | null           | null         | null
+10004          | null           | null         | null
+10005          | null           | null         | null
+;
+
+
+unmapped fields
+required_capability: change_point_support_null_column
+
+SET unmapped_fields="nullify"\;
+FROM employees
+  | CHANGE_POINT foo
+  | KEEP emp_no, @timestamp, foo, type, pvalue
+  | SORT emp_no
+  | LIMIT 5
+;
+
+warning: Line 3:3: evaluation of [CHANGE_POINT foo] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 3:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]
+warning: Line 3:3: java.lang.IllegalArgumentException: values contain nulls; skipping them
+
+emp_no:integer | @timestamp:null | foo:null | type:keyword | pvalue:double
+10001          | null            | null     | null         | null
+10002          | null            | null     | null         | null
+10003          | null            | null     | null         | null
+10004          | null            | null     | null         | null
+10005          | null            | null     | null         | null
 ;
 
 
@@ -1216,4 +1346,49 @@ ROW key=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
 key:integer | value:integer | type:keyword | pvalue:double
 13          | 42            | step_change  | 0.0          
 // end::changePointForDocs-result[]
+;
+
+
+detect step change with AS only (no ON; uses default @timestamp key)
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp>="2024-05-10T00:11:00.000Z", 100, 0)
+  | CHANGE_POINT count AS type, pvalue
+  | WHERE type IS NOT NULL
+;
+
+@timestamp:datetime      | count:long | type:keyword | pvalue:double
+2024-05-10T00:11:00.000Z | 107        | step_change  | 3.0924162021968114E-23
+;
+
+
+detect spike with ON only (no AS; uses default type and pvalue column names)
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp=="2024-05-10T00:08:00.000Z", 100, 0)
+  | CHANGE_POINT count ON @timestamp
+  | WHERE type IS NOT NULL
+;
+
+@timestamp:datetime      | count:long | type:keyword | pvalue:double
+2024-05-10T00:08:00.000Z | 112        | spike        | 1.7502597878858522E-193
+;
+
+
+detect spike with reversed arguments and custom output column names
+required_capability: change_point_args_any_order
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp=="2024-05-10T00:08:00.000Z", 100, 0)
+  | CHANGE_POINT count AS my_type, my_pval ON @timestamp
+  | WHERE my_type IS NOT NULL
+;
+
+@timestamp:datetime      | count:long | my_type:keyword | my_pval:double
+2024-05-10T00:08:00.000Z | 112        | spike           | 1.7502597878858522E-193
 ;

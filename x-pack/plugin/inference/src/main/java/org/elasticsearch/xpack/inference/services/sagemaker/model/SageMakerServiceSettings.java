@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.model;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +38,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
  * Maintains the settings for SageMaker that cannot be changed without impacting semantic search and AI assistants.
  * Model-specific settings are stored in {@link SageMakerStoredServiceSchema}.
  */
-record SageMakerServiceSettings(
+public record SageMakerServiceSettings(
     String endpointName,
     String region,
     String api,
@@ -58,8 +57,9 @@ record SageMakerServiceSettings(
     private static final String TARGET_CONTAINER_HOSTNAME = "target_container_hostname";
     private static final String INFERENCE_COMPONENT_NAME = "inference_component_name";
     private static final String BATCH_SIZE = "batch_size";
+    private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
-    SageMakerServiceSettings {
+    public SageMakerServiceSettings {
         Objects.requireNonNull(endpointName);
         Objects.requireNonNull(region);
         Objects.requireNonNull(api);
@@ -111,7 +111,13 @@ record SageMakerServiceSettings(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_SAGEMAKER;
+        assert false : "should never be called when supportsVersion is used";
+        return ML_INFERENCE_SAGEMAKER;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.supports(ML_INFERENCE_SAGEMAKER);
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -45,9 +46,30 @@ public class CustomModel extends Model {
             inferenceId,
             taskType,
             service,
-            CustomServiceSettings.fromMap(serviceSettings, context, taskType, inferenceId),
+            CustomServiceSettings.fromMap(serviceSettings, context, taskType),
             CustomTaskSettings.fromMap(taskSettings),
             CustomSecretSettings.fromMap(secrets)
+        );
+    }
+
+    public CustomModel(
+        String inferenceId,
+        TaskType taskType,
+        String service,
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        @Nullable Map<String, Object> secrets,
+        @Nullable ChunkingSettings chunkingSettings,
+        ConfigurationParseContext context
+    ) {
+        this(
+            inferenceId,
+            taskType,
+            service,
+            CustomServiceSettings.fromMap(serviceSettings, context, taskType),
+            CustomTaskSettings.fromMap(taskSettings),
+            CustomSecretSettings.fromMap(secrets),
+            chunkingSettings
         );
     }
 
@@ -65,6 +87,26 @@ public class CustomModel extends Model {
             new ModelSecrets(secretSettings),
             serviceSettings
         );
+    }
+
+    // should be used directly only for testing
+    CustomModel(
+        String inferenceId,
+        TaskType taskType,
+        String service,
+        CustomServiceSettings serviceSettings,
+        CustomTaskSettings taskSettings,
+        @Nullable CustomSecretSettings secretSettings,
+        @Nullable ChunkingSettings chunkingSettings
+    ) {
+        this(
+            new ModelConfigurations(inferenceId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelSecrets(secretSettings)
+        );
+    }
+
+    CustomModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        this(modelConfigurations, modelSecrets, (CustomServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     protected CustomModel(CustomModel model, TaskSettings taskSettings) {

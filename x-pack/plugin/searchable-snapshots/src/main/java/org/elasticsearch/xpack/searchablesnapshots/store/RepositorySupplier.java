@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.searchablesnapshots.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -46,14 +48,16 @@ public class RepositorySupplier implements Supplier<BlobStoreRepository> {
     }
 
     private Repository getRepository() {
+        @FixForMultiProject(description = "resolve the actual projectId, ES-12138")
+        final var projectId = ProjectId.DEFAULT;
         if (repositoryUuid == null) {
             // repository containing pre-7.12 snapshots has no UUID so we assume it matches by name
-            final Repository repository = repositoriesService.repository(repositoryName);
+            final Repository repository = repositoriesService.repository(projectId, repositoryName);
             assert repository.getMetadata().name().equals(repositoryName) : repository.getMetadata().name() + " vs " + repositoryName;
             return repository;
         }
 
-        final Map<String, Repository> repositoriesByName = repositoriesService.getRepositories();
+        final Map<String, Repository> repositoriesByName = repositoriesService.getProjectRepositories(projectId);
 
         final String currentRepositoryNameHint = repositoryNameHint;
         final Repository repositoryByLastKnownName = repositoriesByName.get(currentRepositoryNameHint);

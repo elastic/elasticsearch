@@ -1,0 +1,31 @@
+{
+  "properties" : {
+    "row_no": {
+      "type": "integer"
+    },
+    "@timestamp": {
+      "type": "date"
+    },
+    "distance_to_earth": {
+      "type": "long"
+    },
+    "active_instruments": {
+      "type": "integer"
+    },
+    "collision_risk": {
+      "type": "double"
+    },
+    "status": {
+      "type": "keyword"
+    },
+    "notes": {
+      "type": "text"
+    },
+    "ack_station_ip": {
+      "type": "ip"
+    },
+    "low_power_mode": {
+      "type": "boolean"
+    }
+  }
+}

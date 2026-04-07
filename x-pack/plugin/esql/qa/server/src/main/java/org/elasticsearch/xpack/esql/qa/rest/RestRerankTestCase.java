@@ -10,27 +10,22 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createRerankInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteRerankInferenceEndpoint;
 import static org.hamcrest.core.StringContains.containsString;
 
 public class RestRerankTestCase extends ESRestTestCase {
 
-    @Before
-    public void skipWhenRerankDisabled() throws IOException {
-        assumeTrue(
-            "Requires RERANK capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.RERANK.capabilityName()))
-        );
-    }
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     @Before
     @After
@@ -40,7 +35,7 @@ public class RestRerankTestCase extends ESRestTestCase {
 
     @Before
     public void setUpInferenceEndpoint() throws IOException {
-        createRerankInferenceEndpoint(adminClient());
+        CsvTestsDataLoader.createInferenceEndpoint(adminClient(), CsvTestsDataLoader.INFERENCE_CONFIGS.get("test_reranker"));
     }
 
     @Before
@@ -81,14 +76,14 @@ public class RestRerankTestCase extends ESRestTestCase {
             }
         }
 
-        deleteRerankInferenceEndpoint(adminClient());
+        CsvTestsDataLoader.deleteInferenceEndpoint(adminClient(), "test_reranker");
     }
 
     public void testRerankWithSingleField() throws IOException {
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
-            | RERANK "exploration" ON title WITH test_reranker
+            | RERANK "exploration" ON title WITH { "inference_id" : "test_reranker" }
             | EVAL _score = ROUND(_score, 5)
             """;
 
@@ -107,7 +102,7 @@ public class RestRerankTestCase extends ESRestTestCase {
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
-            | RERANK "exploration" ON title, author WITH test_reranker
+            | RERANK "exploration" ON title, author WITH { "inference_id" : "test_reranker" }
             | EVAL _score = ROUND(_score, 5)
             """;
 
@@ -126,7 +121,7 @@ public class RestRerankTestCase extends ESRestTestCase {
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
-            | RERANK ? ON title WITH ?
+            | RERANK ? ON title WITH { "inference_id" : ? }
             | EVAL _score = ROUND(_score, 5)
             """;
 
@@ -145,7 +140,7 @@ public class RestRerankTestCase extends ESRestTestCase {
         String query = """
             FROM rerank-test-index
             | WHERE match(title, ?queryText)
-            | RERANK ?queryText ON title WITH ?inferenceId
+            | RERANK ?queryText ON title WITH { "inference_id" : ?inferenceId }
             | EVAL _score = ROUND(_score, 5)
             """;
 
@@ -164,7 +159,7 @@ public class RestRerankTestCase extends ESRestTestCase {
         String query = """
             FROM rerank-test-index
             | WHERE match(title, "exploration")
-            | RERANK "exploration" ON title WITH test_missing
+            | RERANK "exploration" ON title WITH { "inference_id" : "test_missing" }
             | EVAL _score = ROUND(_score, 5)
             """;
 
@@ -182,11 +177,11 @@ public class RestRerankTestCase extends ESRestTestCase {
 
     private Map<String, Object> runEsqlQuery(String query) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder().query(query);
-        return RestEsqlTestCase.runEsqlSync(builder);
+        return RestEsqlTestCase.runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
     }
 
     private Map<String, Object> runEsqlQuery(String query, String params) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder().query(query).params(params);
-        return RestEsqlTestCase.runEsqlSync(builder);
+        return RestEsqlTestCase.runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
     }
 }

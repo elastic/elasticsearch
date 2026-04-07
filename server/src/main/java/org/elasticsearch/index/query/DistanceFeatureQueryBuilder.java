@@ -11,7 +11,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -34,7 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * A query to boost scores based on their proximity to the given origin
  * for date, date_nanos and geo_point field types
  */
-public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFeatureQueryBuilder> {
+public class DistanceFeatureQueryBuilder extends LeafQueryBuilder<DistanceFeatureQueryBuilder> {
     public static final String NAME = "distance_feature";
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -201,6 +200,6 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

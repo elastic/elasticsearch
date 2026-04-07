@@ -121,9 +121,8 @@ public class TopNEncoderTests extends ESTestCase {
 
     private void roundTripBytesRef(BytesRef v) {
         BreakingBytesRefBuilder builder = ExtractorTests.nonBreakingBytesRefBuilder();
-        int reportedSize = encoder.encodeBytesRef(v, builder);
+        encoder.encodeBytesRef(v, builder);
         BytesRef encoded = builder.bytesRefView();
-        assertThat(encoded.length, equalTo(reportedSize));
         assertThat(encoder.decodeBytesRef(encoded, new BytesRef()), equalTo(v));
         assertThat(encoded.length, equalTo(0));
     }

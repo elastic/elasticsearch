@@ -32,7 +32,6 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -124,7 +123,7 @@ public class LeaderChecker {
 
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 handleDisconnectedNode(node);
             }
         });
@@ -162,8 +161,7 @@ public class LeaderChecker {
      * publication targets, and also called if a leader becomes a non-leader.
      */
     void setCurrentNodes(DiscoveryNodes discoveryNodes) {
-        // Sorting the nodes for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
-        logger.trace(() -> format("setCurrentNodes: %s", discoveryNodes.mastersFirstStream().toList()));
+        logger.trace(() -> format("setCurrentNodes: %s", discoveryNodes));
         this.discoveryNodes = discoveryNodes;
     }
 

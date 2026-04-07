@@ -75,7 +75,7 @@ public class Murmur3Hasher {
                 System.arraycopy(inputBytes, offset + numBytesToHash, remainder, 0, remainderLength);
             }
         } else {
-            System.arraycopy(inputBytes, 0, remainder, remainderLength, length);
+            System.arraycopy(inputBytes, offset, remainder, remainderLength, length);
             remainderLength += length;
         }
     }

@@ -744,16 +744,12 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
     public DocValuesSkipper getSkipper(FieldInfo field) throws IOException {
         final DocValuesSkipperEntry entry = skippers.get(field.number);
 
-        final IndexInput input = data.slice("doc value skipper", entry.offset, entry.length);
-        // Prefetch the first page of data. Following pages are expected to get prefetched through
-        // read-ahead.
-        if (input.length() > 0) {
-            input.prefetch(0, 1);
-        }
         // TODO: should we write to disk the actual max level for this segment?
         return new DocValuesSkipper() {
             final int[] minDocID = new int[SKIP_INDEX_MAX_LEVEL];
             final int[] maxDocID = new int[SKIP_INDEX_MAX_LEVEL];
+
+            IndexInput input;
 
             {
                 for (int i = 0; i < SKIP_INDEX_MAX_LEVEL; i++) {
@@ -774,6 +770,9 @@ final class ES87TSDBDocValuesProducer extends DocValuesProducer {
                         minDocID[i] = maxDocID[i] = DocIdSetIterator.NO_MORE_DOCS;
                     }
                 } else {
+                    if (input == null) {
+                        input = data.slice("doc value skipper", entry.offset, entry.length);
+                    }
                     // find next interval
                     assert target > maxDocID[0] : "target must be bigger that current interval";
                     while (true) {

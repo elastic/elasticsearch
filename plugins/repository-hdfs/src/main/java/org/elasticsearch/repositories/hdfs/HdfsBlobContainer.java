@@ -334,6 +334,11 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         listener.onFailure(new UnsupportedOperationException("HDFS repositories do not support this operation"));
     }
 
+    @Override
+    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+        listener.onFailure(new UnsupportedOperationException("HDFS repositories do not support this operation"));
+    }
+
     private static CreateOpts[] addOptionToArray(final CreateOpts[] opts, final CreateOpts opt) {
         if (opts == null) {
             return new CreateOpts[] { opt };

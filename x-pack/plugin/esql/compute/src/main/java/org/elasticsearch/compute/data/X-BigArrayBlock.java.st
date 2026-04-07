@@ -115,7 +115,7 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(int... positions) {
+    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

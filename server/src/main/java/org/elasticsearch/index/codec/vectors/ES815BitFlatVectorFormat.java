@@ -35,7 +35,7 @@ public class ES815BitFlatVectorFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES813FlatVectorFormat.ES813FlatVectorWriter(format.fieldsWriter(state));
+        throw new UnsupportedOperationException();
     }
 
     @Override

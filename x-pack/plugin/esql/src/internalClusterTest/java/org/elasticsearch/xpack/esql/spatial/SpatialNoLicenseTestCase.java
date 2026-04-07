@@ -52,6 +52,11 @@ public abstract class SpatialNoLicenseTestCase extends ESIntegTestCase {
         protected XPackLicenseState getLicenseState() {
             return SpatialNoLicenseTestCase.getLicenseState();
         }
+
+        @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
+        }
     }
 
     /**

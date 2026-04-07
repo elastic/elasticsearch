@@ -140,7 +140,6 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
                 configsAndFilters,
                 documentFilter,
                 ordinalOptimization
-            ) {
-        };
+            ) {};
     }
 }

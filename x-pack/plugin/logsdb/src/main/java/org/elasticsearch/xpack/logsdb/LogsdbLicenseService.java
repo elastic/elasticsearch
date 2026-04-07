@@ -59,6 +59,12 @@ final class LogsdbLicenseService {
         License.OperationMode.ENTERPRISE
     );
 
+    static final LicensedFeature.Momentary PATTERN_TEXT_TEMPLATING_FEATURE = LicensedFeature.momentary(
+        MAPPINGS_FEATURE_FAMILY,
+        "pattern-text-templating",
+        License.OperationMode.ENTERPRISE
+    );
+
     private final long cutoffDate;
     private LicenseService licenseService;
     private XPackLicenseState licenseState;
@@ -101,6 +107,13 @@ final class LogsdbLicenseService {
         }
 
         return true;
+    }
+
+    /**
+     * @return whether pattern_text fields should allow templating.
+     */
+    public boolean allowPatternTextTemplating(boolean isTemplateValidation) {
+        return checkFeature(PATTERN_TEXT_TEMPLATING_FEATURE, licenseState.copyCurrentLicenseState(), isTemplateValidation);
     }
 
     /**

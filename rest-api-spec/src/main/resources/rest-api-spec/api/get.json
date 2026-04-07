@@ -1,85 +1,94 @@
 {
-  "get":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
-      "description":"Returns a document."
+  "get": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get",
+      "description": "Get a document by its ID"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/{index}/_doc/{id}",
-          "methods":[
+          "path": "/{index}/_doc/{id}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The document ID"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The document ID"
             },
-            "index":{
-              "type":"string",
-              "description":"The name of the index"
+            "index": {
+              "type": "string",
+              "description": "The name of the index"
             }
           }
         }
       ]
     },
-    "params":{
+    "params": {
       "force_synthetic_source": {
         "type": "boolean",
         "description": "Should this request force synthetic _source? Use this to test if the mapping supports synthetic _source and to get a sense of the worst case performance. Fetches with this enabled will be slower the enabling synthetic source natively in the index.",
         "visibility": "feature_flag",
         "feature_flag": "es.index_mode_feature_flag_registered"
       },
-      "stored_fields":{
-        "type":"list",
-        "description":"A comma-separated list of stored fields to return in the response"
+      "stored_fields": {
+        "type": "list",
+        "description": "A comma-separated list of stored fields to return in the response"
       },
-      "preference":{
-        "type":"string",
-        "description":"Specify the node or shard the operation should be performed on (default: random)"
+      "preference": {
+        "type": "string",
+        "description": "Specify the node or shard the operation should be performed on (default: random)"
       },
-      "realtime":{
-        "type":"boolean",
-        "description":"Specify whether to perform the operation in realtime or search mode"
+      "realtime": {
+        "type": "boolean",
+        "default": true,
+        "description": "Specify whether to perform the operation in realtime or search mode"
       },
-      "refresh":{
-        "type":"boolean",
-        "description":"Refresh the shard containing the document before performing the operation"
+      "refresh": {
+        "type": "boolean",
+        "default": false,
+        "description": "Refresh the shard containing the document before performing the operation"
       },
-      "routing":{
-        "type":"string",
-        "description":"Specific routing value"
+      "routing": {
+        "type": "list",
+        "description": "Specific routing value"
       },
-      "_source":{
-        "type":"list",
-        "description":"True or false to return the _source field or not, or a list of fields to return"
+      "_source": {
+        "type": "list",
+        "description": "True or false to return the _source field or not, or a list of fields to return"
       },
-      "_source_excludes":{
-        "type":"list",
-        "description":"A list of fields to exclude from the returned _source field"
+      "_source_excludes": {
+        "type": "list",
+        "description": "A list of fields to exclude from the returned _source field"
       },
-      "_source_includes":{
-        "type":"list",
-        "description":"A list of fields to extract and return from the _source field"
+      "_source_includes": {
+        "type": "list",
+        "description": "A list of fields to extract and return from the _source field"
       },
-      "version":{
-        "type":"number",
-        "description":"Explicit version number for concurrency control"
+      "_source_exclude_vectors": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether vectors should be excluded from _source"
       },
-      "version_type":{
-        "type":"enum",
-        "options":[
+      "version": {
+        "type": "long",
+        "description": "Explicit version number for concurrency control"
+      },
+      "version_type": {
+        "type": "enum",
+        "options": [
           "internal",
           "external",
           "external_gte"
         ],
-        "description":"Specific version type"
+        "description": "Specific version type"
       }
     }
   }

@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,16 +27,29 @@ import java.util.SplittableRandom;
 
 public class SampleOperator implements Operator {
 
-    public record Factory(double probability, int seed) implements OperatorFactory {
+    public static class Factory implements OperatorFactory {
+
+        private final double probability;
+        private final Integer seed;
+
+        public Factory(double probability) {
+            this(probability, null);
+        }
+
+        // visible for testing
+        Factory(double probability, Integer seed) {
+            this.probability = probability;
+            this.seed = seed;
+        }
 
         @Override
         public SampleOperator get(DriverContext driverContext) {
-            return new SampleOperator(probability, seed);
+            return new SampleOperator(probability, seed == null ? Randomness.get().nextInt() : seed);
         }
 
         @Override
         public String describe() {
-            return "SampleOperator[probability = " + probability + ", seed = " + seed + "]";
+            return "SampleOperator[probability = " + probability + "]";
         }
     }
 
@@ -52,11 +65,11 @@ public class SampleOperator implements Operator {
     private final RandomSamplingQuery.RandomSamplingIterator randomSamplingIterator;
     private boolean finished;
 
-    private int pagesProcessed = 0;
-    private int rowsReceived = 0;
-    private int rowsEmitted = 0;
     private long collectNanos;
     private long emitNanos;
+    private int pagesProcessed = 0;
+    private long rowsReceived = 0;
+    private long rowsEmitted = 0;
 
     private SampleOperator(double probability, int seed) {
         finished = false;
@@ -84,10 +97,13 @@ public class SampleOperator implements Operator {
     @Override
     public void addInput(Page page) {
         long startTime = System.nanoTime();
-        createOutputPage(page);
-        rowsReceived += page.getPositionCount();
-        page.releaseBlocks();
-        pagesProcessed++;
+        try {
+            createOutputPage(page);
+            rowsReceived += page.getPositionCount();
+            pagesProcessed++;
+        } finally {
+            page.releaseBlocks();
+        }
         collectNanos += System.nanoTime() - startTime;
     }
 
@@ -95,10 +111,10 @@ public class SampleOperator implements Operator {
         final int[] sampledPositions = new int[page.getPositionCount()];
         int sampledIdx = 0;
         for (int i = randomSamplingIterator.docID(); i - rowsReceived < page.getPositionCount(); i = randomSamplingIterator.nextDoc()) {
-            sampledPositions[sampledIdx++] = i - rowsReceived;
+            sampledPositions[sampledIdx++] = Math.toIntExact(i - rowsReceived);
         }
         if (sampledIdx > 0) {
-            outputPages.add(page.filter(Arrays.copyOf(sampledPositions, sampledIdx)));
+            outputPages.add(page.filter(false, Arrays.copyOf(sampledPositions, sampledIdx)));
         }
     }
 
@@ -116,6 +132,11 @@ public class SampleOperator implements Operator {
     @Override
     public boolean isFinished() {
         return finished && outputPages.isEmpty();
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPages.isEmpty() == false;
     }
 
     @Override
@@ -153,7 +174,7 @@ public class SampleOperator implements Operator {
         return new Status(collectNanos, emitNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
-    private record Status(long collectNanos, long emitNanos, int pagesProcessed, int rowsReceived, int rowsEmitted)
+    public record Status(long collectNanos, long emitNanos, int pagesProcessed, long rowsReceived, long rowsEmitted)
         implements
             Operator.Status {
 
@@ -163,8 +184,16 @@ public class SampleOperator implements Operator {
             Status::new
         );
 
+        private static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = TransportVersion.fromName("esql_sample_operator_status");
+
         Status(StreamInput streamInput) throws IOException {
-            this(streamInput.readVLong(), streamInput.readVLong(), streamInput.readVInt(), streamInput.readVInt(), streamInput.readVInt());
+            this(
+                streamInput.readVLong(),
+                streamInput.readVLong(),
+                streamInput.readVInt(),
+                streamInput.readVLong(),
+                streamInput.readVLong()
+            );
         }
 
         @Override
@@ -172,8 +201,8 @@ public class SampleOperator implements Operator {
             out.writeVLong(collectNanos);
             out.writeVLong(emitNanos);
             out.writeVInt(pagesProcessed);
-            out.writeVInt(rowsReceived);
-            out.writeVInt(rowsEmitted);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
         }
 
         @Override
@@ -222,7 +251,13 @@ public class SampleOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            assert false : "must not be called when overriding supportsVersion";
+            throw new UnsupportedOperationException("must not be called when overriding supportsVersion");
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return version.supports(ESQL_SAMPLE_OPERATOR_STATUS);
         }
     }
 }

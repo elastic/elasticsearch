@@ -75,14 +75,13 @@ public class TransportCreateDataStreamAction extends AcknowledgedTransportMaster
                 request.getStartTime(),
                 systemDataStreamDescriptor,
                 request.masterNodeTimeout(),
-                request.ackTimeout(),
-                true
+                request.ackTimeout()
             );
         metadataCreateDataStreamService.createDataStream(updateRequest, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(CreateDataStreamAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

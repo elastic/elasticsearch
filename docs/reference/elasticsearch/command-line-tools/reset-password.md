@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/reset-password.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # elasticsearch-reset-password [reset-password]

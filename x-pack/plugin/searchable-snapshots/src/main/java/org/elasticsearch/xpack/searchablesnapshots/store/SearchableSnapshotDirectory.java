@@ -377,7 +377,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             final BytesRef content = fileInfo.metadata().hash();
             return new ByteArrayIndexInput("ByteArrayIndexInput(" + name + ')', content.bytes, content.offset, content.length);
         }
-        if (context == Store.READONCE_CHECKSUM) {
+        if (context.hints().contains(Store.FileFooterOnly.INSTANCE)) {
             return ChecksumBlobContainerIndexInput.create(fileInfo.physicalName(), fileInfo.length(), fileInfo.checksum(), context);
         }
 
@@ -682,6 +682,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public SharedBlobCacheService<CacheKey>.CacheFile getFrozenCacheFile(String fileName, long length) {
-        return sharedBlobCacheService.getCacheFile(createCacheKey(fileName), length);
+        return sharedBlobCacheService.getCacheFile(createCacheKey(fileName), length, SharedBlobCacheService.CacheMissHandler.NOOP);
     }
 }

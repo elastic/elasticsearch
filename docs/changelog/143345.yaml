@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143345
+summary: Add parallel execution for Arrow Flight multi-endpoint sources
+type: enhancement

@@ -24,12 +24,17 @@ public class ResultBuilderForAggregateMetricDouble implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         throw new AssertionError("AggregateMetricDoubleBlock can't be a key");
     }
 
     @Override
     public void decodeValue(BytesRef values) {
+        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
+        if (count == 0) {
+            builder.appendNull();
+            return;
+        }
         for (BlockLoader.DoubleBuilder subBuilder : List.of(builder.min(), builder.max(), builder.sum())) {
             if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
                 subBuilder.appendDouble(TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(values));
@@ -50,8 +55,13 @@ public class ResultBuilderForAggregateMetricDouble implements ResultBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
+    }
+
+    @Override
     public String toString() {
-        return "ValueExtractorForAggregateMetricDouble";
+        return "ResultBuilderForAggregateMetricDouble";
     }
 
     @Override

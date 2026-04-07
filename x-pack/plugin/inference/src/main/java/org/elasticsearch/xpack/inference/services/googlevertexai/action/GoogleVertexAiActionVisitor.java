@@ -21,4 +21,5 @@ public interface GoogleVertexAiActionVisitor {
     ExecutableAction create(GoogleVertexAiRerankModel model, Map<String, Object> taskSettings);
 
     ExecutableAction create(GoogleVertexAiChatCompletionModel model, Map<String, Object> taskSettings);
+
 }

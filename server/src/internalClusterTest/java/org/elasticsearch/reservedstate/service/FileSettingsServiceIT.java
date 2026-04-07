@@ -14,8 +14,8 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
@@ -24,11 +24,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
+import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,8 +42,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
@@ -60,6 +65,14 @@ import static org.hamcrest.Matchers.nullValue;
 public class FileSettingsServiceIT extends ESIntegTestCase {
 
     private final AtomicLong versionCounter = new AtomicLong(1);
+
+    /**
+     * The test must wait this long for {@link LocalHealthMonitor} to do its thing. The shorter, the better.
+     * <p>
+     * If we could get our hands on the {@link LocalHealthMonitor} objects for the relevant nodes,
+     * we could forcibly make these tests even faster by using {@code LocalHealthMonitor.setMonitorInterval}.
+     */
+    private static final TimeValue HEALTH_POLL_INTERVAL = LocalHealthMonitor.MIN_POLL_INTERVAL; // Make it as snappy as possible
 
     @Before
     public void resetVersionCounter() {
@@ -129,22 +142,13 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
              }
         }""";
 
-    private void assertMasterNode(Client client, String node) {
-        assertThat(
-            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),
-            equalTo(node)
-        );
-    }
-
     public static void writeJSONFile(String node, String json, Logger logger, Long version) throws Exception {
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
         writeJSONFile(node, json, logger, version, fileSettingsService.watchedFile());
     }
 
     public static void writeJSONFile(String node, String json, Logger logger, Long version, Path targetPath) throws Exception {
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-
-        Files.createDirectories(fileSettingsService.watchedFileDir());
+        Files.createDirectories(targetPath.getParent());
         Path tempFilePath = createTempFile();
 
         String jsonWithVersion = Strings.format(json, version);
@@ -196,21 +200,33 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, long version) {
+    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, long fileSettingsVersion) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
+        Function<ClusterState, Boolean> clusterStateProcessor = clusterState -> {
+            ReservedStateMetadata reservedState = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+            if (reservedState != null && reservedState.version() == fileSettingsVersion) {
+                metadataVersion.set(clusterState.metadata().version());
+                savedClusterState.countDown();
+                logger.info(
+                    "done waiting for file settings [version: {}, metadata version: {}]",
+                    clusterState.version(),
+                    clusterState.metadata().version()
+                );
+                return true;
+            }
+            return false;
+        };
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null && reservedState.version() == version) {
+                if (clusterStateProcessor.apply(event.state())) {
                     clusterService.removeListener(this);
-                    metadataVersion.set(event.state().metadata().version());
-                    savedClusterState.countDown();
                 }
             }
         });
+        clusterStateProcessor.apply(clusterService.state());
 
         return new Tuple<>(savedClusterState, metadataVersion);
     }
@@ -254,7 +270,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
         var savedClusterState = setupClusterStateListener(masterNode, versionCounter.incrementAndGet());
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
@@ -273,15 +289,16 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         FileSettingsService dataFileSettingsService = internalCluster().getInstance(FileSettingsService.class, dataNode);
 
         assertFalse(dataFileSettingsService.watching());
-        var savedClusterState = setupClusterStateListener(dataNode, versionCounter.incrementAndGet());
+        long expectedVersion = versionCounter.incrementAndGet();
 
         // In internal cluster tests, the nodes share the config directory, so when we write with the data node path
         // the master will pick it up on start
-        writeJSONFile(dataNode, testJSON, logger, versionCounter.get());
+        writeJSONFile(dataNode, testJSON, logger, expectedVersion);
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode, expectedVersion);
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
@@ -297,7 +314,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode(
             Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
         );
-        assertMasterNode(internalCluster().masterClient(), masterNode);
+        awaitMasterNode(internalCluster().getMasterName(), masterNode);
         var savedClusterState = setupClusterStateListener(masterNode, versionCounter.incrementAndGet());
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
@@ -321,6 +338,68 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                 .get(ReservedClusterSettingsAction.NAME)
                 .keys(),
             hasSize(1)
+        );
+    }
+
+    public void testReservedStateClearedWhenFileAbsentAtStartup() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        awaitMasterNode(internalCluster().getMasterName(), masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode, versionCounter.incrementAndGet());
+
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+
+        logger.info("--> write some settings");
+        writeJSONFile(masterNode, testJSON, logger, versionCounter.get());
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
+
+        logger.info("--> get file path before restarting node");
+        Path watchedFile = masterFileSettingsService.watchedFile();
+        assertTrue("File should exist before deletion", Files.exists(watchedFile));
+
+        logger.info("--> restart master and delete file while node is stopped");
+        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                logger.info("--> delete the file settings file while node is stopped");
+                Files.deleteIfExists(watchedFile);
+                assertFalse("File should not exist after deletion", Files.exists(watchedFile));
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        logger.info("--> verify reserved state is cleared when missing file is processed at startup");
+        assertBusy(() -> {
+            final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+                .actionGet();
+            ReservedStateMetadata reservedState = clusterStateResponse.getState()
+                .metadata()
+                .reservedStateMetadata()
+                .get(FileSettingsService.NAMESPACE);
+            assertThat(reservedState, notNullValue());
+            assertThat(reservedState.version(), equalTo(EMPTY_VERSION));
+            assertTrue(reservedState.handlers().isEmpty());
+        }, 20, TimeUnit.SECONDS);
+
+        logger.info("--> verify settings are no longer reserved and can be modified");
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
+        );
+        clusterAdmin().updateSettings(req).get();
+
+        assertThat(
+            clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+                .actionGet()
+                .getState()
+                .metadata()
+                .persistentSettings()
+                .get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
+            equalTo("1234kb")
         );
     }
 
@@ -375,7 +454,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode(
             Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
         );
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
@@ -399,7 +478,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode(
             Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
         );
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
@@ -435,7 +514,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode(
             Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
         );
-        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
@@ -448,11 +527,19 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
         assertHasErrors(metadataVersion, "not_cluster_settings");
 
-        // write json with new error without version increment to simulate ES failing to process settings after a restart for a new reason
-        // (usually, this would be due to a code change)
-        writeJSONFile(masterNode, testOtherErrorJSON, logger, versionCounter.get());
-        assertHasErrors(metadataVersion, "not_cluster_settings");
-        internalCluster().restartNode(masterNode);
+        // capture the watched file settings file before shutting down the master node
+        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        Path fileSettingsFile = fileSettingsService.watchedFile();
+
+        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                // write json with new error without version increment to simulate ES failing to process settings after a restart for
+                // a new reason (usually, this would be due to a code change)
+                writeJSONFile(masterNode, testOtherErrorJSON, logger, versionCounter.get(), fileSettingsFile);
+                return Settings.EMPTY;
+            }
+        });
         ensureGreen();
 
         assertBusy(() -> assertHasErrors(metadataVersion, "bad_cluster_settings"));
@@ -533,6 +620,14 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         }
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LocalHealthMonitor.POLL_INTERVAL_SETTING.getKey(), HEALTH_POLL_INTERVAL)
+            .build();
+    }
+
     public void testHealthIndicatorWithSingleNode() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start the node");
@@ -606,7 +701,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                     getHealthResponse.findIndicator(FileSettingsService.FileSettingsHealthIndicatorService.NAME).status()
                 );
             }
-        });
+        }, 2 * HEALTH_POLL_INTERVAL.duration(), HEALTH_POLL_INTERVAL.timeUnit());
     }
 
     private void assertHasErrors(AtomicLong waitForMetadataVersion, String expectedError) {

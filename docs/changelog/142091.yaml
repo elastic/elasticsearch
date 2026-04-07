@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 142091
+summary: Batch snapshot update tasks after external change
+type: enhancement

@@ -15,20 +15,22 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -36,8 +38,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.plugins.PluginsLoader;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.DocValuesDocReader;
@@ -59,10 +60,13 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -77,21 +81,38 @@ import java.util.concurrent.TimeUnit;
 @OperationsPerInvocation(1_000_000)   // The index has a million documents in it.
 @State(Scope.Benchmark)
 public class ScriptScoreBenchmark {
-    private final PluginsService pluginsService = new PluginsService(
-        Settings.EMPTY,
-        null,
-        PluginsLoader.createPluginsLoader(Set.of(), PluginsLoader.loadPluginsBundles(Path.of(System.getProperty("plugins.dir"))), Map.of())
-    );
-    private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class).toList());
+
+    static {
+        Utils.configureBenchmarkLogging();
+    }
+
+    private final ScriptModule scriptModule = loadScriptModule();
 
     private final Map<String, MappedFieldType> fieldTypes = Map.ofEntries(
-        Map.entry("n", new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, Map.of(), null, false, null, null, false))
+        Map.entry(
+            "n",
+            new NumberFieldType(
+                "n",
+                NumberType.LONG,
+                IndexType.docValuesOnly(),
+                false,
+                true,
+                null,
+                Map.of(),
+                null,
+                false,
+                null,
+                null,
+                false
+            )
+        )
     );
     private final IndexFieldDataCache fieldDataCache = new IndexFieldDataCache.None();
     private final CircuitBreakerService breakerService = new NoneCircuitBreakerService();
     private final SearchLookup lookup = new SearchLookup(
         fieldTypes::get,
-        (mft, lookup, fdo) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(fieldDataCache, breakerService),
+        (mft, lookup, fdo) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "benchmark"))
+            .build(fieldDataCache, breakerService),
         SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
     );
 
@@ -152,7 +173,55 @@ public class ScriptScoreBenchmark {
 
     private Query scriptScoreQuery(ScoreScript.Factory factory) {
         ScoreScript.LeafFactory leafFactory = factory.newFactory(Map.of(), lookup);
-        return new ScriptScoreQuery(new MatchAllDocsQuery(), null, leafFactory, lookup, null, "test", 0, IndexVersion.current());
+        return new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, null, leafFactory, lookup, null, "test", 0, IndexVersion.current());
+    }
+
+    private static ScriptModule loadScriptModule() {
+        try {
+            Path pluginsDir = Path.of(System.getProperty("plugins.dir"));
+            List<ScriptPlugin> scriptPlugins = new ArrayList<>();
+            try (var dirs = Files.list(pluginsDir)) {
+                for (Path pluginDir : dirs.filter(Files::isDirectory).toList()) {
+                    scriptPlugins.add(loadScriptPlugin(pluginDir));
+                }
+            }
+            return new ScriptModule(Settings.EMPTY, scriptPlugins);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load script plugins", e);
+        }
+    }
+
+    private static ScriptPlugin loadScriptPlugin(Path pluginDir) throws Exception {
+        URL[] jarUrls;
+        try (var stream = Files.walk(pluginDir)) {
+            jarUrls = stream.filter(p -> p.toString().endsWith(".jar")).map(p -> {
+                try {
+                    return p.toUri().toURL();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }).toArray(URL[]::new);
+        }
+        URLClassLoader loader = URLClassLoader.newInstance(jarUrls, ScriptScoreBenchmark.class.getClassLoader());
+
+        Path descriptorPath = pluginDir.resolve("plugin-descriptor.properties");
+        var props = new java.util.Properties();
+        try (var in = Files.newInputStream(descriptorPath)) {
+            props.load(in);
+        }
+        String className = props.getProperty("classname");
+
+        Class<?> pluginClass = loader.loadClass(className);
+        Object plugin = pluginClass.getDeclaredConstructor().newInstance();
+        if (plugin instanceof ExtensiblePlugin extensible) {
+            extensible.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+                @Override
+                public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                    return List.of();
+                }
+            });
+        }
+        return (ScriptPlugin) plugin;
     }
 
     private ScoreScript.Factory bareMetalScript() {
@@ -162,14 +231,14 @@ public class ScriptScoreBenchmark {
             return new ScoreScript.LeafFactory() {
                 @Override
                 public ScoreScript newInstance(DocReader docReader) throws IOException {
-                    SortedNumericDocValues values = ifd.load(((DocValuesDocReader) docReader).getLeafReaderContext()).getLongValues();
+                    SortedNumericLongValues values = ifd.load(((DocValuesDocReader) docReader).getLeafReaderContext()).getLongValues();
                     return new ScoreScript(params, null, docReader) {
                         private int docId;
 
                         @Override
                         public double execute(ExplanationHolder explanation) {
                             try {
-                                values.advance(docId);
+                                values.advanceExact(docId);
                                 if (values.docValueCount() != 1) {
                                     throw new IllegalArgumentException("script only works when there is exactly one value");
                                 }

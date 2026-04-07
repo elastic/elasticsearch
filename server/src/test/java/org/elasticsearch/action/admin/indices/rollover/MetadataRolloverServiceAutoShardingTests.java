@@ -578,16 +578,16 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
         List<Condition<?>> metConditions,
         int expectedNumberOfShards
     ) {
-        String sourceIndexName = DataStream.getDefaultBackingIndexName(
-            preRolloverDataStream.getName(),
-            preRolloverDataStream.getGeneration()
+        String sourceIndexName = rolloverResult.sourceIndexName();
+        assertThat(
+            sourceIndexName,
+            DataStreamTestHelper.backingIndexEqualTo(preRolloverDataStream.getName(), (int) preRolloverDataStream.getGeneration())
         );
-        String newIndexName = DataStream.getDefaultBackingIndexName(
-            preRolloverDataStream.getName(),
-            preRolloverDataStream.getGeneration() + 1
+        String newIndexName = rolloverResult.rolloverIndexName();
+        assertThat(
+            newIndexName,
+            DataStreamTestHelper.backingIndexEqualTo(preRolloverDataStream.getName(), (int) preRolloverDataStream.getGeneration() + 1)
         );
-        assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
-        assertEquals(newIndexName, rolloverResult.rolloverIndexName());
         ProjectMetadata rolloverMetadata = rolloverResult.clusterState().metadata().getProject(projectId);
         assertEquals(preRolloverDataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
         IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);

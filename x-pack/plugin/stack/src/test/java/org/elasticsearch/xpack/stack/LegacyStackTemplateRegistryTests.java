@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.stack;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -34,14 +33,7 @@ public class LegacyStackTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         Client client = new NoOpClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new LegacyStackTemplateRegistry(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            client,
-            NamedXContentRegistry.EMPTY,
-            TestProjectResolvers.mustExecuteFirst()
-        );
+        registry = new LegacyStackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
     }
 
     @After

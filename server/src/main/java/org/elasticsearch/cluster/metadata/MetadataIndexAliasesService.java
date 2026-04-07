@@ -92,7 +92,7 @@ public class MetadataIndexAliasesService {
         final IndicesAliasesClusterStateUpdateRequest request,
         final ActionListener<IndicesAliasesResponse> listener
     ) {
-        taskQueue.submitTask("index-aliases", new ApplyAliasesTask(request, listener), null); // TODO use request.masterNodeTimeout() here?
+        taskQueue.submitTask("index-aliases", new ApplyAliasesTask(request, listener), request.masterNodeTimeout());
     }
 
     /**
@@ -145,6 +145,10 @@ public class MetadataIndexAliasesService {
                     DataStream dataStream = metadata.dataStream(name);
                     if (dataStream != null) {
                         return dataStream.getName();
+                    }
+                    View view = metadata.view(name);
+                    if (view != null) {
+                        return view.name();
                     }
                     return null;
                 };
@@ -254,7 +258,7 @@ public class MetadataIndexAliasesService {
         AliasValidator.validateAliasFilter(
             alias,
             filter,
-            indexService.newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
+            indexService.newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap(), null, null),
             xContentRegistry
         );
     }

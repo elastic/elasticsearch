@@ -572,7 +572,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(AbstractJoin plan) {
             // check for empty filters
             for (KeyedFilter filter : plan.queries()) {
-                if (filter.anyMatch(LocalRelation.class::isInstance)) {
+                if (filter.isMissingEventFilter() == false && filter.anyMatch(LocalRelation.class::isInstance)) {
                     return new LocalRelation(plan.source(), plan.output(), plan instanceof Sample ? Type.SAMPLE : Type.SEQUENCE);
                 }
             }

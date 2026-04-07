@@ -292,6 +292,45 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(LocalRelation.class, optimized.getClass());
     }
 
+    /**
+     * A LocalRelation inside a missing event filter means no event can ever satisfy the negated condition,
+     * so the absence is always guaranteed — the sequence must NOT be skipped.
+     * <p>
+     * sequence
+     * ![ LocalRelation ]   -- always absent, absence always satisfied
+     * [ filter X ]
+     * ==
+     * sequence (unchanged, not replaced with LocalRelation)
+     */
+    public void testSkipEmptyJoinDoesNotSkipWhenMissingEventFilterIsEmpty() {
+        KeyedFilter negatedRule = missingEventKeyedFilter(new LocalRelation(EMPTY, emptyList()));
+        KeyedFilter positiveRule = keyedFilter(basicFilter(new IsNull(EMPTY, TRUE)));
+        KeyedFilter until = keyedFilter(basicFilter(Literal.FALSE));
+        Sequence s = new Sequence(EMPTY, asList(negatedRule, positiveRule), until, TimeValue.MINUS_ONE, timestamp(), tiebreaker(), OrderDirection.ASC);
+
+        LogicalPlan result = new Optimizer.SkipEmptyJoin().rule(s);
+        assertEquals(Sequence.class, result.getClass());
+    }
+
+    /**
+     * A LocalRelation inside a positive rule still causes the whole sequence to be skipped.
+     * <p>
+     * sequence
+     * [ LocalRelation ]    -- no events can ever match
+     * ![ filter X ]
+     * ==
+     * LocalRelation
+     */
+    public void testSkipEmptyJoinSkipsWhenPositiveRuleIsEmpty() {
+        KeyedFilter positiveRule = keyedFilter(new LocalRelation(EMPTY, emptyList()));
+        KeyedFilter negatedRule = missingEventKeyedFilter(basicFilter(new IsNull(EMPTY, TRUE)));
+        KeyedFilter until = keyedFilter(basicFilter(Literal.FALSE));
+        Sequence s = new Sequence(EMPTY, asList(positiveRule, negatedRule), until, TimeValue.MINUS_ONE, timestamp(), tiebreaker(), OrderDirection.ASC);
+
+        LogicalPlan result = new Optimizer.SkipEmptyJoin().rule(s);
+        assertEquals(LocalRelation.class, result.getClass());
+    }
+
     public void testSortByLimit() {
         Filter f = new Filter(EMPTY, rel(), TRUE);
         OrderBy o = new OrderBy(EMPTY, f, singletonList(new Order(EMPTY, tiebreaker(), OrderDirection.ASC, NullsPosition.FIRST)));

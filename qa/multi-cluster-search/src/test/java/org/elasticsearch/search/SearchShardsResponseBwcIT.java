@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -63,7 +64,7 @@ public class SearchShardsResponseBwcIT extends ESRestTestCase {
                 // Index 3 documents per day
                 StringBuilder bulk = new StringBuilder();
                 for (int doc = 0; doc < 3; doc++) {
-                    String ts = String.format("2026-01-%02dT%02d:00:00Z", day, 10 + doc * 4);
+                    String ts = Strings.format("2026-01-%02dT%02d:00:00Z", day, 10 + doc * 4);
                     bulk.append("{\"index\":{}}\n");
                     bulk.append("{\"@timestamp\":\"").append(ts).append("\",\"value\":").append(doc).append("}\n");
                 }

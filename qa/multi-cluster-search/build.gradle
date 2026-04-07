@@ -73,7 +73,6 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
   }
 
   // Reverse version: old local coordinator + new remote.
-  String currentProjectVersionString = project.version.toString()
 
   def revRemoteCluster = testClusters.register("${baseName}-rev-remote") {
     numberOfNodes = 2
@@ -106,10 +105,11 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
       nonInputProperties.systemProperty('tests.rest.suite', 'multi_cluster')
       nonInputProperties.systemProperty('tests.rest.cluster', revLocalCluster.map(c -> c.allHttpSocketURI.join(",")))
       nonInputProperties.systemProperty('tests.rest.remote_cluster', revRemoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster_version', currentProjectVersionString)
+      nonInputProperties.systemProperty('tests.rest.remote_cluster_version', project.version)
     }
     dependsOn "${baseName}#rev-remote-setup"
   }
+
 
 
   tasks.register(bwcTaskName(bwcVersion)) {

@@ -292,7 +292,7 @@ public class Reindexer {
         // Elasticsearch uses an index-filter when opening a PIT to perform shard-level pruning (removing unnecessary shards from the
         // point-in-time snapshot, improving performance and memory demands). Document filtering still runs for each subsequent pit
         // search. When the source query is null, the effective query is match_all, and we omit the index_filter parameter rather than
-        // explicitly setting it.
+        // explicitly setting it, saving the cost of the match_all search incurred during the shard-level pruning.
         if (searchRequest.source() != null && searchRequest.source().query() != null) {
             pitRequest.indexFilter(searchRequest.source().query());
         }

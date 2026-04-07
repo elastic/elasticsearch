@@ -187,8 +187,7 @@ final class RemoteRequestBuilders {
     }
 
     /**
-     * Builds POST /{index}/_pit. Optional JSON body may include {@code project_routing} and/or {@code index_filter}
-     * (from {@link SearchRequest#getProjectRouting()} and {@link org.elasticsearch.search.builder.SearchSourceBuilder#query()}).
+     * Builds a {@code POST /{index}/_pit} request. Optional JSON body may include {@code project_routing} and/or {@code index_filter}
      */
     static Request openPit(String[] indices, TimeValue keepAlive, SearchRequest searchRequest) {
         StringBuilder path = new StringBuilder("/");

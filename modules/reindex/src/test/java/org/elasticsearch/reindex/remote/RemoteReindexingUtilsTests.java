@@ -482,8 +482,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     }
 
     /**
-     * Verifies that open PIT sends {@code index_filter} in the JSON body when the source {@link SearchRequest} has a query,
-     * matching {@link org.elasticsearch.reindex.remote.RemoteRequestBuilders#openPit}.
+     * Verifies that open PIT sends {@code index_filter} in the JSON body when the source {@link SearchRequest} has a query
      */
     public void testOpenPitSuccessWithIndexFilterInRequestBody() throws IOException {
         byte[] pitIdBytes = randomByteArrayOfLength(between(1, 64));

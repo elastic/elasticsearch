@@ -9,8 +9,14 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.LowLevelHttpRequest;
+import com.google.api.client.http.LowLevelHttpResponse;
+import com.google.auth.http.HttpTransportFactory;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
 
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
@@ -27,6 +33,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -35,10 +44,13 @@ import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class GoogleCloudStorageServiceTests extends ESTestCase {
 
@@ -187,6 +199,112 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertEquals(-1, GoogleCloudStorageService.toTimeout(null).intValue());
         assertEquals(-1, GoogleCloudStorageService.toTimeout(TimeValue.ZERO).intValue());
         assertEquals(0, GoogleCloudStorageService.toTimeout(TimeValue.MINUS_ONE).intValue());
+    }
+
+    public void testApplicationDefaultCredentialsFallbackToComputeEngine() throws IOException {
+        final AtomicBoolean metadataServerContacted = new AtomicBoolean(false);
+
+        // Mock HTTP transport that simulates the GCP metadata server.
+        // DefaultCredentialsProvider uses this transport to detect GCE and obtain tokens
+        // when no file-based credentials are found.
+        final HttpTransportFactory mockMetadataTransportFactory = () -> new HttpTransport() {
+            @Override
+            protected LowLevelHttpRequest buildRequest(String method, String url) {
+                metadataServerContacted.set(true);
+                final byte[] responseBody = url.contains("token")
+                    ? "{\"access_token\":\"test-token\",\"token_type\":\"Bearer\",\"expires_in\":3600}".getBytes(UTF_8)
+                    : new byte[0];
+                return new LowLevelHttpRequest() {
+                    @Override
+                    public void addHeader(String name, String value) {}
+
+                    @Override
+                    public LowLevelHttpResponse execute() {
+                        return new LowLevelHttpResponse() {
+                            @Override
+                            public InputStream getContent() {
+                                return new ByteArrayInputStream(responseBody);
+                            }
+
+                            @Override
+                            public String getContentEncoding() {
+                                return null;
+                            }
+
+                            @Override
+                            public long getContentLength() {
+                                return responseBody.length;
+                            }
+
+                            @Override
+                            public String getContentType() {
+                                return "application/json";
+                            }
+
+                            @Override
+                            public String getStatusLine() {
+                                return "HTTP/1.1 200 OK";
+                            }
+
+                            @Override
+                            public int getStatusCode() {
+                                return 200;
+                            }
+
+                            @Override
+                            public String getReasonPhrase() {
+                                return "OK";
+                            }
+
+                            @Override
+                            public int getHeaderCount() {
+                                return 1;
+                            }
+
+                            @Override
+                            public String getHeaderName(int index) {
+                                return "Metadata-Flavor";
+                            }
+
+                            @Override
+                            public String getHeaderValue(int index) {
+                                return "Google";
+                            }
+                        };
+                    }
+                };
+            }
+        };
+
+        // Override createStorageOptions to use our mock transport for Application Default
+        // Credentials, simulating what happens on a GCP VM when no credentials_file is set.
+        final GoogleCloudStorageService service = new GoogleCloudStorageService() {
+            @Override
+            StorageOptions createStorageOptions(
+                GoogleCloudStorageClientSettings gcsClientSettings,
+                HttpTransportOptions httpTransportOptions
+            ) {
+                assertNull("Test expects no explicit credential to be configured", gcsClientSettings.getCredential());
+                try {
+                    return StorageOptions.newBuilder()
+                        .setCredentials(GoogleCredentials.getApplicationDefault(mockMetadataTransportFactory))
+                        .build();
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to obtain Application Default Credentials from mock metadata server", e);
+                }
+            }
+        };
+
+        final Settings settings = Settings.builder()
+            .put(GoogleCloudStorageClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("default").getKey(), "http://unused")
+            .build();
+        service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
+        final var storage = service.client("default", "repo", new GoogleCloudStorageOperationsStats("bucket"));
+        assertThat(storage.getOptions().getCredentials(), notNullValue());
+        assertTrue(
+            "GCP metadata server should have been contacted to obtain Application Default Credentials",
+            metadataServerContacted.get()
+        );
     }
 
     public void testGetDefaultProjectIdViaProxy() throws Exception {

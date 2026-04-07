@@ -29,8 +29,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -69,6 +67,7 @@ import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.Text;
@@ -881,13 +880,22 @@ public final class KeywordFieldMapper extends FieldMapper {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
                         Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                        return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                        return new AutomatonQuery(
+                            term,
+                            dfa,
+                            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                            false,
+                            MultiTermQuery.DOC_VALUES_REWRITE
+                        );
                     }
-                    return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
                 }
-
-                StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
-                return new StringScriptFieldWildcardQuery(new Script(""), leafFactory, name(), value, caseInsensitive);
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    value,
+                    caseInsensitive
+                );
             }
         }
 
@@ -905,9 +913,21 @@ public final class KeywordFieldMapper extends FieldMapper {
                 Term term = new Term(name(), value);
                 if (context.getCircuitBreaker() != null) {
                     Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, context.getCircuitBreaker());
-                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    return new AutomatonQuery(
+                        term,
+                        dfa,
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                        false,
+                        MultiTermQuery.DOC_VALUES_REWRITE
+                    );
                 }
-                return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    value,
+                    false
+                );
             }
         }
 
@@ -936,15 +956,22 @@ public final class KeywordFieldMapper extends FieldMapper {
                         maxDeterminizedStates,
                         context.getCircuitBreaker()
                     );
-                    return new AutomatonQuery(term, dfa, false, MultiTermQuery.DOC_VALUES_REWRITE);
+                    return new AutomatonQuery(
+                        term,
+                        dfa,
+                        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                        false,
+                        MultiTermQuery.DOC_VALUES_REWRITE
+                    );
                 }
-                return new RegexpQuery(
-                    new Term(name(), indexedValueForSearch(value)),
+                return new StringScriptFieldRegexpQuery(
+                    new Script(""),
+                    ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    indexedValueForSearch(value).utf8ToString(),
                     syntaxFlags,
                     matchFlags,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    maxDeterminizedStates,
-                    MultiTermQuery.DOC_VALUES_REWRITE
+                    maxDeterminizedStates
                 );
             }
         }

@@ -201,7 +201,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 Automaton dfa = AutomatonQueries.toWildcardAutomaton(term, circuitBreaker);
                 query = method == null
                     ? new AutomatonQueryWithDescription(term, dfa, term.text())
-                    : new AutomatonQuery(term, dfa, false, method);
+                    : new AutomatonQuery(term, dfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
             }
         } else {
             if (caseInsensitive) {
@@ -239,7 +239,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker);
             query = method == null
                 ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")
-                : new AutomatonQuery(term, dfa, false, method);
+                : new AutomatonQuery(term, dfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
         } else {
             query = method == null
                 ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)

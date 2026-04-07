@@ -301,7 +301,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                 maxDeterminizedStates,
                 context.getCircuitBreaker()
             );
-            query = method == null ? new AutomatonQuery(term, dfa) : new AutomatonQuery(term, dfa, false, method);
+            query = method == null
+                ? new AutomatonQuery(term, dfa)
+                : new AutomatonQuery(term, dfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
         } else {
             query = method == null
                 ? new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates)

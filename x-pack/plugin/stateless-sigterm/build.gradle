@@ -18,6 +18,7 @@
 plugins {
     id("elasticsearch.internal-es-plugin")
     id("elasticsearch.internal-cluster-test")
+    id("elasticsearch.internal-java-rest-test")
 }
 
 esplugin {
@@ -31,6 +32,8 @@ esplugin {
 dependencies {
     compileOnly(xpackModule("core"))
     implementation(xpackModule("shutdown"))
+    javaRestTestImplementation(testArtifact(xpackModule("plugin")))
+    javaRestTestImplementation(testArtifact(xpackModule("core")))
 }
 
 configurations {

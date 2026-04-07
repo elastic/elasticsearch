@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -30,6 +31,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 
@@ -94,26 +97,33 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             return new Expression.TypeResolution("Unresolved children");
         }
 
+        TypeResolution fieldNullCheck = isNotNull(field(), sourceText(), FIRST);
+        if (fieldNullCheck.unresolved()) {
+            return fieldNullCheck;
+        } else if (field() instanceof AggregateFunction == false) {
+            return new TypeResolution(
+                LoggerMessageFormat.format(
+                    null,
+                    "first argument of [{}] must be an aggregate function, found value [{}] type [{}]",
+                    sourceText(),
+                    field().sourceText(),
+                    field().dataType().typeName()
+                )
+            );
+        }
+
         TypeResolution resolution = isType(
             field(),
             dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DOUBLE,
             sourceText(),
             FIRST,
             "integer or long or double"
-        ).and(
-            isType(
-                key(),
-                dt -> dt == DataType.INTEGER
-                    || dt == DataType.LONG
-                    || dt == DataType.DOUBLE
-                    || dt == DataType.DATETIME
-                    || dt == DataType.DATE_NANOS,
-                sourceText(),
-                SECOND,
-                "datetime"
-            )
-        )
+        ).and(isNotNull(key(), sourceText(), SECOND))
+            .and(isType(key(), dt -> dt == DataType.DATETIME, sourceText(), SECOND, "date"))
+            .and(isNotNull(buckets(), sourceText(), THIRD))
             .and(isWholeNumber(buckets(), sourceText(), THIRD))
+            .and(isFoldable(buckets(), sourceText(), THIRD))
+            .and(isNotNull(from(), sourceText(), FOURTH))
             .and(
                 isType(
                     from(),
@@ -123,6 +133,8 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
                     "date or keyword or text"
                 )
             )
+            .and(isFoldable(from(), sourceText(), FOURTH))
+            .and(isNotNull(to(), sourceText(), FIFTH))
             .and(
                 isType(
                     to(),
@@ -131,7 +143,8 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
                     FIFTH,
                     "date or keyword or text"
                 )
-            );
+            )
+            .and(isFoldable(to(), sourceText(), FIFTH));
 
         if (resolution.unresolved()) {
             return resolution;

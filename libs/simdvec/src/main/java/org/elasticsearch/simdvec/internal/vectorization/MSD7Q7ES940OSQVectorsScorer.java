@@ -20,11 +20,11 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkW
 import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /** Vectorized scorer for 7-bit symmetric quantized vectors stored as a {@link MemorySegment}. */
-final class MSD7Q7ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
+final class MSD7Q7ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
 
     private final MemorySegmentES92Int7VectorsScorer int7Scorer;
 
-    MSD7Q7ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+    MSD7Q7ES940OSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
         this.int7Scorer = new MemorySegmentES92Int7VectorsScorer(in, dimensions, bulkSize);
     }

@@ -2463,13 +2463,13 @@ public class NumberFieldMapper extends FieldMapper {
      * fields that want to share the behavior of numeric fields.
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
+        final String name = fieldType.name();
         if (dimension && numericValue != null) {
-            context.getRoutingFields().addLong(fieldType().name(), numericValue.longValue());
+            context.getRoutingFields().addLong(name, numericValue.longValue());
         }
         // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
         final NumberFieldType ft = fieldType();
         final LuceneDocument doc = context.doc();
-        final String name = ft.name();
         final IndexType indexType = ft.indexType;
         switch (type) {
             case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue(), indexType);
@@ -2481,13 +2481,12 @@ public class NumberFieldMapper extends FieldMapper {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
             List<IndexableField> fields = context.doc().getFields();
             final IndexableField last = fields.getLast();
-            assert last.name().equals(fieldType().name())
-                : "last field name [" + last.name() + "] mis match field name [" + fieldType().name() + "]";
-            context.doc().onlyAddKey(fieldType().name(), last);
+            assert last.name().equals(name) : "last field name [" + last.name() + "] mis match field name [" + name + "]";
+            context.doc().onlyAddKey(name, last);
         }
 
         if (docValuesParameters.enabled() == false && (stored || indexed)) {
-            context.addToFieldNames(fieldType().name());
+            context.addToFieldNames(name);
         }
     }
 

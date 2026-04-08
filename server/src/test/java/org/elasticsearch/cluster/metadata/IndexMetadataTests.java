@@ -935,7 +935,10 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testSequenceNumbersDisabled() {
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
+            IndexVersion.current()
+        );
         var disabled = randomBoolean();
         IndexMetadata metadata = IndexMetadata.builder("test")
             .settings(

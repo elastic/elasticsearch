@@ -91,9 +91,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
-- class: org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointServiceNodeTests
-  method: testGetCheckpointStats
-  issue: https://github.com/elastic/elasticsearch/issues/141112
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:boolean.convertFromIntAndLong}
   issue: https://github.com/elastic/elasticsearch/issues/141375
@@ -166,9 +163,6 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteBlobWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/144025
-- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
-  method: testGetReindexFollowsRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/144364
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
@@ -261,9 +255,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/145855
-- class: org.elasticsearch.cluster.metadata.IndexMetadataTests
-  method: testSequenceNumbersDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/145864
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/145877
@@ -291,6 +282,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145901
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
+  issue: https://github.com/elastic/elasticsearch/issues/145904
 
 # Examples:
 #

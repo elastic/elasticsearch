@@ -40,6 +40,16 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
     }
 
     @Override
+    public void ignoreDisable(boolean ignoreDisable) {
+        assert false : "This should never be called on an immutable routing allocation";
+    }
+
+    @Override
+    public boolean ignoreDisable() {
+        return false;
+    }
+
+    @Override
     public void removeAllocationId(ShardRouting shardRouting) {
         assert false : "This should never be called on an immutable routing allocation";
     }

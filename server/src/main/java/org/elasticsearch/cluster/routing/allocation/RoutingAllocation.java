@@ -56,8 +56,6 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
-    private boolean ignoreDisable = false;
-
     private DebugMode debugDecision = DebugMode.OFF;
 
     protected final long currentNanoTime;
@@ -206,13 +204,9 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         return this.nodeReplacementTargets;
     }
 
-    public void ignoreDisable(boolean ignoreDisable) {
-        this.ignoreDisable = ignoreDisable;
-    }
+    public abstract void ignoreDisable(boolean ignoreDisable);
 
-    public boolean ignoreDisable() {
-        return this.ignoreDisable;
-    }
+    public abstract boolean ignoreDisable();
 
     public void setDebugMode(DebugMode debug) {
         this.debugDecision = debug;

@@ -34,6 +34,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     private final boolean isSimulating;
     private boolean isReconciling;
     private boolean hasPendingAsyncFetch;
+    private boolean ignoreDisable;
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -86,6 +87,16 @@ final class MutableRoutingAllocation extends RoutingAllocation {
             return routingNodes;
         }
         return super.routingNodes();
+    }
+
+    @Override
+    public void ignoreDisable(boolean ignoreDisable) {
+        this.ignoreDisable = ignoreDisable;
+    }
+
+    @Override
+    public boolean ignoreDisable() {
+        return ignoreDisable;
     }
 
     @Override

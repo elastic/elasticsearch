@@ -124,8 +124,6 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     }
 
     public void testUpdateByQueryOnRegularIndex() {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         boolean disableSequenceNumbers = randomBoolean();
         createIndex("test-index", disableSeqNoSettings(disableSequenceNumbers));
         indexDoc("test-index", "1", "field", "value");
@@ -147,8 +145,6 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     }
 
     public void testDeleteByQueryOnRegularIndex() {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         boolean disableSequenceNumbers = randomBoolean();
         createIndex("test-index", disableSeqNoSettings(disableSequenceNumbers));
         indexDoc("test-index", "1", "field", "value");
@@ -171,8 +167,6 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     }
 
     public void testPatternMatchingMultipleIndicesWithMixedSettings() {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         createIndex("test-index-1", disableSeqNoSettings(randomBoolean()));
         createIndex("test-index-2", disableSeqNoSettings(randomBoolean()));
         indexDoc("test-index-1", "1", "field", "value");
@@ -195,8 +189,6 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     }
 
     public void testDataStreamWithSeqNoDisabledOnAllBackingIndices() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         String dsName = "my-data-stream";
         createDataStreamWithTemplate(dsName, disableSeqNoTemplateSettings(true));
 
@@ -218,8 +210,6 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     }
 
     public void testDataStreamWithMixedBackingIndices() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         String dsName = "my-data-stream";
         createDataStreamWithTemplate(dsName, disableSeqNoSettings(randomBoolean()));
         int numDocs = between(1, 5);
@@ -249,8 +239,6 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
     }
 
     public void testMixedDataStreamAndRegularIndex() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         String dsName = "test-ds";
         createDataStreamWithTemplate(dsName, disableSeqNoSettings(randomBoolean()));
         int numDocs = between(1, 5);

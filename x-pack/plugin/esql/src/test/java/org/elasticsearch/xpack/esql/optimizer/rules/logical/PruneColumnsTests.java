@@ -891,8 +891,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             var branchEval = as(branchProject.child(), Eval.class);
             var alias = as(branchEval.fields().getFirst(), Alias.class);
             assertThat(alias.name(), equalTo("_fork"));
-            var limitInBranch = as(branchEval.child(), Limit.class);
-            var relation = as(limitInBranch.child(), EsRelation.class);
+            var relation = as(branchEval.child(), EsRelation.class);
             assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "first_name"));
         }
     }
@@ -943,7 +942,8 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             var branchProject = as(branch, Project.class);
             assertThat(branchProject.projections().size(), equalTo(5));
             assertThat(Expressions.names(branchProject.projections()), containsInAnyOrder("emp_no", "x", "y", "z", "_fork"));
-            var branchEval = as(branchProject.child(), Eval.class);
+            var topNBranch = as(branchProject.child(), TopN.class);
+            var branchEval = as(topNBranch.child(), Eval.class);
             var forkAlias = as(branchEval.fields().getFirst(), Alias.class);
             assertThat(forkAlias.name(), equalTo("_fork"));
             var grok = as(branchEval.child(), Grok.class);
@@ -953,8 +953,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             var aliasInBranch = as(evalInBranch.fields().getFirst(), Alias.class);
             // The EVAL that created 'a' or 'b' should still be present in the branch even if not part of the output
             assertThat(aliasInBranch.name(), anyOf(equalTo("a"), equalTo("b")));
-            var limitInBranch = as(evalInBranch.child(), Limit.class);
-            var filter = as(limitInBranch.child(), Filter.class);
+            var filter = as(evalInBranch.child(), Filter.class);
             assertThat(filter.toString(), containsString("IN(10048[INTEGER],10081[INTEGER],emp_no"));
             var relation = as(filter.child(), EsRelation.class);
             assertThat(
@@ -1021,8 +1020,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         // Dissect and Eval(a) have been pruned since x, y, z fields are not used in the final aggregation
         var evalInFirstBranch = as(firstBranchProject.child(), Eval.class);
         assertThat(Expressions.names(evalInFirstBranch.fields()), containsInAnyOrder("s", "_fork"));
-        var limitInFirstBranch = as(evalInFirstBranch.child(), Limit.class);
-        var filterInFirstBranch = as(limitInFirstBranch.child(), Filter.class);
+        var filterInFirstBranch = as(evalInFirstBranch.child(), Filter.class);
         var firstBranchRelation = as(filterInFirstBranch.child(), EsRelation.class);
         assertThat(
             firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
@@ -1034,8 +1032,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(secondBranchProject.projections().size(), equalTo(3));
         // x, y, z from STATS are pruned since they are not used in the final aggregation
         var evalInSecondBranch = as(secondBranchProject.child(), Eval.class);
-        var limitInSecondBranch = as(evalInSecondBranch.child(), Limit.class);
-        var localRelation = as(limitInSecondBranch.child(), LocalRelation.class);
+        var localRelation = as(evalInSecondBranch.child(), LocalRelation.class);
         assertThat(
             localRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("$$COUNT$COUNT(*)::keywo>$0")
@@ -1062,8 +1059,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(fourthBranchProject.projections()), containsInAnyOrder("emp_no", "s", "_fork"));
         // x (= "abc") and y (= "aaa") are pruned since they are not used in the final aggregation
         var evalInFourthBranch = as(fourthBranchProject.child(), Eval.class);
-        var limitInFourthBranch = as(evalInFourthBranch.child(), Limit.class);
-        var filterInFourthBranch = as(limitInFourthBranch.child(), Filter.class);
+        var filterInFourthBranch = as(evalInFourthBranch.child(), Filter.class);
         var fourthBranchRelation = as(filterInFourthBranch.child(), EsRelation.class);
         assertThat(
             fourthBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
@@ -1168,8 +1164,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var firstBranchFields = firstBranchEval.fields();
         assertThat(firstBranchFields.size(), equalTo(2));
         assertThat(Expressions.names(firstBranchFields), containsInAnyOrder("x", "_fork"));
-        var limitInFirstBranch = as(firstBranchEval.child(), Limit.class);
-        var firstBranchRelation = as(limitInFirstBranch.child(), EsRelation.class);
+        var firstBranchRelation = as(firstBranchEval.child(), EsRelation.class);
         assertThat(
             firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name")
@@ -1183,8 +1178,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var secondBranchFields = secondBranchEval.fields();
         assertThat(secondBranchFields.size(), equalTo(2));
         assertThat(Expressions.names(secondBranchFields), containsInAnyOrder("languages", "_fork"));
-        var limitInSecondBranch = as(secondBranchEval.child(), Limit.class);
-        var secondBranchRelation = as(limitInSecondBranch.child(), EsRelation.class);
+        var secondBranchRelation = as(secondBranchEval.child(), EsRelation.class);
         assertThat(
             secondBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name")
@@ -1239,8 +1233,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var firstBranchEval = as(firstBranchProject.child(), Eval.class);
         var forkAliasInFirstBranch = as(firstBranchEval.fields().getFirst(), Alias.class);
         assertThat(forkAliasInFirstBranch.name(), equalTo("_fork"));
-        var limitInFirstBranch = as(firstBranchEval.child(), Limit.class);
-        var firstBranchRelation = as(limitInFirstBranch.child(), EsRelation.class);
+        var firstBranchRelation = as(firstBranchEval.child(), EsRelation.class);
         assertThat(
             firstBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
@@ -1252,8 +1245,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var thirdBranchEval = as(thirdBranchProject.child(), Eval.class);
         var forkAliasInThirdBranch = as(thirdBranchEval.fields().getFirst(), Alias.class);
         assertThat(forkAliasInThirdBranch.name(), equalTo("_fork"));
-        var limitInThirdBranch = as(thirdBranchEval.child(), Limit.class);
-        var thirdBranchRelation = as(limitInThirdBranch.child(), EsRelation.class);
+        var thirdBranchRelation = as(thirdBranchEval.child(), EsRelation.class);
         assertThat(
             thirdBranchRelation.output().stream().map(Attribute::name).collect(Collectors.toSet()),
             hasItems("emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "last_name", "long_noidx", "salary")
@@ -1289,11 +1281,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(fork.output().size(), equalTo(1));
         assertThat(fork.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("a"));
         for (LogicalPlan branch : fork.children()) {
-            var branchProject = as(branch, Project.class);
-            assertThat(branchProject.projections().size(), equalTo(1));
-            assertThat(Expressions.names(branchProject.projections()), contains("a"));
-            var limitInBranch = as(branchProject.child(), Limit.class);
-            var aggregateInBranch = as(limitInBranch.child(), Aggregate.class);
+            var aggregateInBranch = as(branch, Aggregate.class);
             assertThat(aggregateInBranch.aggregates().size(), equalTo(1));
             assertThat(Expressions.names(aggregateInBranch.aggregates()), contains("a"));
             var relation = as(aggregateInBranch.child(), EsRelation.class);

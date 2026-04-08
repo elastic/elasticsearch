@@ -458,6 +458,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "read",
                         "index",
                         "delete",
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name(),
                         TransportIndicesAliasesAction.NAME,
                         TransportUpdateSettingsAction.TYPE.name()
                     )

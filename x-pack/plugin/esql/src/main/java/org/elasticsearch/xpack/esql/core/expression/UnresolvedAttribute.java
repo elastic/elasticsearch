@@ -122,11 +122,6 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    public String toString() {
-        return UNRESOLVED_PREFIX + qualifiedName();
-    }
-
-    @Override
     protected String label() {
         return UNRESOLVED_PREFIX;
     }
@@ -144,8 +139,8 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return toString();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(UNRESOLVED_PREFIX).append(qualifiedName());
     }
 
     @Override

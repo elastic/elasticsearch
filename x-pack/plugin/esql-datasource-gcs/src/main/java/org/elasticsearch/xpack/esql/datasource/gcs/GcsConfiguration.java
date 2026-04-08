@@ -6,10 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
 import java.util.HashMap;
@@ -20,7 +16,7 @@ import java.util.Map;
  */
 public class GcsConfiguration extends DatasourceConfiguration {
 
-    public static final Map<String, Boolean> FIELDS = Map.of(
+    static final Map<String, Boolean> FIELDS = Map.of(
         "credentials",
         true,
         "project_id",
@@ -56,20 +52,6 @@ public class GcsConfiguration extends DatasourceConfiguration {
         return raw == null || raw.isEmpty() ? null : new GcsConfiguration(raw);
     }
 
-    public static GcsConfiguration fromParams(Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return null;
-        }
-        Map<String, Object> raw = new HashMap<>();
-        for (String field : FIELDS.keySet()) {
-            String value = extractStringParam(params, field);
-            if (value != null) {
-                raw.put(field, value);
-            }
-        }
-        return raw.isEmpty() ? null : fromMap(raw);
-    }
-
     public static GcsConfiguration fromFields(String serviceAccountCredentials, String projectId, String endpoint) {
         return fromFields(serviceAccountCredentials, projectId, endpoint, null, null);
     }
@@ -92,18 +74,6 @@ public class GcsConfiguration extends DatasourceConfiguration {
         if (tokenUri != null) raw.put("token_uri", tokenUri);
         if (auth != null) raw.put("auth", auth);
         return raw.isEmpty() ? null : fromMap(raw);
-    }
-
-    private static String extractStringParam(Map<String, Expression> params, String key) {
-        Expression expr = params.get(key);
-        if (expr instanceof Literal literal) {
-            Object value = literal.value();
-            if (value instanceof BytesRef bytesRef) {
-                return BytesRefs.toString(bytesRef);
-            }
-            return value != null ? value.toString() : null;
-        }
-        return null;
     }
 
     public String serviceAccountCredentials() {

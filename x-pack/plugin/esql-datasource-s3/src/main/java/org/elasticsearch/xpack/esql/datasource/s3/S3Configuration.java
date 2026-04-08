@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
 import java.util.HashMap;
@@ -19,7 +16,7 @@ import java.util.Map;
  */
 public class S3Configuration extends DatasourceConfiguration {
 
-    public static final Map<String, Boolean> FIELDS = Map.of(
+    static final Map<String, Boolean> FIELDS = Map.of(
         "access_key",
         true,
         "secret_key",
@@ -57,20 +54,6 @@ public class S3Configuration extends DatasourceConfiguration {
         return raw == null || raw.isEmpty() ? null : new S3Configuration(raw);
     }
 
-    public static S3Configuration fromParams(Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return null;
-        }
-        Map<String, Object> raw = new HashMap<>();
-        for (String field : FIELDS.keySet()) {
-            String value = extractStringParam(params, field);
-            if (value != null) {
-                raw.put(field, value);
-            }
-        }
-        return raw.isEmpty() ? null : fromMap(raw);
-    }
-
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region) {
         return fromFields(accessKey, secretKey, endpoint, region, null);
     }
@@ -83,18 +66,6 @@ public class S3Configuration extends DatasourceConfiguration {
         if (region != null) raw.put("region", region);
         if (auth != null) raw.put("auth", auth);
         return raw.isEmpty() ? null : fromMap(raw);
-    }
-
-    private static String extractStringParam(Map<String, Expression> params, String key) {
-        Expression expr = params.get(key);
-        if (expr instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal) {
-            Object value = literal.value();
-            if (value instanceof BytesRef bytesRef) {
-                return BytesRefs.toString(bytesRef);
-            }
-            return value != null ? value.toString() : null;
-        }
-        return null;
     }
 
     public String accessKey() {

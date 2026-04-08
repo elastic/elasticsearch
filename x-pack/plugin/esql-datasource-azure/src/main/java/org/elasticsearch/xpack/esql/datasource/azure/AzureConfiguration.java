@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
 import java.util.HashMap;
@@ -21,7 +17,7 @@ import java.util.Map;
  */
 public class AzureConfiguration extends DatasourceConfiguration {
 
-    public static final Map<String, Boolean> FIELDS = Map.ofEntries(
+    static final Map<String, Boolean> FIELDS = Map.ofEntries(
         Map.entry("connection_string", true),
         Map.entry("account", false),
         Map.entry("key", true),
@@ -55,20 +51,6 @@ public class AzureConfiguration extends DatasourceConfiguration {
         return raw == null || raw.isEmpty() ? null : new AzureConfiguration(raw);
     }
 
-    public static AzureConfiguration fromParams(Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return null;
-        }
-        Map<String, Object> raw = new HashMap<>();
-        for (String field : FIELDS.keySet()) {
-            String value = extractStringParam(params, field);
-            if (value != null) {
-                raw.put(field, value);
-            }
-        }
-        return raw.isEmpty() ? null : fromMap(raw);
-    }
-
     public static AzureConfiguration fromFields(String connectionString, String account, String key, String sasToken, String endpoint) {
         return fromFields(connectionString, account, key, sasToken, endpoint, null);
     }
@@ -89,18 +71,6 @@ public class AzureConfiguration extends DatasourceConfiguration {
         if (endpoint != null) raw.put("endpoint", endpoint);
         if (auth != null) raw.put("auth", auth);
         return raw.isEmpty() ? null : fromMap(raw);
-    }
-
-    private static String extractStringParam(Map<String, Expression> params, String key) {
-        Expression expr = params.get(key);
-        if (expr instanceof Literal literal) {
-            Object value = literal.value();
-            if (value instanceof BytesRef bytesRef) {
-                return BytesRefs.toString(bytesRef);
-            }
-            return value != null ? value.toString() : null;
-        }
-        return null;
     }
 
     public String connectionString() {

@@ -11,6 +11,7 @@ package org.elasticsearch.kibana;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -28,11 +29,9 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
@@ -43,6 +42,12 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     private static final List<String> KIBANA_PRODUCT_ORIGIN = List.of("kibana");
 
     private static final String KIBANA_WORKFLOWS_ORIGIN = "kibana";
+
+    private static final String KIBANA_WORKFLOWS_VERSION_VARIABLE = "kibana.workflows.version";
+
+    private static final int WORKFLOWS_EVENTS_MAPPINGS_VERSION = 2;
+
+    private static final int WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION = 1;
 
     /** Log data stream registered in {@link #workflowsEventsSystemDataStreamDescriptor()}. */
     public static final String WORKFLOWS_EVENTS_DATA_STREAM_NAME = ".workflows-events";
@@ -127,7 +132,10 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static SystemDataStreamDescriptor workflowsEventsSystemDataStreamDescriptor() {
         try {
-            ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate("workflows-events.json");
+            ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
+                "/workflows-events.json",
+                Map.of("kibana.workflows.events.managed.index.version", Integer.toString(WORKFLOWS_EVENTS_MAPPINGS_VERSION))
+            );
             return new SystemDataStreamDescriptor(
                 WORKFLOWS_EVENTS_DATA_STREAM_NAME,
                 "Workflows execution events",
@@ -145,7 +153,13 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static SystemDataStreamDescriptor workflowsExecutionDataStreamLogsSystemDataStreamDescriptor() {
         try {
-            ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate("workflows-execution-data-stream-logs.json");
+            ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
+                "/workflows-execution-data-stream-logs.json",
+                Map.of(
+                    "kibana.workflows.execution.logs.managed.index.version",
+                    Integer.toString(WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION)
+                )
+            );
             return new SystemDataStreamDescriptor(
                 WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME,
                 "Workflows execution logs",
@@ -161,16 +175,16 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         }
     }
 
-    private static ComposableIndexTemplate loadWorkflowsComposableTemplate(String resourceFileName) throws IOException {
-        try (InputStream in = KibanaPlugin.class.getResourceAsStream(resourceFileName)) {
-            if (in == null) {
-                throw new IllegalStateException("missing workflows template resource [" + resourceFileName + "]");
-            }
-            byte[] data = in.readAllBytes();
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, data)) {
-                return ComposableIndexTemplate.parse(parser);
-            }
-        }
+    private static ComposableIndexTemplate loadWorkflowsComposableTemplate(String resource, Map<String, String> variables)
+        throws IOException {
+        return TemplateUtils.loadTemplate(
+            resource,
+            Version.CURRENT.toString(),
+            KIBANA_WORKFLOWS_VERSION_VARIABLE,
+            variables,
+            false,
+            ComposableIndexTemplate::parse
+        );
     }
 
     @Override

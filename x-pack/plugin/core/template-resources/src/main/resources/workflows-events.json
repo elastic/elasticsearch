@@ -12,7 +12,8 @@
     },
     "mappings": {
       "_meta": {
-        "managed_index_mappings_version": 1
+        "version": "${kibana.workflows.version}",
+        "managed_index_mappings_version": ${kibana.workflows.events.managed.index.version}
       },
       "dynamic": true,
       "properties": {

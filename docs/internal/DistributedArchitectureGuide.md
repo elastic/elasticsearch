@@ -1725,10 +1725,13 @@ that node's supported index-version range. Otherwise the join fails: for example
 too low cannot join while indices exist that were created with a newer format, and indices older than the joiner's
 minimum writable version are only allowed if they still qualify as read-only-supported on that node.
 
-The stamped `index.version.created` is only the cluster-wide floor for new indices; nodes may still run different
-Lucene versions (each `IndexVersion` constant embeds a specific Lucene version, so `maxIndexVersion` directly
-reflects which Lucene format a node writes). If a newer node hosts a shard, its flushes and merges produce segments
-in a newer Lucene format — one that older nodes in the cluster cannot read. [IndexVersionAllocationDecider](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/allocation/decider/IndexVersionAllocationDecider.java) prevents that: primary relocation and replica allocation are only allowed onto nodes whose `DiscoveryNode#getMaxIndexVersion` is at least as high as the primary's host node's.
+The stamped `index.version.created` value ensures the index's on-disk format and feature gates are within the range
+supported by the whole cluster. However, it does not pin the Lucene segment format: during a rolling upgrade, a shard
+hosted on a newer node may flush or merge segments in a Lucene format that older nodes cannot read, even though they
+still support the index's `IndexVersion`. To prevent allocating such shards onto incompatible nodes, [IndexVersionAllocationDecider](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/allocation/decider/IndexVersionAllocationDecider.java)
+only allows shard movement/recovery from a source node to a target node whose `DiscoveryNode#getMaxIndexVersion` is
+equal-or-newer than the source node's. In other words, primary relocation and replica allocation are permitted only if
+`target.maxIndexVersion >= source.maxIndexVersion`.
 
 For more details on how index format compatibility interacts with upgrades,
 see the [Index Format Backwards Compatibility](https://github.com/elastic/elasticsearch/blob/main/docs/internal/GeneralArchitectureGuide.md#index-format-backwards-compatibility)

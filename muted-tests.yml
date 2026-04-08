@@ -22,9 +22,6 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/120127
-- class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
-  method: testCleanShardFollowTaskAfterDeleteFollower
-  issue: https://github.com/elastic/elasticsearch/issues/120339
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568

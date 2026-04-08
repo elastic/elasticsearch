@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash.HashFunction;
@@ -27,6 +28,7 @@ import java.util.List;
 public class Md5 extends AbstractHashFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MD5", Md5::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Md5.class).unary(Md5::new).name("md5");
 
     /**
      * As of Java 14, it is permissible for a JRE to ship without the {@code MD5} {@link MessageDigest}.

@@ -25,19 +25,19 @@ import java.io.IOException;
  */
 $if(BytesRef)$
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
-    OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
+    OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector$extraArrowBufVectorPermits$ {
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
-    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector$extraArrowBufVectorPermits$ {
 $elseif(int)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, $Type$RangeVector,
-    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector$extraArrowBufVectorPermits$ {
 $elseif(double)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
-    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector$extraArrowBufVectorPermits$ {
 $else$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, ConstantNullVector,
-    org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
+    org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector$extraArrowBufVectorPermits$ {
 $endif$
 
 $if(BytesRef)$

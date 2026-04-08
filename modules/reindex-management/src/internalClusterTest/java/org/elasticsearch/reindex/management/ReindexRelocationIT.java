@@ -626,7 +626,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         );
         assertThat(
             "no relocation metric",
-            plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER).size(),
+            plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER).size(),
             equalTo(0)
         );
     }

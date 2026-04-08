@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 
 import java.util.Collection;
 
-import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 
 /**
@@ -46,12 +45,12 @@ public abstract class ActionListenerUtils {
         return new ActionListener<>() {
             @Override
             public void onResponse(T t) {
-                fail("listener onResponse should never be called but called with: " + t);
+                throw new AssertionError("listener onResponse should never be called but called with: " + t);
             }
 
             @Override
             public void onFailure(Exception e) {
-                fail("listener onFailure should never be called but called with: " + e);
+                throw new AssertionError("listener onFailure should never be called but called with: " + e, e);
             }
         };
     }

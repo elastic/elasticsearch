@@ -801,3 +801,140 @@ TS tdigest_timeseries_index
 time:datetime            | first_count:long | last_count:long
 2025-09-25T00:00:00.000Z | 135              | 142
 ;
+
+// -------------------------------------------------------------------------------
+// Documentation examples for aggregations with tdigest
+// -------------------------------------------------------------------------------
+
+sum for tdigest docs
+required_capability: casting_operator_for_histogram_types
+required_capability: ts_command_v0
+
+// tag::sumTDigestForDocs[]
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS total = ROUND(SUM(responseTime::tdigest), 2)
+// end::sumTDigestForDocs[]
+;
+
+// tag::sumTDigestForDocs-result[]
+total:double
+1472.74
+// end::sumTDigestForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+avg for tdigest docs
+required_capability: casting_operator_for_histogram_types
+required_capability: ts_command_v0
+
+// tag::avgTDigestForDocs[]
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS average = ROUND(AVG(responseTime::tdigest), 4)
+// end::avgTDigestForDocs[]
+;
+
+// tag::avgTDigestForDocs-result[]
+average:double
+0.1666
+// end::avgTDigestForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+min for tdigest docs
+required_capability: casting_operator_for_histogram_types
+required_capability: ts_command_v0
+
+// tag::minTDigestForDocs[]
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS minimum = ROUND(MIN(responseTime::tdigest), 4)
+// end::minTDigestForDocs[]
+;
+
+// tag::minTDigestForDocs-result[]
+minimum:double
+2.0E-4
+// end::minTDigestForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+max for tdigest docs
+required_capability: casting_operator_for_histogram_types
+required_capability: ts_command_v0
+
+// tag::maxTDigestForDocs[]
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS maximum = ROUND(MAX(responseTime::tdigest), 4)
+// end::maxTDigestForDocs[]
+;
+
+// tag::maxTDigestForDocs-result[]
+maximum:double
+6.7862
+// end::maxTDigestForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+median for tdigest docs
+required_capability: casting_operator_for_histogram_types
+required_capability: tdigest_median
+required_capability: ts_command_v0
+
+// tag::medianTDigestForDocs[]
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS p50 = ROUND(MEDIAN(responseTime::tdigest), 2)
+// end::medianTDigestForDocs[]
+;
+
+// tag::medianTDigestForDocs-result[]
+p50:double
+0.02
+// end::medianTDigestForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+percentile for tdigest docs
+required_capability: casting_operator_for_histogram_types
+required_capability: ts_command_v0
+
+// tag::percentileTDigestForDocs[]
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS p95 = ROUND(PERCENTILE(responseTime::tdigest, 95), 2)
+// end::percentileTDigestForDocs[]
+;
+
+// tag::percentileTDigestForDocs-result[]
+p95:double
+0.7
+// end::percentileTDigestForDocs-result[]
+;
+
+// -------------------------------------------------------------------------------
+
+count for tdigest docs
+required_capability: casting_operator_for_histogram_types
+required_capability: ts_command_v0
+required_capability: count_of_histogram_types
+
+// tag::countTDigestForDocs[]
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS cnt = COUNT(responseTime::tdigest)
+// end::countTDigestForDocs[]
+;
+
+// tag::countTDigestForDocs-result[]
+cnt:long
+8841
+// end::countTDigestForDocs-result[]
+;

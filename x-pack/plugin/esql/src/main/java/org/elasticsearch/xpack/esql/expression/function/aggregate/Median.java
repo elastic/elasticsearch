@@ -61,6 +61,12 @@ public class Median extends AggregateFunction implements SurrogateExpression {
                     + "approximating the median of the values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "medianExpHistoForDocs"
+            ),
+            @Example(
+                description = "`MEDIAN` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "approximating the median of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "medianTDigestForDocs"
             ) }
     )
     public Median(

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -31,6 +32,10 @@ import static java.util.Collections.emptyList;
  * Similar to {@link Variance}, but it is used to calculate the variance over a time series of values from the given field.
  */
 public class VarianceOverTime extends TimeSeriesAggregateFunction implements OnlySurrogateExpression, ToAggregator {
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(VarianceOverTime.class)
+        .binary(VarianceOverTime::new)
+        .name("variance_over_time", "stdvar_over_time");
+
     @FunctionInfo(
         returnType = "double",
         description = "Calculates the population variance over time of a numeric field.",

@@ -83,18 +83,17 @@ public class MultiSearchTemplateResponse extends ActionResponse
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             if (isFailure()) {
-                return Iterators.single((b, p) -> {
-                    b.startObject();
-                    ElasticsearchException.generateFailureXContent(b, p, Item.this.getFailure(), true);
-                    b.field(Fields.STATUS, ExceptionsHelper.status(Item.this.getFailure()).getStatus());
-                    b.endObject();
-                    return b;
-                });
+                return Iterators.concat(
+                    ChunkedToXContentHelper.startObject(),
+                    Iterators.single((b, p) -> ElasticsearchException.generateFailureXContent(b, p, getFailure(), true)),
+                    Iterators.single((b, p) -> b.field(Fields.STATUS, ExceptionsHelper.status(getFailure()).getStatus())),
+                    ChunkedToXContentHelper.endObject()
+                );
             } else {
                 return Iterators.concat(
                     ChunkedToXContentHelper.startObject(),
-                    Item.this.getResponse().innerToXContentChunked(params),
-                    Iterators.single((b, p) -> b.field(Fields.STATUS, Item.this.getResponse().status().getStatus())),
+                    getResponse().innerToXContentChunked(params),
+                    Iterators.single((b, p) -> b.field(Fields.STATUS, getResponse().status().getStatus())),
                     ChunkedToXContentHelper.endObject()
                 );
             }

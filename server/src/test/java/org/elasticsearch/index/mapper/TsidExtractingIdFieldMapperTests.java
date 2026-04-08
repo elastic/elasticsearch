@@ -1006,17 +1006,13 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         } else {
             builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "r1,r2,o.r3");
         }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
+        if (version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
             builder.put(IndexSettings.SYNTHETIC_ID.getKey(), syntheticId);
         }
         return builder.build();
     }
 
     private MapperService mapperService(boolean indexDimensions, boolean syntheticId, IndexVersion version) throws IOException {
-        if (syntheticId) {
-            assumeTrue("Only run with syntheticId if feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        }
-
         return createMapperService(version, indexSettings(version, indexDimensions, syntheticId), mapping(b -> {
             b.startObject("r1").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("r2").field("type", "keyword").field("time_series_dimension", true).endObject();

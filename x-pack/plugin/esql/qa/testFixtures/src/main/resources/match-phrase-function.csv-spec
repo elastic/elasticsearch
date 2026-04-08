@@ -619,3 +619,78 @@ from books
 book_no:keyword | author:text
 2714            | Return of the King Being the Third Part of The Lord of the Rings
 ;
+
+matchPhraseOnConstantKeywordField
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_constant_keyword
+
+from all_types
+| where match_phrase(`constant_keyword-foo`, "foo")
+| keep `constant_keyword-foo`, keyword
+| sort keyword
+;
+
+constant_keyword-foo:keyword | keyword:keyword
+foo                          | key1
+foo                          | key2
+foo                          | key3
+foo                          | key4
+foo                          | key5
+;
+
+matchPhraseOnConstantKeywordFieldNoMatch
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_constant_keyword
+
+from all_types
+| where match_phrase(`constant_keyword-foo`, "bar")
+| keep `constant_keyword-foo`, keyword
+;
+
+constant_keyword-foo:keyword | keyword:keyword
+;
+
+matchPhraseOnConstantKeywordFieldWithOtherConditions
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_constant_keyword
+
+from all_types
+| where match_phrase(`constant_keyword-foo`, "foo") and integer > 3
+| keep `constant_keyword-foo`, integer
+| sort integer
+;
+
+constant_keyword-foo:keyword | integer:integer
+foo                          | 4
+foo                          | 5
+;
+
+matchPhraseOnRegularFieldWithConstantKeywordEquality
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_constant_keyword
+
+from all_types
+| where match_phrase(text, "text3") and `constant_keyword-foo` == "foo"
+| keep text, `constant_keyword-foo`
+;
+
+text:text | constant_keyword-foo:keyword
+text3     | foo
+;
+
+matchPhraseOnConstantKeywordFieldInsideFork
+required_capability: match_phrase_function
+required_capability: fix_full_text_functions_on_constant_keyword
+required_capability: fork_v9
+
+from all_types
+| FORK (where integer > 3)
+       (where match_phrase(`constant_keyword-foo`, "foo") and keyword == "key2")
+| WHERE _fork == "fork2"
+| DROP _fork
+| keep `constant_keyword-foo`, keyword
+;
+
+constant_keyword-foo:keyword | keyword:keyword
+foo                          | key2
+;

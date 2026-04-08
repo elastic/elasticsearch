@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -34,6 +35,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOG
 
 public class Avg extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Avg.class).unary(Avg::new).name("avg");
     private final Expression summationMode;
 
     @FunctionInfo(
@@ -128,14 +130,15 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
     public Expression surrogate() {
         var s = source();
         var field = field();
-        if (field.dataType() == AGGREGATE_METRIC_DOUBLE
-            || field.dataType() == EXPONENTIAL_HISTOGRAM
-            || field.dataType() == DataType.TDIGEST) {
+        if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
             return new Div(
                 s,
                 new Sum(s, field, filter(), window(), summationMode).surrogate(),
                 new Count(s, field, filter(), window()).surrogate()
             );
+        }
+        if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
+            return new Div(s, new Sum(s, field, filter(), window(), summationMode).surrogate(), Count.AggregateMetricDoubleSurrogate(this));
         }
         if (field.foldable()) {
             return new MvAvg(s, field);

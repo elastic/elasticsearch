@@ -22,7 +22,7 @@ Together with the [`FUSE`](/reference/query-languages/esql/commands/fuse.md) com
 
 ::::{applies-switch}
 
-:::{applies-item} { serverless:ga , stack: ga 9.4+ }
+:::{applies-item} { serverless: ga, stack: ga 9.4+ }
 `FORK` branches do not have an implicit `LIMIT 1000`.
 :::
 

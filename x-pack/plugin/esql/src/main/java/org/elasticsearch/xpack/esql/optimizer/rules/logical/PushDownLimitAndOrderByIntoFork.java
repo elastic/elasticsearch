@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -74,7 +72,7 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
             return forkChild;
         }
 
-        Map<Expression, Expression> outputMap = outputMap(fork, forkChild);
+        Map<Expression, Expression> outputMap = PushDownUtils.outputMap(fork, forkChild);
         List<Order> orders = new ArrayList<>();
         for (Order order : orderBy.order()) {
             Expression orderExp = order.child().transformDown(exp -> {
@@ -91,18 +89,5 @@ public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.Parameterize
             : "Expected the same size for OrderBy but got " + orderBy.order().size() + "!=" + orders.size();
 
         return limit.replaceChild(new OrderBy(orderBy.source(), forkChild, orders));
-    }
-
-    private Map<Expression, Expression> outputMap(LogicalPlan plan, LogicalPlan otherPlan) {
-        Map<Expression, Expression> outputMap = new HashMap<>();
-
-        for (Attribute attr : plan.output()) {
-            for (Attribute otherAttr : otherPlan.output()) {
-                if (attr.name().equals(otherAttr.name())) {
-                    outputMap.put(attr, otherAttr);
-                }
-            }
-        }
-        return outputMap;
     }
 }

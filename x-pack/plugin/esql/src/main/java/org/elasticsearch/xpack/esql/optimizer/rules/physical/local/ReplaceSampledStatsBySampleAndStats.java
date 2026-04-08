@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
@@ -59,7 +60,17 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
         double sampleProbability = (double) Foldables.literalValueOf(plan.sampleProbability());
         assert sampleProbability < 1.0;
 
-        PhysicalPlan child = plan.child().transformUp(LeafExec.class, leaf -> new SampleExec(Source.EMPTY, leaf, plan.sampleProbability()));
+        // The only non-unary plans that are currently supported are Joins.
+        // For these, only the first index needs to be sampled.
+        Holder<Boolean> sampledAdded = new Holder<>(false);
+        PhysicalPlan child = plan.child().transformDown(p -> {
+            if (p instanceof LeafExec && sampledAdded.get() == false) {
+                sampledAdded.set(true);
+                return new SampleExec(Source.EMPTY, p, plan.sampleProbability());
+            } else {
+                return p;
+            }
+        });
 
         List<Alias> sampleCorrections = new ArrayList<>();
         List<Attribute> intermediateAttributes = new ArrayList<>();

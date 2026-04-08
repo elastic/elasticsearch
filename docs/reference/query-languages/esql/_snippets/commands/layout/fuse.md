@@ -19,11 +19,11 @@ and the values from the `<group_column>` and `<score_column>`
 Learn more about [how search works in ES|QL](docs-content://solutions/search/esql-for-search.md#how-search-works-in-esql).
 :::::
 
-A `LIMIT` is required before `FUSE`, since `FUSE` can only with a finite set of rows.
+A `LIMIT` is required before `FUSE`, because `FUSE` can only work with a finite set of rows.
 
 ::::{applies-switch}
 
-:::{applies-item} { serverless: , stack: preview 9.4+ }
+:::{applies-item} { serverless: ga , stack: ga 9.4+ }
 `FORK` branches do not have an implicit `LIMIT 1000`.
 When using `FUSE` after `FORK`, a `LIMIT` must be added to each `FORK` branch.
 :::

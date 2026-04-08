@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -268,7 +269,8 @@ public abstract class FullTextFunction extends Function
                         lp -> (lp instanceof Filter
                             || lp instanceof OrderBy
                             || lp instanceof EsRelation
-                            || lp instanceof ParameterizedQuery),
+                            || lp instanceof ParameterizedQuery
+                            || lp instanceof Sample),
                         fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
                         failures
                     );

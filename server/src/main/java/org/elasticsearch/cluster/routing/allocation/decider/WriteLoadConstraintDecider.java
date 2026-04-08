@@ -206,12 +206,12 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         );
 
         if (nodeIsHotspotting) {
-            /** When a node is hot-spotting, but its write load is too focused on a single shard, then trying to correct
-             * it with a shard move is useless: the node that receives the shard will hotspot instead, and an important
-             * shard will be unavailable briefly when it moves.
-             *
-             * The maxShardWriteLoadProportion is computed only for hotspotting nodes, and cached within cluster info so it
-             * is only computed once per balancing round */
+            // When a node is hot-spotting, but its write-load is too focused on a single shard, then trying to correct
+            // it with a shard move is useless: the node that receives the shard will hotspot instead, and an important
+            // shard will be unavailable briefly when it moves.
+            //
+            // The maxShardWriteLoadProportion is computed only for hot-spotting nodes, and cached within cluster info so it
+            // is only computed once per balancing round */
             final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThreshold();
             final Supplier<Double> maxShardWriteLoadProportion = () -> allocation.clusterInfo()
                 .nodeMaxShardWriteLoadProportion(

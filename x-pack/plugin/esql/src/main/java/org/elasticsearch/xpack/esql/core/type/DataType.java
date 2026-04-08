@@ -826,6 +826,10 @@ public enum DataType implements Writeable {
         return isWholeNumber || isRationalNumber;
     }
 
+    public boolean isNumericOrAmd() {
+        return isNumeric() || this == AGGREGATE_METRIC_DOUBLE;
+    }
+
     /**
      * {@code true} if the type represents any kind of histogram, {@code false} otherwise.
      */

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
@@ -39,6 +40,8 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
     private final Expression min;
     private final Expression max;
     private DataType resolvedType;
+
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Clamp.class).ternary(Clamp::new).name("clamp");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },

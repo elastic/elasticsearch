@@ -1045,6 +1045,16 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_AVG_AS_DEFAULT_METRIC,
 
         /**
+         * Return 0 (instead of null) for count on AMD when there are no rows
+         */
+        AGGREGATE_METRIC_DOUBLE_NO_ROWS_COUNT_0,
+
+        /**
+         * Support binary operators for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_BINARY_OPERATORS,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,

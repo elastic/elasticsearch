@@ -40,6 +40,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         "reindex.remote.whitelist",
         Property.NodeScope
     );
+    // Hosts matching the blocklist are not allowed, even if they match the whitelist
+    public static final Setting<List<String>> REMOTE_CLUSTER_BLOCKLIST = Setting.stringListSetting(
+        "reindex.remote.blocklist",
+        Property.NodeScope
+    );
 
     protected final ReindexValidator reindexValidator;
     private final Reindexer reindexer;

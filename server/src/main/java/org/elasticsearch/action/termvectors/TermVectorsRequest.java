@@ -95,7 +95,7 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
 
     private FilterSettings filterSettings;
 
-    private SplitShardCountSummary splitShardCountSummary;
+    private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
 
     public static final class FilterSettings {
         public Integer maxNumTerms;

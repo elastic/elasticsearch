@@ -62,7 +62,7 @@ For details, refer to [potential issues when mixing embedding models across indi
 :::::{dropdown} Potential issues when mixing embedding models across indices
 :name: default-endpoint-considerations
 
-If a `semantic_text` field relies on the default {{infer}} endpoint, the model used to generate embeddings might change across versions or deployments. This can result in indices using different embedding models. 
+If a `semantic_text` field relies on the default {{infer}} endpoint, the model used to generate embeddings might change across versions or deployments. This can result in indices using different embedding models.
 
 For example, if the `semantic_text` field is created without specifying `inference_id`, indices created on {{ecloud}} 9.3 use the `.elser-2-elastic` endpoint by default, while indices created on {{ecloud}} 9.4+ use `.jina-embeddings-v5-text-small`. As a result, older indices contain ELSER embeddings while newer indices contain Jina embeddings.
 
@@ -119,7 +119,7 @@ When a query targets indices that use different {{infer}} endpoints, {{es}} must
 
 To mitigate this issue, ensure that indices queried together use the same {{infer}} endpoint. You can do this by:
 
-- explicitly setting the `inference_id` when defining the `semantic_text` field for new indeces, or 
+- explicitly setting the `inference_id` when defining the `semantic_text` field for new indices, or
 - by [reindexing](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) older indices with the desired endpoint.
 
 #### Alerts based on raw relevance scores might stop triggering
@@ -134,7 +134,7 @@ To mitigate this issue, adjust alert thresholds to match the scoring range of th
 
 ### Use preconfigured endpoints [preconfigured-endpoints]
 
-Preconfigured endpoints are {{infer}} endpoints that are automatically available in the deployment or project and do not require manual creation. The available preconfigured endpoints vary across deployment types and versions. 
+Preconfigured endpoints are {{infer}} endpoints that are automatically available in the deployment or project and do not require manual creation. The available preconfigured endpoints vary across deployment types and versions.
 
 To view the list of available preconfigured endpoints for your deployment, go to **{{infer-cap}} endpoints** in {{kib}}.
 
@@ -329,4 +329,97 @@ PUT semantic-embeddings
 1. (Optional) Selects the `int8_hnsw` vector quantization strategy. Learn about [default quantization types](/reference/elasticsearch/mapping-reference/dense-vector.md#default-quantization-types).
 2. (Optional) Sets `m` to 15 to control how many neighbors each node connects to in the HNSW graph. Default is `16`.
 3. (Optional) Sets `ef_construction` to 90 to control how many candidate neighbors are considered during graph construction. Default is `100`.
+
+### Default `bfloat16` element type [index-options-dense_vectors-bfloat16]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+For {{infer}} endpoints that produce `float` embeddings, `semantic_text` fields automatically use the [`bfloat16`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-element-type) element type.
+This reduces the storage required per vector dimension from 4 to 2 bytes with a negligible impact on search relevance for the vast majority of use cases.
+
+The `bfloat16` format uses a 2-byte floating-point encoding that maintains the same value range as 4-byte floats, but with reduced precision.
+You can check if your `semantic_text` field is using `bfloat16` by default by inspecting the default `index_options` for the field using the [get field mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-field-mapping):
+
+```console
+GET semantic-embeddings/_mapping/field/content?include_defaults
+```
+
+```console-result
+{
+  "semantic-embeddings": {
+    "mappings": {
+      "content": {
+        "full_name": "content",
+        "mapping": {
+          "content": {
+            "type": "semantic_text",
+            "inference_id": "my-float-embedding-endpoint",
+            "index_options": {
+              "dense_vector": {
+                "element_type": "bfloat16" <1>
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+1. Indicates that the `semantic_text` field defaulted to the `bfloat16` element type.
+
+#### Override the default element type [index-options-dense_vectors-element-type-override]
+
+If your use case requires full `float` precision, you can override the default `bfloat16` element type by specifying `element_type` in `index_options.dense_vector`:
+
+```console
+PUT semantic-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "semantic_text",
+        "inference_id": "my-float-embedding-endpoint",
+        "index_options": {
+          "dense_vector": {
+            "element_type": "float" <1>
+          }
+        }
+      }
+    }
+  }
+}
+```
+1. Overrides the default `bfloat16` element type to use full-precision `float` (4 bytes per dimension).
+
+You can also combine `element_type` with other index options:
+
+```console
+PUT semantic-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "semantic_text",
+        "inference_id": "my-float-embedding-endpoint",
+        "index_options": {
+          "dense_vector": {
+            "element_type": "float",
+            "type": "int8_hnsw"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+:::{note}
+The `element_type` override is only valid for {{infer}} endpoints that produce `float` embeddings.
+For `float` models, valid values are `float` and `bfloat16`.
+For other model element types (such as `byte` or `bit`), the `element_type` must match the model's native element type if specified.
+:::
 

@@ -66,20 +66,20 @@ required_capability: in_subquery
 
 FROM employees
 | WHERE salary IN (FROM employees | STATS m = max(salary) by languages | KEEP m)
-| KEEP emp_no, salary
+| KEEP emp_no, salary, languages
 | SORT emp_no
 ;
 
-emp_no:integer | salary:integer
-10007          | 74572
-10019          | 73717
-10029          | 74999
-10045          | 74970
-10094          | 66817
-10099          | 73578
+emp_no:integer | salary:integer | languages:integer
+10007          | 74572          | 4
+10019          | 73717          | 1
+10029          | 74999          | null
+10045          | 74970          | 3
+10094          | 66817          | 5
+10099          | 73578          | 2
 ;
 
-inSubqueryWithStatsBeforeInSubquery
+inSubqueryWithStatsBeforeAndAfterInSubquery
 required_capability: in_subquery
 
 FROM employees
@@ -90,6 +90,21 @@ FROM employees
 
 cnt:long
 2
+;
+
+inSubqueryWithStatsInsideAndAfterInSubquery
+required_capability: in_subquery
+
+FROM employees
+| WHERE salary IN (FROM employees | STATS m = max(salary) by languages | KEEP m)
+| STATS cnt = COUNT(*) BY gender
+| SORT gender
+;
+
+gender:keyword | cnt:long
+F          | 74572
+M          | 73717
+null          | 74999
 ;
 
 inSubqueryWithStatsAfterInSubqueryWithNull

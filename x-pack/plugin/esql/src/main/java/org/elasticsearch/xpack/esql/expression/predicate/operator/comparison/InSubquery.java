@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -16,6 +18,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
  * Unresolved expression for {@code field IN (subquery)} where the subquery is a full ES|QL query.
@@ -23,7 +28,7 @@ import java.util.Objects;
  * as the clean boundary between parsing and analysis, LogicalPlanBuilder creates an expression,
  * Analyzer transform it into a logical plan.
  */
-public class InSubquery extends Expression {
+public class InSubquery extends Expression implements PostAnalysisPlanVerificationAware {
 
     private final Expression value;
     private final LogicalPlan subquery;
@@ -92,5 +97,12 @@ public class InSubquery extends Expression {
         }
         InSubquery other = (InSubquery) obj;
         return Objects.equals(value, other.value) && Objects.equals(subquery, other.subquery);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (plan, failures) -> failures.add(
+            fail(this, "IN/NOT IN subquery is not supported in {} [{}]", plan.nodeName(), plan.sourceText())
+        );
     }
 }

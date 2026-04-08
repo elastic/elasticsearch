@@ -757,30 +757,123 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * Verifies that an IN subquery in STATS WHERE filter is rejected.
      */
     public void testRejectsInSubqueryInStatsWhereFilter() {
-        errorInSubquery("""
-            FROM test
-            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
-            """, containsString("IN/NOT IN subquery is not supported in STATS WHERE filter"));
+        errorInSubquery(
+            """
+                FROM test
+                | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
+                """,
+            containsString(
+                "IN/NOT IN subquery is not supported in "
+                    + "Aggregate [STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]"
+            )
+        );
     }
 
     /**
      * Verifies that a NOT IN subquery in STATS WHERE filter is rejected.
      */
     public void testRejectsNotInSubqueryInStatsWhereFilter() {
-        errorInSubquery("""
-            FROM test
-            | STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
-            """, containsString("IN/NOT IN subquery is not supported in STATS WHERE filter"));
+        errorInSubquery(
+            """
+                FROM test
+                | STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+                """,
+            containsString(
+                "IN/NOT IN subquery is not supported in "
+                    + "Aggregate [STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]"
+            )
+        );
     }
 
     /**
      * Verifies that IN subquery in STATS WHERE with BY grouping is rejected.
      */
     public void testRejectsInSubqueryInStatsWhereFilterWithGrouping() {
+        errorInSubquery(
+            """
+                FROM test
+                | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
+                """,
+            containsString(
+                "IN/NOT IN subquery is not supported in "
+                    + "Aggregate [STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
+            )
+        );
+    }
+
+    // -- negative: IN subquery in INLINESTATS --
+
+    /**
+     * Verifies that an IN subquery in INLINESTATS WHERE filter is rejected.
+     */
+    public void testRejectsInSubqueryInInlineStatsWhereFilter() {
+        errorInSubquery(
+            """
+                FROM test
+                | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
+                """,
+            containsString(
+                "IN/NOT IN subquery is not supported in "
+                    + "Aggregate [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]"
+            )
+        );
+    }
+
+    /**
+     * Verifies that a NOT IN subquery in INLINESTATS WHERE filter is rejected.
+     */
+    public void testRejectsNotInSubqueryInInlineStatsWhereFilter() {
+        errorInSubquery(
+            """
+                FROM test
+                | INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+                """,
+            containsString(
+                "IN/NOT IN subquery is not supported in "
+                    + "Aggregate [INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]"
+            )
+        );
+    }
+
+    /**
+     * Verifies that IN subquery in INLINESTATS WHERE with BY grouping is rejected.
+     */
+    public void testRejectsInSubqueryInInlineStatsWhereFilterWithGrouping() {
+        errorInSubquery(
+            """
+                FROM test
+                | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
+                """,
+            containsString(
+                "IN/NOT IN subquery is not supported in "
+                    + "Aggregate [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
+            )
+        );
+    }
+
+    // -- negative: IN subquery in EVAL --
+
+    /**
+     * Verifies that an IN subquery inside EVAL is rejected.
+     */
+    public void testRejectsInSubqueryInEval() {
         errorInSubquery("""
             FROM test
-            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
-            """, containsString("IN/NOT IN subquery is not supported in STATS WHERE filter"));
+            | EVAL x = emp_no IN (FROM employees | KEEP emp_no)
+            """, containsString("IN/NOT IN subquery is not supported in " + "Eval [EVAL x = emp_no IN (FROM employees | KEEP emp_no)]"));
+    }
+
+    /**
+     * Verifies that a NOT IN subquery inside EVAL is rejected.
+     */
+    public void testRejectsNotInSubqueryInEval() {
+        errorInSubquery(
+            """
+                FROM test
+                | EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)
+                """,
+            containsString("IN/NOT IN subquery is not supported in " + "Eval [EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)]")
+        );
     }
 
     // -- approximation incompatibility tests --

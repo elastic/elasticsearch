@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -248,7 +247,6 @@ public class Aggregate extends UnaryPlan
         checkTimeSeriesAggregates(failures);
         checkCategorizeGrouping(failures);
         checkMultipleScoreAggregations(failures);
-        checkInSubqueryInAggregateFilter(failures);
     }
 
     protected void checkTimeSeriesAggregates(Failures failures) {
@@ -280,13 +278,6 @@ public class Aggregate extends UnaryPlan
                 }
             }
         });
-    }
-
-    private void checkInSubqueryInAggregateFilter(Failures failures) {
-        forEachExpression(
-            InSubquery.class,
-            inSub -> failures.add(fail(inSub, "IN/NOT IN subquery is not supported in STATS WHERE filter"))
-        );
     }
 
     /**

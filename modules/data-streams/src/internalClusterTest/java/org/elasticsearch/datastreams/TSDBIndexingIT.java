@@ -135,7 +135,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             templateSettings.put("index.routing_path", "metricset");
         }
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
         var mapping = new CompressedXContent(randomBoolean() ? MAPPING_TEMPLATE : MAPPING_TEMPLATE.replace("date", "date_nanos"));
@@ -342,7 +342,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             settingsBuilder.put("index.routing_path", "metricset");
         }
         settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             settingsBuilder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
         request.indexTemplate(
@@ -394,7 +394,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
             var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset");
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-            if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+            if (randomBoolean()) {
                 templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
             }
             var request = new TransportPutComposableIndexTemplateAction.Request("id1");
@@ -600,7 +600,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         String reindexedDataStreamName = "my-reindexed-ds";
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
@@ -660,7 +660,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             .put("index.mode", "time_series")
             .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
         putTemplateRequest.indexTemplate(
@@ -745,7 +745,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         String dataStreamName = "my-ds";
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
@@ -812,7 +812,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         String dataStreamName = "my-ds";
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");

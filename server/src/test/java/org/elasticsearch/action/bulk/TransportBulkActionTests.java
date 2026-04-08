@@ -326,8 +326,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testProhibitAppendWritesInBackingIndicesSkippedForSeqNoDisabled() throws Exception {
-        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         String dataStreamName = "logs-foobar";
         Index seqNoDisabledIdx = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1), IndexMetadata.INDEX_UUID_NA_VALUE);
         Index seqNoEnabledIdx = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 2), IndexMetadata.INDEX_UUID_NA_VALUE);

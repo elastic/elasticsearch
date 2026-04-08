@@ -46,12 +46,10 @@ public class CreateIndexCapabilities {
                 LOOKUP_INDEX_MODE_CAPABILITY,
                 NESTED_DENSE_VECTOR_SYNTHETIC_TEST,
                 POORLY_FORMATTED_BAD_REQUEST,
-                HUNSPELL_DICT_400
+                HUNSPELL_DICT_400,
+                DISABLE_SEQUENCE_NUMBERS_CAPABILITY
             )
         );
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
-            caps.add(DISABLE_SEQUENCE_NUMBERS_CAPABILITY);
-        }
         CAPABILITIES = Set.copyOf(caps);
     }
 }

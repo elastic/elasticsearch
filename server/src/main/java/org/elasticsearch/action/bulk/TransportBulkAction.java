@@ -554,7 +554,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
         // When sequence numbers are disabled, OCC (if_seq_no/if_primary_term) cannot be used,
         // so we allow writes with an explicit document ID directly to backing indices.
-        if (writeRequest.id() != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
+        if (writeRequest.id() != null) {
             IndexMetadata targetMetadata = indexMetadataProvider.apply(indexAbstraction.getWriteIndex());
             if (targetMetadata != null && targetMetadata.sequenceNumbersDisabled()) {
                 return;

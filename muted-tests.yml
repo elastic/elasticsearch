@@ -303,9 +303,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcFetchSizeIT
   method: testScrollWithDatetimeAndTimezoneParam
   issue: https://github.com/elastic/elasticsearch/issues/145592
-- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
-  method: testLicenseCheck
-  issue: https://github.com/elastic/elasticsearch/issues/145600
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
   method: testTopNByKeyEncoderTooMuchMemory
   issue: https://github.com/elastic/elasticsearch/issues/145627
@@ -356,6 +353,15 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidBigDecimalFromLongWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145866
+- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
+  method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
+  issue: https://github.com/elastic/elasticsearch/issues/145877
+- class: org.elasticsearch.xpack.esql.spatial.SpatialCentroidAggregationIT
+  method: testStCentroidAggregationWithShapes
+  issue: https://github.com/elastic/elasticsearch/issues/145883
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsSkipUnavailableIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145884
 
 # Examples:
 #

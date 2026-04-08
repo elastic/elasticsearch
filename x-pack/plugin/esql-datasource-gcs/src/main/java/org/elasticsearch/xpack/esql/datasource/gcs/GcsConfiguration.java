@@ -16,17 +16,12 @@ import java.util.Map;
  */
 public class GcsConfiguration extends DatasourceConfiguration {
 
-    static final Map<String, Boolean> FIELDS = Map.of(
-        "credentials",
-        true,
-        "project_id",
-        false,
-        "endpoint",
-        false,
-        "token_uri",
-        false,
-        "auth",
-        false
+    private static final Map<String, Boolean> FIELDS = Map.ofEntries(
+        Map.entry("credentials", true),
+        Map.entry("project_id", false),
+        Map.entry("endpoint", false),
+        Map.entry("token_uri", false),
+        Map.entry("auth", false)
     );
 
     private GcsConfiguration(Map<String, Object> raw) {

@@ -16,17 +16,12 @@ import java.util.Map;
  */
 public class S3Configuration extends DatasourceConfiguration {
 
-    static final Map<String, Boolean> FIELDS = Map.of(
-        "access_key",
-        true,
-        "secret_key",
-        true,
-        "endpoint",
-        false,
-        "region",
-        false,
-        "auth",
-        false
+    private static final Map<String, Boolean> FIELDS = Map.ofEntries(
+        Map.entry("access_key", true),
+        Map.entry("secret_key", true),
+        Map.entry("endpoint", false),
+        Map.entry("region", false),
+        Map.entry("auth", false)
     );
 
     private S3Configuration(Map<String, Object> raw) {

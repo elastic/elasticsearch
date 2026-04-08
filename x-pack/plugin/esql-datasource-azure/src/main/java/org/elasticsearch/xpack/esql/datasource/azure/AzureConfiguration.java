@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public class AzureConfiguration extends DatasourceConfiguration {
 
-    static final Map<String, Boolean> FIELDS = Map.ofEntries(
+    private static final Map<String, Boolean> FIELDS = Map.ofEntries(
         Map.entry("connection_string", true),
         Map.entry("account", false),
         Map.entry("key", true),

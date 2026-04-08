@@ -118,7 +118,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
         this.snapshotFilesProvider = snapshotFilesProvider;
-        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
+        this.onGoingRecoveries = new RecoveriesCollection(logger);
 
         transportService.registerRequestHandler(
             Actions.FILES_INFO,

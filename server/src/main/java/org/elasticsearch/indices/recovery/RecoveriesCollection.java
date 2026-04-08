@@ -17,7 +17,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -37,11 +36,9 @@ public class RecoveriesCollection {
     private final ConcurrentMap<Long, RecoveryTarget> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
     private final Logger logger;
-    private final ThreadPool threadPool;
 
-    public RecoveriesCollection(Logger logger, ThreadPool threadPool) {
+    public RecoveriesCollection(Logger logger) {
         this.logger = logger;
-        this.threadPool = threadPool;
     }
 
     /**

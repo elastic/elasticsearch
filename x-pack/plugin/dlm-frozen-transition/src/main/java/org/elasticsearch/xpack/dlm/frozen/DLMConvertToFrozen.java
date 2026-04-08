@@ -365,7 +365,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
 
-        if (isSnapshotMounted(forceMergeIndex)) {
+        if (isSnapshotMounted()) {
             logger.debug("Snapshot [{}] is already mounted, skipping DLM mount searchable snapshot step", snapshotName(forceMergeIndex));
             return;
         }
@@ -373,6 +373,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         ProjectState projectState = getProjectState();
         ProjectMetadata projectMetadata = projectState.metadata();
         String snapshotName = snapshotName(forceMergeIndex);
+        String mountedIndexName = snapshotName(indexName);
 
         // It is likely that frozen tier has fewer nodes than the hot tier. If this setting
         // is not specifically set in the frozen tier, keeping this setting runs the risk that we will not have enough nodes to
@@ -382,7 +383,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
         MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
             TimeValue.MAX_VALUE,
-            snapshotName,
+            mountedIndexName,
             getRepositoryForFrozen(projectMetadata, indexName),
             snapshotName,
             forceMergeIndex,
@@ -399,9 +400,11 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 .get();
             RestoreInfo restoreInfo = resp.getRestoreInfo();
             if (restoreInfo == null) {
+                cleanupMountedIndex(mountedIndexName, snapshotName);
                 throw new ElasticsearchException("DLM failed to mount snapshot [{}] because the restore info was missing", snapshotName);
             }
             if (restoreInfo.failedShards() > 0 || restoreInfo.successfulShards() == 0) {
+                cleanupMountedIndex(mountedIndexName, snapshotName);
                 throw new ElasticsearchException(
                     "DLM failed to mount snapshot [{}] " + "because there were failed shards or no successful shards. Restore info: [{}]",
                     snapshotName,
@@ -413,9 +416,28 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
+            cleanupMountedIndex(mountedIndexName, snapshotName);
             throw ExceptionsHelper.convertToElastic(e, "DLM failed while mounting snapshot [{}]", snapshotName);
         }
 
+    }
+
+    /**
+     * Attempts to delete a partially-mounted index so that subsequent DLM cycles can retry the mount cleanly.
+     * Any failure during deletion is logged but not rethrown, so it does not mask the original error.
+     */
+    private void cleanupMountedIndex(String mountedIndexName, String snapshotName) {
+        try {
+            logger.debug("DLM cleaning up partially-mounted index [{}] for snapshot [{}]", mountedIndexName, snapshotName);
+            deleteIndex(mountedIndexName);
+        } catch (Exception e) {
+            throw ExceptionsHelper.convertToElastic(
+                e,
+                "DLM failed to clean up partially-mounted index [{}] for snapshot [{}]",
+                mountedIndexName,
+                snapshotName
+            );
+        }
     }
 
     private boolean isIndexReadOnly() {
@@ -656,10 +678,10 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         }
     }
 
-    boolean isSnapshotMounted(String forceMergeIndex) {
+    boolean isSnapshotMounted() {
         ProjectState projectState = getProjectState();
         ProjectMetadata projectMetadata = projectState.metadata();
-        return Optional.of(snapshotName(forceMergeIndex))
+        return Optional.of(snapshotName(indexName))
             .filter(projectMetadata.indices()::containsKey)
             .map(idx -> projectState.routingTable().index(idx))
             .map(IndexRoutingTable::allPrimaryShardsActive)

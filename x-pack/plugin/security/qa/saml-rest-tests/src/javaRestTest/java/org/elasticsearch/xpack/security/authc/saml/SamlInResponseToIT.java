@@ -35,6 +35,8 @@ public class SamlInResponseToIT extends SamlRestTestCase {
         String requestId = generateRandomRequestId();
         var response = authUser(username, requestId, requestId);
         assertThat(response, hasKey("access_token"));
+        assertThat(response, hasKey("in_response_to"));
+        assertThat(response.get("in_response_to"), equalTo(requestId));
     }
 
     public void testInResponseTo_requestAndTokenHaveDifferentValues() throws Exception {

@@ -127,7 +127,7 @@ class SamlAuthenticator extends SamlResponseHandler {
             throw samlException("Could not process any SAML attributes in {}", response.getElementQName());
         }
 
-        return new SamlAttributes(nameId, session, attributes);
+        return new SamlAttributes(nameId, session, response.getInResponseTo(), attributes);
     }
 
     private static String getSessionIndex(Assertion assertion) {

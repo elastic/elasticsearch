@@ -64,7 +64,9 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -146,6 +148,7 @@ public class Approximation {
         Eval.class,
         Filter.class,
         Grok.class,
+        InlineJoin.class,
         Insist.class,
         LocalRelation.class,
         Join.class,
@@ -158,6 +161,7 @@ public class Approximation {
         Row.class,
         Sample.class,
         SampledAggregate.class,
+        StubRelation.class,
         UriParts.class,
         UserAgent.class
     );
@@ -316,14 +320,7 @@ public class Approximation {
     private int subPlanIterationCount;
     private final SetOnce<Long> sourceRowCount;
 
-    /**
-     * Creates an Approximation object for a logical plan if it's an approximation plan, and returns null otherwise.
-     */
-    public static Approximation create(LogicalPlan logicalPlan, ApproximationSettings approximationSettings) {
-        return ApproximationPlan.is(logicalPlan) ? new Approximation(logicalPlan, approximationSettings) : null;
-    }
-
-    Approximation(LogicalPlan logicalPlan, ApproximationSettings settings) {
+    public Approximation(LogicalPlan logicalPlan, ApproximationSettings settings) {
         this.queryProperties = verifyPlanOrThrow(logicalPlan);
         // The plan is executed multiple times. Use CopyingLocalSupplier to
         // make sure the page is not released between executions.
@@ -463,9 +460,11 @@ public class Approximation {
     }
 
     /**
-     * Returns the new main plan to execute for approximation after executing a subplan, based on the result of the subplan.
+     * Processes the subplan results.
+     * Returns the sample probability suitable for approximation if possible,
+     * or null if more subplans need to be executed to obtain it.
      */
-    public LogicalPlan newMainPlan(Result result) {
+    public Double processResult(Result result) {
         if (sourceRowCount.get() == null) {
             return processSourceCount(rowCount(result));
         } else {
@@ -497,13 +496,13 @@ public class Approximation {
      * need to the executed, based on the total number of rows in the source
      * index and the query properties.
      */
-    private LogicalPlan processSourceCount(long sourceRowCount) {
+    private Double processSourceCount(long sourceRowCount) {
         logger.debug("total number of source rows: [{}] rows", sourceRowCount);
         this.sourceRowCount.set(sourceRowCount);
         if (sourceRowCount == 0) {
             // If there are no rows, run the original query.
             nextSubPlanSampleProbability = null;
-            return ApproximationPlan.substituteSampleProbability(logicalPlan, 1.0);
+            return 1.0;
         }
         double sampleProbability = Math.min(1.0, (double) sampleRowCount / sourceRowCount);
         if (queryProperties.canIncreaseRowCount == false && sampleProbability >= sampleProbabilityThreshold) {
@@ -511,15 +510,15 @@ public class Approximation {
             // we can directly run the original query without sampling.
             logger.debug("using original plan (too few rows)");
             nextSubPlanSampleProbability = null;
-            return ApproximationPlan.substituteSampleProbability(logicalPlan, 1.0);
+            return 1.0;
         } else if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
             // If the query preserves all rows, we can directly approximate with the sample probability.
             nextSubPlanSampleProbability = null;
-            return ApproximationPlan.substituteSampleProbability(logicalPlan, sampleProbability);
+            return sampleProbability;
         } else {
             // Otherwise, we need to sample the number of rows first to obtain a good sample probability.
             nextSubPlanSampleProbability = Math.min(1.0, (double) ROW_COUNT_FOR_COUNT_ESTIMATION / sourceRowCount);
-            return logicalPlan;
+            return null;
         }
     }
 
@@ -612,7 +611,7 @@ public class Approximation {
      * To be safe, the maximum iteration count is capped at 10, and an exception is thrown
      * when this count is exceeded.
      */
-    private LogicalPlan processCount(long rowCount) {
+    private Double processCount(long rowCount) {
         subPlanIterationCount += 1;
         if (subPlanIterationCount > 10) {
             throw new IllegalStateException("Approximation count iteration limit exceeded");
@@ -627,15 +626,15 @@ public class Approximation {
             // If the new sample probability is large, run the original query.
             logger.debug("using original plan (too few rows)");
             nextSubPlanSampleProbability = null;
-            return ApproximationPlan.substituteSampleProbability(logicalPlan, 1.0);
+            return 1.0;
         } else if (rowCount <= ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
             // Not enough rows are sampled yet; increase the sample probability and try again.
             nextSubPlanSampleProbability = Math.min(1.0, sampleProbability * ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
-            return logicalPlan;
+            return null;
         } else {
             // A good sample probability is found; run the approximation plan.
             nextSubPlanSampleProbability = null;
-            return ApproximationPlan.substituteSampleProbability(logicalPlan, newSampleProbability);
+            return newSampleProbability;
         }
     }
 

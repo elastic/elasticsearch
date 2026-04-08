@@ -652,6 +652,68 @@ count:long   | language_code:integer | language_name:keyword | _approximation_co
 ;
 
 
+Inline stats
+required_capability: approximation_v6
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| KEEP sv
+| INLINE STATS AVG(sv)
+| SORT sv
+| LIMIT 5
+;
+
+sv:integer | AVG(sv):double | _approximation_confidence_interval(AVG(sv)):double | _approximation_certified(AVG(sv)):boolean
+1          | 440..490       | [440..490,440..490]                                | {any}
+2          | 440..490       | [440..490,440..490]                                | {any}
+2          | 440..490       | [440..490,440..490]                                | {any}
+3          | 440..490       | [440..490,440..490]                                | {any}
+3          | 440..490       | [440..490,440..490]                                | {any}
+;
+
+
+Inline stats and where
+required_capability: approximation_v6
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| KEEP sv
+| WHERE sv >= 400
+| INLINE STATS SUM(sv)
+| SORT sv
+| LIMIT 401
+| SORT sv DESC
+| LIMIT 3
+;
+
+sv:integer | SUM(sv):long        | _approximation_confidence_interval(SUM(sv)):long | _approximation_certified(SUM(sv)):boolean
+401        | 80000000..110000000 | [80000000..110000000,80000000..110000000]        | {any}
+400        | 80000000..110000000 | [80000000..110000000,80000000..110000000]        | {any}
+400        | 80000000..110000000 | [80000000..110000000,80000000..110000000]        | {any}
+;
+
+
+Inline stats by
+required_capability: approximation_v6
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| KEEP sv
+| INLINE STATS COUNT(), AVG(sv) BY sv
+| SORT sv DESC
+| LIMIT 3
+;
+
+COUNT():long | AVG(sv):double         | sv:integer |_approximation_confidence_interval(COUNT()):long | _approximation_certified(COUNT()):boolean | _approximation_confidence_interval(AVG(sv)):double | _approximation_certified(AVG(sv)):boolean
+100..2000    | 699.999999..700.000001 | 700        | [100..2000,100..2000]                           | {any}                                     | [699.999999..700.000001,699.999999..700.000001]    | {any}
+100..2000    | 699.999999..700.000001 | 700        | [100..2000,100..2000]                           | {any}                                     | [699.999999..700.000001,699.999999..700.000001]    | {any}
+100..2000    | 699.999999..700.000001 | 700        | [100..2000,100..2000]                           | {any}                                     | [699.999999..700.000001,699.999999..700.000001]    | {any}
+;
+
+
 Warn on no stats
 required_capability: approximation_v6
 request_stored: skip

@@ -273,7 +273,13 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final var fileSize = ByteSizeValue.ofKb(64);
         final var indexReaderChunkSize = ByteSizeValue.ofKb(4);
         final ByteSizeValue cacheSize = ByteSizeValue.of(32, ByteSizeUnit.MB);
-        final var settings = sharedCacheSettings(cacheSize);
+        // The region size must exceed the total bytes read by all cacheable readers (cachingReaders * 4KB) so that
+        // the uncacheable reader's retry can claim a new gap beyond the cacheable reads' range. This new gap gets
+        // filled from the object store, which triggers objectStoreReadArrived and unblocks the cacheable threads.
+        final var settings = sharedCacheSettings(
+            cacheSize,
+            pageAligned(ByteSizeValue.of(randomIntBetween(4 * (cachingReaders + 1), 1024), ByteSizeUnit.KB))
+        );
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)

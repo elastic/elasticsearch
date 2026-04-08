@@ -18,17 +18,17 @@ import org.elasticsearch.core.Nullable;
 // end generated imports
 
 /**
- * Implementation of LongBlock backed by an Arrow buffer holding 64 bits signed integers.
+ * Implementation of LongBlock backed by an Arrow buffer holding timestamps in seconds or microseconds, converted to millis or nanos.
  * <p>
  * This class is generated. Edit {@code X-ArrowBufBlock.java.st} instead.
  */
-public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, LongBlock> implements LongBlock {
+public final class LongMul1kArrowBufBlock extends AbstractArrowBufBlock<LongVector, LongBlock> implements LongBlock {
 
     /**
      *  Create an ArrowBuf block based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffers if they
      *  are shared with other blocks or Arrow vectors.
      */
-    public LongArrowBufBlock(
+    public LongMul1kArrowBufBlock(
         ArrowBuf valueBuffer,
         @Nullable ArrowBuf validityBuffer,
         @Nullable ArrowBuf offsetBuffer,
@@ -39,12 +39,12 @@ public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, L
         super(valueBuffer, validityBuffer, offsetBuffer, valueCount, offsetCount, blockFactory);
     }
 
-    private LongArrowBufBlock(ValueVector arrowVector, BlockFactory blockFactory) {
+    private LongMul1kArrowBufBlock(ValueVector arrowVector, BlockFactory blockFactory) {
         super(arrowVector, blockFactory);
     }
 
-    public static LongArrowBufBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
-        return new LongArrowBufBlock(arrowVector, blockFactory);
+    public static LongMul1kArrowBufBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
+        return new LongMul1kArrowBufBlock(arrowVector, blockFactory);
     }
 
     @Override
@@ -54,17 +54,17 @@ public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, L
 
     @Override
     protected ArrowBufVectorConstructor<LongVector> vectorConstructor() {
-        return LongArrowBufVector::new;
+        return LongMul1kArrowBufVector::new;
     }
 
     @Override
     protected ArrowBufBlockConstructor<LongBlock> blockConstructor() {
-        return LongArrowBufBlock::new;
+        return LongMul1kArrowBufBlock::new;
     }
 
     @Override
     public long getLong(int valueIndex) {
-        return valueBuffer.getLong((long) valueIndex * Long.BYTES);
+        return valueBuffer.getLong((long) valueIndex * Long.BYTES) * 1000;
     }
 
     @Override

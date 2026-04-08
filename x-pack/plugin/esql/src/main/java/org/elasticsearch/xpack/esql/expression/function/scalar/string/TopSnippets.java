@@ -105,7 +105,9 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static final String PRE_TAG = "pre_tag";
     private static final String POST_TAG = "post_tag";
     private static final String ENCODER = "encoder";
+    private static final String HTML_ENCODER = "html";
     private static final String ORDER = "order";
+    private static final String DOCUMENT_ORDER = "document";
 
     static final String DEFAULT_PRE_TAG = "<em>";
     static final String DEFAULT_POST_TAG = "</em>";
@@ -506,12 +508,12 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
             numSnippets = numSnippets(opts);
             numWords = numWords(opts);
-            documentOrder = "document".equals(opts.get(ORDER));
+            documentOrder = DOCUMENT_ORDER.equals(opts.get(ORDER));
             if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
                 String preTag = (String) opts.getOrDefault(PRE_TAG, DEFAULT_PRE_TAG);
                 String postTag = (String) opts.getOrDefault(POST_TAG, DEFAULT_POST_TAG);
                 String encoderType = (String) opts.getOrDefault(ENCODER, DEFAULT_ENCODER);
-                Encoder encoder = "html".equals(encoderType) ? new SimpleHTMLEncoder() : new DefaultEncoder();
+                Encoder encoder = HTML_ENCODER.equals(encoderType) ? new SimpleHTMLEncoder() : new DefaultEncoder();
                 highlightFormatter = new CustomPassageFormatter(preTag, postTag, encoder, 0);
             }
         } else {

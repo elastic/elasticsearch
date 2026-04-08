@@ -2747,10 +2747,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
             isTimeSeries = indexMode.get() == IndexMode.TIME_SERIES;
-            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(LogicalPlan.class, this::doRule);
         }
 
-        private LogicalPlan doRule(Aggregate plan) {
+        private LogicalPlan doRule(LogicalPlan plan) {
+            if (plan instanceof EsRelation || plan instanceof Project || plan.childrenResolved() == false) {
+                return plan;
+            }
             Map<String, FieldAttribute> unionFields = new HashMap<>();
             Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
             var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
@@ -2761,11 +2764,60 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     child = tryToTransformFunction(aggFunc, aggFunc.field(), aborted, unionFields);
                 }
                 return child;
+            }).transformExpressionsOnly(EsqlBinaryComparison.class, comparison -> {
+                Expression left = comparison.left();
+                Expression right = comparison.right();
+                Holder<Boolean> modified = new Holder<>(Boolean.FALSE);
+                left = tryToTransformBinaryComparison(comparison, left, modified, unionFields);
+                right = tryToTransformBinaryComparison(comparison, right, modified, unionFields);
+                if (modified.get() == false) {
+                    return comparison;
+                }
+                return comparison.replaceChildren(List.of(left, right));
             });
             if (unionFields.isEmpty() || aborted.get()) {
                 return plan;
             }
             return ResolveUnionTypes.addGeneratedFieldsToEsRelations(newPlan, unionFields.values().stream().toList());
+        }
+
+        private Expression tryToTransformBinaryComparison(
+            EsqlBinaryComparison comparison,
+            Expression original,
+            Holder<Boolean> modified,
+            Map<String, FieldAttribute> unionFields
+        ) {
+            if (original instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf && canBeCasted(imf)) {
+                Map<String, Expression> typeConverters = new HashMap<>();
+                for (DataType type : imf.types()) {
+                    ConvertFunction convert = type == AGGREGATE_METRIC_DOUBLE
+                        ? FromAggregateMetricDouble.withMetric(comparison.source(), fa, AggregateMetricDoubleBlockBuilder.Metric.DEFAULT)
+                        : new ToDouble(fa.source(), fa);
+                    Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, imf);
+                    typeConverters.put(type.typeName(), expression);
+                }
+                var newField = unionFields.computeIfAbsent(
+                    Attribute.rawTemporaryName(fa.name(), comparison.functionName(), comparison.sourceText()),
+                    newName -> new FieldAttribute(
+                        fa.source(),
+                        fa.parentName(),
+                        fa.qualifier(),
+                        newName,
+                        MultiTypeEsField.resolveFrom(imf, typeConverters),
+                        fa.nullable(),
+                        null,
+                        true
+                    )
+                );
+                modified.set(true);
+                return newField;
+            }
+            return original;
+        }
+
+        private static boolean canBeCasted(InvalidMappedField imf) {
+            return imf.types().contains(AGGREGATE_METRIC_DOUBLE)
+                && imf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric());
         }
 
         private Expression tryToTransformFunction(
@@ -2775,8 +2827,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<String, FieldAttribute> unionFields
         ) {
             if (field instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-                if (imf.types().contains(AGGREGATE_METRIC_DOUBLE) == false
-                    || imf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric()) == false) {
+                if (canBeCasted(imf) == false) {
                     aborted.set(Boolean.TRUE);
                     return aggFunc;
                 }
@@ -2903,7 +2954,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class InsertFromAggregateMetricDouble extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p));
+            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p))
+                .transformExpressionsUp(EsqlBinaryComparison.class, this::doRule);
+        }
+
+        private Expression doRule(EsqlBinaryComparison comparison) {
+            Expression left = comparison.left();
+            Expression right = comparison.right();
+            boolean modified = false;
+            if (left.resolved() == false || right.resolved() == false) {
+                return comparison;
+            }
+            if (left.dataType() == AGGREGATE_METRIC_DOUBLE) {
+                left = FromAggregateMetricDouble.withMetric(left.source(), left, AggregateMetricDoubleBlockBuilder.Metric.DEFAULT);
+                modified = true;
+            }
+            if (right.dataType() == AGGREGATE_METRIC_DOUBLE) {
+                right = FromAggregateMetricDouble.withMetric(right.source(), right, AggregateMetricDoubleBlockBuilder.Metric.DEFAULT);
+                modified = true;
+            }
+            if (modified == false) {
+                return comparison;
+            }
+            return comparison.replaceChildren(List.of(left, right));
         }
 
         private LogicalPlan doRule(Aggregate plan) {

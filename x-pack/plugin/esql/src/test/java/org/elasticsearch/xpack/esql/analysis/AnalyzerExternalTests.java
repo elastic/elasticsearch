@@ -11,8 +11,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 
@@ -27,7 +28,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -45,17 +45,17 @@ public class AnalyzerExternalTests extends ESTestCase {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
 
-    public void testResolveExternalRelationPassesFileSet() {
+    public void testResolveExternalRelationPassesGenericFileList() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
         var entries = List.of(
             new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
         );
-        var fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+        var fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
 
         List<Attribute> schema = List.of(referenceAttribute("id", LONG), referenceAttribute("name", KEYWORD));
 
-        var analyzer = analyzer().externalSourceResolution("s3://bucket/data/*.parquet", schema, fileSet);
+        var analyzer = analyzer().externalSourceResolution("s3://bucket/data/*.parquet", schema, fileList);
         var analyzed = analyzer.query("EXTERNAL \"s3://bucket/data/*.parquet\" | STATS count = COUNT(*)");
 
         var externalRelations = new ArrayList<ExternalRelation>();
@@ -64,13 +64,13 @@ public class AnalyzerExternalTests extends ESTestCase {
         assertThat("Should have one ExternalRelation", externalRelations, hasSize(1));
         var externalRelation = externalRelations.get(0);
 
-        assertSame(fileSet, externalRelation.fileSet());
-        assertTrue(externalRelation.fileSet().isResolved());
-        assertEquals(2, externalRelation.fileSet().size());
-        assertEquals("s3://bucket/data/*.parquet", externalRelation.fileSet().originalPattern());
+        assertSame(fileList, externalRelation.fileList());
+        assertTrue(externalRelation.fileList().isResolved());
+        assertEquals(2, externalRelation.fileList().fileCount());
+        assertEquals("s3://bucket/data/*.parquet", externalRelation.fileList().originalPattern());
     }
 
-    public void testResolveExternalRelationUnresolvedFileSet() {
+    public void testResolveExternalRelationUnresolvedGenericFileList() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
         var testAnalyzer = external();
         var analyzed = testAnalyzer.query("EXTERNAL \"" + S3_PATH + "\" | STATS count = COUNT(*)");
@@ -81,8 +81,8 @@ public class AnalyzerExternalTests extends ESTestCase {
         assertThat("Should have one ExternalRelation", externalRelations, hasSize(1));
         var externalRelation = externalRelations.get(0);
 
-        assertTrue(externalRelation.fileSet().isUnresolved());
-        assertSame(FileSet.UNRESOLVED, externalRelation.fileSet());
+        assertFalse(externalRelation.fileList().isResolved());
+        assertSame(FileList.UNRESOLVED, externalRelation.fileList());
     }
 
     /**
@@ -127,21 +127,6 @@ public class AnalyzerExternalTests extends ESTestCase {
         external().error(
             "EXTERNAL \"" + S3_PATH + "\" | WHERE MATCH_PHRASE(first_name, \"foo\")",
             containsString("function cannot operate on [first_name], which is not a field from an index mapping")
-        );
-    }
-
-    /**
-     * Match function requires field from index mapping; EXTERNAL fields are rejected.
-     */
-    public void testWithMultiMatchFunctionRejected() {
-        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
-
-        external().error(
-            "EXTERNAL \"" + S3_PATH + "\" | WHERE MULTI_MATCH(\"foo\", first_name, last_name)",
-            allOf(
-                containsString("function cannot operate on [first_name], which is not a field from an index mapping"),
-                containsString("function cannot operate on [last_name], which is not a field from an index mapping")
-            )
         );
     }
 

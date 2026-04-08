@@ -158,6 +158,17 @@ public final class CsvSpecReader {
             expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
         }
 
+        /**
+         * Allows all warnings in the result.
+         */
+        public void allowAllWarnings() {
+            expectedWarnings.clear();
+            expectedWarningsRegexString.clear();
+            expectedWarningsRegexString.add(".*");
+            expectedWarningsRegex.clear();
+            expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
+        }
+
         public List<Pattern> expectedWarningsRegex() {
             return expectedWarningsRegex;
         }

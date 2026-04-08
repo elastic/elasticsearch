@@ -44,6 +44,6 @@
   "examples" : [
     "TS datenanos-k8s\n| WHERE pod == \"three\"\n| STATS max_deriv = MAX(DERIV(network.cost)) BY time_bucket = BUCKET(@timestamp,5minute), pod"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

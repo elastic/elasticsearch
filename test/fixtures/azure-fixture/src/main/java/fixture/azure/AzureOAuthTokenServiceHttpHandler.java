@@ -20,7 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -28,8 +28,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 
 @SuppressForbidden(reason = "Uses a HttpServer to emulate an Azure endpoint")
 public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
@@ -68,8 +66,7 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
             && ("/" + tenantId + "/oauth2/v2.0/token").equals(exchange.getRequestURI().getPath())) {
             final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
 
-            final Map<String, String> params = new HashMap<>();
-            RestUtils.decodeQueryString(requestBody, 0, params);
+            final var params = RequestParams.fromQueryString(requestBody);
 
             if (clientId.equals(params.get("client_id"))
                 && federatedToken.equals(params.get("client_assertion"))

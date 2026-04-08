@@ -32,14 +32,9 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
     private final List<Integer> channels;
     private final boolean countAll;
 
-    public static CountApproximateAggregatorFunction create(List<Integer> inputChannels) {
-        return new CountApproximateAggregatorFunction(inputChannels, new DoubleState(0));
-    }
-
-    protected CountApproximateAggregatorFunction(List<Integer> channels, DoubleState state) {
+    public CountApproximateAggregatorFunction(List<Integer> channels) {
         this.channels = channels;
-        this.state = state;
-        // no channels specified means count-all/count(*)
+        this.state = new DoubleState(0);
         this.countAll = channels.isEmpty();
     }
 
@@ -73,6 +68,9 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
             }
         } else {
             Block block = page.getBlock(blockIndex());
+            if (block.areAllValuesNull()) {
+                return;
+            }
             DoubleState state = this.state;
             int count;
             if (mask.isConstant()) {
@@ -181,12 +179,12 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
 
         @Override
         public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-            return CountApproximateAggregatorFunction.create(channels);
+            return new CountApproximateAggregatorFunction(channels);
         }
 
         @Override
         public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return CountApproximateGroupingAggregatorFunction.create(driverContext, channels);
+            return new CountApproximateGroupingAggregatorFunction(channels, driverContext);
         }
 
         @Override

@@ -118,7 +118,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
             Map.of(),
             Map.of(),
-            Set.of("partial_type_keyword")
+            Map.of("partial_type_keyword", Set.of("test2"))
         );
         return analyzerWithEnrichPolicies().addIndex(multiIndex);
     }
@@ -151,7 +151,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("union_types_index", IndexMode.STANDARD, "union_types_index_incompatible", IndexMode.STANDARD),
             Map.of("", List.of("union_types_index*")),
             Map.of("", List.of("union_types_index_incompatible", "union_types_index")),
-            Set.of()
+            Map.of()
         );
         return analyzerWithEnrichPolicies().addAnalysisTestsInferenceResolution()
             .addIndex(unionIndex)

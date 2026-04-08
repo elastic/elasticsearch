@@ -83,9 +83,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
 
         var commonFields = fromMap(map, validationException, ConfigurationParseContext.REQUEST);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new OpenAiEmbeddingsServiceSettings(commonFields, commonFields.dimensions != null);
     }

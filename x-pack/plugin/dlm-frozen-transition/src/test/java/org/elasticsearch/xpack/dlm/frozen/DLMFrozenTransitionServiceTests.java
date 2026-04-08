@@ -311,6 +311,9 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
 
             // Wait until all maxJobs tasks have been accepted by the executor (capacity now exhausted)
             safeAwait(allSubmitted);
+            // The factory latch fires before executor.submit() adds the task to submittedTransitions,
+            // so we must also wait for the executor to reflect full capacity exhaustion.
+            assertBusy(() -> assertFalse(service.getTransitionExecutor().hasCapacity()));
             assertEquals(maxJobs, submittedIndices.size());
 
             // Add more marked indices to the cluster state

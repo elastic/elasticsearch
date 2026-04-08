@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.telemetry.apm.internal;
+package org.elasticsearch.telemetry.apm.internal.export;
 
 import io.opentelemetry.api.metrics.Meter;
 

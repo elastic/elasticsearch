@@ -109,7 +109,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // https://github.com/elastic/elasticsearch/issues/145570
         "function cannot operate on \\[from .*\\], which is not a field from an index mapping",
         // https://github.com/elastic/elasticsearch/issues/145570
-        "function cannot operate on \\[\\], which is not a field from an index mapping",
+        "function cannot operate on \\[.*\\], which is not a field from an index mapping",
+        "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
         "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",
@@ -237,12 +238,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
                     final boolean hasException = result.exception() != null;
                     if (hasException
-                        || checkResults(previousCommands, generator, current, previousResult, result, currentSchema).success() == false) {
+                        || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema)
+                            .success() == false) {
                         if (hasException) {
                             List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
                             commands.addAll(previousCommands);
                             commands.add(current);
-                            checkException(result, commands, currentSchema);
+                            checkPipelineException(result, commands, currentSchema);
                         }
                         continueExecuting = false;
                         currentSchema = List.of();
@@ -331,6 +333,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return EsqlQueryGenerator.sourceCommand();
     }
 
+    protected CommandGenerator.ValidationResult checkPipelineResults(
+        List<CommandGenerator.CommandDescription> previousCommands,
+        CommandGenerator commandGenerator,
+        CommandGenerator.CommandDescription commandDescription,
+        QueryExecuted previousResult,
+        QueryExecuted result,
+        List<Column> currentSchema
+    ) {
+        return checkResults(previousCommands, commandGenerator, commandDescription, previousResult, result, currentSchema);
+    }
+
+    protected void checkPipelineException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        checkException(query, previousCommands, currentSchema);
+    }
+
     private record FailureContext(
         String errorMessage,
         String query,
@@ -386,13 +407,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             result.outputSchema(),
             result.result()
         );
+        failOnUnexpectedValidationError(outputValidation, result, previousCommands, currentSchema);
+        return outputValidation;
+    }
+
+    protected static void failOnUnexpectedValidationError(
+        CommandGenerator.ValidationResult outputValidation,
+        QueryExecuted result,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
         if (outputValidation.success() == false) {
             if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
-                return outputValidation;
+                return;
             }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
-        return outputValidation;
     }
 
     protected void checkException(
@@ -416,7 +446,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
     }
 
-    private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+    protected static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
         return allowedPattern.matcher(errorWithoutLineBreaks).matches();
     }
@@ -435,7 +465,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * </ul>
      */
     private static boolean isUnmappedFieldError(String errorMessage, String query) {
-        if (query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) == false) {
+        return isUnmappedFieldPrefixError(errorMessage, query, SET_UNMAPPED_FIELDS_PREFIX);
+    }
+
+    protected static boolean isUnmappedFieldPrefixError(String errorMessage, String query, String prefix) {
+        if (query.startsWith(prefix) == false) {
             return false;
         }
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);

@@ -506,7 +506,10 @@ public class CsvIT extends ESTestCase {
             logger.info("Unloading view [{}]", name);
             assertAcked(
                 cluster.client()
-                    .execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name))
+                    .execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { name })
+                    )
             );
         }
     };

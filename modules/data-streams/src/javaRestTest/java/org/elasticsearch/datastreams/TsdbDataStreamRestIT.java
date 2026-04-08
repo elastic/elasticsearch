@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
 
     static {
-        clusterConfig = config -> config.feature(FeatureFlag.TSDB_SYNTHETIC_ID_FEATURE_FLAG).feature(FeatureFlag.TSDB_NO_SEQNO);
+        clusterConfig = config -> config.feature(FeatureFlag.TSDB_NO_SEQNO);
     }
 
     private static final String COMPONENT_TEMPLATE = """

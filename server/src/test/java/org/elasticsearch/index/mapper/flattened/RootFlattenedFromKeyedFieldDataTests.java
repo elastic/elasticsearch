@@ -219,10 +219,7 @@ public class RootFlattenedFromKeyedFieldDataTests extends ESTestCase {
     private static void addDoc(RandomIndexWriter writer, boolean binary, String... keyedValues) throws IOException {
         Document doc = new Document();
         if (binary) {
-            var field = new MultiValuedBinaryDocValuesField.SeparateCount(
-                KEYED_FIELD,
-                MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-            );
+            var field = new MultiValuedBinaryDocValuesField.SeparateCount(KEYED_FIELD, false);
             for (String kv : keyedValues) {
                 field.add(new BytesRef(kv));
             }

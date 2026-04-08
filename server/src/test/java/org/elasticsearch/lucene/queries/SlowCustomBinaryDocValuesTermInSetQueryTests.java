@@ -42,10 +42,7 @@ public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
                     for (int i = 0; i < entry.getValue(); i++) {
                         Document document = new Document();
 
-                        var field = new MultiValuedBinaryDocValuesField.SeparateCount(
-                            "field",
-                            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                        );
+                        var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                         field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
                         var countField = new NumericDocValuesField("field.counts", 1);
 
@@ -123,10 +120,7 @@ public class SlowCustomBinaryDocValuesTermInSetQueryTests extends ESTestCase {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
                 Document document = new Document();
 
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
-                    "field",
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                );
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
                 var countField = new NumericDocValuesField("field.counts", 1);
                 document.add(field);

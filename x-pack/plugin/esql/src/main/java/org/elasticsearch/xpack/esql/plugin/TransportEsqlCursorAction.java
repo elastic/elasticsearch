@@ -39,7 +39,7 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
     static final int MAX_PAGE_FETCH_RETRIES = 10;
     static final TimeValue PAGE_FETCH_RETRY_DELAY = TimeValue.timeValueMillis(200);
 
-    private final CursorStorageService cursorStorageService;
+    private final CursorStorageResolver cursorStorageResolver;
     private final ThreadPool threadPool;
     private final SecurityContext securityContext;
 
@@ -47,11 +47,11 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
     public TransportEsqlCursorAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        CursorStorageService cursorStorageService,
+        CursorStorageResolver cursorStorageResolver,
         ClusterService clusterService
     ) {
         super(EsqlCursorAction.NAME, transportService, actionFilters, EsqlCursorRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.cursorStorageService = cursorStorageService;
+        this.cursorStorageResolver = cursorStorageResolver;
         this.threadPool = transportService.getThreadPool();
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadPool.getThreadContext());
     }
@@ -61,18 +61,24 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
         listener = listener.delegateFailureAndWrap(ActionListener::respondAndRelease);
         try {
             EsqlCursor cursor = EsqlCursor.decode(request.cursor());
+            CursorStorageService cursorStorageService = cursorStorageResolver.resolve(cursor.storageType());
 
             if (request.keepAlive() != null) {
                 cursorStorageService.updateKeepAlive(cursor.cursorId(), request.keepAlive(), ActionListener.noop());
             }
 
-            getMetadataWithRetry(cursor, 0, listener);
+            getMetadataWithRetry(cursor, cursorStorageService, 0, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    private void getMetadataWithRetry(EsqlCursor cursor, int attempt, ActionListener<EsqlQueryResponse> listener) {
+    private void getMetadataWithRetry(
+        EsqlCursor cursor,
+        CursorStorageService cursorStorageService,
+        int attempt,
+        ActionListener<EsqlQueryResponse> listener
+    ) {
         cursorStorageService.getMetadata(cursor.cursorId(), ActionListener.wrap(metadata -> {
             if (canAccessCursor(metadata) == false) {
                 listener.onFailure(new ResourceNotFoundException("cursor not found or expired"));
@@ -92,7 +98,7 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
                 listener.onResponse(emptyResponse(metadata));
                 return;
             }
-            fetchPageWithRetry(cursor, metadata, 0, listener);
+            fetchPageWithRetry(cursor, cursorStorageService, metadata, 0, listener);
         }, e -> {
             if (isRetryable(e) && attempt < MAX_PAGE_FETCH_RETRIES) {
                 logger.debug(
@@ -101,7 +107,7 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
                     attempt + 1
                 );
                 threadPool.schedule(
-                    () -> getMetadataWithRetry(cursor, attempt + 1, listener),
+                    () -> getMetadataWithRetry(cursor, cursorStorageService, attempt + 1, listener),
                     PAGE_FETCH_RETRY_DELAY,
                     threadPool.generic()
                 );
@@ -112,14 +118,15 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
     }
 
     /**
-     * Attempts to fetch a page from the cursor index, retrying on {@link ResourceNotFoundException}
-     * because the page may still be in flight from the incremental store operator or async bulk write.
+     * Attempts to fetch a page, retrying on {@link ResourceNotFoundException}
+     * because the page may still be in flight from the incremental store operator.
      * <p>
      * When the cursor is in-progress ({@link CursorStorageService#TOTAL_PAGES_IN_PROGRESS}), retries re-fetch metadata to detect
      * when the query completes or fails.
      */
     private void fetchPageWithRetry(
         EsqlCursor cursor,
+        CursorStorageService cursorStorageService,
         CursorStorageService.CursorMetadata metadata,
         int attempt,
         ActionListener<EsqlQueryResponse> listener
@@ -154,7 +161,7 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
                     attempt + 1
                 );
                 threadPool.schedule(
-                    () -> retryWithFreshMetadata(cursor, metadata, attempt, listener),
+                    () -> retryWithFreshMetadata(cursor, cursorStorageService, metadata, attempt, listener),
                     PAGE_FETCH_RETRY_DELAY,
                     threadPool.generic()
                 );
@@ -170,6 +177,7 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
      */
     private void retryWithFreshMetadata(
         EsqlCursor cursor,
+        CursorStorageService cursorStorageService,
         CursorStorageService.CursorMetadata currentMetadata,
         int attempt,
         ActionListener<EsqlQueryResponse> listener
@@ -190,13 +198,13 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
                     listener.onResponse(emptyResponse(freshMetadata));
                     return;
                 }
-                fetchPageWithRetry(cursor, freshMetadata, attempt + 1, listener);
+                fetchPageWithRetry(cursor, cursorStorageService, freshMetadata, attempt + 1, listener);
             }, e -> {
                 logger.warn("failed to re-fetch metadata for cursor [{}] on retry", cursor.cursorId(), e);
-                fetchPageWithRetry(cursor, currentMetadata, attempt + 1, listener);
+                fetchPageWithRetry(cursor, cursorStorageService, currentMetadata, attempt + 1, listener);
             }));
         } else {
-            fetchPageWithRetry(cursor, currentMetadata, attempt + 1, listener);
+            fetchPageWithRetry(cursor, cursorStorageService, currentMetadata, attempt + 1, listener);
         }
     }
 
@@ -228,7 +236,7 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
     private static String computeNextCursor(EsqlCursor cursor, CursorStorageService.CursorMetadata metadata) {
         int nextPageIndex = cursor.pageIndex() + 1;
         if (metadata.isInProgress() || nextPageIndex < metadata.totalPages()) {
-            return new EsqlCursor(cursor.cursorId(), nextPageIndex).encode();
+            return new EsqlCursor(cursor.storageType(), cursor.cursorId(), nextPageIndex).encode();
         }
         return null;
     }

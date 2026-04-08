@@ -46,7 +46,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
     static final TimeValue METADATA_RETRY_DELAY = TimeValue.timeValueMillis(200);
     static final TimeValue METADATA_WAIT_TIMEOUT = TimeValue.timeValueSeconds(5);
 
-    private final CursorStorageService cursorStorageService;
+    private final CursorStorageResolver cursorStorageResolver;
     private final Client client;
     private final ThreadPool threadPool;
     private final ExchangeService exchangeService;
@@ -59,7 +59,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
     public TransportEsqlDeleteCursorAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        CursorStorageService cursorStorageService,
+        CursorStorageResolver cursorStorageResolver,
         Client client,
         ExchangeService exchangeService,
         ClusterService clusterService
@@ -71,7 +71,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
             EsqlDeleteCursorRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.cursorStorageService = cursorStorageService;
+        this.cursorStorageResolver = cursorStorageResolver;
         this.client = client;
         this.threadPool = transportService.getThreadPool();
         this.exchangeService = exchangeService;
@@ -85,14 +85,15 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
     protected void doExecute(Task task, EsqlDeleteCursorRequest request, ActionListener<AcknowledgedResponse> listener) {
         try {
             EsqlCursor cursor = EsqlCursor.decode(request.cursor());
+            CursorStorageService cursorStorageService = cursorStorageResolver.resolve(cursor.storageType());
             String cursorId = cursor.cursorId();
             boolean waitForCompletion = request.waitForCompletion();
             logger.info("delete cursor [{}]: waitForCompletion=[{}]", cursorId, waitForCompletion);
             long deadlineMillis = threadPool.relativeTimeInMillis() + METADATA_WAIT_TIMEOUT.millis();
             if (waitForCompletion) {
-                cancelThenDelete(cursorId, deadlineMillis, listener);
+                cancelThenDelete(cursorStorageService, cursorId, cursor.storageType(), deadlineMillis, listener);
             } else {
-                checkExistsThenDelete(cursorId, deadlineMillis, listener);
+                checkExistsThenDelete(cursorStorageService, cursorId, deadlineMillis, listener);
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -104,16 +105,22 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
      * responds immediately with 200, then runs cleanup in the background. Returns 404 if the
      * cursor is not found after retries.
      */
-    private void checkExistsThenDelete(String cursorId, long deadlineMillis, ActionListener<AcknowledgedResponse> listener) {
+    private void checkExistsThenDelete(
+        CursorStorageService cursorStorageService,
+        String cursorId,
+        long deadlineMillis,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         cursorStorageService.getMetadata(cursorId, ActionListener.wrap(metadata -> {
             listener.onResponse(AcknowledgedResponse.TRUE);
-            threadPool.generic().execute(() -> cancelThenDelete(cursorId, deadlineMillis, ActionListener.wrap(v -> {}, e -> {
-                logger.warn("background cursor cleanup failed for cursor [{}]", cursorId, e);
-            })));
+            threadPool.generic()
+                .execute(() -> cancelThenDelete(cursorStorageService, cursorId, null, deadlineMillis, ActionListener.wrap(v -> {}, e -> {
+                    logger.warn("background cursor cleanup failed for cursor [{}]", cursorId, e);
+                })));
         }, e -> {
             if ((e instanceof ResourceNotFoundException || isRetryable(e)) && threadPool.relativeTimeInMillis() < deadlineMillis) {
                 threadPool.schedule(
-                    () -> checkExistsThenDelete(cursorId, deadlineMillis, listener),
+                    () -> checkExistsThenDelete(cursorStorageService, cursorId, deadlineMillis, listener),
                     METADATA_RETRY_DELAY,
                     threadPool.generic()
                 );
@@ -133,7 +140,13 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
      * index may not even exist yet). In that case getMetadata fails with a retryable error and
      * we retry the entire flow until the metadata becomes available or the deadline is reached.
      */
-    private void cancelThenDelete(String cursorId, long deadlineMillis, ActionListener<AcknowledgedResponse> listener) {
+    private void cancelThenDelete(
+        CursorStorageService cursorStorageService,
+        String cursorId,
+        EsqlCursor.StorageType storageType,
+        long deadlineMillis,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         logger.info("cancelThenDelete cursor [{}]: fetching metadata", cursorId);
         cursorStorageService.getMetadata(cursorId, ActionListener.wrap(metadata -> {
             if (canAccessCursor(metadata) == false) {
@@ -149,29 +162,30 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
             );
             TaskId taskId = metadata.taskId();
             if (taskId != null && metadata.isInProgress()) {
-                stopBackgroundTask(taskId, cursorId, ActionListener.wrap(v -> { deleteWithRetry(cursorId, 0, listener); }, e -> {
-                    logger.debug("failed to stop background task [{}] for cursor [{}], proceeding with delete", taskId, cursorId, e);
-                    deleteWithRetry(cursorId, 0, listener);
-                }));
+                stopBackgroundTask(
+                    taskId,
+                    cursorId,
+                    storageType,
+                    ActionListener.wrap(v -> { deleteWithRetry(cursorStorageService, cursorId, 0, listener); }, e -> {
+                        logger.debug("failed to stop background task [{}] for cursor [{}], proceeding with delete", taskId, cursorId, e);
+                        deleteWithRetry(cursorStorageService, cursorId, 0, listener);
+                    })
+                );
             } else {
-                deleteWithRetry(cursorId, 0, listener);
+                deleteWithRetry(cursorStorageService, cursorId, 0, listener);
             }
         }, e -> {
-            // The metadata doc may not exist yet because the background StorePageOperator hasn't
-            // written it, or the cursor index itself may not exist yet. Both cases surface as
-            // ResourceNotFoundException or IndexNotFoundException/NoShardAvailableActionException.
-            // Retry until the metadata appears or the deadline is reached, then proceed with delete.
             if (e instanceof ResourceNotFoundException || isRetryable(e)) {
                 if (threadPool.relativeTimeInMillis() < deadlineMillis) {
                     logger.info("cancelThenDelete cursor [{}]: [{}], retrying", cursorId, e.getMessage());
                     threadPool.schedule(
-                        () -> cancelThenDelete(cursorId, deadlineMillis, listener),
+                        () -> cancelThenDelete(cursorStorageService, cursorId, storageType, deadlineMillis, listener),
                         METADATA_RETRY_DELAY,
                         threadPool.generic()
                     );
                 } else {
                     logger.info("cancelThenDelete cursor [{}]: deadline reached, proceeding with delete", cursorId);
-                    deleteWithRetry(cursorId, 0, listener);
+                    deleteWithRetry(cursorStorageService, cursorId, 0, listener);
                 }
             } else {
                 listener.onFailure(e);
@@ -185,7 +199,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
      * different node, the request is forwarded there. This avoids task cancellation which would
      * run the Driver teardown on the wrong thread pool.
      */
-    private void stopBackgroundTask(TaskId taskId, String cursorId, ActionListener<Void> listener) {
+    private void stopBackgroundTask(TaskId taskId, String cursorId, EsqlCursor.StorageType storageType, ActionListener<Void> listener) {
         String taskNodeId = taskId.getNodeId();
         String localNodeId = clusterService.localNode().getId();
 
@@ -199,7 +213,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
                 transportService.sendRequest(
                     node,
                     EsqlDeleteCursorAction.NAME,
-                    new EsqlDeleteCursorRequest(new EsqlCursor(cursorId, 0).encode(), true),
+                    new EsqlDeleteCursorRequest(new EsqlCursor(storageType, cursorId, 0).encode(), true),
                     new org.elasticsearch.transport.TransportResponseHandler.Empty() {
                         @Override
                         public java.util.concurrent.Executor executor() {
@@ -263,7 +277,12 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
         }
     }
 
-    private void deleteWithRetry(String cursorId, int attempt, ActionListener<AcknowledgedResponse> listener) {
+    private void deleteWithRetry(
+        CursorStorageService cursorStorageService,
+        String cursorId,
+        int attempt,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         cursorStorageService.delete(cursorId, ActionListener.wrap(deleted -> {
             if (deleted) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
@@ -273,7 +292,11 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
         }, e -> {
             if (isRetryable(e) && attempt < MAX_DELETE_RETRIES) {
                 logger.debug("cursor index not yet available for delete of [{}], retrying (attempt [{}])", cursorId, attempt + 1);
-                threadPool.schedule(() -> deleteWithRetry(cursorId, attempt + 1, listener), DELETE_RETRY_DELAY, threadPool.generic());
+                threadPool.schedule(
+                    () -> deleteWithRetry(cursorStorageService, cursorId, attempt + 1, listener),
+                    DELETE_RETRY_DELAY,
+                    threadPool.generic()
+                );
             } else {
                 listener.onFailure(e);
             }

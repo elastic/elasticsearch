@@ -426,14 +426,14 @@ setup:
       catch: missing
       esql.cursor:
         body:
-          cursor: "AAAADmRvZXNfbm90X2V4aXN0AAAAAA"
+          cursor: "AAAAAA5kb2VzX25vdF9leGlzdAAAAAA"
 
 ---
 "Delete a non-existent cursor returns 404":
   - do:
       catch: missing
       esql.delete_cursor:
-        cursor: "AAAADmRvZXNfbm90X2V4aXN0AAAAAA"
+        cursor: "AAAAAA5kb2VzX25vdF9leGlzdAAAAAA"
   - match: { error.type: "resource_not_found_exception" }
   - match: { error.reason: "cursor not found or expired" }
 

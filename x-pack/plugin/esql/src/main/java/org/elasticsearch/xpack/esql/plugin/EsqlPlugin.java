@@ -255,11 +255,27 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
 
-        IndexCursorStorageService cursorStorageService = new IndexCursorStorageService(
+        IndexCursorStorageService indexCursorStorageService = new IndexCursorStorageService(
             services.client(),
             services.clusterService(),
             services.namedWriteableRegistry(),
             blockFactoryProvider.blockFactory()
+        );
+
+        DiskCursorStorageService diskCursorStorageService = new DiskCursorStorageService(
+            services.nodeEnvironment().nodeDataPaths()[0],
+            services.namedWriteableRegistry(),
+            blockFactoryProvider.blockFactory(),
+            services.threadPool().executor(ThreadPool.Names.GENERIC)
+        );
+
+        CursorStorageResolver cursorStorageResolver = new CursorStorageResolver(
+            java.util.Map.of(
+                org.elasticsearch.xpack.esql.action.EsqlCursor.StorageType.INDEX,
+                indexCursorStorageService,
+                org.elasticsearch.xpack.esql.action.EsqlCursor.StorageType.DISK,
+                diskCursorStorageService
+            )
         );
 
         List<Object> components = new ArrayList<>(
@@ -281,11 +297,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ),
                 blockFactoryProvider,
                 dataSourceModule,
-                new PluginComponentBinding<>(CursorStorageService.class, cursorStorageService)
+                new PluginComponentBinding<>(CursorStorageResolver.class, cursorStorageResolver)
             )
         );
         if (org.elasticsearch.cluster.node.DiscoveryNode.canContainData(services.environment().settings())) {
-            EsqlCursorMaintenanceService maintenanceService = new EsqlCursorMaintenanceService(
+            EsqlCursorMaintenanceService indexMaintenanceService = new EsqlCursorMaintenanceService(
                 services.clusterService(),
                 services.projectResolver(),
                 services.nodeEnvironment().nodeId(),
@@ -295,7 +311,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN
                 )
             );
-            components.add(maintenanceService);
+            components.add(indexMaintenanceService);
+
+            DiskCursorMaintenanceService diskMaintenanceService = new DiskCursorMaintenanceService(
+                diskCursorStorageService,
+                services.threadPool()
+            );
+            components.add(diskMaintenanceService);
         }
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);

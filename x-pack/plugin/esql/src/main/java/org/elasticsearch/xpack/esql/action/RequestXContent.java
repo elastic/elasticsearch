@@ -88,6 +88,7 @@ final class RequestXContent {
     static final ParseField TABLES_FIELD = new ParseField("tables");
 
     static final ParseField PAGE_SIZE_FIELD = new ParseField("page_size");
+    static final ParseField CURSOR_STORAGE_FIELD = new ParseField("cursor_storage");
 
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
@@ -126,6 +127,7 @@ final class RequestXContent {
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
         parser.declareString(EsqlQueryRequest::projectRouting, PROJECT_ROUTING);
         parser.declareInt(EsqlQueryRequest::pageSize, PAGE_SIZE_FIELD);
+        parser.declareString((request, value) -> request.cursorStorage(EsqlCursor.StorageType.fromString(value)), CURSOR_STORAGE_FIELD);
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {

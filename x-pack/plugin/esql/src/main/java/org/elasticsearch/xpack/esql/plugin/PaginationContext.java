@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.xpack.esql.action.EsqlCursor;
+
 import java.time.ZoneId;
 import java.util.Map;
 
@@ -15,6 +17,7 @@ import java.util.Map;
  * and compute service into the {@link StorePageOperator}.
  */
 public record PaginationContext(
+    EsqlCursor.StorageType storageType,
     String cursorId,
     int pageSize,
     long expirationMillis,

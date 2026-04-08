@@ -65,6 +65,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private Boolean allowPartialResults = null;
     private String projectRouting;
     private Integer pageSize;
+    private EsqlCursor.StorageType cursorStorage;
     private boolean streaming = false;
     private transient org.elasticsearch.xpack.esql.plugin.StreamingProvider streamingProvider;
 
@@ -283,6 +284,15 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest pageSize(Integer pageSize) {
         this.pageSize = pageSize;
+        return this;
+    }
+
+    public EsqlCursor.StorageType cursorStorage() {
+        return cursorStorage;
+    }
+
+    public EsqlQueryRequest cursorStorage(EsqlCursor.StorageType cursorStorage) {
+        this.cursorStorage = cursorStorage;
         return this;
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlCursor;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -420,7 +421,15 @@ public class StorePageOperatorTests extends AnyOperatorTestCase {
     }
 
     private static PaginationStoreProvider createTestProvider(int pageSize, StorageRecorder recorder) {
-        PaginationContext ctx = new PaginationContext("test-cursor-id", pageSize, Long.MAX_VALUE, ZoneOffset.UTC, false, Map.of());
+        PaginationContext ctx = new PaginationContext(
+            EsqlCursor.StorageType.INDEX,
+            "test-cursor-id",
+            pageSize,
+            Long.MAX_VALUE,
+            ZoneOffset.UTC,
+            false,
+            Map.of()
+        );
         FakeCursorIndexService fakeService = new FakeCursorIndexService(recorder);
         PaginationStoreProvider provider = new PaginationStoreProvider(fakeService, ctx);
         provider.setColumns(List.of(new ColumnInfoImpl("val", "integer", null)));

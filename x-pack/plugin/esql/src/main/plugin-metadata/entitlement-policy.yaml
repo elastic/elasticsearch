@@ -2,3 +2,7 @@ ALL-UNNAMED:
   - manage_threads
   - outbound_network
   - set_https_connection_properties
+  - files:
+      - relative_path: "esql-cursors/"
+        relative_to: data
+        mode: read_write

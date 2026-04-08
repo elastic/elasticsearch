@@ -84,6 +84,13 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
     /**
      * Adds a value to a multi-valued binary doc values field in the given document.
+     */
+    public static void addToBinaryFieldInDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
+        addToBinaryFieldInDoc(doc, fieldName, value, ordering, IndexVersion.current());
+    }
+
+    /**
+     * This function exists for backwards compatibility with old indices that used {@link IntegratedCount}.
      * <p>
      * For indices created on or after {@link IndexVersions#DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}, the {@link SeparateCount}
      * format is used. For older indices, the {@link IntegratedCount} format is used.
@@ -92,8 +99,8 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         LuceneDocument doc,
         String fieldName,
         BytesRef value,
-        IndexVersion indexVersion,
-        ValueOrdering ordering
+        ValueOrdering ordering,
+        IndexVersion indexVersion
     ) {
         if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
             SeparateCount.addToDoc(doc, fieldName, value, ordering);
@@ -101,11 +108,6 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             IntegratedCount.addToDoc(doc, fieldName, value, ordering);
         }
     }
-
-    public static void addToBinaryFieldInDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
-        addToBinaryFieldInDoc(doc, fieldName, value, IndexVersion.current(), ordering);
-    }
-
 
     /**
      * Format that integrates the value count into the binary payload itself.

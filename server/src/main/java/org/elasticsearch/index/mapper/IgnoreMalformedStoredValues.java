@@ -94,8 +94,8 @@ public abstract class IgnoreMalformedStoredValues {
             context.doc(),
             fieldName,
             encoded,
-            indexVersion,
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED,
+            indexVersion
         );
     }
 

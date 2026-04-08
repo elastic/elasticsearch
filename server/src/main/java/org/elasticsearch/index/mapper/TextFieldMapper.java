@@ -1758,8 +1758,8 @@ public final class TextFieldMapper extends FieldMapper {
             context.doc(),
             fallbackFieldName,
             bytesRef,
-            indexCreatedVersion,
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED,
+            indexCreatedVersion
         );
     }
 

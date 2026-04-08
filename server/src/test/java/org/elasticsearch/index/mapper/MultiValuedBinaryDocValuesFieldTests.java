@@ -253,8 +253,8 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
             doc,
             "field",
             new BytesRef("val"),
-            previousVersion,
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+            previousVersion
         );
 
         // then

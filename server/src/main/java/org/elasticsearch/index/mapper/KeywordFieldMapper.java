@@ -1388,10 +1388,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                         context.doc(),
                         fieldName,
                         bytesRef,
-                        indexCreatedVersion,
                         keepDuplicatesInBinaryDocValues()
                             ? MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
-                            : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                            : MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                        indexCreatedVersion
                     );
                 } else {
                     // otherwise for bwc, store the value in a stored fields like we used to

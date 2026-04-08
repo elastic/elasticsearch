@@ -295,11 +295,11 @@ public class WildcardFieldMapper extends FieldMapper {
         private final String nullValue;
         private final NamedAnalyzer analyzer;
         private final IgnoreAbove ignoreAbove;
-        private final IndexVersion indexCreatedVersion;
+        private final IndexVersion indexVersion;
 
         private WildcardFieldType(String name, IndexVersion version, Map<String, String> meta, Builder builder) {
             super(name, IndexType.terms(true, true), false, meta);
-            this.indexCreatedVersion = version;
+            this.indexVersion = version;
             if (version.onOrAfter(IndexVersions.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
@@ -977,7 +977,7 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
+                if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
                 }
                 return new BytesRefsFromCustomBinaryBlockLoader(name());
@@ -1088,8 +1088,8 @@ public class WildcardFieldMapper extends FieldMapper {
                             parseDoc,
                             originalName(),
                             new BytesRef(value),
-                            indexVersionCreated,
-                            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                            indexVersionCreated
                         );
                     } else {
                         parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
@@ -1115,8 +1115,8 @@ public class WildcardFieldMapper extends FieldMapper {
             parseDoc,
             fieldType().name(),
             new BytesRef(value.getBytes(StandardCharsets.UTF_8)),
-            indexVersionCreated,
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+            indexVersionCreated
         );
     }
 

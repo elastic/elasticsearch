@@ -968,8 +968,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             context.doc(),
             fallbackFieldName,
             bytesRef,
-            indexCreatedVersion,
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED
+            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED,
+            indexCreatedVersion
         );
     }
 

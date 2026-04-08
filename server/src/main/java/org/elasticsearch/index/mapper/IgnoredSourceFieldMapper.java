@@ -564,8 +564,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                         nameValue.doc(),
                         NAME,
                         SingularIgnoredSourceEncoding.encode(nameValue),
-                        indexVersion,
-                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
+                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
+                        indexVersion
                     );
                 }
             }

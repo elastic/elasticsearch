@@ -85,8 +85,8 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
                         doc,
                         "field",
                         value,
-                        previousVersion,
-                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                        previousVersion
                     );
                 }
                 iw.addDocument(doc);
@@ -160,8 +160,8 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
                     doc,
                     "field",
                     expected,
-                    previousVersion,
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE,
+                    previousVersion
                 );
                 iw.addDocument(doc);
             }

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -32,6 +33,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  */
 public class MvCount extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvCount", MvCount::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvCount.class).unary(MvCount::new).name("mv_count");
 
     @FunctionInfo(
         returnType = "integer",

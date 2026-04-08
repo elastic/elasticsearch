@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Collections;
@@ -45,37 +44,21 @@ import static java.util.Collections.emptySet;
  * of shards and holds the {@link AllocationDeciders} which are responsible
  *  for the current routing state.
  */
-public class RoutingAllocation {
+public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocation, MutableRoutingAllocation {
 
-    private final AllocationDeciders deciders;
+    protected final AllocationDeciders deciders;
 
-    @Nullable
-    private final RoutingNodes routingNodes;
+    protected final ClusterState clusterState;
 
-    private final ClusterState clusterState;
+    protected ClusterInfo clusterInfo;
 
-    private ClusterInfo clusterInfo;
-
-    private final SnapshotShardSizeInfo shardSizeInfo;
+    protected final SnapshotShardSizeInfo shardSizeInfo;
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
-    private boolean ignoreDisable = false;
-
     private DebugMode debugDecision = DebugMode.OFF;
 
-    private boolean hasPendingAsyncFetch = false;
-
-    private final long currentNanoTime;
-    private final boolean isSimulating;
-    private boolean isReconciling;
-
-    private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
-    private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
-    private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
-    private final ResizeSourceIndexSettingsUpdater resizeSourceIndexUpdater = new ResizeSourceIndexSettingsUpdater();
-
-    private final RoutingChangesObserver routingChangesObserver;
+    protected final long currentNanoTime;
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
@@ -85,81 +68,29 @@ public class RoutingAllocation {
     // Tracks the sizes of the searchable snapshots that aren't yet registered in ClusterInfo by their cluster node id
     private final Map<String, Long> unaccountedSearchableSnapshotSizes;
 
-    public RoutingAllocation(
-        AllocationDeciders deciders,
-        ClusterState clusterState,
-        ClusterInfo clusterInfo,
-        SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
-    ) {
-        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
-    }
-
     /// Creates a new [RoutingAllocation]
     ///
     /// @param deciders [AllocationDeciders] to use to make decisions for routing allocations
-    /// @param routingNodes routing nodes in the current cluster or `null` if using those in the given cluster state
     /// @param clusterState cluster state before rerouting
     /// @param clusterInfo information about node disk usage and shard disk usage
     /// @param shardSizeInfo information about snapshot shard sizes
     /// @param currentNanoTime the nano time to use for all delay allocation calculation (typically `System#nanoTime()`)
     ///
-    public RoutingAllocation(
+    RoutingAllocation(
         AllocationDeciders deciders,
-        @Nullable RoutingNodes routingNodes,
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
-    ) {
-        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, RoutingChangesObserver.NOOP);
-    }
-
-    /// Creates a new [RoutingAllocation]
-    ///
-    /// @param deciders [AllocationDeciders] to use to make decisions for routing allocations
-    /// @param routingNodes routing nodes in the current cluster or `null` if using those in the given cluster state
-    /// @param clusterState cluster state before rerouting
-    /// @param clusterInfo information about node disk usage and shard disk usage
-    /// @param shardSizeInfo information about snapshot shard sizes
-    /// @param currentNanoTime the nano time to use for all delay allocation calculation (typically `System#nanoTime()`)
-    /// @param isSimulating `true` if "transient" deciders should be ignored because we are simulating the final allocation
-    /// @param shardChangesObserver observer that records shard state transition timing metrics
-    ///
-    public RoutingAllocation(
-        AllocationDeciders deciders,
-        @Nullable RoutingNodes routingNodes,
-        ClusterState clusterState,
-        ClusterInfo clusterInfo,
-        SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime,
-        boolean isSimulating,
-        RoutingChangesObserver shardChangesObserver
     ) {
         this.deciders = deciders;
-        this.routingNodes = routingNodes;
         this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
-        this.isSimulating = isSimulating;
         this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
-        this.routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-            isSimulating
-                ? new RoutingChangesObserver[] {
-                    nodesChangedObserver,
-                    indexMetadataUpdater,
-                    restoreInProgressUpdater,
-                    resizeSourceIndexUpdater }
-                : new RoutingChangesObserver[] {
-                    nodesChangedObserver,
-                    indexMetadataUpdater,
-                    restoreInProgressUpdater,
-                    resizeSourceIndexUpdater,
-                    shardChangesObserver }
-        );
     }
 
     private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
@@ -230,9 +161,6 @@ public class RoutingAllocation {
      * @return routing nodes
      */
     public RoutingNodes routingNodes() {
-        if (routingNodes != null) {
-            return routingNodes;
-        }
         return clusterState.getRoutingNodes();
     }
 
@@ -276,13 +204,9 @@ public class RoutingAllocation {
         return this.nodeReplacementTargets;
     }
 
-    public void ignoreDisable(boolean ignoreDisable) {
-        this.ignoreDisable = ignoreDisable;
-    }
+    public abstract void ignoreDisable(boolean ignoreDisable);
 
-    public boolean ignoreDisable() {
-        return this.ignoreDisable;
-    }
+    public abstract boolean ignoreDisable();
 
     public void setDebugMode(DebugMode debug) {
         this.debugDecision = debug;
@@ -340,38 +264,27 @@ public class RoutingAllocation {
     /**
      * Remove the allocation id of the provided shard from the set of in-sync shard copies
      */
-    public void removeAllocationId(ShardRouting shardRouting) {
-        indexMetadataUpdater.removeAllocationId(shardRouting);
-    }
+    public abstract void removeAllocationId(ShardRouting shardRouting);
 
     /**
      * Returns observer to use for changes made to the routing nodes
      */
-    public RoutingChangesObserver changes() {
-        return routingChangesObserver;
-    }
+    public abstract RoutingChangesObserver changes();
 
     /**
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
-    public Metadata updateMetadataWithRoutingChanges(GlobalRoutingTable newRoutingTable) {
-        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
-        return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
-    }
+    public abstract Metadata updateMetadataWithRoutingChanges(GlobalRoutingTable newRoutingTable);
 
     /**
      * Returns updated {@link RestoreInProgress} based on the changes that were made to the routing nodes
      */
-    public RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress) {
-        return restoreInProgressUpdater.applyChanges(restoreInProgress);
-    }
+    public abstract RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress);
 
     /**
      * Returns true iff changes were made to the routing nodes
      */
-    public boolean routingNodesChanged() {
-        return nodesChangedObserver.isChanged();
-    }
+    public abstract boolean routingNodesChanged();
 
     /**
      * Create a routing decision, including the reason if the debug flag is turned on. This is useful to avoid constructing a new {@link
@@ -399,17 +312,13 @@ public class RoutingAllocation {
      * Returns <code>true</code> iff the current allocation run has not processed all of the in-flight or available
      * shard or store fetches. Otherwise <code>true</code>
      */
-    public boolean hasPendingAsyncFetch() {
-        return hasPendingAsyncFetch;
-    }
+    public abstract boolean hasPendingAsyncFetch();
 
     /**
      * Sets a flag that signals that current allocation run has not processed all of the in-flight or available shard or store fetches.
      * This state is anti-viral and can be reset in on allocation run.
      */
-    public void setHasPendingAsyncFetch() {
-        this.hasPendingAsyncFetch = true;
-    }
+    public abstract void setHasPendingAsyncFetch();
 
     /**
      * Returns an approximation of the size (in bytes) of the unaccounted searchable snapshots before the allocation
@@ -422,35 +331,24 @@ public class RoutingAllocation {
      * @return {@code true} if this allocation computation is trying to simulate the final allocation and therefore "transient" allocation
      *                      blockers should be ignored.
      */
-    public boolean isSimulating() {
-        return isSimulating;
-    }
+    public abstract boolean isSimulating();
 
     /**
      * @return {@code true} if this allocation computation is trying to reconcile towards a previously-computed allocation and therefore
      *                      path-dependent allocation blockers should be ignored.
      */
-    public boolean isReconciling() {
-        return isReconciling;
-    }
+    public abstract boolean isReconciling();
 
     /**
      * Set the {@link #isReconciling} flag, and return a {@link Releasable} which clears it again.
      */
-    public Releasable withReconcilingFlag() {
-        assert isReconciling == false : "already reconciling";
-        isReconciling = true;
-        return () -> isReconciling = false;
-    }
+    public abstract Releasable withReconcilingFlag();
 
-    public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
-        assert isSimulating : "Should be called only while simulating";
-        this.clusterInfo = clusterInfo;
-    }
+    public abstract void setSimulatedClusterInfo(ClusterInfo clusterInfo);
 
     public RoutingAllocation immutableClone() {
         GlobalRoutingTable routingTable = clusterState.globalRoutingTable();
-        return new RoutingAllocation(
+        return new ImmutableRoutingAllocation(
             deciders,
             routingNodesChanged()
                 ? ClusterState.builder(clusterState).routingTable(routingTable.rebuild(routingNodes(), metadata())).build()
@@ -462,7 +360,7 @@ public class RoutingAllocation {
     }
 
     public RoutingAllocation mutableCloneForSimulation() {
-        return new RoutingAllocation(
+        return new MutableRoutingAllocation(
             deciders,
             clusterState.mutableRoutingNodes(),
             clusterState,
@@ -472,6 +370,22 @@ public class RoutingAllocation {
             true,
             RoutingChangesObserver.NOOP
         );
+    }
+
+    /**
+     * Create an immutable routing allocation
+     * <p>
+     * Use of this is only to support legacy applications
+     */
+    @Deprecated
+    public static RoutingAllocation immutable(
+        AllocationDeciders deciders,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime
+    ) {
+        return new ImmutableRoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
     }
 
     public enum DebugMode {

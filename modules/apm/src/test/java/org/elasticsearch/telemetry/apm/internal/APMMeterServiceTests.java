@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 
 public class APMMeterServiceTests extends ESTestCase {
 
@@ -50,6 +51,71 @@ public class APMMeterServiceTests extends ESTestCase {
         service.stop();
 
         assertThat(calls, contains("attemptFlushMetrics", "close"));
+    }
+
+    /**
+     * The public attemptFlushMetrics() is gated on enabled — callers should not pay the flush cost when metrics
+     * are off. doStop() is intentionally unconditional (see testDoStopDelegatesUnconditionallyWhenMetricsDisabled).
+     */
+    public void testAttemptFlushMetricsIsNoopWhenDisabled() {
+        List<String> calls = new ArrayList<>();
+        MeterSupplier trackingSupplier = new MeterSupplier() {
+            @Override
+            public Meter get() {
+                return OpenTelemetry.noop().getMeter("test");
+            }
+
+            @Override
+            public void attemptFlushMetrics() {
+                calls.add("attemptFlushMetrics");
+            }
+        };
+        MeterSupplier noopSupplier = () -> OpenTelemetry.noop().getMeter("noop");
+
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false).build();
+        APMMeterService service = new APMMeterService(settings, trackingSupplier, noopSupplier);
+        service.start();
+        service.attemptFlushMetrics();
+
+        assertThat(calls, empty());
+    }
+
+    /**
+     * A flush failure must not prevent close() or the registry switch to noop: losing the flush is acceptable,
+     * but leaking resources or leaving the service in a broken state is not.
+     */
+    public void testDoStopClosesAndSwitchesToNoopEvenIfFlushThrows() {
+        List<String> calls = new ArrayList<>();
+        MeterSupplier trackingSupplier = new MeterSupplier() {
+            @Override
+            public Meter get() {
+                return OpenTelemetry.noop().getMeter("test");
+            }
+
+            @Override
+            public void attemptFlushMetrics() {
+                throw new RuntimeException("simulated flush failure");
+            }
+
+            @Override
+            public void close() {
+                calls.add("close");
+            }
+        };
+        MeterSupplier trackingNoopSupplier = new MeterSupplier() {
+            @Override
+            public Meter get() {
+                calls.add("noop");
+                return OpenTelemetry.noop().getMeter("noop");
+            }
+        };
+
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
+        APMMeterService service = new APMMeterService(settings, trackingSupplier, trackingNoopSupplier);
+        service.start();
+        service.stop(); // must not throw
+
+        assertThat(calls, contains("close", "noop"));
     }
 
     /**

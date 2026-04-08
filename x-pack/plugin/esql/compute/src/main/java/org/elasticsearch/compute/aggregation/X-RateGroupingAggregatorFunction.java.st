@@ -731,9 +731,11 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         }
 
         if (lastTsSec == firstTsSec) {
-            // Check for the case where there is only one sample in state, right at the lower boundary of the time bucket towards a non-empty adjacent state.
-            // In this case we want to have a result value as the time bucket is not empty, but we already included the increase in the previous time bucket
-            // Therefore we return the last seen rate of the previous time bucket for rate and zero for increase
+            // Check for the case where there is only one sample in state, right at the lower boundary
+            // of the time bucket towards a non-empty adjacent state.
+            // In this case we want to have a result value as the time bucket is not empty,
+            // but we already included the increase in the previous time bucket.
+            // Therefore, we return the last seen rate of the previous time bucket for rate and zero for increase
             if (state.samples == 1) {
                 if (previousState != null) {
                     assert nextState == null;

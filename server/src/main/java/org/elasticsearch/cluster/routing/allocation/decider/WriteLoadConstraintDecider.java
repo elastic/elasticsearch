@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Decides whether shards can be allocated to cluster nodes, or can remain on cluster nodes, based on the target node's current write thread
@@ -218,10 +217,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                     node.nodeId(),
                     // compute cache entry if absent
                     () -> {
-                        List<ShardId> shardIds = node.shardsWithState(ShardRoutingState.STARTED)
-                            .map(startedShardRouting -> startedShardRouting.shardId())
-                            .collect(Collectors.toList());
-
+                        final var shardIds = node.shardsWithState(ShardRoutingState.STARTED).map(ShardRouting::shardId).toList();
                         return maxShardWriteLoadProportion(shardIds, allocation.clusterInfo().getShardWriteLoads());
                     }
                 );

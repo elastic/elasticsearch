@@ -252,23 +252,19 @@ EXPORT f32_t vec_dotf32_2(const f32_t* a, const f32_t* b, const int32_t elementC
     }
 
     __m512 total_sum = tree_reduce<batches, __m512, _mm512_add_ps>(sums);
-    f32_t result = _mm512_reduce_add_ps(total_sum);
 
-    // Masked tail: handle remaining elements (< 64) in 512-bit chunks
+    // Non-batched tail: accumulate into the same vector register
     for (; i + elements <= elementCount; i += elements) {
-        __m512 va = _mm512_loadu_ps(a + i);
-        __m512 vb = _mm512_loadu_ps(b + i);
-        result += _mm512_reduce_add_ps(_mm512_mul_ps(va, vb));
+        total_sum = _mm512_fmadd_ps(_mm512_loadu_ps(a + i), _mm512_loadu_ps(b + i), total_sum);
     }
+    // Masked tail: zeroed lanes from maskz_loadu contribute nothing via fmadd
     const int remaining = elementCount - i;
     if (remaining > 0) {
         const __mmask16 mask = (__mmask16)((1 << remaining) - 1);
-        __m512 va = _mm512_maskz_loadu_ps(mask, a + i);
-        __m512 vb = _mm512_maskz_loadu_ps(mask, b + i);
-        result += _mm512_reduce_add_ps(_mm512_mul_ps(va, vb));
+        total_sum = _mm512_fmadd_ps(_mm512_maskz_loadu_ps(mask, a + i), _mm512_maskz_loadu_ps(mask, b + i), total_sum);
     }
 
-    return result;
+    return _mm512_reduce_add_ps(total_sum);
 }
 
 EXPORT f32_t vec_sqrf32_2(const f32_t* a, const f32_t* b, const int32_t elementCount) {
@@ -289,25 +285,19 @@ EXPORT f32_t vec_sqrf32_2(const f32_t* a, const f32_t* b, const int32_t elementC
     }
 
     __m512 total_sum = tree_reduce<batches, __m512, _mm512_add_ps>(sums);
-    f32_t result = _mm512_reduce_add_ps(total_sum);
 
-    // Masked tail: handle remaining elements (< 64) in 512-bit chunks
+    // Non-batched tail: accumulate into the same vector register
     for (; i + elements <= elementCount; i += elements) {
-        __m512 va = _mm512_loadu_ps(a + i);
-        __m512 vb = _mm512_loadu_ps(b + i);
-        __m512 diff = _mm512_sub_ps(va, vb);
-        result += _mm512_reduce_add_ps(_mm512_mul_ps(diff, diff));
+        total_sum = sqrf32_512(_mm512_loadu_ps(a + i), _mm512_loadu_ps(b + i), total_sum);
     }
+    // Masked tail: zeroed lanes from maskz_loadu contribute nothing via fmadd
     const int remaining = elementCount - i;
     if (remaining > 0) {
         const __mmask16 mask = (__mmask16)((1 << remaining) - 1);
-        __m512 va = _mm512_maskz_loadu_ps(mask, a + i);
-        __m512 vb = _mm512_maskz_loadu_ps(mask, b + i);
-        __m512 diff = _mm512_sub_ps(va, vb);
-        result += _mm512_reduce_add_ps(_mm512_mul_ps(diff, diff));
+        total_sum = sqrf32_512(_mm512_maskz_loadu_ps(mask, a + i), _mm512_maskz_loadu_ps(mask, b + i), total_sum);
     }
 
-    return result;
+    return _mm512_reduce_add_ps(total_sum);
 }
 
 /*
@@ -403,9 +393,3 @@ EXPORT void vec_sqrf32_bulk_offsets_2(
     f32_t* results) {
     call_f32_bulk_512<f32_t, offsets_mapper, sqrf32_512, vec_sqrf32_2>(a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
 }
-
-#ifdef __clang__
-#pragma clang attribute pop
-#elif __GNUC__
-#pragma GCC pop_options
-#endif

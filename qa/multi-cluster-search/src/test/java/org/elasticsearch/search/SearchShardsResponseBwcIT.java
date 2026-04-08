@@ -27,6 +27,11 @@ public class SearchShardsResponseBwcIT extends ESRestTestCase {
 
     private static final String REMOTE_CLUSTER_ALIAS = "my_remote_cluster";
 
+    @Override
+    protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
+
     static List<HttpHost> parseRemoteHosts() {
         String address = System.getProperty("tests.rest.remote_cluster");
         assertNotNull("[tests.rest.remote_cluster] is not configured", address);

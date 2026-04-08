@@ -36,6 +36,8 @@ def ccsSupportedVersion = bwcVersion -> {
 
 buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
 
+  def currentVersion = project.version
+
   def remoteCluster = testClusters.register("${baseName}-remote") {
     numberOfNodes = 2
     versions = [bwcVersion.toString()]
@@ -76,7 +78,7 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
 
   def revRemoteCluster = testClusters.register("${baseName}-rev-remote") {
     numberOfNodes = 2
-    versions = [project.version] // <-- remote cluster uses the current version
+    versions = [currentVersion] // <-- remote cluster uses the current version
     setting 'node.roles', '[data,ingest,master]'
   }
 
@@ -105,16 +107,14 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
       nonInputProperties.systemProperty('tests.rest.suite', 'multi_cluster')
       nonInputProperties.systemProperty('tests.rest.cluster', revLocalCluster.map(c -> c.allHttpSocketURI.join(",")))
       nonInputProperties.systemProperty('tests.rest.remote_cluster', revRemoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.rest.remote_cluster_version', project.version)
+      nonInputProperties.systemProperty('tests.rest.remote_cluster_version', currentVersion)
     }
     dependsOn "${baseName}#rev-remote-setup"
+    mustRunAfter "${baseName}#multi-cluster"
   }
 
-
-
   tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn "${baseName}#multi-cluster"
-    // dependsOn "${baseName}#multi-cluster-reverse"
+    dependsOn "${baseName}#multi-cluster", "${baseName}#multi-cluster-reverse"
     mustRunAfter("precommit")
   }
 }

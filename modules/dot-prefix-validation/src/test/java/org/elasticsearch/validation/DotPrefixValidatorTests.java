@@ -178,8 +178,8 @@ public class DotPrefixValidatorTests extends ESTestCase {
     private void assertSecondIndexFails(List<String> indices) {
         assertThat(indices.size(), equalTo(2));
         /*
-         * This method asserts the key difference between stateful and stateless mode -- statful just logs a deprecation warning, while
-         * stateful throws an exception.
+         * This method asserts the key difference between stateful and stateless mode -- stateful just logs a deprecation warning, while
+         * stateless throws an exception.
          */
         var statefulValidator = new NonOperatorValidator<>(statefulClusterService, false);
         statefulValidator.validateIndices(Set.copyOf(indices));

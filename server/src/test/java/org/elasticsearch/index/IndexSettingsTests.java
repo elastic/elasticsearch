@@ -1121,7 +1121,10 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersSetting() {
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
+            IndexVersion.current()
+        );
 
         var disabled = randomBoolean();
         Settings settings = Settings.builder()
@@ -1134,7 +1137,10 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersImpliesDocValuesOnly() {
-        final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+        final var indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
+            IndexVersion.current()
+        );
 
         var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
@@ -1146,7 +1152,10 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersRequiresDocValuesOnly() {
-        final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+        final var indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
+            IndexVersion.current()
+        );
 
         var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
@@ -1168,7 +1177,10 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
+            IndexVersion.current()
+        );
 
         IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB);
         Settings.Builder builder = Settings.builder()
@@ -1196,7 +1208,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersValidationWithInvalidVersion() {
-        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISABLE_SEQUENCE_NUMBERS);
+        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT);
 
         Settings settings = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build();
         IndexMetadata indexMetadata = newIndexMeta("some-index", settings, badVersion);
@@ -1208,7 +1220,7 @@ public class IndexSettingsTests extends ESTestCase {
                     Locale.ROOT,
                     "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
                     IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
-                    IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+                    IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
                     badVersion
                 )
             )

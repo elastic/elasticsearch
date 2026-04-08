@@ -712,7 +712,7 @@ public class PruningMergePolicyTests extends ESTestCase {
     private static IndexSettings timeSeriesIndexSettings(boolean useSyntheticId, boolean pruneSequenceNumber) {
         IndexVersion minVersion;
         if (pruneSequenceNumber) {
-            minVersion = IndexVersions.DISABLE_SEQUENCE_NUMBERS;
+            minVersion = IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT;
         } else if (useSyntheticId) {
             minVersion = IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94;
         } else {

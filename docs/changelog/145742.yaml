@@ -1,11 +1,4 @@
 area: Mapping
-breaking:
-  area: Mapping
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  notable: true
-  title: Summary of Improvements on `aggregate_metric_double` in `9.4`
 highlight:
   body: |-
     In Elasticsearch `9.4` we expand the supportability of `aggregate_metric_double` to include non-native operations in ES|QL,
@@ -27,8 +20,8 @@ highlight:
     ----
   notable: true
   title: Improve the supportability of `aggregate_metric_double` by ES|QL.
-issues: []
+issues:
+  - 128356
 pr: 145742
-summary: "Improve the supportability of `aggregate_metric_double` by non-native ES|QL\
-  \ aggregation functions, such as std_dev. ES|QL."
+summary: Improve the supportability of `aggregate_metric_double` by non-native ES|QL aggregation functions, such as std_dev.
 type: enhancement

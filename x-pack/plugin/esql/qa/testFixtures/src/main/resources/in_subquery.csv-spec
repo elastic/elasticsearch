@@ -101,10 +101,10 @@ FROM employees
 | SORT gender
 ;
 
-gender:keyword | cnt:long
-F          | 74572
-M          | 73717
-null          | 74999
+cnt:long | gender:keyword
+3        | F
+2        | M
+1        | null
 ;
 
 inSubqueryWithStatsAfterInSubqueryWithNull

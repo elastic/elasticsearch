@@ -108,7 +108,6 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
-<<<<<<< HEAD
     /**
      * Query-level override for the IN subquery hash join threshold.
      * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.

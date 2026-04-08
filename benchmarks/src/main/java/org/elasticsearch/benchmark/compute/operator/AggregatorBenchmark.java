@@ -133,18 +133,14 @@ public class AggregatorBenchmark {
     }
 
     static void selfTest() {
-        try {
-            for (String grouping : AggregatorBenchmark.class.getField("grouping").getAnnotationsByType(Param.class)[0].value()) {
-                for (String op : AggregatorBenchmark.class.getField("op").getAnnotationsByType(Param.class)[0].value()) {
-                    for (String blockType : AggregatorBenchmark.class.getField("blockType").getAnnotationsByType(Param.class)[0].value()) {
-                        for (String filter : AggregatorBenchmark.class.getField("filter").getAnnotationsByType(Param.class)[0].value()) {
-                            run(grouping, op, blockType, filter, 10);
-                        }
+        for (String grouping : Utils.possibleValues(AggregatorBenchmark.class, "grouping")) {
+            for (String op : Utils.possibleValues(AggregatorBenchmark.class, "op")) {
+                for (String blockType : Utils.possibleValues(AggregatorBenchmark.class, "blockType")) {
+                    for (String filter : Utils.possibleValues(AggregatorBenchmark.class, "filter")) {
+                        run(grouping, op, blockType, filter, 10);
                     }
                 }
             }
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError();
         }
     }
 

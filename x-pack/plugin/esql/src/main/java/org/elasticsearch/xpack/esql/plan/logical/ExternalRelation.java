@@ -183,8 +183,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName() + "[" + sourcePath + "][" + sourceType() + "]" + NodeUtils.toString(output, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType()).append("]");
+        NodeUtils.toString(sb, output, format);
     }
 
     public ExternalRelation withAttributes(List<Attribute> newAttributes) {

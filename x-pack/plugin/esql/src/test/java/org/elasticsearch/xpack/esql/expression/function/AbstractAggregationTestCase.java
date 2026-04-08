@@ -668,23 +668,28 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     /**
      * Process the page with the aggregator. Adds all the values in all the groups in the range [0, {@code groupCount}).
      * <p>
-     *   This method splits the data and groups in chunks, to test the aggregator capabilities.
+     *   This method splits the data and groups in random chunks to stress-test that the aggregator correctly
+     *   handles being called multiple times with partial slices of data and group IDs, rather than receiving
+     *   everything in a single call.
      * </p>
      */
     private void processPageGrouping(GroupingAggregator aggregator, Page inputPage, int groupCount) {
-        var groupSliceSize = 1;
         var allValuesNull = IntStream.range(0, inputPage.getBlockCount())
             .<Block>mapToObj(inputPage::getBlock)
             .anyMatch(Block::areAllValuesNull);
-        // Add data to chunks of groups
-        for (int currentGroupOffset = 0; currentGroupOffset < groupCount;) {
+        int currentGroupOffset = 0;
+        int groupSliceSize = 1;
+        while (currentGroupOffset < groupCount) {
             int groupSliceRemainingSize = Math.min(groupSliceSize, groupCount - currentGroupOffset);
             var seenGroupIds = new SeenGroupIds.Range(0, allValuesNull ? 0 : currentGroupOffset + groupSliceRemainingSize);
             try (GroupingAggregatorFunction.AddInput addInput = aggregator.prepareProcessPage(seenGroupIds, inputPage)) {
+                if (addInput == null) {
+                    return;
+                }
                 var positionCount = inputPage.getPositionCount();
-                var dataSliceSize = 1;
-                // Divide data in chunks
-                for (int currentDataOffset = 0; currentDataOffset < positionCount;) {
+                int currentDataOffset = 0;
+                int dataSliceSize = 1;
+                while (currentDataOffset < positionCount) {
                     int dataSliceRemainingSize = Math.min(dataSliceSize, positionCount - currentDataOffset);
                     try (
                         var groups = makeGroupsVector(

@@ -336,14 +336,19 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return switch (format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        switch (format) {
             case FULL -> {
-                var nodeStringName = field.getNodeStringName();
-                nodeStringName = nodeStringName.isEmpty() ? nodeStringName : Strings.format("(%s)", nodeStringName);
-                yield Strings.format("%s{%s%s%s}#%s", qualifiedName(), label(), nodeStringName, synthetic() ? "$" : "", id());
+                sb.append(qualifiedName()).append("{").append(label());
+                if (field.getNodeStringName().isEmpty() == false) {
+                    sb.append("(").append(field.getNodeStringName()).append(")");
+                }
+                if (synthetic()) {
+                    sb.append("$");
+                }
+                sb.append("}#").append(id());
             }
-            case LIMITED -> super.nodeString(format);
-        };
+            case LIMITED -> super.nodeString(sb, format);
+        }
     }
 }

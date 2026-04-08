@@ -14,6 +14,8 @@ import org.HdrHistogram.IntCountsHistogram;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -23,9 +25,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,17 +42,23 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.IntStream;
 
 /**
- * Publishes metrics about the distribution of shard write loads on each node in the cluster
+ * Publishes metrics about write loads: the distribution of shard write loads per node, and the
+ * average write load (utilisation × thread-pool size) for each node's WRITE thread pool.
+ * <p>
+ * Shard write-load data comes from {@link ClusterInfo#getShardWriteLoads()}; node write-load data
+ * comes from {@link ClusterInfo#getNodeUsageStatsForThreadPools()}. Both are made available via the
+ * {@link org.elasticsearch.cluster.ClusterInfoService} listener on the master node.
  */
-public class ShardWriteLoadDistributionMetrics {
+public class WriteLoadMetrics {
 
-    private static final Logger logger = LogManager.getLogger(ShardWriteLoadDistributionMetrics.class);
+    private static final Logger logger = LogManager.getLogger(WriteLoadMetrics.class);
     private static final String WRITE_LOAD_DISTRIBUTION_METRIC_NAME = "es.allocator.shard_write_load.distribution.p%s.current";
     public static final String WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME =
         "es.allocator.shard_write_load.prioritisation_threshold.current";
     public static final String WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME =
         "es.allocator.shard_write_load.prioritisation_threshold.shard_count_exceeding.current";
     public static final String WRITE_LOAD_SUM_METRIC_NAME = "es.allocator.shard_write_load.sum.current";
+    public static final String NODE_WRITE_LOAD_METRIC_NAME = "es.allocator.node_write_load.average.current";
     public static final Setting<Boolean> SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.write_load_decider.shard_write_load_metrics.enabled",
         true,
@@ -66,15 +77,16 @@ public class ShardWriteLoadDistributionMetrics {
         List.of()
     );
     private final AtomicReference<List<DoubleWithAttributes>> lastWriteLoadSumMetrics = new AtomicReference<>(List.of());
+    private final AtomicReference<List<DoubleWithAttributes>> lastNodeAverageWriteLoadMetrics = new AtomicReference<>(List.of());
     private volatile boolean metricsEnabled = false;
     private volatile boolean lastMetricsCollected = true;
 
-    public ShardWriteLoadDistributionMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
+    public WriteLoadMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
         // 2 significant digits means error < 1% of any value in the range
         this(meterRegistry, clusterService, 2, 50, 90, 95, 99, 100);
     }
 
-    public ShardWriteLoadDistributionMetrics(
+    public WriteLoadMetrics(
         MeterRegistry meterRegistry,
         ClusterService clusterService,
         int numberOfSignificantDigits,
@@ -114,24 +126,68 @@ public class ShardWriteLoadDistributionMetrics {
             "write load",
             this::getWriteLoadSumMetrics
         );
+        meterRegistry.registerDoublesGauge(
+            NODE_WRITE_LOAD_METRIC_NAME,
+            "average node write load (utilisation multiplied by thread pool size)",
+            "write load",
+            this::getNodeAverageWriteLoadMetrics
+        );
     }
 
     public void onNewInfo(ClusterInfo clusterInfo) {
-        // We need a cluster state and shard write loads to compute these metrics
-        if (metricsEnabled == false
-            || clusterService.lifecycleState() != Lifecycle.State.STARTED
-            || clusterInfo.getShardWriteLoads().isEmpty()
-            || lastMetricsCollected == false) {
+        // We need a cluster state to compute these metrics, don't recalculate if the last ones are yet to be collected
+        if (metricsEnabled == false || clusterService.lifecycleState() != Lifecycle.State.STARTED || lastMetricsCollected == false) {
+            return;
+        }
+
+        final var shardWriteLoads = clusterInfo.getShardWriteLoads();
+        final var nodeUsageStatsMap = clusterInfo.getNodeUsageStatsForThreadPools();
+
+        if (shardWriteLoads.isEmpty() && nodeUsageStatsMap.isEmpty()) {
             return;
         }
 
         final var clusterState = clusterService.state();
-        final var shardWriteLoads = clusterInfo.getShardWriteLoads();
-        final var ingestNodeCount = (int) clusterState.nodes().stream().filter(this::isIndexingNode).count();
-        final var writeLoadDistributionMetrics = createPercentileArrays(trackedPercentiles.length, ingestNodeCount);
-        final var writeLoadPrioritisationThresholdMetrics = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
-        final var shardCountsExceedingPrioritisationThresholdMetrics = new ArrayList<LongWithAttributes>(ingestNodeCount);
-        final var shardWriteLoadSumMetrics = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
+        final int ingestNodeCount = (int) clusterState.nodes().stream().filter(this::isIndexingNode).count();
+        final var shardMetrics = calculateShardWriteLoadMetrics(shardWriteLoads, clusterState, ingestNodeCount);
+        final var nodeMetrics = calculateNodeAverageWriteLoadMetrics(nodeUsageStatsMap, clusterState, ingestNodeCount);
+
+        lastMetricsCollected = false;
+        if (shardMetrics != null) {
+            for (int i = 0; i < trackedPercentiles.length; i++) {
+                lastWriteLoadDistributionMetrics.set(i, shardMetrics.distributionMetrics()[i]);
+            }
+            lastWriteLoadPrioritisationThresholdMetrics.set(shardMetrics.prioritisationThresholdMetrics());
+            lastShardCountExceedingPrioritisationThresholdMetrics.set(shardMetrics.shardCountsExceedingPrioritisationThreshold());
+            lastWriteLoadSumMetrics.set(shardMetrics.writeLoadSumMetrics());
+        }
+        lastNodeAverageWriteLoadMetrics.set(nodeMetrics);
+    }
+
+    private record ShardWriteLoadMetrics(
+        List<DoubleWithAttributes>[] distributionMetrics,
+        List<DoubleWithAttributes> prioritisationThresholdMetrics,
+        List<LongWithAttributes> shardCountsExceedingPrioritisationThreshold,
+        List<DoubleWithAttributes> writeLoadSumMetrics
+    ) {}
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    private ShardWriteLoadMetrics calculateShardWriteLoadMetrics(
+        Map<ShardId, Double> shardWriteLoads,
+        ClusterState clusterState,
+        int ingestNodeCount
+    ) {
+        if (shardWriteLoads.isEmpty()) {
+            return null;
+        }
+        final List<DoubleWithAttributes>[] distributionMetrics = new List[trackedPercentiles.length];
+        for (int i = 0; i < trackedPercentiles.length; i++) {
+            distributionMetrics[i] = new ArrayList<>(ingestNodeCount);
+        }
+        final var prioritisationThresholdMetrics = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
+        final var shardCountsExceedingPrioritisationThreshold = new ArrayList<LongWithAttributes>(ingestNodeCount);
+        final var writeLoadSumMetrics = new ArrayList<DoubleWithAttributes>(ingestNodeCount);
         for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
             final var node = routingNode.node();
             if (node == null || isIndexingNode(node) == false) {
@@ -175,40 +231,54 @@ public class ShardWriteLoadDistributionMetrics {
              */
             if (maxShardWriteLoad > Double.NEGATIVE_INFINITY) {
                 for (int i = 0; i < trackedPercentiles.length; i++) {
-                    writeLoadDistributionMetrics[i].add(
+                    distributionMetrics[i].add(
                         new DoubleWithAttributes(shardWeightHistogram.getValueAtPercentile(trackedPercentiles[i]), nodeAttrs)
                     );
                 }
 
                 final double prioritisationThreshold = BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO
                     * maxShardWriteLoad;
-                writeLoadPrioritisationThresholdMetrics.add(new DoubleWithAttributes(prioritisationThreshold, nodeAttrs));
+                prioritisationThresholdMetrics.add(new DoubleWithAttributes(prioritisationThreshold, nodeAttrs));
 
                 final long shardsExceedingThreshold = (long) shardWeightHistogram.getCountBetweenValues(
                     prioritisationThreshold,
                     Double.MAX_VALUE
                 );
-                shardCountsExceedingPrioritisationThresholdMetrics.add(new LongWithAttributes(shardsExceedingThreshold, nodeAttrs));
+                shardCountsExceedingPrioritisationThreshold.add(new LongWithAttributes(shardsExceedingThreshold, nodeAttrs));
             }
-            shardWriteLoadSumMetrics.add(new DoubleWithAttributes(totalShardWriteLoad, nodeAttrs));
+            writeLoadSumMetrics.add(new DoubleWithAttributes(totalShardWriteLoad, nodeAttrs));
         }
 
-        lastMetricsCollected = false;
-        for (int i = 0; i < trackedPercentiles.length; i++) {
-            lastWriteLoadDistributionMetrics.set(i, writeLoadDistributionMetrics[i]);
-        }
-        lastWriteLoadPrioritisationThresholdMetrics.set(writeLoadPrioritisationThresholdMetrics);
-        lastShardCountExceedingPrioritisationThresholdMetrics.set(shardCountsExceedingPrioritisationThresholdMetrics);
-        lastWriteLoadSumMetrics.set(shardWriteLoadSumMetrics);
+        return new ShardWriteLoadMetrics(
+            distributionMetrics,
+            prioritisationThresholdMetrics,
+            shardCountsExceedingPrioritisationThreshold,
+            writeLoadSumMetrics
+        );
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    private List<DoubleWithAttributes>[] createPercentileArrays(int percentileCount, int ingestNodeCount) {
-        List<DoubleWithAttributes>[] lists = new List[percentileCount];
-        for (int i = 0; i < percentileCount; i++) {
-            lists[i] = new ArrayList<>(ingestNodeCount);
+    private List<DoubleWithAttributes> calculateNodeAverageWriteLoadMetrics(
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsMap,
+        ClusterState clusterState,
+        int ingestNodeCount
+    ) {
+        final List<DoubleWithAttributes> metrics = new ArrayList<>(ingestNodeCount);
+        for (NodeUsageStatsForThreadPools nodeStats : nodeUsageStatsMap.values()) {
+            final var writePoolStats = nodeStats.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+            if (writePoolStats == null) {
+                continue;
+            }
+            final var node = clusterState.nodes().get(nodeStats.nodeId());
+            if (node == null) {
+                continue;
+            }
+            if (isIndexingNode(node) == false) {
+                continue;
+            }
+            final double averageWriteLoad = writePoolStats.averageThreadPoolUtilization() * writePoolStats.totalThreadPoolThreads();
+            metrics.add(new DoubleWithAttributes(averageWriteLoad, getAttributesForNode(node)));
         }
-        return lists;
+        return metrics;
     }
 
     /**
@@ -264,6 +334,13 @@ public class ShardWriteLoadDistributionMetrics {
     // visible for testing
     final Collection<DoubleWithAttributes> getWriteLoadSumMetrics() {
         final var metrics = lastWriteLoadSumMetrics.getAndSet(List.of());
+        lastMetricsCollected = true;
+        return metrics;
+    }
+
+    // visible for testing
+    final Collection<DoubleWithAttributes> getNodeAverageWriteLoadMetrics() {
+        final var metrics = lastNodeAverageWriteLoadMetrics.getAndSet(List.of());
         lastMetricsCollected = true;
         return metrics;
     }

@@ -4120,7 +4120,7 @@ public class AnalyzerTests extends ESTestCase {
             """
                 FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""",
             ParsingException.class,
-            containsString(" error building [text_embedding]: function [text_embedding] expects exactly two arguments")
+            containsString("error building [text_embedding]: expects exactly two arguments")
         );
     }
 

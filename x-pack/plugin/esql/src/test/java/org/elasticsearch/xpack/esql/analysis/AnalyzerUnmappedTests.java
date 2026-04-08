@@ -1517,7 +1517,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private static Matcher<String> partiallyUnmappedNonKeywordError(String fieldName) {
-        return containsString("Using partially unmapped non-KEYWORD field [" + fieldName+ "]");
+        return containsString("Using partially unmapped non-KEYWORD field [" + fieldName + "]");
     }
 
     @Override

@@ -137,9 +137,9 @@ public class WriteLoadConstraintSettings {
     }
 
     /**
-     * The threshold over which we consider a single shard as carrying enough of the load, that trying to correct a
-     * hotspot by relocating shards is not taken. This is phrased as a proportional ratio. The production values should always
-     * be in (0.50, 1.0]. 0.0 turns this off
+     * The threshold over which we consider a single shard as carrying enough of the load, such that trying to correct a
+     * hotspot by relocating shards is not taken: the hot-spot is created by a single shard. This is phrased as a ratio.
+     * The production values should always be in (0.50, 1.0]. 0.0 turns this off
      */
     public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING = new Setting<>(
         SETTING_PREFIX + "hotspot_max_shard_write_load_proportion_threshold",

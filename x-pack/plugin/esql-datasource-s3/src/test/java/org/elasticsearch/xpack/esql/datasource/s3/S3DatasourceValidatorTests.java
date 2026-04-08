@@ -131,6 +131,15 @@ public class S3DatasourceValidatorTests extends ESTestCase {
         return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElse(null);
     }
 
+    public void testToConfigSettingsSecretClassification() {
+        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "AKIA", "secret_key", "secret", "region", "us-east-1"));
+        var result = config.toConfigSettings();
+        assertTrue(findKey(result, "access_key").isSecret());
+        assertTrue(findKey(result, "secret_key").isSecret());
+        assertFalse(findKey(result, "region").isSecret());
+        assertEquals("AKIA", result.get(findKey(result, "access_key")));
+    }
+
     private static ConfigSetting findKey(Map<ConfigSetting, Object> settings, String name) {
         return settings.keySet().stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
     }

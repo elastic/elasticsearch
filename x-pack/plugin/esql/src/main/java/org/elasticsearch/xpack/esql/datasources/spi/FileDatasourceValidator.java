@@ -17,7 +17,14 @@ import java.util.function.Function;
  */
 public class FileDatasourceValidator implements DatasourceValidator {
 
-    private static final Set<String> KNOWN_DATASET_FIELDS = Set.of("partition_detection", "schema_sample_size", "error_mode");
+    private static final ConfigSetting PARTITION_DETECTION = new ConfigSetting("partition_detection", false);
+    private static final ConfigSetting SCHEMA_SAMPLE_SIZE = new ConfigSetting("schema_sample_size", false);
+    private static final ConfigSetting ERROR_MODE = new ConfigSetting("error_mode", false);
+    private static final Map<String, ConfigSetting> DATASET_SETTINGS = ConfigSetting.mapOf(
+        PARTITION_DETECTION,
+        SCHEMA_SAMPLE_SIZE,
+        ERROR_MODE
+    );
 
     private final String type;
     private final Function<Map<String, Object>, DatasourceConfiguration> configFactory;
@@ -68,16 +75,16 @@ public class FileDatasourceValidator implements DatasourceValidator {
             datasetSettings = Map.of();
         }
         for (String key : datasetSettings.keySet()) {
-            if (KNOWN_DATASET_FIELDS.contains(key) == false) {
-                throw new IllegalArgumentException("unknown dataset setting [" + key + "]; known settings: " + KNOWN_DATASET_FIELDS);
+            if (DATASET_SETTINGS.containsKey(key) == false) {
+                throw new IllegalArgumentException("unknown dataset setting [" + key + "]; known settings: " + DATASET_SETTINGS.keySet());
             }
         }
 
         Map<ConfigSetting, Object> result = new LinkedHashMap<>();
-        putIfPresent(datasetSettings, result, "partition_detection");
-        putIfPresent(datasetSettings, result, "error_mode");
+        putIfPresent(datasetSettings, result, PARTITION_DETECTION);
+        putIfPresent(datasetSettings, result, ERROR_MODE);
 
-        Object sampleSize = datasetSettings.get("schema_sample_size");
+        Object sampleSize = datasetSettings.get(SCHEMA_SAMPLE_SIZE.name());
         if (sampleSize != null) {
             int value;
             try {
@@ -88,16 +95,16 @@ public class FileDatasourceValidator implements DatasourceValidator {
             if (value < 1) {
                 throw new IllegalArgumentException("[schema_sample_size] must be at least 1, got [" + value + "]");
             }
-            result.put(new ConfigSetting("schema_sample_size", false), value);
+            result.put(SCHEMA_SAMPLE_SIZE, value);
         }
 
         return result;
     }
 
-    private static void putIfPresent(Map<String, Object> source, Map<ConfigSetting, Object> dest, String key) {
-        Object value = source.get(key);
+    private static void putIfPresent(Map<String, Object> source, Map<ConfigSetting, Object> dest, ConfigSetting setting) {
+        Object value = source.get(setting.name());
         if (value != null) {
-            dest.put(new ConfigSetting(key, false), value);
+            dest.put(setting, value);
         }
     }
 }

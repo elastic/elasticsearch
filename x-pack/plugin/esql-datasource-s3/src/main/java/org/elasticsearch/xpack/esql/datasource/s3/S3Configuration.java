@@ -10,10 +10,18 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * Configuration for S3 access including credentials and endpoint settings.
+ * <p>
+ * Supports authentication modes:
+ * <ul>
+ *   <li>Access key + secret key (static credentials)</li>
+ *   <li>{@code auth=none} for anonymous access to public buckets</li>
+ *   <li>Default credentials (IAM role, instance profile) when no explicit credentials are provided</li>
+ * </ul>
  */
 public class S3Configuration extends DatasourceConfiguration {
 
@@ -26,12 +34,15 @@ public class S3Configuration extends DatasourceConfiguration {
     );
 
     private S3Configuration(Map<String, Object> raw) {
-        super(raw);
+        super(raw, SETTINGS);
     }
 
     @Override
-    public Map<String, ConfigSetting> settings() {
-        return SETTINGS;
+    protected String normalizeValue(String key, String value) {
+        if ("auth".equals(key)) {
+            return value.toLowerCase(Locale.ROOT);
+        }
+        return value;
     }
 
     @Override

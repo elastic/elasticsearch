@@ -11,10 +11,20 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * Configuration for Azure Blob Storage access including credentials and endpoint settings.
+ * <p>
+ * Supports authentication modes:
+ * <ul>
+ *   <li>Connection string (full connection string)</li>
+ *   <li>Account + key (SharedKey auth)</li>
+ *   <li>SAS token</li>
+ *   <li>{@code auth=none} for anonymous access to public containers</li>
+ *   <li>DefaultAzureCredential when no explicit credentials are provided</li>
+ * </ul>
  */
 public class AzureConfiguration extends DatasourceConfiguration {
 
@@ -28,12 +38,15 @@ public class AzureConfiguration extends DatasourceConfiguration {
     );
 
     private AzureConfiguration(Map<String, Object> raw) {
-        super(raw);
+        super(raw, SETTINGS);
     }
 
     @Override
-    public Map<String, ConfigSetting> settings() {
-        return SETTINGS;
+    protected String normalizeValue(String key, String value) {
+        if ("auth".equals(key)) {
+            return value.toLowerCase(Locale.ROOT);
+        }
+        return value;
     }
 
     @Override

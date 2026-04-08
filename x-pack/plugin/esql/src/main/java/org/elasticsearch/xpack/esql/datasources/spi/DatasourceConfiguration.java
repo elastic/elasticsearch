@@ -9,59 +9,76 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 
 /**
  * Base class for datasource configurations. Handles map-backed storage, unknown field
- * rejection, value normalization, toMap(), and toConfigSettings(). Subclasses provide
- * {@link #settings()} and {@link #validate()} for cross-field checks.
+ * rejection, and toConfigSettings(). Subclasses provide cross-field validation via
+ * {@link #validate()} and value normalization via {@link #normalizeValue(String, String)}.
  */
 public abstract class DatasourceConfiguration {
 
-    private final Map<String, String> values;
+    private final Map<String, ConfigSetting> settingDefs;
+    private final Map<String, Object> values;
 
-    protected DatasourceConfiguration(Map<String, Object> raw) {
-        Map<String, ConfigSetting> defs = settings();
-        Map<String, String> parsed = new HashMap<>();
+    /**
+     * Validates and normalizes raw settings from a REST request or CRUD layer.
+     * Rejects unknown fields, calls {@link #normalizeValue} per entry, then
+     * calls subclass {@link #validate()} for cross-field checks.
+     *
+     * @param raw the raw settings map from the REST request
+     * @param settingDefs the setting definitions — passed explicitly to avoid
+     *                    virtual method call in constructor
+     */
+    protected DatasourceConfiguration(Map<String, Object> raw, Map<String, ConfigSetting> settingDefs) {
+        this.settingDefs = settingDefs;
+        Map<String, Object> parsed = new HashMap<>();
         for (var entry : raw.entrySet()) {
-            if (defs.containsKey(entry.getKey()) == false) {
-                throw new IllegalArgumentException("unknown datasource setting [" + entry.getKey() + "]; known settings: " + defs.keySet());
+            if (settingDefs.containsKey(entry.getKey()) == false) {
+                throw new IllegalArgumentException(
+                    "unknown datasource setting [" + entry.getKey() + "]; known settings: " + settingDefs.keySet()
+                );
             }
             if (entry.getValue() != null) {
-                String value = entry.getValue().toString();
-                if ("auth".equals(entry.getKey())) {
-                    value = value.toLowerCase(Locale.ROOT);
-                }
-                parsed.put(entry.getKey(), value);
+                parsed.put(entry.getKey(), normalizeValue(entry.getKey(), entry.getValue().toString()));
             }
         }
         this.values = Map.copyOf(parsed);
         validate();
     }
 
-    /** Setting definitions keyed by name. Subclasses must provide this. */
-    public abstract Map<String, ConfigSetting> settings();
+    /**
+     * Normalizes a setting value. Override to apply type-specific normalization
+     * (e.g. lowercasing auth modes). Default returns the value unchanged.
+     */
+    protected String normalizeValue(String key, String value) {
+        return value;
+    }
 
     /** Cross-field validation. Called after construction. */
     protected abstract void validate();
 
+    /** Returns the setting definitions. */
+    public Map<String, ConfigSetting> settings() {
+        return settingDefs;
+    }
+
     /** Returns the internal values map. Normalized, no nulls. */
-    public Map<String, String> toMap() {
+    public Map<String, Object> toMap() {
         return values;
     }
 
     /** Gets a setting value by name. */
     public String get(String key) {
-        return values.get(key);
+        Object v = values.get(key);
+        return v != null ? v.toString() : null;
     }
 
     /** Returns validated settings as a map from definition to value. */
     public Map<ConfigSetting, Object> toConfigSettings() {
-        Map<String, ConfigSetting> defs = settings();
         Map<ConfigSetting, Object> result = new LinkedHashMap<>();
         for (var entry : values.entrySet()) {
-            ConfigSetting def = defs.get(entry.getKey());
+            ConfigSetting def = settingDefs.get(entry.getKey());
             if (def != null) {
                 result.put(def, entry.getValue());
             }

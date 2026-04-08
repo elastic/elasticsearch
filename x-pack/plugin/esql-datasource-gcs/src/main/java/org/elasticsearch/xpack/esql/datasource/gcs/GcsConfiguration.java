@@ -10,10 +10,18 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * Configuration for Google Cloud Storage access including credentials and endpoint settings.
+ * <p>
+ * Supports authentication modes:
+ * <ul>
+ *   <li>Service account JSON credentials (inline)</li>
+ *   <li>{@code auth=none} for anonymous access to public buckets</li>
+ *   <li>Application Default Credentials (ADC) when no explicit credentials are provided</li>
+ * </ul>
  */
 public class GcsConfiguration extends DatasourceConfiguration {
 
@@ -26,12 +34,15 @@ public class GcsConfiguration extends DatasourceConfiguration {
     );
 
     private GcsConfiguration(Map<String, Object> raw) {
-        super(raw);
+        super(raw, SETTINGS);
     }
 
     @Override
-    public Map<String, ConfigSetting> settings() {
-        return SETTINGS;
+    protected String normalizeValue(String key, String value) {
+        if ("auth".equals(key)) {
+            return value.toLowerCase(Locale.ROOT);
+        }
+        return value;
     }
 
     @Override

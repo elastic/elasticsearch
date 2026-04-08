@@ -291,6 +291,9 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetWaitForCompletionDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/145931
+- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
+  method: testGetReindexFollowsRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/144364
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900

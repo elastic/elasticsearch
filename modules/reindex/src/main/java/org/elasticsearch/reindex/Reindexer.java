@@ -66,6 +66,7 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
+import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;

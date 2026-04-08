@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.dlm.frozen;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -46,6 +51,7 @@ class DLMFrozenTransitionExecutor implements Closeable {
     private final int maxQueueSize;
     private final ClusterService clusterService;
     private final DataStreamLifecycleErrorStore errorStore;
+    private final MasterServiceTaskQueue<UnmarkIndexForFrozenTask> unmarkIndexForDlmFrozenConversionQueue;
     private volatile int errorRetryInterval;
 
     DLMFrozenTransitionExecutor(
@@ -70,6 +76,11 @@ class DLMFrozenTransitionExecutor implements Closeable {
         this.clusterService = clusterService;
         this.errorStore = errorStore;
         this.errorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
+        this.unmarkIndexForDlmFrozenConversionQueue = clusterService.createTaskQueue(
+            "dlm-unmark-index-for-frozen",
+            Priority.LOW,
+            new UnmarkIndexForDLMFrozenExecutor()
+        );
     }
 
     public void init() {
@@ -120,6 +131,23 @@ class DLMFrozenTransitionExecutor implements Closeable {
         ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
     }
 
+    public static class UnmarkIndexForDLMFrozenExecutor implements ClusterStateTaskExecutor<UnmarkIndexForFrozenTask> {
+        @Override
+        public ClusterState execute(BatchExecutionContext<UnmarkIndexForFrozenTask> batchExecutionContext) {
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try {
+                    final UnmarkIndexForFrozenTask task = taskContext.getTask();
+                    state = task.execute(state);
+                    taskContext.success(task);
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+            return state;
+        }
+    }
+
     private class WrappedDlmFrozenTransitionRunnable implements Runnable {
         private final DLMFrozenTransitionRunnable task;
 
@@ -137,6 +165,32 @@ class DLMFrozenTransitionExecutor implements Closeable {
                     : "expected the previous value to exist and be false, but it was " + previousValue;
                 task.run();
                 logger.debug("Transition completed for index [{}]", indexName);
+            } catch (DLMUnrecoverableException err) {
+                logger.debug(
+                    "DLM encountered an unrecoverable error while converting [{}] "
+                        + "to a frozen index, submitting task to unmark it for conversion",
+                    indexName
+                );
+                unmarkIndexForDlmFrozenConversionQueue.submitTask(
+                    "dlm-unmark-frozen-" + indexName,
+                    new UnmarkIndexForFrozenTask(
+                        task.getProjectId(),
+                        task.getIndexName(),
+                        ActionListener.wrap(
+                            resp -> logger.debug("DLM successfully unmarked index [{}] for frozen conversion", indexName),
+                            exception -> {
+                                errorStore.recordAndLogError(
+                                    task.getProjectId(),
+                                    indexName,
+                                    exception,
+                                    Strings.format("Error unmarking index [%s] for conversion to frozen index", indexName),
+                                    errorRetryInterval
+                                );
+                            }
+                        )
+                    ),
+                    null
+                );
             } catch (Exception ex) {
                 errorStore.recordAndLogError(
                     task.getProjectId(),

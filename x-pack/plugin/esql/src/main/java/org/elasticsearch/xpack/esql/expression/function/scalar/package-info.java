@@ -104,7 +104,9 @@
  *     </li>
  *     <li>
  *         Add your function to {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
- *         This links it into the language and {@code META FUNCTIONS}.
+ *         This links it into the language and {@code META FUNCTIONS}. See
+ *         {@link org.elasticsearch.xpack.esql.expression.function.FunctionDefinition#def} for
+ *         building a {@code DEFINITION}
  *     </li>
  *     <li>
  *         Implement serialization for your function by implementing
@@ -216,7 +218,7 @@
  *         double-check that they run on the main branch.
  *         <br><br>
  *         NOTE: When you fix bug in your function, use
- *         {@link org.elasticsearch.xpack.esql.expression.function.FunctionDefinition#withSubCapabilities}
+ *         {@link org.elasticsearch.xpack.esql.expression.function.FunctionDefinition.Builder#capabilities}
  *         to make capabilities to mark the fix.
  *         <br><br>
  *         NOTE: You may notice tests gated based on Elasticsearch version. This was the old way

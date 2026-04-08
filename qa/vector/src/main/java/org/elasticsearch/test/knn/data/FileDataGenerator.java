@@ -10,6 +10,7 @@
 package org.elasticsearch.test.knn.data;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.test.knn.IndexVectorReader;
@@ -47,7 +48,7 @@ public class FileDataGenerator implements DataGenerator {
             config.vectorEncoding().luceneEncoding(),
             config.numDocs()
         );
-        return new KnnIndexTester.IndexingSetup(reader, new KnnIndexer.DefaultDocumentFactory(), reader.totalDocs(), null);
+        return new KnnIndexTester.IndexingSetup(reader, new KnnIndexer.DefaultDocumentFactory(), reader.totalDocs());
     }
 
     @Override
@@ -125,5 +126,10 @@ public class FileDataGenerator implements DataGenerator {
     @Override
     public boolean hasQueries() {
         return config.queryVectors() != null;
+    }
+
+    @Override
+    public Sort getIndexSort() {
+        return null;
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -43,6 +44,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -267,8 +269,8 @@ public class AllocationServiceTests extends ESTestCase {
         final AllocationService allocationService = new AllocationService(
             null,
             null,
-            null,
-            null,
+            () -> ClusterInfo.EMPTY,
+            () -> SnapshotShardSizeInfo.EMPTY,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             MeterRegistry.NOOP
         );
@@ -300,12 +302,11 @@ public class AllocationServiceTests extends ESTestCase {
 
         assertThat(clusterState.metadata().projects(), aMapWithSize(1));
 
-        final RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
-        allocation.setDebugMode(randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
-
+        final var debugMode = randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
         final ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(
             clusterState.globalRoutingTable().routingTable(projectId).index("index").shard(0).primaryShard(),
-            allocation
+            clusterState,
+            debugMode
         );
 
         assertTrue(shardAllocationDecision.isDecisionTaken());

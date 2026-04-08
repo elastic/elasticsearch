@@ -53,9 +53,8 @@ public class APMMeterServiceTests extends ESTestCase {
     }
 
     /**
-     * doStop() delegates to the supplier unconditionally, regardless of the enabled flag.
-     * The supplier is responsible for being a no-op when uninitialised (e.g. resources == null
-     * in OtelSdkExportMeterSupplier when metrics were never enabled).
+     * A node could have had metrics enabled, accumulated data, then had metrics disabled via a settings change, and then shut down.
+     * This test checks that  the flush drains whatever's buffered before close.
      */
     public void testDoStopDelegatesUnconditionallyWhenMetricsDisabled() {
         List<String> calls = new ArrayList<>();

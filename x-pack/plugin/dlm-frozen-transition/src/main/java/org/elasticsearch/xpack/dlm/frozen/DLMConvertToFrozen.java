@@ -37,7 +37,6 @@ import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -71,9 +70,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
@@ -643,15 +644,16 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     /**
      * Waits for the snapshot to complete by observing cluster state changes via {@link ClusterStateObserver}.
      * The observer watches for the snapshot to be removed from {@link SnapshotsInProgress}, which indicates
-     * that it has completed (successfully or otherwise). Once the snapshot is no longer in progress, the
-     * snapshot info is fetched from the repository and validated. If the observer times out (i.e. the
-     * remaining time until {@link #SNAPSHOT_TIMEOUT} elapses), an exception is thrown.
+     * that it has completed (successfully or otherwise). If the observer times out (i.e. the remaining time until {@link #SNAPSHOT_TIMEOUT}
+     * elapses) or the cluster service closes, an exception is thrown.
      */
     void waitForSnapshotCompletion(String indexName, String repositoryName, String snapshotName, long snapshotStartTime) {
         TimeValue timeout = TimeValue.timeValueMillis(SNAPSHOT_TIMEOUT.millis() - (clock.millis() - snapshotStartTime));
 
-        // use a future to block until the snapshot completes, the cluster service is closed, or the observer times out
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        // Use a latch so that the observer listener (invoked on the ClusterApplierService thread)
+        // does no heavy/blocking work
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> observerError = new AtomicReference<>();
 
         ClusterStateObserver.waitForState(
             clusterService,
@@ -659,39 +661,19 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    try {
-                        SnapshotInfo snapshot = getSnapshot(repositoryName, snapshotName, indexName);
-                        if (snapshot == null) {
-                            future.onFailure(
-                                new ElasticsearchException(
-                                    "DLM snapshot [{}] for index [{}] " + "disappeared while waiting for completion",
-                                    snapshotName,
-                                    indexName
-                                )
-                            );
-                        } else {
-                            checkSnapshotInfoSuccess(indexName, snapshotName, snapshot);
-                            future.onResponse(null);
-                        }
-                    } catch (Exception e) {
-                        future.onFailure(e);
-                    }
+                    // Snapshot is no longer in progress – signal the waiting thread.
+                    latch.countDown();
                 }
 
                 @Override
                 public void onClusterServiceClose() {
-                    future.onFailure(
-                        new ElasticsearchException(
-                            "Cluster service closed while waiting for " + "DLM snapshot [{}] for index [{}]",
-                            snapshotName,
-                            indexName
-                        )
-                    );
+                    logger.warn("Cluster service closed while waiting for " + "DLM snapshot [{}] for index [{}]", snapshotName, indexName);
+                    latch.countDown();
                 }
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    future.onFailure(
+                    observerError.set(
                         new ElasticsearchException(
                             "DLM snapshot [{}] for index [{}] " + "has exceeded timeout of [{}]",
                             snapshotName,
@@ -699,6 +681,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                             SNAPSHOT_TIMEOUT
                         )
                     );
+                    latch.countDown();
                 }
             },
             state -> isSnapshotNoLongerInProgress(state, repositoryName, snapshotName),
@@ -706,18 +689,39 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             logger
         );
 
-        future.actionGet();
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchException("Interrupted while waiting for DLM snapshot [{}] for index [{}]", e, snapshotName, indexName);
+        }
+
+        Exception error = observerError.get();
+        if (error != null) {
+            throw ExceptionsHelper.convertToElastic(error);
+        }
+
+        SnapshotInfo snapshot = getSnapshot(repositoryName, snapshotName, indexName);
+        if (snapshot == null) {
+            throw new ElasticsearchException(
+                "DLM snapshot [{}] for index [{}] disappeared while waiting for completion",
+                snapshotName,
+                indexName
+            );
+        }
+        checkSnapshotInfoSuccess(indexName, snapshotName, snapshot);
     }
 
     /**
-     * Returns {@code true} if the snapshot with the given name is no longer listed in
-     * {@link SnapshotsInProgress} for the specified repository, indicating it has completed (via success or failure).
+     * Returns {@code true} if the snapshot with the given name is either no longer listed in
+     * {@link SnapshotsInProgress} for the specified repository, or is still listed but has
+     * reached a completed (non-running) state such as {@code SUCCESS} or {@code FAILED}.
      */
     private boolean isSnapshotNoLongerInProgress(ClusterState state, String repositoryName, String snapshotName) {
         SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
         return snapshotsInProgress.forRepo(projectId, repositoryName)
             .stream()
-            .noneMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName));
+            .noneMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName) && entry.state().completed() == false);
     }
 
     /**
@@ -734,7 +738,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         }
 
         if (existingSnapshot.state() == SnapshotState.SUCCESS && existingSnapshot.failedShards() == 0) {
-            logger.info("DLM found valid orphaned snapshot [{}] for index [{}]", snapshotName, indexName);
+            logger.info("DLM found valid snapshot [{}] for index [{}]", snapshotName, indexName);
         } else {
             logger.info(
                 "DLM found invalid orphaned snapshot [{}] for index [{}] (state [{}], failed shards [{}]), " + "deleting and recreating",

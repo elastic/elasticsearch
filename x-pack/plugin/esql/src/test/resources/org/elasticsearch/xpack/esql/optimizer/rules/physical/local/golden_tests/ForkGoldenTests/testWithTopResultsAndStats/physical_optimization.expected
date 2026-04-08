@@ -11,10 +11,9 @@ Project[[author{f}#12, author.keyword{f}#13, book_no{f}#14, collection{f}#15, de
     \_EsRelation[books][author{f}#12, author.keyword{f}#13, book_no{f}#14, collection{f}#15, description{f}#16, publisher{f}#17, ratings{f}#18, title{f}#19, year{f}#20, _score{m}#21]<>]]
   \_ProjectExec[[author{r}#24, author.keyword{r}#25, book_no{r}#26, collection{r}#27, description{r}#28, publisher{r}#29, ratings{r}#30, title{r}#31, year{r}#32, _score{r}#33, _fork{r}#34, total{r}#35]]
     \_EvalExec[[fork2[KEYWORD] AS _fork#34, null[TEXT] AS author#24, null[KEYWORD] AS author.keyword#25, null[KEYWORD] AS book_no#26, null[TEXT] AS collection#27, null[TEXT] AS description#28, null[TEXT] AS publisher#29, null[DOUBLE] AS ratings#30, null[TEXT] AS title#31, null[INTEGER] AS year#32, null[DOUBLE] AS _score#33]]
-      \_LimitExec[1000[INTEGER],null]
-        \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS total#35],FINAL,[$$total$count{r}#36, $$total$seen{r}#37],null]
-          \_ExchangeExec[[$$total$count{r}#36, $$total$seen{r}#37],true]
-            \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+      \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS total#35],FINAL,[$$total$count{r}#36, $$total$seen{r}#37],null]
+        \_ExchangeExec[[$$total$count{r}#36, $$total$seen{r}#37],true]
+          \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS total#35]]
 \_Filter[:(author{f}#38,Tolkien[KEYWORD])]
   \_EsRelation[books][author{f}#38, author.keyword{f}#39, book_no{f}#40, collection{f}#41, description{f}#42, publisher{f}#43, ratings{f}#44, title{f}#45, year{f}#46, _score{m}#21]<>]]

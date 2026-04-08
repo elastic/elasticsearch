@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 145128
+pr: 145427
+summary: Use query circuit breaker for wildcard/regexp determinization
+type: bug

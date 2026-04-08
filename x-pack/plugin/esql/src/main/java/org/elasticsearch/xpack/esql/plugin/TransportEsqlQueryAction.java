@@ -46,6 +46,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -134,6 +135,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         NamedWriteableRegistry registry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
+        UserAgentParserRegistry userAgentParserRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
@@ -205,6 +207,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             indexNameExpressionResolver,
             usageService,
             new InferenceService(client, clusterService),
+            userAgentParserRegistry,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
             crossProjectModeDecider

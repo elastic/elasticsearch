@@ -158,7 +158,6 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
 
         void increaseDimensionFields() {
             dimensionFields++;
-            formattedValueFields++;
         }
 
         void increaseExponentialHistogramFields() {

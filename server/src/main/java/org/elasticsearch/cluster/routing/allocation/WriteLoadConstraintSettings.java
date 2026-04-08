@@ -132,7 +132,8 @@ public class WriteLoadConstraintSettings {
             return parsedValue;
         }
         throw new IllegalArgumentException(
-            SETTING_PREFIX + "hotspot_utilization_max_single_shard_threshold may be between 50% and 100%, or 0% to disable"
+            WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING.getKey()
+                + " may be between 50% and 100%, or 0% to disable"
         );
     }
 

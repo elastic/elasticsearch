@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
@@ -91,6 +92,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -3745,6 +3747,232 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                     assertEquals(1, searchPhaseException.shardFailures().length);
                     assertTrue(searchPhaseException.shardFailures()[0].getCause() instanceof StaleRequestException);
                 } catch (TimeoutException e) {
+                    throw new RuntimeException(e);
+                }
+            } finally {
+                sourceShardMoveToDoneBlocked.countDown();
+            }
+        }
+
+        waitForReshardCompletion(indexName);
+    }
+
+    public void testExplainApi() throws InterruptedException {
+        String masterNode = startMasterOnlyNode();
+        startIndexNode();
+        startSearchNodes(2);
+        var coordinator = startSearchNode();
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", coordinator));
+        ensureStableCluster(5);
+
+        var indexName = randomIndexName();
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+
+        var afterSplitMetadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 2, 1)).build();
+        var afterSplitRouting = IndexRouting.fromIndexMetadata(afterSplitMetadata);
+
+        var shard0RoutingValue = makeRoutingValueForShard(afterSplitRouting, 0);
+        var shard1RoutingValue = makeRoutingValueForShard(afterSplitRouting, 1);
+
+        var id1 = client(coordinator).prepareIndex(indexName)
+            .setRouting(shard0RoutingValue)
+            .setSource("field", "source_value")
+            .get()
+            .getId();
+        var id2 = client(coordinator).prepareIndex(indexName)
+            .setRouting(shard1RoutingValue)
+            .setSource("field", "target_value")
+            .get()
+            .getId();
+        refresh(indexName);
+
+        var sourceShardReferenceResponse = client(coordinator).prepareExplain(indexName, id1)
+            .setRouting(shard0RoutingValue)
+            .setQuery(QueryBuilders.matchQuery("field", "source_value"))
+            .setFetchSource(true)
+            .get();
+        assertTrue(sourceShardReferenceResponse.isExists());
+        assertTrue(sourceShardReferenceResponse.isMatch());
+        var targetShardReferenceResponse = client(coordinator).prepareExplain(indexName, id2)
+            .setRouting(shard1RoutingValue)
+            .setQuery(QueryBuilders.matchQuery("field", "target_value"))
+            .setFetchSource(true)
+            .get();
+        assertTrue(targetShardReferenceResponse.isExists());
+        assertTrue(targetShardReferenceResponse.isMatch());
+
+        var targetShardNode = startIndexNode();
+        ensureStableCluster(6);
+
+        var attemptingSplit = new CountDownLatch(1);
+        var splitBlocked = new CountDownLatch(1);
+
+        var attemptingDone = new CountDownLatch(1);
+        var doneBlocked = new CountDownLatch(1);
+
+        var indexNodeMockTransportService = MockTransportService.getInstance(targetShardNode);
+        indexNodeMockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                if (actualRequest instanceof SplitStateRequest splitStateRequest) {
+                    if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                        attemptingSplit.countDown();
+                        try {
+                            splitBlocked.await();
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    } else if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.DONE) {
+                        attemptingDone.countDown();
+                        try {
+                            doneBlocked.await();
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        attemptingSplit.await();
+
+        var sourceShardHandoffResponse = client(coordinator).prepareExplain(indexName, id1)
+            .setRouting(shard0RoutingValue)
+            .setQuery(QueryBuilders.matchQuery("field", "source_value"))
+            .setFetchSource(true)
+            .get();
+        assertEquals(sourceShardReferenceResponse, sourceShardHandoffResponse);
+        var targetShardHandoffResponse = client(coordinator).prepareExplain(indexName, id2)
+            .setRouting(shard1RoutingValue)
+            .setQuery(QueryBuilders.matchQuery("field", "target_value"))
+            .setFetchSource(true)
+            .get();
+        assertEquals(targetShardReferenceResponse, targetShardHandoffResponse);
+
+        splitBlocked.countDown();
+        attemptingDone.await();
+
+        try {
+            var sourceShardSplitResponse = client(coordinator).prepareExplain(indexName, id1)
+                .setRouting(shard0RoutingValue)
+                .setQuery(QueryBuilders.matchQuery("field", "source_value"))
+                .setFetchSource(true)
+                .get();
+            assertEquals(sourceShardReferenceResponse, sourceShardSplitResponse);
+            var targetShardSplitResponse = client(coordinator).prepareExplain(indexName, id2)
+                .setRouting(shard1RoutingValue)
+                .setQuery(QueryBuilders.matchQuery("field", "target_value"))
+                .setFetchSource(true)
+                .get();
+            assertEquals(targetShardReferenceResponse, targetShardSplitResponse);
+        } finally {
+            doneBlocked.countDown();
+        }
+
+        waitForReshardCompletion(indexName);
+    }
+
+    public void testExplainApiStaleRequest() throws InterruptedException {
+        String masterNode = startMasterOnlyNode();
+        startIndexNode();
+        startSearchNode();
+        var coordinator = startSearchNode();
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", coordinator));
+        ensureStableCluster(4);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(masterNode, indexName, 1);
+
+        final Index index = resolveIndex(indexName);
+        final IndexMetadata indexMetadata = indexMetadata(clusterService().state(), index);
+        final var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
+        final var indexRoutingPostSplit = IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
+
+        // Use the document that will be routed to the new shard after the split
+        // to test the retry logic for stale requests.
+        var id = makeIdThatRoutesToShard(indexRoutingPostSplit, 1);
+        var document = Map.of("field", randomAlphaOfLength(10));
+        var documentId = prepareIndex(indexName).setId(id).setSource(document).get().getId();
+
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), 1);
+
+        // We'll issue an explain now but block the shard-level request on the coordinator until the split progresses far enough.
+        var explainInitiated = new CountDownLatch(1);
+        var explainBlock = new CountDownLatch(1);
+        var coordinatorTransportService = MockTransportService.getInstance(coordinator);
+        coordinatorTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportExplainAction.TYPE.name() + "[s]")) {
+                try {
+                    explainInitiated.countDown();
+                    explainBlock.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var future = executor.submit(
+                () -> client(coordinator).prepareExplain(indexName, documentId)
+                    .setFetchSource(true)
+                    .setQuery(QueryBuilders.matchAllQuery())
+                    .get()
+            );
+            explainInitiated.await();
+
+            var sourceIndexShardNode = clusterService().state()
+                .nodes()
+                .getNodes()
+                .get(findIndexShard(index, 0).routingEntry().currentNodeId())
+                .getName();
+
+            var sourceShardMoveToDoneAttempted = new CountDownLatch(1);
+            var sourceShardMoveToDoneBlocked = new CountDownLatch(1);
+            var sourceIndexShardNodeTransportService = MockTransportService.getInstance(sourceIndexShardNode);
+            sourceIndexShardNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (TransportUpdateSplitSourceShardStateAction.TYPE.name().equals(action)) {
+                    TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                    if (actualRequest instanceof TransportUpdateSplitSourceShardStateAction.Request sourceStateRequest) {
+                        try {
+                            if (sourceStateRequest.getState() == IndexReshardingState.Split.SourceShardState.DONE) {
+                                sourceShardMoveToDoneAttempted.countDown();
+                                sourceShardMoveToDoneBlocked.await();
+                            }
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+
+            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+            // Wait for the source index shard to attempt to move to DONE state.
+            // That means that it already applied READY_TO_CLEANUP state and ensured that the search shard
+            // is aware of it.
+            sourceShardMoveToDoneAttempted.await();
+
+            try {
+                explainBlock.countDown();
+                // This request will be rejected as stale but `TransportSingleShardAction` retries it and it succeeds.
+                try {
+                    var response = future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                    assertTrue(response.isExists());
+                    assertEquals(document, response.getGetResult().sourceAsMap());
+                } catch (TimeoutException | ExecutionException e) {
                     throw new RuntimeException(e);
                 }
             } finally {

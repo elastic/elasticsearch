@@ -34,9 +34,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680
-- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
-  method: testSearchWhileRelocating
-  issue: https://github.com/elastic/elasticsearch/issues/128500
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
@@ -303,9 +300,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcFetchSizeIT
   method: testScrollWithDatetimeAndTimezoneParam
   issue: https://github.com/elastic/elasticsearch/issues/145592
-- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
-  method: testLicenseCheck
-  issue: https://github.com/elastic/elasticsearch/issues/145600
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
   method: testTopNByKeyEncoderTooMuchMemory
   issue: https://github.com/elastic/elasticsearch/issues/145627
@@ -341,9 +335,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcFetchSizeIT
   method: testPivotPagingWithLimit
   issue: https://github.com/elastic/elasticsearch/issues/145792
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ForkGoldenTests
-  method: testHybridSearch
-  issue: https://github.com/elastic/elasticsearch/issues/145800
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/145855
@@ -359,6 +350,27 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/145877
+- class: org.elasticsearch.xpack.esql.spatial.SpatialCentroidAggregationIT
+  method: testStCentroidAggregationWithShapes
+  issue: https://github.com/elastic/elasticsearch/issues/145883
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsSkipUnavailableIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145884
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_UNORDERD doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/145886
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/145887
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv SORTED_ASCENDING doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/145888
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/145889
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingInvalidByteFromUnsignedLong
+  issue: https://github.com/elastic/elasticsearch/issues/145895
 
 # Examples:
 #

@@ -553,7 +553,7 @@ public class Verifier {
         AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
         Consumer<FieldAttribute> addFailureIfPunk = fa -> {
             if (punks.contains(fa)) {
-                failures.add(fail(fa, errorMessage, fa.fieldName()));
+                failures.add(fail(fa, errorMessage, fa.fieldName().string()));
             }
         };
 

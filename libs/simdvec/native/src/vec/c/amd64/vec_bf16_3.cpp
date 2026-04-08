@@ -214,3 +214,262 @@ static inline f32_t sqrDbf16Qbf16_inner_avx512(const bf16_t* a, const bf16_t* b,
 EXPORT f32_t vec_sqrDbf16Qbf16_3(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {
     return sqrDbf16Qbf16_inner_avx512(a, b, elementCount);
 }
+
+// --- Bulk operations ---
+
+/*
+ * AVX-512 bulk operation for bf16 data with f32 query.
+ * Converts bf16 data to f32, then applies vector_op (fmadd for dot, sub+fmadd for sqr).
+ * Processes N vectors in parallel per dimension step, loading the f32 query
+ * once per step and reusing it across all vectors in the batch.
+ * Uses masked loads for the dimension tail instead of scalar fallback.
+ */
+template <
+    const bf16_t*(*mapper)(const bf16_t*, const int32_t, const int32_t*, const int32_t),
+    __m512(*vector_op)(const __m512, const __m512, const __m512),
+    f32_t(*bulk_tail)(const bf16_t*, const f32_t*, const int32_t),
+    int batches = 4
+>
+static inline void bf16Qf32_bulk_avx512(
+    const bf16_t* a,
+    const f32_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    int c = 0;
+
+    // 16 bf16 elements per 256-bit load, widened to 512-bit f32
+    constexpr int elements = sizeof(__m256) / sizeof(bf16_t);
+
+    for (; c + batches - 1 < count; c += batches) {
+        const bf16_t* as[batches];
+        __m512 sums[batches];
+        apply_indexed<batches>([&](auto I) {
+            as[I] = mapper(a, c + I, offsets, pitch);
+            sums[I] = _mm512_setzero_ps();
+        });
+
+        int i = 0;
+        for (; i + elements <= dims; i += elements) {
+            __m512 qi = load_f32(b, i);
+            apply_indexed<batches>([&](auto I) {
+                sums[I] = vector_op(load_bf16(as[I], i), qi, sums[I]);
+            });
+        }
+
+        // Masked tail: remaining elements < 16
+        const int rem = dims - i;
+        if (rem > 0) {
+            __mmask16 mask = (__mmask16)((1U << rem) - 1);
+            __m512 qi = _mm512_maskz_loadu_ps(mask, b + i);
+            apply_indexed<batches>([&](auto I) {
+                __m512 ai = bf16_to_f32(_mm256_maskz_loadu_epi16(mask, as[I] + i));
+                sums[I] = vector_op(ai, qi, sums[I]);
+            });
+        }
+
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = _mm512_reduce_add_ps(sums[I]);
+        });
+    }
+
+    // Remaining vectors that don't fill a full batch
+    for (; c < count; c++) {
+        const bf16_t* a0 = mapper(a, c, offsets, pitch);
+        results[c] = bulk_tail(a0, b, dims);
+    }
+}
+
+EXPORT void vec_dotDbf16Qf32_bulk_3(const bf16_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    bf16Qf32_bulk_avx512<sequential_mapper, _mm512_fmadd_ps, vec_dotDbf16Qf32_3>(
+        a, b, dims, dims, NULL, count, results);
+}
+
+// --- Qbf16 bulk: native dpbf16 paths ---
+
+/*
+ * Bulk dot product for bf16×bf16 using dpbf16.
+ * Loads query once per dimension step, applies to all vectors in the batch.
+ */
+template <
+    const bf16_t*(*mapper)(const bf16_t*, const int32_t, const int32_t*, const int32_t),
+    int batches = 4
+>
+static inline void dotDbf16Qbf16_bulk_avx512(
+    const bf16_t* a,
+    const bf16_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    int c = 0;
+    constexpr int elements = sizeof(__m512bh) / sizeof(bf16_t);
+
+    for (; c + batches - 1 < count; c += batches) {
+        const bf16_t* as[batches];
+        __m512 sums[batches];
+        apply_indexed<batches>([&](auto I) {
+            as[I] = mapper(a, c + I, offsets, pitch);
+            sums[I] = _mm512_setzero_ps();
+        });
+
+        int i = 0;
+        for (; i + elements <= dims; i += elements) {
+            __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i);
+            apply_indexed<batches>([&](auto I) {
+                sums[I] = _mm512_dpbf16_ps(sums[I],
+                    (__m512bh)_mm512_loadu_epi16(as[I] + i), qi);
+            });
+        }
+
+        // Masked tail
+        const int rem = dims - i;
+        if (rem > 0) {
+            __mmask32 readMask = (__mmask32)((1UL << rem) - 1);
+            __mmask16 dpMask = (__mmask16)((1U << (rem / 2)) - 1);
+            __m512bh qi = (__m512bh)_mm512_maskz_loadu_epi16(readMask, b + i);
+            apply_indexed<batches>([&](auto I) {
+                __m512bh ai = (__m512bh)_mm512_maskz_loadu_epi16(readMask, as[I] + i);
+                sums[I] = _mm512_mask_dpbf16_ps(sums[I], dpMask, ai, qi);
+            });
+        }
+
+        apply_indexed<batches>([&](auto I) {
+            f32_t result = _mm512_reduce_add_ps(sums[I]);
+            if ((rem & 1) != 0) {
+                result += dot_scalar(as[I][dims - 1], b[dims - 1]);
+            }
+            results[c + I] = result;
+        });
+    }
+
+    for (; c < count; c++) {
+        const bf16_t* a0 = mapper(a, c, offsets, pitch);
+        results[c] = vec_dotDbf16Qbf16_3(a0, b, dims);
+    }
+}
+
+/*
+ * Bulk squared distance for bf16×bf16 using dpbf16 via ||a-b||² = a·a - 2·a·b + b·b.
+ * Loads query once per dimension step. Computes q·q once (shared across all vectors
+ * in the batch), then per vector accumulates a·a and a·q.
+ */
+template <
+    const bf16_t*(*mapper)(const bf16_t*, const int32_t, const int32_t*, const int32_t),
+    int batches = 4
+>
+static inline void sqrDbf16Qbf16_bulk_avx512(
+    const bf16_t* a,
+    const bf16_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    int c = 0;
+    constexpr int elements = sizeof(__m512bh) / sizeof(bf16_t);
+
+    // Compute squared distance (|a - b|^2) as its expansion (a dot a + b dot b - 2(a dot b)),
+    // using 3x dpbf16 operations, accumulating them in sum_aa, sum_qq, sum_ab
+    for (; c + batches - 1 < count; c += batches) {
+        const bf16_t* as[batches];
+        __m512 sum_aa[batches];
+        __m512 sum_ab[batches];
+        apply_indexed<batches>([&](auto I) {
+            as[I] = mapper(a, c + I, offsets, pitch);
+            sum_aa[I] = _mm512_setzero_ps();
+            sum_ab[I] = _mm512_setzero_ps();
+        });
+        __m512 sum_qq = _mm512_setzero_ps();
+
+        int i = 0;
+        for (; i + elements <= dims; i += elements) {
+            __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i);
+            sum_qq = _mm512_dpbf16_ps(sum_qq, qi, qi);
+            apply_indexed<batches>([&](auto I) {
+                __m512bh ai = (__m512bh)_mm512_loadu_epi16(as[I] + i);
+                sum_aa[I] = _mm512_dpbf16_ps(sum_aa[I], ai, ai);
+                sum_ab[I] = _mm512_dpbf16_ps(sum_ab[I], ai, qi);
+            });
+        }
+
+        // Masked tail
+        const int rem = dims - i;
+        if (rem > 0) {
+            __mmask32 readMask = (__mmask32)((1UL << rem) - 1);
+            __mmask16 dpMask = (__mmask16)((1U << (rem / 2)) - 1);
+            __m512bh qi = (__m512bh)_mm512_maskz_loadu_epi16(readMask, b + i);
+            sum_qq = _mm512_mask_dpbf16_ps(sum_qq, dpMask, qi, qi);
+            apply_indexed<batches>([&](auto I) {
+                __m512bh ai = (__m512bh)_mm512_maskz_loadu_epi16(readMask, as[I] + i);
+                sum_aa[I] = _mm512_mask_dpbf16_ps(sum_aa[I], dpMask, ai, ai);
+                sum_ab[I] = _mm512_mask_dpbf16_ps(sum_ab[I], dpMask, ai, qi);
+            });
+        }
+
+        f32_t qq = _mm512_reduce_add_ps(sum_qq);
+        if ((rem & 1) != 0) {
+            qq += dot_scalar(b[dims - 1], b[dims - 1]);
+        }
+
+        apply_indexed<batches>([&](auto I) {
+            f32_t aa = _mm512_reduce_add_ps(sum_aa[I]);
+            f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
+            if ((rem & 1) != 0) {
+                aa += dot_scalar(as[I][dims - 1], as[I][dims - 1]);
+                ab += dot_scalar(as[I][dims - 1], b[dims - 1]);
+            }
+            results[c + I] = aa + qq - 2.0f * ab;
+        });
+    }
+
+    for (; c < count; c++) {
+        const bf16_t* a0 = mapper(a, c, offsets, pitch);
+        results[c] = vec_sqrDbf16Qbf16_3(a0, b, dims);
+    }
+}
+
+EXPORT void vec_dotDbf16Qbf16_bulk_3(const bf16_t* a, const bf16_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    dotDbf16Qbf16_bulk_avx512<sequential_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_sqrDbf16Qf32_bulk_3(const bf16_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    bf16Qf32_bulk_avx512<sequential_mapper, sqrf32_vector, vec_sqrDbf16Qf32_3>(
+        a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_sqrDbf16Qbf16_bulk_3(const bf16_t* a, const bf16_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    sqrDbf16Qbf16_bulk_avx512<sequential_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_dotDbf16Qf32_bulk_offsets_3(
+    const bf16_t* a, const f32_t* b, const int32_t dims, const int32_t pitch,
+    const int32_t* offsets, const int32_t count, f32_t* results) {
+    bf16Qf32_bulk_avx512<offsets_mapper, _mm512_fmadd_ps, vec_dotDbf16Qf32_3>(
+        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
+}
+
+EXPORT void vec_dotDbf16Qbf16_bulk_offsets_3(
+    const bf16_t* a, const bf16_t* b, const int32_t dims, const int32_t pitch,
+    const int32_t* offsets, const int32_t count, f32_t* results) {
+    dotDbf16Qbf16_bulk_avx512<offsets_mapper>(a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
+}
+
+EXPORT void vec_sqrDbf16Qf32_bulk_offsets_3(
+    const bf16_t* a, const f32_t* b, const int32_t dims, const int32_t pitch,
+    const int32_t* offsets, const int32_t count, f32_t* results) {
+    bf16Qf32_bulk_avx512<offsets_mapper, sqrf32_vector, vec_sqrDbf16Qf32_3>(
+        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
+}
+
+EXPORT void vec_sqrDbf16Qbf16_bulk_offsets_3(
+    const bf16_t* a, const bf16_t* b, const int32_t dims, const int32_t pitch,
+    const int32_t* offsets, const int32_t count, f32_t* results) {
+    sqrDbf16Qbf16_bulk_avx512<offsets_mapper>(a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
+}

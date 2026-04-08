@@ -155,10 +155,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         try {
             ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
                 "/workflows-execution-data-stream-logs.json",
-                Map.of(
-                    "kibana.workflows.execution.logs.managed.index.version",
-                    Integer.toString(WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION)
-                )
+                Map.of("kibana.workflows.execution.logs.managed.index.version", Integer.toString(WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION))
             );
             return new SystemDataStreamDescriptor(
                 WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME,

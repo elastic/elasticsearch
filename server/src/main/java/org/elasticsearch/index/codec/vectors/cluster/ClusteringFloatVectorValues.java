@@ -53,32 +53,51 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
      *                        on exit holds the updated assignments
      * @return {@code true} if any assignment changed, {@code false} if all assignments remained the same
      */
-    final boolean bestCentroids(
+    final int bestCentroids(
         int startOrd,
         int endOrd,
         float[][] centroids,
         IntToIntFunction ordTranslator,
         FixedBitSet centroidChanged,
-        int[] results
+        int[] results,
+        float[][] partialSums,
+        int[] partialCounts,
+        float[] centroidSkipSqDist
     ) throws IOException {
         final float[] distances = new float[4];
         final PrefixScratch prefixScratch = maybeCreatePrefixScratch(centroids.length, dimension());
-        boolean changed = false;
+        int changedCount = 0;
         for (int i = startOrd; i < endOrd; i++) {
             float[] vector = vectorValue(i);
             final int translatedOrd = ordTranslator.apply(i);
             final int assignment = results[translatedOrd];
-            final int bestCentroid = computeBestCentroid(vector, centroids, distances, prefixScratch);
+            final int bestCentroid;
+            // Triangle inequality skip: if this vector is close enough to its current centroid,
+            // no other centroid can be closer (dist < minInterCentroidDist/2). Skip the expensive
+            // all-centroids distance scan.
+            if (centroidSkipSqDist != null && assignment >= 0
+                && ESVectorUtil.squareDistance(vector, centroids[assignment]) < centroidSkipSqDist[assignment]) {
+                bestCentroid = assignment;
+            } else {
+                bestCentroid = computeBestCentroid(vector, centroids, distances, prefixScratch);
+            }
             if (bestCentroid != assignment) {
                 if (assignment != -1) {
                     centroidChanged.set(assignment);
                 }
                 centroidChanged.set(bestCentroid);
-                changed = true;
+                changedCount++;
                 results[translatedOrd] = bestCentroid;
             }
+            // Fused accumulation: add vector to its assigned centroid's partial sum.
+            // This eliminates the separate updateCentroids pass that re-reads every vector.
+            float[] sum = partialSums[bestCentroid];
+            for (int d = 0; d < vector.length; d++) {
+                sum[d] += vector[d];
+            }
+            partialCounts[bestCentroid]++;
         }
-        return changed;
+        return changedCount;
     }
 
     final PrefixScratch maybeCreatePrefixScratch(int numCentroids, int dims) {
@@ -103,39 +122,55 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
      *                        current centroid assignments, on exit holds the updated assignments
      * @return {@code true} if any assignment changed, {@code false} if all assignments remained the same
      */
-    final boolean bestCentroidsFromNeighbours(
+    final int bestCentroidsFromNeighbours(
         int startOrd,
         int endOrd,
         float[][] centroids,
         IntToIntFunction ordTranslator,
         FixedBitSet centroidChanged,
         NeighborHood[] neighborhoods,
-        int[] results
+        int[] results,
+        float[][] partialSums,
+        int[] partialCounts,
+        float[] centroidSkipSqDist
     ) throws IOException {
         final float[] distances = new float[4];
         final PrefixScratch prefixScratch = maybeCreatePrefixScratch(centroids.length, dimension());
-        boolean changed = false;
+        int changedCount = 0;
         for (int i = startOrd; i < endOrd; i++) {
             float[] vector = vectorValue(i);
             final int translatedOrd = ordTranslator.apply(i);
             final int assignment = results[translatedOrd];
             assert assignment != -1 : "vector is not assigned to any cluster: ord=" + translatedOrd;
-            final int bestCentroid = computeBestCentroidFromNeighbours(
-                vector,
-                centroids,
-                assignment,
-                neighborhoods[assignment],
-                distances,
-                prefixScratch
-            );
+            final int bestCentroid;
+            // Triangle inequality skip: same as bestCentroids — if within bound, no neighbor can be closer
+            if (centroidSkipSqDist != null
+                && ESVectorUtil.squareDistance(vector, centroids[assignment]) < centroidSkipSqDist[assignment]) {
+                bestCentroid = assignment;
+            } else {
+                bestCentroid = computeBestCentroidFromNeighbours(
+                    vector,
+                    centroids,
+                    assignment,
+                    neighborhoods[assignment],
+                    distances,
+                    prefixScratch
+                );
+            }
             if (bestCentroid != assignment) {
                 centroidChanged.set(assignment);
                 centroidChanged.set(bestCentroid);
-                changed = true;
+                changedCount++;
                 results[translatedOrd] = bestCentroid;
             }
+            // Fused accumulation: add vector to its assigned centroid's partial sum
+            float[] sum = partialSums[bestCentroid];
+            for (int d = 0; d < vector.length; d++) {
+                sum[d] += vector[d];
+            }
+            partialCounts[bestCentroid]++;
         }
-        return changed;
+        return changedCount;
     }
 
     /**

@@ -46,11 +46,13 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSlices;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
 import org.elasticsearch.index.codec.vectors.diskbbq.DiskBBQBulkWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantizedVectorValues;
+import org.elasticsearch.index.codec.vectors.diskbbq.TieredMergeStrategy;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -848,9 +850,99 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     @Override
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
-        // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
-        // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
-        // preliminary tests suggest recall is good using only centroids but need to do further evaluation
+        // Gather prior segment statistics for tiered merge strategy selection
+        int numSegments = mergeState.knnVectorsReaders.length;
+        int[] segmentSizes = new int[numSegments];
+        int[] segmentCentroidCounts = new int[numSegments];
+        IVFVectorsReader.CentroidData[] segmentCentroidData = new IVFVectorsReader.CentroidData[numSegments];
+
+        for (int i = 0; i < numSegments; i++) {
+            if (mergeState.knnVectorsReaders[i] instanceof IVFVectorsReader<?> ivfReader) {
+                FloatVectorValues vectorValues = mergeState.knnVectorsReaders[i].getFloatVectorValues(fieldInfo.name);
+                segmentSizes[i] = vectorValues != null ? vectorValues.size() : 0;
+                segmentCentroidData[i] = ivfReader.readCentroidData(fieldInfo);
+                segmentCentroidCounts[i] = segmentCentroidData[i] != null ? segmentCentroidData[i].numCentroids() : 0;
+            } else {
+                segmentSizes[i] = 0;
+                segmentCentroidCounts[i] = 0;
+            }
+        }
+
+        // Select merge strategy
+        TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster, fieldInfo.getVectorDimension());
+        TieredMergeStrategy.Strategy strategy = tieredStrategy.selectStrategy(segmentSizes, segmentCentroidCounts, false);
+
+        if (logger.isInfoEnabled()) {
+            int totalVectors = 0;
+            int totalCentroids = 0;
+            for (int s : segmentSizes) {
+                totalVectors += s;
+            }
+            for (int c : segmentCentroidCounts) {
+                totalCentroids += c;
+            }
+            logger.info(
+                "DiskBBQ merge for field [{}]: selected strategy [{}], segments={}, totalVectors={}, totalCentroids={}",
+                fieldInfo.name,
+                strategy,
+                numSegments,
+                totalVectors,
+                totalCentroids
+            );
+        }
+
+        switch (strategy) {
+            case INSERTION -> {
+                int dominantIdx = TieredMergeStrategy.findDominantSegment(segmentSizes);
+                float[][] dominantCentroids = segmentCentroidData[dominantIdx].centroids();
+                HierarchicalKMeans hierarchicalKMeans;
+                if (mergeExec != null) {
+                    hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
+                } else {
+                    hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
+                }
+                KMeansResult kMeansResult = hierarchicalKMeans.clusterByInsertion(
+                    floatVectorValues,
+                    dominantCentroids,
+                    vectorPerCluster
+                );
+                return new CentroidAssignments(
+                    fieldInfo.getVectorDimension(),
+                    kMeansResult.centroids(),
+                    kMeansResult.assignments(),
+                    kMeansResult.soarAssignments()
+                );
+            }
+            case WARM_START -> {
+                java.util.List<float[]> allPriorCentroids = new java.util.ArrayList<>();
+                for (IVFVectorsReader.CentroidData data : segmentCentroidData) {
+                    if (data != null) {
+                        java.util.Collections.addAll(allPriorCentroids, data.centroids());
+                    }
+                }
+                float[][] initialCentroids = allPriorCentroids.toArray(new float[0][]);
+                HierarchicalKMeans hierarchicalKMeans;
+                if (mergeExec != null) {
+                    hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
+                } else {
+                    hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
+                }
+                KMeansResult kMeansResult = hierarchicalKMeans.clusterWithWarmStart(floatVectorValues, initialCentroids, vectorPerCluster);
+                return new CentroidAssignments(
+                    fieldInfo.getVectorDimension(),
+                    kMeansResult.centroids(),
+                    kMeansResult.assignments(),
+                    kMeansResult.soarAssignments()
+                );
+            }
+            default -> {
+                return calculateCentroidsFullRebuild(floatVectorValues, fieldInfo);
+            }
+        }
+    }
+
+    private CentroidAssignments calculateCentroidsFullRebuild(KMeansFloatVectorValues floatVectorValues, FieldInfo fieldInfo)
+        throws IOException {
         HierarchicalKMeans hierarchicalKMeans;
         if (mergeExec != null) {
             hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);

@@ -13,7 +13,6 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 import org.elasticsearch.test.ESTestCase;
 

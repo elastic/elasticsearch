@@ -89,8 +89,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
      * Cache the write load of the largest shard, per node, as a proportion of the sum of all the
      * shard write loads on that node. Computed as an online cache.
      * This is not serialized or compared within ClusterInfo, as its values are computed
-     * from the shardWriteLoads table using the shard -> node assignments present in the
-     * decider
+     * from {@link #shardWriteLoads} by an AllocationDecider.
+
      */
     final ObjectDoubleHashMap<String> nodeMaxShardWriteLoadProportion;
     private final Map<ShardId, Set<String>> shardToNodeIds;

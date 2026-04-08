@@ -32,12 +32,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -264,14 +264,7 @@ public class StatelessThrottlingConcurrentRecoveriesAllocationDeciderTests exten
             .nodes(discoveryNodes)
             .build();
 
-        RoutingAllocation routingAllocation = new RoutingAllocation(
-            null,
-            RoutingNodes.immutable(clusterState.globalRoutingTable(), clusterState.nodes()),
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
         routingAllocation.debugDecision(true);
 
         // When one additional routing to node-1

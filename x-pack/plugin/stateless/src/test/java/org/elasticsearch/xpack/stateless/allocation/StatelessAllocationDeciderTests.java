@@ -17,7 +17,6 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Objects;
@@ -83,16 +81,22 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
         var state = createClusterState(1, 0, indexMetadata);
 
         var service = createAllocationService(new StatelessAllocationDecider());
-        var allocation = createRoutingAllocation(state, service);
-        allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         assertContainsDecision(
-            service.explainShardAllocation(findShard(state, indexName, 0, ShardRouting.Role.INDEX_ONLY), allocation),
+            service.explainShardAllocation(
+                findShard(state, indexName, 0, ShardRouting.Role.INDEX_ONLY),
+                state,
+                RoutingAllocation.DebugMode.ON
+            ),
             Decision.Type.YES,
             "shard role matches stateless node role"
         );
         assertContainsDecision(
-            service.explainShardAllocation(findShard(state, indexName, 0, ShardRouting.Role.SEARCH_ONLY), allocation),
+            service.explainShardAllocation(
+                findShard(state, indexName, 0, ShardRouting.Role.SEARCH_ONLY),
+                state,
+                RoutingAllocation.DebugMode.ON
+            ),
             Decision.Type.NO,
             "shard role [SEARCH_ONLY] does not match stateless node role [index]"
         );
@@ -142,16 +146,6 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             new StatelessShardRoutingRoleStrategy()
-        );
-    }
-
-    private static RoutingAllocation createRoutingAllocation(ClusterState state, AllocationService service) {
-        return new RoutingAllocation(
-            service.getAllocationDeciders(),
-            state,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
         );
     }
 

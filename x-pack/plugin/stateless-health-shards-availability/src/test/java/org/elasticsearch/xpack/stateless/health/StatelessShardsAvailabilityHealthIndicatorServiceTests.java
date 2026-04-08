@@ -230,9 +230,13 @@ public class StatelessShardsAvailabilityHealthIndicatorServiceTests extends ESTe
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(nodeSettings);
         final var allocationService = mock(AllocationService.class);
-        when(allocationService.explainShardAllocation(any(ShardRouting.class), any(RoutingAllocation.class))).thenReturn(
-            ShardAllocationDecision.NOT_TAKEN
-        );
+        when(
+            allocationService.explainShardAllocation(
+                any(ShardRouting.class),
+                any(ClusterState.class),
+                any(RoutingAllocation.DebugMode.class)
+            )
+        ).thenReturn(ShardAllocationDecision.NOT_TAKEN);
         return new StatelessShardsAvailabilityHealthIndicatorService(
             clusterService,
             allocationService,

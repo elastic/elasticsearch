@@ -29,12 +29,11 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.NodeAllocationOrdering;
 import org.elasticsearch.cluster.routing.allocation.allocator.OrderedShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.allocator.OrderedShardsIteratorTests;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -42,7 +41,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -99,13 +97,9 @@ public class StatelessShardRelocationOrderTests extends OrderedShardsIteratorTes
             next(
                 3,
                 OrderedShardsIterator.createForBalancing(
-                    new RoutingAllocation(
-                        new AllocationDeciders(List.of()),
-                        ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build(),
-                        ClusterInfo.EMPTY,
-                        SnapshotShardSizeInfo.EMPTY,
-                        0
-                    ),
+                    TestRoutingAllocationFactory.forClusterState(
+                        ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build()
+                    ).build(),
                     new NodeAllocationOrdering(),
                     relocationOrder
                 )
@@ -190,13 +184,9 @@ public class StatelessShardRelocationOrderTests extends OrderedShardsIteratorTes
         var routing = GlobalRoutingTableTestHelper.routingTable(Metadata.DEFAULT_PROJECT_ID, routingTableBuilder);
         var clusterInfo = ClusterInfo.builder().shardWriteLoads(writeLoads).build();
 
-        var allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build(),
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            0
-        );
+        var allocation = TestRoutingAllocationFactory.forClusterState(
+            ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build()
+        ).clusterInfo(clusterInfo).build();
 
         int totalShards = writeLoads.size();
         ShardRelocationOrder relocationOrder = new StatelessShardRelocationOrder(getClusterSettings(false));

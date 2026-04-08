@@ -350,6 +350,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testValidGetObjectCalls
   issue: https://github.com/elastic/elasticsearch/issues/145859
+- class: org.elasticsearch.cluster.metadata.IndexMetadataTests
+  method: testSequenceNumbersDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/145864
 
 # Examples:
 #

@@ -95,7 +95,8 @@
     "FROM books\n| EVAL snippets = TOP_SNIPPETS(description, \"Tolkien\")",
     "FROM books\n| WHERE MATCH(title, \"Return\")\n| EVAL snippets = TOP_SNIPPETS(description, \"Tolkien\", { \"num_snippets\": 3, \"num_words\": 25 })",
     "FROM books\n| WHERE MATCH(title, \"return\")\n| RERANK \"Tolkien\" ON TOP_SNIPPETS(description, \"Tolkien\", { \"num_snippets\": 3, \"num_words\": 25 }) WITH { \"inference_id\" : \"test_reranker\" }",
-    "FROM books\n| WHERE MATCH(title, \"Return\")\n| EVAL snippets = TOP_SNIPPETS(description, \"Tolkien\", { \"num_snippets\": 1, \"num_words\": 25, \"highlight\": true })"
+    "FROM books\n| WHERE MATCH(title, \"Return\")\n| EVAL snippets = TOP_SNIPPETS(description, \"Tolkien\", { \"num_snippets\": 1, \"num_words\": 25, \"highlight\": true })",
+    "ROW chunks = [\"Alice was beginning to get very tired of sitting by her sister on the bank. The white rabbit disappeared down a hole and Alice quickly jumped in after it. The rabbit hole went straight on like a tunnel for some way and then dipped suddenly.\", \"The Queen of Hearts ordered her soldiers to paint the white roses red.\"]\n| EVAL snippets = TOP_SNIPPETS(chunks, \"alice rabbit hole\", {\"num_words\": 0, \"highlight\": true})"
   ],
   "preview" : true,
   "snapshot_only" : false

@@ -134,7 +134,21 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
                 size, we have more control over the number of tokens that are used for semantic reranking.
                 """),
-            @Example(file = "top-snippets", tag = "top-snippets-with-highlighting", applies_to = "stack: preview 9.4.0"), }
+            @Example(file = "top-snippets", tag = "top-snippets-with-highlighting", applies_to = "stack: preview 9.4.0", explanation = """
+                Enable highlighting by setting `highlight` to `true` in the options. This wraps matched query terms in the
+                returned snippets with `<em>` tags by default. To use different tags, set the `pre_tag` and `post_tag` options
+                to the desired opening and closing tags respectively.
+                """),
+            @Example(
+                file = "top-snippets",
+                tag = "top-snippets-num-words-zero-highlight",
+                applies_to = "stack: preview 9.4.0",
+                explanation = """
+                    Set `num_words` to 0 to disable chunking entirely. This keeps the input field values as-is,
+                    which is useful when the text has already been chunked. Combine this with `highlight` set to
+                    `true` to highlight matched terms within each full value.
+                    """
+            ), }
     )
     public TopSnippets(
         Source source,
@@ -474,9 +488,9 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             numSnippets = numSnippets(opts);
             numWords = numWords(opts);
             if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
-                String preTag = opts.containsKey(PRE_TAG) ? (String) opts.get(PRE_TAG) : DEFAULT_PRE_TAG;
-                String postTag = opts.containsKey(POST_TAG) ? (String) opts.get(POST_TAG) : DEFAULT_POST_TAG;
-                String encoderType = opts.containsKey(ENCODER) ? (String) opts.get(ENCODER) : DEFAULT_ENCODER;
+                String preTag = (String) opts.getOrDefault(PRE_TAG, DEFAULT_PRE_TAG);
+                String postTag = (String) opts.getOrDefault(POST_TAG, DEFAULT_POST_TAG);
+                String encoderType = (String) opts.getOrDefault(ENCODER, DEFAULT_ENCODER);
                 Encoder encoder = "html".equals(encoderType) ? new SimpleHTMLEncoder() : new DefaultEncoder();
                 highlightFormatter = new CustomPassageFormatter(preTag, postTag, encoder, 0);
             }

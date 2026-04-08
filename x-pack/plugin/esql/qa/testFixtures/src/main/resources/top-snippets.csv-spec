@@ -305,14 +305,30 @@ topSnippetsNumWordsZeroSkipsChunking
 required_capability: top_snippets_highlight
 
 // num_words=0 returns the whole value as a single chunk; num_words=20 splits it into pieces.
-ROW chunks = ["The answer to the ultimate question of life the universe and everything is 42. Deep Thought computed this answer over seven and a half million years. The mice who commissioned Deep Thought were rather disappointed by the result.", "The ships hung in the sky in much the same way that bricks dont."]
-| EVAL whole_snippets = TOP_SNIPPETS(chunks, "deep thought answer", {"num_words": 0})
-| EVAL chunked_snippets = TOP_SNIPPETS(chunks, "deep thought answer", {"num_words": 20})
+ROW chunks = ["Alice was beginning to get very tired of sitting by her sister on the bank. The white rabbit disappeared down a hole and Alice quickly jumped in after it. The rabbit hole went straight on like a tunnel for some way and then dipped suddenly.", "The Queen of Hearts ordered her soldiers to paint the white roses red."]
+| EVAL whole_snippets = TOP_SNIPPETS(chunks, "alice rabbit hole", {"num_words": 0})
+| EVAL chunked_snippets = TOP_SNIPPETS(chunks, "alice rabbit hole", {"num_words": 20})
 | KEEP whole_snippets, chunked_snippets
 ;
 
 whole_snippets:keyword | chunked_snippets:keyword
-The answer to the ultimate question of life the universe and everything is 42. Deep Thought computed this answer over seven and a half million years. The mice who commissioned Deep Thought were rather disappointed by the result. | [Deep Thought computed this answer over seven and a half million years., The mice who commissioned Deep Thought were rather disappointed by the result., The answer to the ultimate question of life the universe and everything is 42.]
+Alice was beginning to get very tired of sitting by her sister on the bank. The white rabbit disappeared down a hole and Alice quickly jumped in after it. The rabbit hole went straight on like a tunnel for some way and then dipped suddenly. | [The white rabbit disappeared down a hole and Alice quickly jumped in after it., The rabbit hole went straight on like a tunnel for some way and then dipped suddenly., Alice was beginning to get very tired of sitting by her sister on the bank.]
+;
+
+topSnippetsNumWordsZeroWithHighlight
+required_capability: top_snippets_highlight
+
+// tag::top-snippets-num-words-zero-highlight[]
+ROW chunks = ["Alice was beginning to get very tired of sitting by her sister on the bank. The white rabbit disappeared down a hole and Alice quickly jumped in after it. The rabbit hole went straight on like a tunnel for some way and then dipped suddenly.", "The Queen of Hearts ordered her soldiers to paint the white roses red."]
+| EVAL snippets = TOP_SNIPPETS(chunks, "alice rabbit hole", {"num_words": 0, "highlight": true})
+// end::top-snippets-num-words-zero-highlight[]
+| KEEP snippets
+;
+
+// tag::top-snippets-num-words-zero-highlight-result[]
+snippets:keyword
+<em>Alice</em> was beginning to get very tired of sitting by her sister on the bank. The white <em>rabbit</em> disappeared down a <em>hole</em> and <em>Alice</em> quickly jumped in after it. The <em>rabbit</em> <em>hole</em> went straight on like a tunnel for some way and then dipped suddenly.
+// end::top-snippets-num-words-zero-highlight-result[]
 ;
 
 topSnippetsWithFoldableConcatQuery

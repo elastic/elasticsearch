@@ -69,3 +69,26 @@ FROM books
 | 7350 | Return of the Shadow | <em>Tolkien</em> for long believed would be a far shorter book, 'a sequel to The Hobbit'. |
 
 
+Enable highlighting by setting `highlight` to `true` in the options. This wraps matched query terms in the
+returned snippets with `<em>` tags by default. To use different tags, set the `pre_tag` and `post_tag` options
+to the desired opening and closing tags respectively.
+
+```{applies_to}
+stack: preview 9.4.0
+```
+
+```esql
+ROW chunks = ["Alice was beginning to get very tired of sitting by her sister on the bank. The white rabbit disappeared down a hole and Alice quickly jumped in after it. The rabbit hole went straight on like a tunnel for some way and then dipped suddenly.", "The Queen of Hearts ordered her soldiers to paint the white roses red."]
+| EVAL snippets = TOP_SNIPPETS(chunks, "alice rabbit hole", {"num_words": 0, "highlight": true})
+```
+
+| snippets:keyword |
+| --- |
+| <em>Alice</em> was beginning to get very tired of sitting by her sister on the bank. The white <em>rabbit</em> disappeared down a <em>hole</em> and <em>Alice</em> quickly jumped in after it. The <em>rabbit</em> <em>hole</em> went straight on like a tunnel for some way and then dipped suddenly. |
+
+
+Set `num_words` to 0 to disable chunking entirely. This keeps the input field values as-is,
+which is useful when the text has already been chunked. Combine this with `highlight` set to
+`true` to highlight matched terms within each full value.
+
+

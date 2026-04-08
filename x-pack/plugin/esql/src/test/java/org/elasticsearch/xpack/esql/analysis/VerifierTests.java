@@ -3746,6 +3746,27 @@ public class VerifierTests extends ESTestCase {
             "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"highlight\": false, \"encoder\": \"html\"})",
             equalTo("1:29: 'pre_tag', 'post_tag', and 'encoder' options require 'highlight' to be true")
         );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"highlight\": 123})",
+            equalTo(
+                "1:29: Invalid option [highlight] in [TOP_SNIPPETS(body, \"query\", {\"highlight\": 123})], "
+                    + "cannot cast [123] to [boolean]"
+            )
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": true})",
+            equalTo(
+                "1:29: Invalid option [num_snippets] in [TOP_SNIPPETS(body, \"query\", {\"num_snippets\": true})], "
+                    + "cannot cast [true] to [integer]"
+            )
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": true})",
+            equalTo(
+                "1:29: Invalid option [num_words] in [TOP_SNIPPETS(body, \"query\", {\"num_words\": true})], "
+                    + "cannot cast [true] to [integer]"
+            )
+        );
     }
 
     public void testTimeSeriesWithUnsupportedDataType() {

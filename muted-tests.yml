@@ -320,9 +320,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidIntegerWithCasting
   issue: https://github.com/elastic/elasticsearch/issues/145735
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionServiceTests
-  method: testCheckForFrozenIndicesReturnsEarlyWhenCapacityExhausted
-  issue: https://github.com/elastic/elasticsearch/issues/145778
 - class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcFetchSizeIT
   method: testPivotPagingWithLimit
   issue: https://github.com/elastic/elasticsearch/issues/145792

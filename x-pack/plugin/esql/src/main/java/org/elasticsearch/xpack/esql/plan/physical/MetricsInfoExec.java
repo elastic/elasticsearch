@@ -144,8 +144,13 @@ public class MetricsInfoExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        if (mode.isInputPartial()) {
-            return AttributeSet.of(intermediateAttributes);
+        if (mode.inputPartial) {
+            return super.computeReferences();
+        }
+        for (Attribute attribute : child().outputSet()) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
+                return AttributeSet.of(attribute);
+            }
         }
         return AttributeSet.EMPTY;
     }

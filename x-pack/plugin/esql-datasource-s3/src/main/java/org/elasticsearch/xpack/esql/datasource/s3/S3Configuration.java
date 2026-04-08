@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
 import java.util.HashMap;
@@ -16,12 +17,12 @@ import java.util.Map;
  */
 public class S3Configuration extends DatasourceConfiguration {
 
-    private static final Map<String, Boolean> FIELDS = Map.ofEntries(
-        Map.entry("access_key", true),
-        Map.entry("secret_key", true),
-        Map.entry("endpoint", false),
-        Map.entry("region", false),
-        Map.entry("auth", false)
+    private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(
+        new ConfigSetting("access_key", true),
+        new ConfigSetting("secret_key", true),
+        new ConfigSetting("endpoint", false),
+        new ConfigSetting("region", false),
+        new ConfigSetting("auth", false)
     );
 
     private S3Configuration(Map<String, Object> raw) {
@@ -29,8 +30,8 @@ public class S3Configuration extends DatasourceConfiguration {
     }
 
     @Override
-    public Map<String, Boolean> fields() {
-        return FIELDS;
+    public Map<String, ConfigSetting> settings() {
+        return SETTINGS;
     }
 
     @Override

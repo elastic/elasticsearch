@@ -7,16 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.util.List;
 import java.util.Map;
 
 /**
  * Describes a datasource type for CRUD-time validation.
- * Each storage plugin (S3, GCS, Azure) provides a stateless singleton implementation.
- * <p>
- * Validation methods return {@code Map<String, SettingValue>} where each entry carries
- * both the validated value and whether the field is a secret — one collection, no sync issues.
+ * Each storage plugin provides a stateless singleton implementation.
  */
-public interface DatasourceType {
+public interface DatasourceValidator {
 
     /** The type identifier, e.g. {@code "s3"}, {@code "gcs"}, {@code "azure_blob"}. */
     String type();
@@ -25,10 +23,10 @@ public interface DatasourceType {
      * Validates datasource settings. Rejects unknown fields, validates values, normalizes.
      *
      * @param settings the raw settings from the REST request body
-     * @return validated settings with secret classification per field
+     * @return validated settings as a list of {@link ConfigSetting}s with values populated
      * @throws IllegalArgumentException if settings are invalid
      */
-    Map<String, SettingValue> validateDatasource(Map<String, Object> settings);
+    List<ConfigSetting> validateDatasource(Map<String, Object> settings);
 
     /**
      * Validates dataset settings against the parent datasource.
@@ -36,8 +34,8 @@ public interface DatasourceType {
      * @param datasourceSettings the parent datasource's validated settings
      * @param resource the resource path from the dataset definition
      * @param datasetSettings the raw dataset settings from the REST request body
-     * @return validated dataset settings (typically no secrets)
+     * @return validated dataset settings as a list of {@link ConfigSetting}s
      * @throws IllegalArgumentException if settings or resource are invalid
      */
-    Map<String, SettingValue> validateDataset(Map<String, Object> datasourceSettings, String resource, Map<String, Object> datasetSettings);
+    List<ConfigSetting> validateDataset(Map<String, Object> datasourceSettings, String resource, Map<String, Object> datasetSettings);
 }

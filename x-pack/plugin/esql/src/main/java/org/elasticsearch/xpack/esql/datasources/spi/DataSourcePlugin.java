@@ -121,7 +121,7 @@ public interface DataSourcePlugin {
     }
 
     /** CRUD-time type descriptors for datasource and dataset validation. */
-    default List<DatasourceType> datasourceTypes() {
+    default List<DatasourceValidator> datasourceValidators() {
         return List.of();
     }
 }

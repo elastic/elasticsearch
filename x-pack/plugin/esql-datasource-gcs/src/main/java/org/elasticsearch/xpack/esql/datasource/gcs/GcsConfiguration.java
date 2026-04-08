@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
 import java.util.HashMap;
@@ -16,12 +17,12 @@ import java.util.Map;
  */
 public class GcsConfiguration extends DatasourceConfiguration {
 
-    private static final Map<String, Boolean> FIELDS = Map.ofEntries(
-        Map.entry("credentials", true),
-        Map.entry("project_id", false),
-        Map.entry("endpoint", false),
-        Map.entry("token_uri", false),
-        Map.entry("auth", false)
+    private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(
+        new ConfigSetting("credentials", true),
+        new ConfigSetting("project_id", false),
+        new ConfigSetting("endpoint", false),
+        new ConfigSetting("token_uri", false),
+        new ConfigSetting("auth", false)
     );
 
     private GcsConfiguration(Map<String, Object> raw) {
@@ -29,8 +30,8 @@ public class GcsConfiguration extends DatasourceConfiguration {
     }
 
     @Override
-    public Map<String, Boolean> fields() {
-        return FIELDS;
+    public Map<String, ConfigSetting> settings() {
+        return SETTINGS;
     }
 
     @Override

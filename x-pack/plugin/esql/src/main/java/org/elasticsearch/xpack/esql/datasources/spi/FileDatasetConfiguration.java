@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -23,7 +24,7 @@ public record FileDatasetConfiguration(String partitionDetection, Integer schema
      * Validates dataset settings and resource path for a file-based source.
      * Dataset settings have no secrets.
      */
-    public static Map<String, SettingValue> validate(String resource, Set<String> validSchemes, Map<String, Object> datasetSettings) {
+    public static List<ConfigSetting> validate(String resource, Set<String> validSchemes, Map<String, Object> datasetSettings) {
         if (resource == null || resource.isBlank()) {
             throw new IllegalArgumentException("[resource] is required");
         }
@@ -47,9 +48,9 @@ public record FileDatasetConfiguration(String partitionDetection, Integer schema
             }
         }
 
-        Map<String, SettingValue> validated = new HashMap<>();
-        copyString(datasetSettings, validated, "partition_detection");
-        copyString(datasetSettings, validated, "error_mode");
+        List<ConfigSetting> result = new ArrayList<>();
+        addString(datasetSettings, result, "partition_detection");
+        addString(datasetSettings, result, "error_mode");
 
         Object sampleSize = datasetSettings.get("schema_sample_size");
         if (sampleSize != null) {
@@ -62,16 +63,16 @@ public record FileDatasetConfiguration(String partitionDetection, Integer schema
             if (value < 1) {
                 throw new IllegalArgumentException("[schema_sample_size] must be at least 1, got [" + value + "]");
             }
-            validated.put("schema_sample_size", new SettingValue(String.valueOf(value), false));
+            result.add(new ConfigSetting("schema_sample_size", false, String.valueOf(value)));
         }
 
-        return validated;
+        return result;
     }
 
-    private static void copyString(Map<String, Object> source, Map<String, SettingValue> dest, String key) {
+    private static void addString(Map<String, Object> source, List<ConfigSetting> dest, String key) {
         Object value = source.get(key);
         if (value != null) {
-            dest.put(key, new SettingValue(value.toString(), false));
+            dest.add(new ConfigSetting(key, false, value.toString()));
         }
     }
 }

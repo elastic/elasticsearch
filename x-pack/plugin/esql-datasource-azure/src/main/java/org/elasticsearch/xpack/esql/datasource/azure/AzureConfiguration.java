@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
 import java.util.HashMap;
@@ -17,13 +18,13 @@ import java.util.Map;
  */
 public class AzureConfiguration extends DatasourceConfiguration {
 
-    private static final Map<String, Boolean> FIELDS = Map.ofEntries(
-        Map.entry("connection_string", true),
-        Map.entry("account", false),
-        Map.entry("key", true),
-        Map.entry("sas_token", true),
-        Map.entry("endpoint", false),
-        Map.entry("auth", false)
+    private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(
+        new ConfigSetting("connection_string", true),
+        new ConfigSetting("account", false),
+        new ConfigSetting("key", true),
+        new ConfigSetting("sas_token", true),
+        new ConfigSetting("endpoint", false),
+        new ConfigSetting("auth", false)
     );
 
     private AzureConfiguration(Map<String, Object> raw) {
@@ -31,8 +32,8 @@ public class AzureConfiguration extends DatasourceConfiguration {
     }
 
     @Override
-    public Map<String, Boolean> fields() {
-        return FIELDS;
+    public Map<String, ConfigSetting> settings() {
+        return SETTINGS;
     }
 
     @Override

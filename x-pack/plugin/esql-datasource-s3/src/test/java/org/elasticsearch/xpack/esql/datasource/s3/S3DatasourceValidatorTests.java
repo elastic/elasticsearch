@@ -8,15 +8,21 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.spi.DatasourceType;
-import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceType;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.DatasourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceValidator;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class S3DatasourceTypeTests extends ESTestCase {
+public class S3DatasourceValidatorTests extends ESTestCase {
 
-    private final DatasourceType type = new FileDatasourceType("s3", S3Configuration::fromMap, Set.of("s3://", "s3a://", "s3n://"));
+    private final DatasourceValidator type = new FileDatasourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3://", "s3a://", "s3n://")
+    );
 
     public void testType() {
         assertEquals("s3", type.type());
@@ -24,11 +30,11 @@ public class S3DatasourceTypeTests extends ESTestCase {
 
     public void testValidateDatasourceWithCredentials() {
         var result = type.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
-        assertEquals("AKIA123", result.get("access_key").value());
-        assertTrue(result.get("access_key").isSecret());
-        assertTrue(result.get("secret_key").isSecret());
-        assertEquals("us-east-1", result.get("region").value());
-        assertFalse(result.get("region").isSecret());
+        assertEquals("AKIA123", findSetting(result, "access_key").value());
+        assertTrue(findSetting(result, "access_key").isSecret());
+        assertTrue(findSetting(result, "secret_key").isSecret());
+        assertEquals("us-east-1", findSetting(result, "region").value());
+        assertFalse(findSetting(result, "region").isSecret());
     }
 
     public void testValidateDatasourceEmpty() {
@@ -45,14 +51,14 @@ public class S3DatasourceTypeTests extends ESTestCase {
 
     public void testValidateDatasourceNormalizesAuth() {
         var result = type.validateDatasource(Map.of("auth", "NONE"));
-        assertEquals("none", result.get("auth").value());
-        assertFalse(result.get("auth").isSecret());
+        assertEquals("none", findSetting(result, "auth").value());
+        assertFalse(findSetting(result, "auth").isSecret());
     }
 
     public void testValidateDatasetValid() {
         var result = type.validateDataset(Map.of(), "s3://bucket/path/*.parquet", Map.of("partition_detection", "hive"));
-        assertEquals("hive", result.get("partition_detection").value());
-        assertFalse(result.get("partition_detection").isSecret());
+        assertEquals("hive", findSetting(result, "partition_detection").value());
+        assertFalse(findSetting(result, "partition_detection").isSecret());
     }
 
     public void testValidateDatasetRequiresResource() {
@@ -75,7 +81,7 @@ public class S3DatasourceTypeTests extends ESTestCase {
 
     public void testValidateDatasetSchemaSampleSize() {
         var result = type.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50));
-        assertEquals("50", result.get("schema_sample_size").value());
+        assertEquals("50", findSetting(result, "schema_sample_size").value());
         expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0)));
     }
 
@@ -88,7 +94,6 @@ public class S3DatasourceTypeTests extends ESTestCase {
     }
 
     public void testValidateDatasetNullSettings() {
-        // null dataset settings should be treated as empty
         var result = type.validateDataset(Map.of(), "s3://b/p", null);
         assertTrue(result.isEmpty());
     }
@@ -105,12 +110,19 @@ public class S3DatasourceTypeTests extends ESTestCase {
     }
 
     public void testValidateDatasourceSkipsNullValues() {
-        // HashMap allows null values; they should be omitted from result
         var settings = new java.util.HashMap<String, Object>();
         settings.put("region", "us-east-1");
         settings.put("endpoint", null);
         var result = type.validateDatasource(settings);
-        assertEquals("us-east-1", result.get("region").value());
-        assertNull(result.get("endpoint"));
+        assertEquals("us-east-1", findSetting(result, "region").value());
+        assertNull(findSettingOrNull(result, "endpoint"));
+    }
+
+    private static ConfigSetting findSetting(List<ConfigSetting> settings, String name) {
+        return settings.stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
+    }
+
+    private static ConfigSetting findSettingOrNull(List<ConfigSetting> settings, String name) {
+        return settings.stream().filter(s -> s.name().equals(name)).findFirst().orElse(null);
     }
 }

@@ -330,7 +330,7 @@ public class TransportBulkActionTests extends ESTestCase {
         Index seqNoDisabledIdx = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1), IndexMetadata.INDEX_UUID_NA_VALUE);
         Index seqNoEnabledIdx = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 2), IndexMetadata.INDEX_UUID_NA_VALUE);
         final var seqNoDisabledMetadata = indexMetadata(seqNoDisabledIdx.getName()).settings(
-            settings(IndexVersions.DISABLE_SEQUENCE_NUMBERS).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            settings(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
                 .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
         ).numberOfShards(1).numberOfReplicas(1).build();
         final var seqNoEnabledMetadata = indexMetadata(seqNoEnabledIdx.getName()).build();

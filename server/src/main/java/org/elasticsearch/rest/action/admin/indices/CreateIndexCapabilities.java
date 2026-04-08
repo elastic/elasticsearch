@@ -9,8 +9,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.index.IndexSettings;
-
 import java.util.HashSet;
 import java.util.Set;
 

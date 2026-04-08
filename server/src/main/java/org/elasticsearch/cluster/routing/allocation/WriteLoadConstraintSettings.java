@@ -227,7 +227,7 @@ public class WriteLoadConstraintSettings {
     }
 
     /**
-     * @return The utilization threshold as a proportion in [0, 1] for use in checking whether a hotspot
+     * @return The utilization threshold for a single shard as a proportion in [0, 1] for use in checking whether a hotspot
      * is too focused on a single shard for correction with shard movement
      */
     public double getHotspotMaxShardWriteLoadProportionThreshold() {

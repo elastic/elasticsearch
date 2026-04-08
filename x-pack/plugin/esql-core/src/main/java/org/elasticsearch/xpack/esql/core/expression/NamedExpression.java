@@ -97,7 +97,7 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return name();
     }
 }

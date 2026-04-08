@@ -590,7 +590,8 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.PERSISTENT, nameIdValue, idp.getEntityID(), sp.getEntityId(), null),
             randomAlphaOfLength(16),
-            Arrays.asList(
+            randomAlphaOfLength(16),
+            List.of(
                 new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.1", "uid", Collections.singletonList(uidValue)),
                 new SamlAttributes.SamlAttribute("urn:oid:1.3.6.1.4.1.5923.1.5.1.1", "groups", groups),
                 new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Arrays.asList("cbarton@shield.gov"))
@@ -663,6 +664,7 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
             randomAlphaOfLength(16),
+            randomAlphaOfLength(16),
             Collections.singletonList(
                 new SamlAttributes.SamlAttribute(
                     "departments",
@@ -725,6 +727,7 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
             randomAlphaOfLength(16),
+            randomAlphaOfLength(16),
             Collections.singletonList(
                 new SamlAttributes.SamlAttribute(
                     "departments",
@@ -756,6 +759,7 @@ public class SamlRealmTests extends SamlTestCase {
 
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
+            randomAlphaOfLength(16),
             randomAlphaOfLength(16),
             Collections.singletonList(
                 new SamlAttributes.SamlAttribute(
@@ -859,6 +863,7 @@ public class SamlRealmTests extends SamlTestCase {
         for (String mail : Arrays.asList("john@your-corp.example.com", "john@mycorp.example.com.example.net", "john")) {
             final SamlAttributes attributes = new SamlAttributes(
                 new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(12), null, null, null),
+                randomAlphaOfLength(16),
                 randomAlphaOfLength(16),
                 Collections.singletonList(
                     new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Collections.singletonList(mail))

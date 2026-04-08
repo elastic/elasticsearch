@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.saml;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
@@ -26,14 +27,27 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     private final String realm;
     private final TimeValue expiresIn;
     private final Authentication authentication;
+    private final String inResponseTo;
 
+    // Constructor used in Serverless
     public SamlAuthenticateResponse(Authentication authentication, String tokenString, String refreshToken, TimeValue expiresIn) {
+        this(authentication, tokenString, refreshToken, expiresIn, null);
+    }
+
+    public SamlAuthenticateResponse(
+        Authentication authentication,
+        String tokenString,
+        String refreshToken,
+        TimeValue expiresIn,
+        @Nullable String inResponseTo
+    ) {
         this.principal = authentication.getEffectiveSubject().getUser().principal();
         this.realm = authentication.getEffectiveSubject().getRealm().getName();
         this.tokenString = tokenString;
         this.refreshToken = refreshToken;
         this.expiresIn = expiresIn;
         this.authentication = authentication;
+        this.inResponseTo = inResponseTo;
     }
 
     public String getPrincipal() {
@@ -60,6 +74,13 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         return authentication;
     }
 
+    public String getInResponseTo() {
+        return inResponseTo;
+    }
+
+    // note that this method is not used in any current code path,
+    // but is left here for compatibility with old versions, and as such
+    // is not up to date, i.e. it does not write 'inResponseTo'
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
@@ -72,6 +93,7 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
             authentication.writeTo(out);
         }
+        // intentionally missing inResponseTo
     }
 
 }

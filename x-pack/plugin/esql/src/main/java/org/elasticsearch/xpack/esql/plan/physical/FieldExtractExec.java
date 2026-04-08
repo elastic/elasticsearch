@@ -186,7 +186,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return Strings.format(
             "%s<%s,%s>",
             nodeName() + NodeUtils.limitedToString(attributesToExtract),

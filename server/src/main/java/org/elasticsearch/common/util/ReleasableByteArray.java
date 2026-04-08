@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -60,6 +61,14 @@ public class ReleasableByteArray implements ByteArray {
         } else {
             return false;
         }
+    }
+
+    @Override
+    public PagedBytesCursor get(long index, int len, PagedBytesCursor scratch) {
+        assert indexIsInt(index);
+        BytesReference sliced = this.ref.slice((int) index, len);
+        scratch.init(sliced.array(), 0, sliced.arrayOffset(), sliced.length());
+        return scratch;
     }
 
     @Override

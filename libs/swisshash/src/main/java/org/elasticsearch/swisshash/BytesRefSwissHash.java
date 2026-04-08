@@ -16,6 +16,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytes;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
@@ -171,6 +172,36 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     @Override
+    public long find(PagedBytes key) {
+        final int hash = hash(key);
+        if (smallCore != null) {
+            return smallCore.find(key, hash);
+        } else {
+            return bigCore.find(key, hash, control(hash));
+        }
+    }
+
+    @Override
+    public long add(PagedBytes key) {
+        final int hash = hash(key);
+        if (smallCore != null) {
+            if (size < nextGrowSize) {
+                return smallCore.add(key, hash);
+            }
+            smallCore.transitionToBigCore();
+        }
+        return bigCore.add(key, hash);
+    }
+
+    private int hash(PagedBytes v) {
+        return BitMixer.mix32(v.hashCode());
+    }
+
+    private boolean matches(PagedBytes key, int id) {
+        return key.bytesEquals(bytesRefs.get(id, scratch));
+    }
+
+    @Override
     public Status status() {
         return smallCore != null ? smallCore.status() : bigCore.status();
     }
@@ -255,7 +286,37 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
+        int find(final PagedBytes key, final int hash) {
+            int slot = slot(hash);
+            for (;; slot = slot(slot + 1)) {
+                long value = (long) LONG_HANDLE.get(idAndHashPage, idAndHashOffset(slot));
+                int id = id(value);
+                if (id == -1 || (hash(value) == hash && matches(key, id))) {
+                    return id;
+                }
+            }
+        }
+
         int add(final BytesRef key, final int hash) {
+            int slot = slot(hash);
+            for (;; slot = slot(slot + 1)) {
+                final int offset = idAndHashOffset(slot);
+                final long value = (long) LONG_HANDLE.get(idAndHashPage, offset);
+                final int id = id(value);
+                if (id == -1) { // means unset
+                    final int nextId = (int) bytesRefs.size();
+                    bytesRefs.append(key);
+                    final long newValue = ((long) nextId << 32) | Integer.toUnsignedLong(hash);
+                    LONG_HANDLE.set(idAndHashPage, offset, newValue);
+                    size++;
+                    return nextId;
+                } else if (hash(value) == hash && matches(key, id)) {
+                    return -1 - id;
+                }
+            }
+        }
+
+        int add(final PagedBytes key, final int hash) {
             int slot = slot(hash);
             for (;; slot = slot(slot + 1)) {
                 final int offset = idAndHashOffset(slot);
@@ -399,12 +460,68 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
+        private int find(final PagedBytes key, final int hash, final byte control) {
+            int group = hash & mask;
+            for (;;) {
+                ByteVector vec = ByteVector.fromArray(BS, controlData, group);
+                long matches = vec.eq(control).toLong();
+                while (matches != 0) {
+                    final int first = Long.numberOfTrailingZeros(matches);
+                    final int checkSlot = slot(group + first);
+                    final long value = idAndHash(checkSlot);
+                    final int id = id(value);
+                    if (hash(value) == hash && matches(key, id)) {
+                        return id;
+                    }
+                    matches &= matches - 1; // clear the first set bit and try again
+                }
+                long empty = vec.eq(EMPTY).toLong();
+                if (empty != 0) {
+                    return -1;
+                }
+                group = slot(group + BYTE_VECTOR_LANES);
+            }
+        }
+
         private int add(final BytesRef key, final int hash) {
             maybeGrow();
             return bigCore.addImpl(key, hash);
         }
 
+        private int add(final PagedBytes key, final int hash) {
+            maybeGrow();
+            return bigCore.addImpl(key, hash);
+        }
+
         private int addImpl(final BytesRef key, final int hash) {
+            final byte control = control(hash);
+            int group = hash & mask;
+            for (;;) {
+                ByteVector vec = ByteVector.fromArray(BS, controlData, group);
+                long matches = vec.eq(control).toLong();
+                while (matches != 0) {
+                    final int checkSlot = slot(group + Long.numberOfTrailingZeros(matches));
+                    final long value = idAndHash(checkSlot);
+                    final int id = id(value);
+                    if (hash(value) == hash && matches(key, id)) {
+                        return -1 - id;
+                    }
+                    matches &= matches - 1; // clear the first set bit and try again
+                }
+                long empty = vec.eq(EMPTY).toLong();
+                if (empty != 0) {
+                    final int insertSlot = slot(group + Long.numberOfTrailingZeros(empty));
+                    final int id = (int) bytesRefs.size();
+                    bytesRefs.append(key);
+                    bigCore.insertAtSlot(insertSlot, hash, control, id);
+                    size++;
+                    return id;
+                }
+                group = (group + BYTE_VECTOR_LANES) & mask;
+            }
+        }
+
+        private int addImpl(final PagedBytes key, final int hash) {
             final byte control = control(hash);
             int group = hash & mask;
             for (;;) {

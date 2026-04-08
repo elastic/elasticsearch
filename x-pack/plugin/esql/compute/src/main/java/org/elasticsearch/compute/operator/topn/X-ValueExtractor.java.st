@@ -12,7 +12,7 @@ import org.apache.lucene.util.BytesRef;
 $endif$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 /**
  * Extracts non-sort-key values for top-n from their {@link $Type$Block}s.
@@ -44,11 +44,11 @@ $endif$
         this.inKey = inKey;
     }
 
-    protected final void writeCount(BreakingBytesRefBuilder values, int count) {
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
+    protected final void writeCount(PagedBytesBuilder values, int count) {
+        values.appendVInt(count);
     }
 
-    protected final void actualWriteValue(BreakingBytesRefBuilder values, $type$ value) {
+    protected final void actualWriteValue(PagedBytesBuilder values, $type$ value) {
 $if(BytesRef)$
         encoder.encodeBytesRef(value, values);
 $else$
@@ -65,7 +65,7 @@ $endif$
         }
 
         @Override
-        public void writeValue(BreakingBytesRefBuilder values, int position) {
+        public void writeValue(PagedBytesBuilder values, int position) {
             writeCount(values, 1);
             if (inKey) {
                 // will read results from the key
@@ -88,7 +88,7 @@ $endif$
         }
 
         @Override
-        public void writeValue(BreakingBytesRefBuilder values, int position) {
+        public void writeValue(PagedBytesBuilder values, int position) {
             int size = block.getValueCount(position);
             writeCount(values, size);
             if (size == 1 && inKey) {

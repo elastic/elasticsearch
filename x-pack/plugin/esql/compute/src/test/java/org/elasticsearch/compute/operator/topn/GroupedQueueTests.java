@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -68,7 +68,7 @@ public class GroupedQueueTests extends ESTestCase {
         IntBlock groupKeyBlock = blockFactory.newIntBlockBuilder(1).appendInt(0).build();
         IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey).build();
         IntBlock valueBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey * 2).build();
-        TopNRow row = new TopNRow(breaker, 32, 64);
+        TopNRow row = new TopNRow(breaker, bigArrays.recycler(), 32, 64);
         var filler = new TopNOperator.RowFiller(
             List.of(ElementType.INT, ElementType.INT, ElementType.INT),
             List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
@@ -109,18 +109,15 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     private static void assertRowValues(TopNRow row, int expectedSortKey, int expectedValue) {
-        BytesRef keys = row.keys.bytesRefView();
-        assertThat(
-            TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1)),
-            equalTo(expectedSortKey)
-        );
+        PagedBytesCursor keysCursor = row.keys.view().cursor(new PagedBytesCursor());
+        keysCursor.readByte(); // skip null sentinel
+        assertThat(TopNEncoder.DEFAULT_SORTABLE.decodeInt(keysCursor), equalTo(expectedSortKey));
 
-        BytesRef values = row.values.bytesRefView();
-        BytesRef reader = new BytesRef(values.bytes, values.offset, values.length);
-        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(reader), equalTo(1));
-        TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(reader);
-        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(reader), equalTo(1));
-        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(reader), equalTo(1));
-        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(reader), equalTo(expectedValue));
+        PagedBytesCursor cursor = row.values.view().cursor(new PagedBytesCursor());
+        assertThat(cursor.readVInt(), equalTo(1));
+        TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(cursor);
+        assertThat(cursor.readVInt(), equalTo(1));
+        assertThat(cursor.readVInt(), equalTo(1));
+        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(cursor), equalTo(expectedValue));
     }
 }

@@ -13,6 +13,9 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -84,6 +87,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         this.bigArrays = bigArrays;
     }
 
+    /** Copies the bytes from {@code key} into this array. */
     public void append(BytesRef key) {
         final long startOffset = startOffsets.get(size);
         startOffsets = bigArrays.grow(startOffsets, size + 2);
@@ -92,6 +96,52 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         if (key.length > 0) {
             bytes = bigArrays.grow(bytes, startOffset + key.length);
             bytes.set(startOffset, key.bytes, key.offset, key.length);
+        }
+    }
+
+    /** Copies the bytes from {@code key} into this array. */
+    public void append(PagedBytes key) {
+        final long startOffset = startOffsets.get(size);
+        startOffsets = bigArrays.grow(startOffsets, size + 2);
+        startOffsets.set(size + 1, startOffset + key.length());
+        ++size;
+        if (key.length() > 0) {
+            bytes = bigArrays.grow(bytes, startOffset + key.length());
+            long writeOffset = startOffset;
+            int remaining = key.length();
+            for (byte[] page : key.pages()) {
+                int len = Math.min(page.length, remaining);
+                bytes.set(writeOffset, page, 0, len);
+                writeOffset += len;
+                remaining -= len;
+                if (remaining == 0) {
+                    break;
+                }
+            }
+        }
+    }
+
+    /** Copies the bytes from {@code key} into this array. */
+    public void append(PagedBytesBuilder key) {
+        append(key.view());
+    }
+
+    /** Copies all remaining bytes from {@code value} into this array. */
+    public void append(PagedBytesCursor value) {
+        int len = value.remaining();
+        final long startOffset = startOffsets.get(size);
+        startOffsets = bigArrays.grow(startOffsets, size + 2);
+        startOffsets.set(size + 1, startOffset + len);
+        ++size;
+        if (len > 0) {
+            bytes = bigArrays.grow(bytes, startOffset + len);
+            long writeOffset = startOffset;
+            BytesRef scratch = new BytesRef();
+            while (value.remaining() > 0) {
+                BytesRef chunk = value.readPageChunk(scratch);
+                bytes.set(writeOffset, chunk.bytes, chunk.offset, chunk.length);
+                writeOffset += chunk.length;
+            }
         }
     }
 
@@ -104,6 +154,12 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         final int length = (int) (startOffsets.get(id + 1) - startOffset);
         bytes.get(startOffset, length, dest);
         return dest;
+    }
+
+    public PagedBytesCursor get(long id, PagedBytesCursor scratch) {
+        final long startOffset = startOffsets.get(id);
+        final int length = (int) (startOffsets.get(id + 1) - startOffset);
+        return bytes.get(startOffset, length, scratch);
     }
 
     public long size() {

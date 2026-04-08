@@ -13,6 +13,11 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -21,7 +26,6 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -241,16 +245,11 @@ public class ExtractorTests extends ESTestCase {
         this.testCase = testCase;
     }
 
-    static BreakingBytesRefBuilder nonBreakingBytesRefBuilder() {
-        return new BreakingBytesRefBuilder(new NoopCircuitBreaker(CircuitBreaker.REQUEST), "topn");
-    }
-
     public void testNotInKey() {
         Block value = testCase.value.get();
 
-        BreakingBytesRefBuilder valuesBuilder = nonBreakingBytesRefBuilder();
-        ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(valuesBuilder, 0);
-        assertThat(valuesBuilder.length(), greaterThan(0));
+        var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        var recycler = new MockPageCacheRecycler(Settings.EMPTY);
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(
             TestBlockFactory.getNonBreakingInstance(),
@@ -259,12 +258,32 @@ public class ExtractorTests extends ESTestCase {
             false,
             1
         );
-        BytesRef values = valuesBuilder.bytesRefView();
-        result.decodeValue(values);
-        assertThat(values.length, equalTo(0));
+        try (PagedBytesBuilder valuesBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
+            ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(valuesBuilder, 0);
+            assertThat(valuesBuilder.length(), greaterThan(0));
+            try (PagedBytes ref = valuesBuilder.build()) {
+                result.decodeValue(ref.cursor(new PagedBytesCursor()));
+            }
+        }
 
         Block resultBlock = result.build();
         assertThat(resultBlock, equalTo(testCase.expected.apply(value)));
+    }
+
+    public void testNotInKeyPaged() throws Exception {
+        Block value = testCase.value.get();
+
+        var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        var recycler = new MockPageCacheRecycler(Settings.EMPTY);
+        try (PagedBytesBuilder pagedBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
+            ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(pagedBuilder, 0);
+            assertThat(pagedBuilder.length(), greaterThan(0));
+            try (PagedBytes ref = pagedBuilder.build()) {
+                var cursor = ref.cursor(new PagedBytesCursor());
+                int count = cursor.readVInt();
+                assertThat(count, greaterThan(-1)); // valid count was written
+            }
+        }
     }
 
     public void testInKey() {
@@ -272,15 +291,12 @@ public class ExtractorTests extends ESTestCase {
             return;
         }
         Block value = testCase.value.get();
-
-        BreakingBytesRefBuilder keysBuilder = nonBreakingBytesRefBuilder();
         boolean asc = randomBoolean();
-        KeyExtractor.extractorFor(testCase.type, testCase.encoder, asc, randomByte(), randomByte(), value).writeKey(keysBuilder, 0);
-        assertThat(keysBuilder.length(), greaterThan(0));
+        byte nul = randomByte();
+        byte nonNul = randomByte();
 
-        BreakingBytesRefBuilder valuesBuilder = nonBreakingBytesRefBuilder();
-        ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(valuesBuilder, 0);
-        assertThat(valuesBuilder.length(), greaterThan(0));
+        var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        var recycler = new MockPageCacheRecycler(Settings.EMPTY);
 
         ResultBuilder result = ResultBuilder.resultBuilderFor(
             TestBlockFactory.getNonBreakingInstance(),
@@ -289,21 +305,66 @@ public class ExtractorTests extends ESTestCase {
             true,
             1
         );
-        BytesRef keys = keysBuilder.bytesRefView();
-        if (testCase.type == ElementType.NULL) {
-            assertThat(keys.length, equalTo(1));
-        } else {
-            // Skip the non-null byte
-            keys.offset++;
-            keys.length--;
-            result.decodeKey(keys, asc);
-            assertThat(keys.length, equalTo(0));
+        try (PagedBytesBuilder keysBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
+            KeyExtractor.extractorFor(testCase.type, testCase.encoder, asc, nul, nonNul, value).writeKey(keysBuilder, 0);
+            assertThat(keysBuilder.length(), greaterThan(0));
+            try (PagedBytes keysRef = keysBuilder.build()) {
+                PagedBytesCursor cursor = keysRef.cursor(new PagedBytesCursor());
+                if (testCase.type == ElementType.NULL) {
+                    assertThat(cursor.remaining(), equalTo(1));
+                } else {
+                    // Skip the non-null byte
+                    cursor.readByte();
+                    result.decodeKey(cursor, asc);
+                    assertThat(cursor.remaining(), equalTo(0));
+                }
+            }
         }
-        BytesRef values = valuesBuilder.bytesRefView();
-        result.decodeValue(values);
-        assertThat(values.length, equalTo(0));
+        try (PagedBytesBuilder valuesBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
+            ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(valuesBuilder, 0);
+            assertThat(valuesBuilder.length(), greaterThan(0));
+            try (PagedBytes ref = valuesBuilder.build()) {
+                result.decodeValue(ref.cursor(new PagedBytesCursor()));
+            }
+        }
 
         assertThat(result.build(), equalTo(testCase.expected.apply(value)));
+    }
+
+    public void testInKeyPaged() throws Exception {
+        if (testCase.sortable == false) {
+            return;
+        }
+        Block value = testCase.value.get();
+
+        var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        var recycler = new MockPageCacheRecycler(Settings.EMPTY);
+        try (PagedBytesBuilder pagedBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
+            ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(pagedBuilder, 0);
+            assertThat(pagedBuilder.length(), greaterThan(0));
+            try (PagedBytes ref = pagedBuilder.build()) {
+                var cursor = ref.cursor(new PagedBytesCursor());
+                int count = cursor.readVInt();
+                assertThat(count, greaterThan(-1)); // valid count was written
+            }
+        }
+    }
+
+    public void testWriteKeyPaged() throws Exception {
+        if (testCase.sortable == false) {
+            return;
+        }
+        Block value = testCase.value.get();
+        boolean asc = randomBoolean();
+        byte nul = randomByte();
+        byte nonNul = randomByte();
+
+        var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        var recycler = new MockPageCacheRecycler(Settings.EMPTY);
+        try (PagedBytesBuilder pagedBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
+            KeyExtractor.extractorFor(testCase.type, testCase.encoder, asc, nul, nonNul, value).writeKey(pagedBuilder, 0);
+            assertThat(pagedBuilder.length(), greaterThan(0));
+        }
     }
 
     public static AggregateMetricDoubleLiteral randomAggregateMetricDouble(boolean allMetrics) {

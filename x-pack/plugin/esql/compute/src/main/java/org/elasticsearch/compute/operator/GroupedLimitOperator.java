@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -51,8 +50,8 @@ public class GroupedLimitOperator implements Operator, Accountable {
         @Override
         public GroupedLimitOperator get(DriverContext driverContext) {
             BlockFactory blockFactory = driverContext.blockFactory();
-            var scratch = new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder");
-            return new GroupedLimitOperator(limitPerGroup, new GroupKeyEncoder(groupChannels, elementTypes, scratch), blockFactory);
+            var keyEncoder = new GroupKeyEncoder(groupChannels, elementTypes, blockFactory.breaker(), blockFactory.bigArrays().recycler());
+            return new GroupedLimitOperator(limitPerGroup, keyEncoder, blockFactory);
         }
 
         @Override
@@ -125,8 +124,7 @@ public class GroupedLimitOperator implements Operator, Accountable {
             int[] accepted = new int[positionCount];
 
             for (int pos = 0; pos < positionCount; pos++) {
-                BytesRef key = keyEncoder.encode(page, pos);
-                long hashOrd = seenKeys.add(key);
+                long hashOrd = keyEncoder.encodeAndAdd(page, pos, seenKeys);
                 int count;
                 long ord;
                 if (hashOrd >= 0) {

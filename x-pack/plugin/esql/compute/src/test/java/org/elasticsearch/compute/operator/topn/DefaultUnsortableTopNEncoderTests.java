@@ -7,8 +7,13 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,11 +44,16 @@ public class DefaultUnsortableTopNEncoderTests extends ESTestCase {
     }
 
     private void testVInt(int v, int expectedBytes) {
-        BreakingBytesRefBuilder builder = ExtractorTests.nonBreakingBytesRefBuilder();
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(v, builder);
-        assertThat(builder.length(), equalTo(expectedBytes));
-        BytesRef bytes = builder.bytesRefView();
-        assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(bytes), equalTo(v));
-        assertThat(bytes.length, equalTo(0));
+        var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        var recycler = new MockPageCacheRecycler(Settings.EMPTY);
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
+            TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(v, builder);
+            assertThat(builder.length(), equalTo(expectedBytes));
+            try (PagedBytes ref = builder.build()) {
+                PagedBytesCursor cursor = ref.cursor(new PagedBytesCursor());
+                assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(cursor), equalTo(v));
+                assertThat(cursor.remaining(), equalTo(0));
+            }
+        }
     }
 }

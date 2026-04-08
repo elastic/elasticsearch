@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,6 +45,8 @@ $endif$
 
 $if(BytesRef)$
     BytesRef getBytesRef(int position, BytesRef dest);
+
+    PagedBytesCursor get(int position, PagedBytesCursor scratch);
 
 $else$
     $type$ get$Type$(int position);
@@ -269,6 +274,23 @@ $endif$
          */
         Builder append$Type$($type$ value);
 
+$if(BytesRef)$
+        /**
+         * Appends the bytes in {@code value} to the current entry.
+         */
+        Builder appendBytesRef(PagedBytes value);
+
+        /**
+         * Appends the bytes written to a {@link PagedBytesBuilder} to the current entry.
+         */
+        Builder appendBytesRef(PagedBytesBuilder value);
+
+        /**
+         * Appends the bytes remaining in {@code value} to the current entry.
+         */
+        Builder append(PagedBytesCursor value);
+
+$endif$
         @Override
         $Type$Vector build();
     }

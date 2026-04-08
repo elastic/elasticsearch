@@ -88,15 +88,15 @@ on 2020-08-01:
 ```
 git clone git@github.com:openjdk/jdk.git
 cd jdk
-git checkout jdk-24-ga
+git checkout jdk-25-ga
 # Get a known good binutils
-wget https://ftp.gnu.org/gnu/binutils/binutils-2.35.tar.gz
-tar xf binutils-2.35.tar.gz
-bash configure --with-hsdis=binutils --with-binutils-src=binutils-2.35 \
-    --with-boot-jdk=~/.gradle/jdks/oracle_corporation-24-amd64-linux.2
+wget https://ftp.gnu.org/gnu/binutils/binutils-2.46.0.tar.gz
+tar xf binutils-2.46.0.tar.gz
+bash configure --with-hsdis=binutils --with-binutils-src=binutils-2.46.0 \
+    --with-boot-jdk=~/.gradle/jdks/oracle_corporation-25-amd64-linux.2
 make build-hsdis
-cp ./build/linux-x86_64-server-release/jdk/lib/hsdis-amd64.so \
-    ~/.gradle/jdks/oracle_corporation-24-amd64-linux.2/lib/hsdis.so
+cp ./build/linux-x86_64-server-release/support/hsdis/hsdis-amd64.so \
+    ~/.gradle/jdks/oracle_corporation-25-amd64-linux.2/lib/server/hsdis-amd64.so
 ```
 
 If you want to disassemble a single method do something like this:

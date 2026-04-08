@@ -15,6 +15,8 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesTests;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -31,6 +33,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+
+import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
+import static org.hamcrest.Matchers.equalTo;
 
 public class BytesRefHashTests extends ESTestCase {
 
@@ -338,6 +343,66 @@ public class BytesRefHashTests extends ESTestCase {
     }
 
     // END - tests borrowed from LUCENE
+
+    public void testAddAndFindPagedBytes() {
+        int size = randomIntBetween(1, 1000);
+        try (BytesRefHash hash = randomHash()) {
+            Map<BytesRef, Long> valueToId = new HashMap<>();
+            byte[][] flats = new byte[size][];
+            BytesRef scratch = new BytesRef();
+
+            for (int i = 0; i < size; i++) {
+                flats[i] = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 2));
+                BytesRef flat = new BytesRef(flats[i]);
+                long id = hash.add(PagedBytesTests.newPagedBytes(flats[i]));
+                if (valueToId.containsKey(flat)) {
+                    assertThat(id, equalTo(-1 - valueToId.get(flat)));
+                } else {
+                    assertThat(id, equalTo((long) valueToId.size()));
+                    valueToId.put(flat, id);
+                }
+            }
+
+            for (Map.Entry<BytesRef, Long> entry : valueToId.entrySet()) {
+                long id = entry.getValue();
+                assertThat(hash.find(PagedBytesTests.newPagedBytes(entry.getKey().bytes)), equalTo(id));
+                assertThat(hash.find(entry.getKey()), equalTo(id));
+                assertThat(hash.get(id, scratch), equalTo(entry.getKey()));
+            }
+        }
+    }
+
+    public void testAddBytesRefFindPagedBytes() {
+        int size = randomIntBetween(1, 1000);
+        try (BytesRefHash hash = randomHash()) {
+            Map<BytesRef, Long> valueToId = new HashMap<>();
+
+            for (int i = 0; i < size; i++) {
+                byte[] flat = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 2));
+                BytesRef key = new BytesRef(flat);
+                long id = hash.add(key);
+                if (id >= 0) {
+                    valueToId.put(key, id);
+                }
+            }
+
+            for (Map.Entry<BytesRef, Long> entry : valueToId.entrySet()) {
+                PagedBytes paged = PagedBytesTests.newPagedBytes(entry.getKey().bytes);
+                assertThat(hash.find(paged), equalTo(entry.getValue()));
+            }
+        }
+    }
+
+    public void testAddAndFindPagedBytesMultiPage() {
+        try (BytesRefHash hash = randomHash()) {
+            byte[] flat = randomByteArrayOfLength(BYTE_PAGE_SIZE * 2 + randomIntBetween(1, 100));
+            PagedBytes paged = PagedBytesTests.newPagedBytes(flat);
+            assertThat(hash.add(paged), equalTo(0L));
+            assertThat(hash.add(paged), equalTo(-1L));
+            assertThat(hash.find(paged), equalTo(0L));
+            assertThat(hash.find(new BytesRef(flat)), equalTo(0L));
+        }
+    }
 
     public void testAllocation() {
         MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(512), bigArrays -> new BytesRefHash(1, bigArrays));

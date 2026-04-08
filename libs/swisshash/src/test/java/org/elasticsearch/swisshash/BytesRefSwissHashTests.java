@@ -16,6 +16,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,6 +54,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
 
     private enum AddType {
         SINGLE_VALUE,
+        PAGED_SINGLE_VALUE,
         // ARRAY // at some point, we might add bulk add operations
     }
 
@@ -101,11 +104,26 @@ public class BytesRefSwissHashTests extends ESTestCase {
                     }
                     assertThat(hash.size(), equalTo((long) v.length));
                 }
+                case PAGED_SINGLE_VALUE -> {
+                    for (int i = 0; i < v.length; i++) {
+                        PagedBytes paged = newPagedBytes(v[i], breaker, recycler);
+                        assertThat(hash.add(paged), equalTo((long) i));
+                        assertThat(hash.size(), equalTo(i + 1L));
+                        assertThat(hash.get(i, scratch), equalTo(v[i]));
+                        assertThat(hash.add(paged), equalTo(-1L - i));
+                        assertThat(hash.size(), equalTo(i + 1L));
+                    }
+                    for (int i = 0; i < v.length; i++) {
+                        assertThat(hash.add(newPagedBytes(v[i], breaker, recycler)), equalTo(-1L - i));
+                    }
+                    assertThat(hash.size(), equalTo((long) v.length));
+                }
                 default -> throw new IllegalArgumentException();
             }
 
             for (int i = 0; i < v.length; i++) {
                 assertThat(hash.find(v[i]), equalTo((long) i));
+                assertThat(hash.find(newPagedBytes(v[i], breaker, recycler)), equalTo((long) i));
             }
             assertThat(hash.size(), equalTo((long) v.length));
 
@@ -114,6 +132,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
                 other = new BytesRef(other.utf8ToString() + "_");
             }
             assertThat(hash.find(other), equalTo(-1L));
+            assertThat(hash.find(newPagedBytes(other, breaker, recycler)), equalTo(-1L));
 
             assertStatus(hash);
             // Note: we cannot easily assert recycler.open size because BigArrays (BytesRefArray) usage
@@ -233,6 +252,34 @@ public class BytesRefSwissHashTests extends ESTestCase {
         }
     }
 
+    public void testAddAndFindPagedBytesMultiPage() {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+
+        int len = PageCacheRecycler.BYTE_PAGE_SIZE * 2 + between(1, 100);
+        byte[] flat = new byte[len];
+        random().nextBytes(flat);
+        BytesRef flatRef = new BytesRef(flat);
+
+        try (
+            BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays);
+            PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", len)
+        ) {
+            builder.append(flat, 0, len);
+            PagedBytes paged = builder.view();
+
+            assertThat(hash.add(paged), equalTo(0L));
+            assertThat(hash.add(paged), equalTo(-1L));
+            assertThat(hash.find(paged), equalTo(0L));
+            assertThat(hash.find(flatRef), equalTo(0L));
+
+            BytesRef scratch = new BytesRef();
+            assertThat(hash.get(0, scratch), equalTo(flatRef));
+        }
+        assertThat(recycler.open, hasSize(0));
+    }
+
     private Set<BytesRef> randomValues(int count) {
         Set<BytesRef> values = new HashSet<>();
         while (values.size() < count) {
@@ -241,6 +288,21 @@ public class BytesRefSwissHashTests extends ESTestCase {
             values.add(new BytesRef(bytes));
         }
         return values;
+    }
+
+    /**
+     * Wraps a {@link BytesRef} as a {@link PagedBytes} via {@link PagedBytesBuilder}.
+     * Values from {@link #randomValues} are short (1–20 bytes) so the builder uses its
+     * small-tail mode and never touches the recycler. The returned ref may be used freely;
+     * closing it is a no-op for the recycler.
+     */
+    private static PagedBytes newPagedBytes(BytesRef ref, CircuitBreaker breaker, PageCacheRecycler recycler) {
+        assert ref.length <= PageCacheRecycler.BYTE_PAGE_SIZE : "input too long for single-page helper: " + ref.length;
+        if (ref.length == 0) return PagedBytes.EMPTY;
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", ref.length)) {
+            builder.append(ref.bytes, ref.offset, ref.length);
+            return builder.build();
+        }
     }
 
     static class TestRecycler extends PageCacheRecycler {

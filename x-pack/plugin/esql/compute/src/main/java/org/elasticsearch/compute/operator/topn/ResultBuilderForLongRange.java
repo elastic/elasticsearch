@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
@@ -21,27 +21,37 @@ public class ResultBuilderForLongRange implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys, boolean asc) {
+    public void decodeKey(PagedBytesCursor keys, boolean asc) {
         throw new AssertionError("LongRangeBlock can't be a key");
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
+    public void decodeValue(PagedBytesCursor cursor) {
+        int count = cursor.readVInt();
         if (count == 0) {
             builder.appendNull();
         } else {
-            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-                builder.from().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
+            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(cursor)) {
+                builder.from().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(cursor));
             } else {
                 builder.from().appendNull();
             }
-            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-                builder.to().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
+            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(cursor)) {
+                builder.to().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(cursor));
             } else {
                 builder.to().appendNull();
             }
         }
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        throw new AssertionError("LongRangeBlock can't be a key");
     }
 
     @Override

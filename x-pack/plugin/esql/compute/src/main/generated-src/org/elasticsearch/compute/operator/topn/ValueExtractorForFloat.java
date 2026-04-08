@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
  * Extracts non-sort-key values for top-n from their {@link FloatBlock}s.
@@ -31,11 +31,11 @@ abstract class ValueExtractorForFloat implements ValueExtractor {
         this.inKey = inKey;
     }
 
-    protected final void writeCount(BreakingBytesRefBuilder values, int count) {
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
+    protected final void writeCount(PagedBytesBuilder values, int count) {
+        values.appendVInt(count);
     }
 
-    protected final void actualWriteValue(BreakingBytesRefBuilder values, float value) {
+    protected final void actualWriteValue(PagedBytesBuilder values, float value) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeFloat(value, values);
     }
 
@@ -48,7 +48,7 @@ abstract class ValueExtractorForFloat implements ValueExtractor {
         }
 
         @Override
-        public void writeValue(BreakingBytesRefBuilder values, int position) {
+        public void writeValue(PagedBytesBuilder values, int position) {
             writeCount(values, 1);
             if (inKey) {
                 // will read results from the key
@@ -67,7 +67,7 @@ abstract class ValueExtractorForFloat implements ValueExtractor {
         }
 
         @Override
-        public void writeValue(BreakingBytesRefBuilder values, int position) {
+        public void writeValue(PagedBytesBuilder values, int position) {
             int size = block.getValueCount(position);
             writeCount(values, size);
             if (size == 1 && inKey) {

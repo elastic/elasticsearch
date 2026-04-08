@@ -9,7 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 /**
  * Encodes values for {@link TopNOperator}. Some encoders encode values so sorting
@@ -50,29 +51,29 @@ public interface TopNEncoder {
      */
     UnsupportedTypesTopNEncoder UNSUPPORTED = new UnsupportedTypesTopNEncoder();
 
-    void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder);
+    void encodeLong(long value, PagedBytesBuilder builder);
 
-    long decodeLong(BytesRef bytes);
+    long decodeLong(PagedBytesCursor bytes);
 
-    void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder);
+    void encodeInt(int value, PagedBytesBuilder builder);
 
-    int decodeInt(BytesRef bytes);
+    int decodeInt(PagedBytesCursor bytes);
 
-    void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder);
+    void encodeFloat(float value, PagedBytesBuilder builder);
 
-    float decodeFloat(BytesRef bytes);
+    float decodeFloat(PagedBytesCursor bytes);
 
-    void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder);
+    void encodeDouble(double value, PagedBytesBuilder builder);
 
-    double decodeDouble(BytesRef bytes);
+    double decodeDouble(PagedBytesCursor bytes);
 
-    void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder);
+    void encodeBoolean(boolean value, PagedBytesBuilder builder);
 
-    boolean decodeBoolean(BytesRef bytes);
+    boolean decodeBoolean(PagedBytesCursor bytes);
 
-    void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder);
+    void encodeBytesRef(BytesRef value, PagedBytesBuilder builder);
 
-    BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch);
+    PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch);
 
     /**
      * Get a version of this encoder that encodes values such that sorting

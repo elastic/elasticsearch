@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -24,29 +24,39 @@ public class ResultBuilderForAggregateMetricDouble implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys, boolean asc) {
+    public void decodeKey(PagedBytesCursor keys, boolean asc) {
         throw new AssertionError("AggregateMetricDoubleBlock can't be a key");
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
+    public void decodeValue(PagedBytesCursor cursor) {
+        int count = cursor.readVInt();
         if (count == 0) {
             builder.appendNull();
             return;
         }
         for (BlockLoader.DoubleBuilder subBuilder : List.of(builder.min(), builder.max(), builder.sum())) {
-            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-                subBuilder.appendDouble(TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(values));
+            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(cursor)) {
+                subBuilder.appendDouble(TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(cursor));
             } else {
                 subBuilder.appendNull();
             }
         }
-        if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-            builder.count().appendInt(TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values));
+        if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(cursor)) {
+            builder.count().appendInt(TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(cursor));
         } else {
             builder.count().appendNull();
         }
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        throw new AssertionError("AggregateMetricDoubleBlock can't be a key");
     }
 
     @Override

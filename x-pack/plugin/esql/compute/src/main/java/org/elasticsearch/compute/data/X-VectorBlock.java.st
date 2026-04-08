@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -64,6 +65,14 @@ $else$
         return vector.get$Type$(valueIndex);
 $endif$
     }
+
+$if(BytesRef)$
+    @Override
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return vector.get(valueIndex, scratch);
+    }
+
+$endif$
 
     @Override
     public int getPositionCount() {

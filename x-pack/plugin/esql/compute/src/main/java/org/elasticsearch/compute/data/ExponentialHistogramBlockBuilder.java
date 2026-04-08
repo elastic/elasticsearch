@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -22,7 +22,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
     private final DoubleBlock.Builder zeroThresholdsBuilder;
     private final BytesRefBlock.Builder encodedHistogramsBuilder;
 
-    private final BytesRef scratch = new BytesRef();
+    private final PagedBytesCursor scratch = new PagedBytesCursor();
 
     ExponentialHistogramBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         DoubleBlock.Builder minimaBuilder = null;
@@ -168,7 +168,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
             minimaBuilder.appendNull();
             maximaBuilder.appendNull();
         }
-        encodedHistogramsBuilder.appendBytesRef(input.readBytesRef(scratch));
+        encodedHistogramsBuilder.append(input.readBytesRef(scratch));
     }
 
     @Override

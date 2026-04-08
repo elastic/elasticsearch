@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 
@@ -23,13 +23,17 @@ class ResultBuilderFor$Type$ implements ResultBuilder {
     private final TopNEncoder encoder;
 
 $if(BytesRef)$
-    private final BytesRef scratch = new BytesRef();
+    private final PagedBytesCursor scratch = new PagedBytesCursor();
 $endif$
 
     /**
      * The value previously set by {@link #decodeKey}.
      */
+$if(BytesRef)$
+    private PagedBytesCursor key;
+$else$
     private $type$ key;
+$endif$
 
     ResultBuilderFor$Type$(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         this.encoder = encoder;
@@ -38,7 +42,7 @@ $endif$
     }
 
     @Override
-    public void decodeKey(BytesRef keys, boolean asc) {
+    public void decodeKey(PagedBytesCursor keys, boolean asc) {
         assert inKey;
 $if(BytesRef)$
         key = encoder.toSortable(asc).decodeBytesRef(keys, scratch);
@@ -48,29 +52,43 @@ $endif$
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
+    public void decodeValue(PagedBytesCursor cursor) {
+        int count = cursor.readVInt();
         switch (count) {
             case 0 -> {
                 builder.appendNull();
             }
-            case 1 -> builder.append$Type$(inKey ? key : readValueFromValues(values));
+            case 1 -> builder.$if(BytesRef)$append$else$append$Type$$endif$(inKey ? key : readValueFromValues(cursor));
             default -> {
                 builder.beginPositionEntry();
                 for (int i = 0; i < count; i++) {
-                    builder.append$Type$(readValueFromValues(values));
+                    builder.$if(BytesRef)$append$else$append$Type$$endif$(readValueFromValues(cursor));
                 }
                 builder.endPositionEntry();
             }
         }
     }
 
-    private $type$ readValueFromValues(BytesRef values) {
 $if(BytesRef)$
-        return encoder.toUnsortable().decodeBytesRef(values, scratch);
+    private PagedBytesCursor readValueFromValues(PagedBytesCursor cursor) {
 $else$
-        return TopNEncoder.DEFAULT_UNSORTABLE.decode$Type$(values);
+    private $type$ readValueFromValues(PagedBytesCursor cursor) {
 $endif$
+$if(BytesRef)$
+        return encoder.toUnsortable().decodeBytesRef(cursor, scratch);
+$else$
+        return TopNEncoder.DEFAULT_UNSORTABLE.decode$Type$(cursor);
+$endif$
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        builder.$if(BytesRef)$append$else$append$Type$$endif$(key);
     }
 
     @Override

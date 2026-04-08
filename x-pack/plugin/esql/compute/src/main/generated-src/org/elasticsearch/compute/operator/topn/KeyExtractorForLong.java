@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.util.Locale;
 
@@ -43,12 +43,12 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    protected final void nonNul(BreakingBytesRefBuilder key, long value) {
+    protected final void nonNul(PagedBytesBuilder key, long value) {
         key.append(nonNul);
         encoder.encodeLong(value, key);
     }
 
-    protected final void nul(BreakingBytesRefBuilder key) {
+    protected final void nul(PagedBytesBuilder key) {
         key.append(nul);
     }
 
@@ -66,7 +66,7 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             nonNul(key, vector.getLong(position));
         }
     }
@@ -80,7 +80,7 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             if (block.isNull(position)) {
                 nul(key);
                 return;
@@ -98,7 +98,7 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             if (block.isNull(position)) {
                 nul(key);
                 return;
@@ -116,7 +116,7 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 nul(key);
@@ -141,7 +141,7 @@ abstract class KeyExtractorForLong implements KeyExtractor {
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 nul(key);

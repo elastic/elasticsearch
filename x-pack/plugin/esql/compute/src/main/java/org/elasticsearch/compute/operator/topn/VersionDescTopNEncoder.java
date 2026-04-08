@@ -8,7 +8,8 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 import static org.elasticsearch.compute.operator.topn.VersionAscTopNEncoder.refuseNul;
 
@@ -20,27 +21,19 @@ class VersionDescTopNEncoder extends SortableDescTopNEncoder {
     }
 
     @Override
-    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, PagedBytesBuilder builder) {
         // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
         refuseNul(value);
-        int length = bytesRefBuilder.length();
-        bytesRefBuilder.append(value);
-        bitwiseNot(bytesRefBuilder.bytes(), length, bytesRefBuilder.length());
-        bytesRefBuilder.append((byte) ~Utf8AscTopNEncoder.TERMINATOR);
+        builder.appendNot(value.bytes, value.offset, value.length);
+        builder.append((byte) ~Utf8AscTopNEncoder.TERMINATOR);
     }
 
     @Override
-    public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        int i = bytes.offset;
-        while (bytes.bytes[i] != (byte) ~Utf8AscTopNEncoder.TERMINATOR) {
-            i++;
-        }
-        scratch.bytes = bytes.bytes;
-        scratch.offset = bytes.offset;
-        scratch.length = i - bytes.offset;
-        bytes.offset += scratch.length + 1;
-        bytes.length -= scratch.length + 1;
-        bitwiseNot(scratch.bytes, scratch.offset, scratch.offset + scratch.length);
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
+        cursor.readTerminatedBytesRef((byte) ~Utf8AscTopNEncoder.TERMINATOR, scratch.scratchBytes);
+        BytesRef sb = scratch.scratchBytes;
+        bitwiseNot(sb.bytes, sb.offset, sb.offset + sb.length);
+        scratch.init(sb);
         return scratch;
     }
 

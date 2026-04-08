@@ -8,13 +8,13 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
@@ -98,7 +98,7 @@ public class TopNOperator implements Operator, Accountable {
             for (KeyExtractor keyExtractor : keyExtractors) {
                 keyExtractor.writeKey(row.keys, position);
             }
-            keyPreAllocSize = newPreAllocSize(row.keys, keyPreAllocSize);
+            keyPreAllocSize = newPreAllocSize(row.keys.length(), keyPreAllocSize);
         }
 
         void writeValues(int position, TopNRow destination) {
@@ -109,15 +109,15 @@ public class TopNOperator implements Operator, Accountable {
                 }
                 e.writeValue(destination.values, position);
             }
-            valuePreAllocSize = newPreAllocSize(destination.values, valuePreAllocSize);
+            valuePreAllocSize = newPreAllocSize(destination.values.length(), valuePreAllocSize);
         }
 
         /**
          * Pre-allocation size heuristic: use the larger of the current builder length and half
          * the previous pre-alloc size, so the size decays after a single unusually large row.
          */
-        private static int newPreAllocSize(BreakingBytesRefBuilder builder, int sparePreAllocSize) {
-            return Math.max(builder.length(), sparePreAllocSize / 2);
+        private static int newPreAllocSize(int length, int sparePreAllocSize) {
+            return Math.max(length, sparePreAllocSize / 2);
         }
     }
 
@@ -317,7 +317,12 @@ public class TopNOperator implements Operator, Accountable {
 
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
-                    spare = new TopNRow(breaker, rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
+                    spare = new TopNRow(
+                        breaker,
+                        blockFactory.bigArrays().recycler(),
+                        rowFiller.preAllocatedKeysSize(),
+                        rowFiller.preAllocatedValueSize()
+                    );
                 } else {
                     spare.clear();
                 }
@@ -371,7 +376,7 @@ public class TopNOperator implements Operator, Accountable {
         if (minCompetitive == null || inputQueue == null || inputQueue.size() < inputQueue.topCount) {
             return;
         }
-        if (minCompetitive.offer(inputQueue.top().keys.bytesRefView())) {
+        if (minCompetitive.offer(inputQueue.top().keys)) {
             minCompetitiveUpdates++;
         }
     }
@@ -508,6 +513,7 @@ public class TopNOperator implements Operator, Accountable {
     private class Result implements ReleasableIterator<Page> {
         private final List<TopNRow> rows;
         private int r;
+        private final PagedBytesCursor scratch = new PagedBytesCursor();
 
         private Result(List<TopNRow> rows) {
             this.rows = rows;
@@ -533,8 +539,12 @@ public class TopNOperator implements Operator, Accountable {
                 int rEnd = r + size;
                 while (r < rEnd) {
                     try (TopNRow row = rows.set(r++, null)) {
-                        readKeys(builders, row.keys.bytesRefView());
-                        readValues(builders, row.values.bytesRefView());
+                        try (PagedBytes keysRef = row.keys.build()) {
+                            readKeys(builders, keysRef);
+                        }
+                        try (PagedBytes valuesRef = row.values.build()) {
+                            readValues(builders, valuesRef.cursor(scratch));
+                        }
                     }
                     if (totalSize(builders) > jumboPageBytes) {
                         break;
@@ -563,30 +573,24 @@ public class TopNOperator implements Operator, Accountable {
         /**
          * Read keys into the results. See {@link KeyExtractor} for the key layout.
          */
-        private void readKeys(ResultBuilder[] builders, BytesRef keys) {
+        private void readKeys(ResultBuilder[] builders, PagedBytes keysRef) {
+            PagedBytesCursor cursor = keysRef.cursor(scratch);
             for (SortOrder so : sortOrders) {
-                if (keys.bytes[keys.offset] == so.nul()) {
-                    // Discard the null byte.
-                    keys.offset++;
-                    keys.length--;
+                if (cursor.readByte() == so.nul()) {
                     continue;
                 }
-                // Discard the non_null byte.
-                keys.offset++;
-                keys.length--;
-                // Read the key. This will modify offset and length for the next iteration.
-                builders[so.channel].decodeKey(keys, so.asc);
+                builders[so.channel].decodeKey(cursor, so.asc);
             }
-            if (keys.length != 0) {
+            if (cursor.remaining() != 0) {
                 throw new IllegalArgumentException("didn't read all keys");
             }
         }
 
-        private void readValues(ResultBuilder[] builders, BytesRef values) {
+        private void readValues(ResultBuilder[] builders, PagedBytesCursor cursor) {
             for (ResultBuilder builder : builders) {
-                builder.decodeValue(values);
+                builder.decodeValue(cursor);
             }
-            if (values.length != 0) {
+            if (cursor.remaining() != 0) {
                 throw new IllegalArgumentException("didn't read all values");
             }
         }

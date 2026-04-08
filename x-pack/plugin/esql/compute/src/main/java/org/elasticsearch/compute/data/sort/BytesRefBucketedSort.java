@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data.sort;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.ObjectArray;
@@ -26,6 +28,8 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+
+import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 
 /**
  * Aggregates the top N variable length {@link BytesRef} values per bucket.
@@ -135,6 +139,40 @@ public class BytesRefBucketedSort implements Releasable {
         common.assertValidNextOffset(next);
         long index = next + rootIndex;
         clearedBytesAt(index).append(value);
+        if (next == 0) {
+            common.enableHeapMode(bucket);
+            heapify(rootIndex, common.bucketSize);
+        } else {
+            ByteUtils.writeIntLE(next - 1, values.get(rootIndex).bytes(), 0);
+        }
+        checkInvariant(bucket);
+    }
+
+    /**
+     * Collects a {@code value} into a {@code bucket}.
+     * <p>
+     *     It may or may not be inserted in the heap, depending on if it is better than the current root.
+     * </p>
+     */
+    public void collect(PagedBytesBuilder value, int bucket) {
+        long rootIndex = common.rootIndex(bucket);
+        if (common.inHeapMode(bucket)) {
+            if (betterThan(value.view(), values.get(rootIndex).bytesRefView())) {
+                copyInto(clearedBytesAt(rootIndex), value.view());
+                downHeap(rootIndex, 0, common.bucketSize);
+            }
+            checkInvariant(bucket);
+            return;
+        }
+        // Gathering mode
+        long requiredSize = common.endIndex(rootIndex);
+        if (values.size() < requiredSize) {
+            grow(bucket);
+        }
+        int next = getNextGatherOffset(rootIndex);
+        common.assertValidNextOffset(next);
+        long index = next + rootIndex;
+        copyInto(clearedBytesAt(index), value.view());
         if (next == 0) {
             common.enableHeapMode(bucket);
             heapify(rootIndex, common.bucketSize);
@@ -256,6 +294,20 @@ public class BytesRefBucketedSort implements Releasable {
      */
     private boolean betterThan(BytesRef lhs, BytesRef rhs) {
         return common.order.reverseMul() * lhs.compareTo(rhs) < 0;
+    }
+
+    private boolean betterThan(PagedBytes lhs, BytesRef rhs) {
+        return common.order.reverseMul() * lhs.compareTo(rhs) < 0;
+    }
+
+    private static void copyInto(BreakingBytesRefBuilder dst, PagedBytes src) {
+        byte[][] pages = src.pages();
+        int remaining = src.length();
+        for (int i = 0; remaining > 0; i++) {
+            int pageLen = Math.min(remaining, BYTE_PAGE_SIZE);
+            dst.append(pages[i], 0, pageLen);
+            remaining -= pageLen;
+        }
     }
 
     /**

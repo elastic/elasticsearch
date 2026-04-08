@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.topn;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,10 @@ public abstract class AbstractUtf8TopNEncoderTests extends AbstractSortableTopNE
         return tests.stream().map(t -> new Object[] { t }).toList();
     }
 
+    protected AbstractUtf8TopNEncoderTests(TestCase<?> testCase) {
+        super(testCase);
+    }
+
     private static List<TestCase<BytesRef>> testCases(String name, Supplier<String> randomValue) {
         return List.of(
             testCase(name, () -> new BytesRef(randomValue.get())),
@@ -33,16 +38,9 @@ public abstract class AbstractUtf8TopNEncoderTests extends AbstractSortableTopNE
     }
 
     private static TestCase<BytesRef> testCase(String name, Supplier<BytesRef> randomValue) {
-        return new TestCase<>(
-            name,
-            randomValue,
-            BytesRef::compareTo,
-            TopNEncoder::encodeBytesRef,
-            (encoder, encoded) -> encoder.decodeBytesRef(encoded, new BytesRef())
-        );
-    }
-
-    protected AbstractUtf8TopNEncoderTests(TestCase<?> testCase) {
-        super(testCase);
+        return new TestCase<>(name, randomValue, BytesRef::compareTo, TopNEncoder::encodeBytesRef, (encoder, cursor) -> {
+            PagedBytesCursor decoded = encoder.decodeBytesRef(cursor, new PagedBytesCursor());
+            return decoded.readBytesRef(decoded.remaining(), new BytesRef());
+        });
     }
 }

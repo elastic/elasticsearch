@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -54,6 +55,12 @@ $endif$
     }
 
 $if(BytesRef)$
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        scratch.init(value.bytes, 0, value.offset, value.length);
+        return scratch;
+    }
+
 $else$
     @Override
     public void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {

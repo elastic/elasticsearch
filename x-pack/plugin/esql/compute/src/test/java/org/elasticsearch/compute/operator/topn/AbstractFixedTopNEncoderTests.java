@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -35,12 +36,9 @@ public abstract class AbstractFixedTopNEncoderTests extends AbstractSortableTopN
     }
 
     private static TestCase<BytesRef> testCase(String name, Supplier<BytesRef> randomValue) {
-        return new TestCase<>(
-            name,
-            randomValue,
-            BytesRef::compareTo,
-            TopNEncoder::encodeBytesRef,
-            (encoder, encoded) -> encoder.decodeBytesRef(encoded, new BytesRef())
-        );
+        return new TestCase<>(name, randomValue, BytesRef::compareTo, TopNEncoder::encodeBytesRef, (encoder, cursor) -> {
+            PagedBytesCursor decoded = encoder.decodeBytesRef(cursor, new PagedBytesCursor());
+            return decoded.readBytesRef(decoded.remaining(), new BytesRef());
+        });
     }
 }

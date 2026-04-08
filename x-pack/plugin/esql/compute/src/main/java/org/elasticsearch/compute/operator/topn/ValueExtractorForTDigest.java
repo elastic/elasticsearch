@@ -8,14 +8,14 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.TDigestBlock;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 public class ValueExtractorForTDigest implements ValueExtractor {
     private final TDigestBlock block;
 
     private final BytesRef scratch = new BytesRef();
-    private final ReusableTopNEncoderOutput reusableOutput = new ReusableTopNEncoderOutput();
+    private final PagedReusableTopNEncoderOutput pagedReusableOutput = new PagedReusableTopNEncoderOutput();
 
     ValueExtractorForTDigest(TopNEncoder encoder, TDigestBlock block) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE;
@@ -23,16 +23,16 @@ public class ValueExtractorForTDigest implements ValueExtractor {
     }
 
     @Override
-    public void writeValue(BreakingBytesRefBuilder values, int position) {
+    public void writeValue(PagedBytesBuilder values, int position) {
         // number of multi-values first for compatibility with ValueExtractorForNull
         if (block.isNull(position)) {
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(0, values);
+            values.appendVInt(0);
         } else {
             assert block.getValueCount(position) == 1 : "Multi-valued ExponentialHistogram blocks are not supported in TopN";
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(1, values);
+            values.appendVInt(1);
             int valueIndex = block.getFirstValueIndex(position);
-            reusableOutput.target = values;
-            block.serializeTDigest(valueIndex, reusableOutput, scratch);
+            pagedReusableOutput.target = values;
+            block.serializeTDigest(valueIndex, pagedReusableOutput, scratch);
         }
     }
 
@@ -41,8 +41,8 @@ public class ValueExtractorForTDigest implements ValueExtractor {
         return "ValueExtractorForExponentialHistogram";
     }
 
-    private static final class ReusableTopNEncoderOutput implements TDigestBlock.SerializedTDigestOutput {
-        BreakingBytesRefBuilder target;
+    private static final class PagedReusableTopNEncoderOutput implements TDigestBlock.SerializedTDigestOutput {
+        PagedBytesBuilder target;
 
         @Override
         public void appendDouble(double value) {

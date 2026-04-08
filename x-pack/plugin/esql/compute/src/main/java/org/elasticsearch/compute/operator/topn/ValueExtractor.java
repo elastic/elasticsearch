@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -20,15 +21,14 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.TDigestBlock;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 
 /**
- * Extracts values into a {@link BreakingBytesRefBuilder}.
+ * Extracts values into a {@link PagedBytesBuilder}.
  */
 interface ValueExtractor {
-    void writeValue(BreakingBytesRefBuilder values, int position);
+    void writeValue(PagedBytesBuilder values, int position);
 
     /**
      * This should return a non-null value if the row is supposed to hold a temporary reference to a shard (including incrementing and

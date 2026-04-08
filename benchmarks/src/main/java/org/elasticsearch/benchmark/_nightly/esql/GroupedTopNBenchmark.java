@@ -19,13 +19,13 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.Releasables;
+import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
@@ -106,7 +106,7 @@ public class GroupedTopNBenchmark {
     @Param({ "10", "100", "1000" })
     public int groupCount;
 
-    @Param({ LONGS, BYTES_REFS, LONGS + AND + LONGS, BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
+    @Param({ LONGS, BYTES_REFS, LONGS, BYTES_REFS, LONGS + AND + LONGS, BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
     public String groupKeys;
 
     private static Operator operator(String data, int topCount, String groupKeys) {
@@ -130,7 +130,7 @@ public class GroupedTopNBenchmark {
             elementTypes,
             encoders,
             sortOrders,
-            new GroupKeyEncoder(groupKeyChannels, elementTypes, new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder")),
+            new GroupKeyEncoder(groupKeyChannels, elementTypes, blockFactory.breaker(), blockFactory.bigArrays().recycler()),
             8 * 1024,
             Long.MAX_VALUE
         );
@@ -255,7 +255,7 @@ public class GroupedTopNBenchmark {
         };
     }
 
-    // @Benchmark - disabled temporarily, too slow (225 parameter combinations)
+    @Benchmark
     @OperationsPerInvocation(NUM_PAGES * BLOCK_LENGTH)
     public void run() {
         run(data, topCount, groupCount, groupKeys, NUM_PAGES);

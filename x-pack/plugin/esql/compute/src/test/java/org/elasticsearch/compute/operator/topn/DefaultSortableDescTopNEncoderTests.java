@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -22,7 +22,7 @@ public class DefaultSortableDescTopNEncoderTests extends AbstractDefaultSortable
     }
 
     @Override
-    protected void assertMinMax(BreakingBytesRefBuilder min, BreakingBytesRefBuilder max) {
-        assertThat(min.bytesRefView(), greaterThan(max.bytesRefView()));
+    protected void assertMinMax(PagedBytesBuilder min, PagedBytesBuilder max) {
+        assertThat(min, greaterThan(max));
     }
 }

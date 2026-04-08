@@ -12,7 +12,7 @@ import org.apache.lucene.util.BytesRef;
 $endif$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 import java.util.Locale;
 
@@ -49,7 +49,7 @@ $endif$
         this.nonNul = nonNul;
     }
 
-    protected final void nonNul(BreakingBytesRefBuilder key, $type$ value) {
+    protected final void nonNul(PagedBytesBuilder key, $type$ value) {
         key.append(nonNul);
 $if(BytesRef)$
         encoder.encodeBytesRef(value, key);
@@ -60,7 +60,7 @@ $else$
 $endif$
     }
 
-    protected final void nul(BreakingBytesRefBuilder key) {
+    protected final void nul(PagedBytesBuilder key) {
         key.append(nul);
     }
 
@@ -82,7 +82,7 @@ $endif$
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
 $if(BytesRef)$
             nonNul(key, vector.get$Type$(position, scratch));
 $else$
@@ -100,7 +100,7 @@ $endif$
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             if (block.isNull(position)) {
                 nul(key);
                 return;
@@ -122,7 +122,7 @@ $endif$
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             if (block.isNull(position)) {
                 nul(key);
                 return;
@@ -148,7 +148,7 @@ $endif$
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 nul(key);
@@ -198,7 +198,7 @@ $endif$
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 nul(key);

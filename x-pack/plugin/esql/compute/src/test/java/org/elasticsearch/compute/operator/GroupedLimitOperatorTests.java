@@ -407,7 +407,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
     }
 
     private static GroupKeyEncoder groupKeyEncoder(BlockFactory blockFactory, int[] groupChannels, List<ElementType> elementTypes) {
-        return new GroupKeyEncoder(groupChannels, elementTypes, new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder"));
+        return new GroupKeyEncoder(groupChannels, elementTypes, blockFactory.breaker(), blockFactory.bigArrays().recycler());
     }
 
     @Override

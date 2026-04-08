@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 
@@ -22,12 +22,12 @@ class ResultBuilderForBytesRef implements ResultBuilder {
 
     private final TopNEncoder encoder;
 
-    private final BytesRef scratch = new BytesRef();
+    private final PagedBytesCursor scratch = new PagedBytesCursor();
 
     /**
      * The value previously set by {@link #decodeKey}.
      */
-    private BytesRef key;
+    private PagedBytesCursor key;
 
     ResultBuilderForBytesRef(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         this.encoder = encoder;
@@ -36,31 +36,41 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys, boolean asc) {
+    public void decodeKey(PagedBytesCursor keys, boolean asc) {
         assert inKey;
         key = encoder.toSortable(asc).decodeBytesRef(keys, scratch);
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
+    public void decodeValue(PagedBytesCursor cursor) {
+        int count = cursor.readVInt();
         switch (count) {
             case 0 -> {
                 builder.appendNull();
             }
-            case 1 -> builder.appendBytesRef(inKey ? key : readValueFromValues(values));
+            case 1 -> builder.append(inKey ? key : readValueFromValues(cursor));
             default -> {
                 builder.beginPositionEntry();
                 for (int i = 0; i < count; i++) {
-                    builder.appendBytesRef(readValueFromValues(values));
+                    builder.append(readValueFromValues(cursor));
                 }
                 builder.endPositionEntry();
             }
         }
     }
 
-    private BytesRef readValueFromValues(BytesRef values) {
-        return encoder.toUnsortable().decodeBytesRef(values, scratch);
+    private PagedBytesCursor readValueFromValues(PagedBytesCursor cursor) {
+        return encoder.toUnsortable().decodeBytesRef(cursor, scratch);
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        builder.append(key);
     }
 
     @Override

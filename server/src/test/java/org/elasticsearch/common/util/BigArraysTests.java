@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -338,6 +339,52 @@ public class BigArraysTests extends ESTestCase {
             assertEquals(new BytesRef(array1, offset, len), ref);
         }
         array2.close();
+    }
+
+    public void testByteArrayCursorGet() {
+        final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
+        random().nextBytes(array1);
+        final ByteArray array2 = bigArrays.newByteArray(array1.length, randomBoolean());
+        for (int i = 0; i < array1.length; ++i) {
+            array2.set(i, array1[i]);
+        }
+        final PagedBytesCursor cursor = new PagedBytesCursor();
+        for (int i = 0; i < 1000; ++i) {
+            final int offset = randomInt(array1.length - 1);
+            final int len = randomInt(Math.min(randomBoolean() ? 10 : Integer.MAX_VALUE, array1.length - offset));
+            array2.get(offset, len, cursor);
+            assertThat(cursor.remaining(), equalTo(len));
+            for (int j = 0; j < len; j++) {
+                assertThat(cursor.readByte(), equalTo(array1[offset + j]));
+            }
+            assertThat(cursor.remaining(), equalTo(0));
+        }
+        array2.close();
+    }
+
+    public void testReleasableByteArrayCursorGet() throws Exception {
+        final byte[] array1 = new byte[randomIntBetween(1, 100_000)];
+        random().nextBytes(array1);
+        final ByteArray source = bigArrays.newByteArray(array1.length, randomBoolean());
+        for (int i = 0; i < array1.length; ++i) {
+            source.set(i, array1[i]);
+        }
+        final BytesStreamOutput out = new BytesStreamOutput();
+        source.writeTo(out);
+        source.close();
+        final PagedBytesCursor cursor = new PagedBytesCursor();
+        try (ByteArray array2 = ByteArray.readFrom(out.bytes().streamInput())) {
+            for (int i = 0; i < 100; ++i) {
+                final int offset = randomInt(array1.length - 1);
+                final int len = randomInt(array1.length - offset);
+                array2.get(offset, len, cursor);
+                assertThat(cursor.remaining(), equalTo(len));
+                for (int j = 0; j < len; j++) {
+                    assertThat(cursor.readByte(), equalTo(array1[offset + j]));
+                }
+                assertThat(cursor.remaining(), equalTo(0));
+            }
+        }
     }
 
     public void testByteArrayBulkSet() {

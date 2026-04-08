@@ -8,7 +8,8 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 import java.util.Arrays;
 
@@ -29,53 +30,32 @@ final class Utf8AscTopNEncoder extends SortableAscTopNEncoder {
     private final Utf8DescTopNEncoder descEncoder = new Utf8DescTopNEncoder(this);
 
     @Override
-    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        /*
-         * add one to every non-continuation byte so that there are no "0" bytes
-         * in the encoded copy. The only "0" bytes are separators.
-         */
+    public void encodeBytesRef(BytesRef value, PagedBytesBuilder builder) {
         int end = value.offset + value.length;
         for (int i = value.offset; i < end; i++) {
             byte b = value.bytes[i];
             if ((b & CONTINUATION_BYTE) == 0) {
                 b++;
             }
-            bytesRefBuilder.append(b);
+            builder.append(b);
         }
-        bytesRefBuilder.append(TERMINATOR);
+        builder.append(TERMINATOR);
     }
 
     @Override
-    public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        scratch.bytes = bytes.bytes;
-        scratch.offset = bytes.offset;
-        int i = bytes.offset;
-        decode: while (true) {
-            int leadByte = bytes.bytes[i] & 0xff;
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
+        cursor.readTerminatedBytesRef(TERMINATOR, scratch.scratchBytes);
+        BytesRef sb = scratch.scratchBytes;
+        int i = 0;
+        while (i < sb.length) {
+            int leadByte = sb.bytes[i] & 0xff;
             int numBytes = utf8CodeLength[leadByte];
-            switch (numBytes) {
-                case 0:
-                    break decode;
-                case 1:
-                    bytes.bytes[i]--;
-                    i++;
-                    break;
-                case 2:
-                    i += 2;
-                    break;
-                case 3:
-                    i += 3;
-                    break;
-                case 4:
-                    i += 4;
-                    break;
-                default:
-                    throw new IllegalArgumentException("Invalid UTF8 header byte: 0x" + Integer.toHexString(leadByte));
+            if (numBytes == 1) {
+                sb.bytes[i]--;
             }
+            i += numBytes;
         }
-        scratch.length = i - bytes.offset;
-        bytes.offset = i + 1;
-        bytes.length -= scratch.length + 1;
+        scratch.init(sb);
         return scratch;
     }
 

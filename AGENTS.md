@@ -9,6 +9,7 @@
 
 ## Build & Run Commands
 - Refer to BUILDING.md, CONTRIBUTING.md & TESTING.asciidoc for comprehensive build/test instructions.
+- Before running benchmarks, read `benchmarks/AGENTS.md`.
 
 ## Verification & Lint Tasks
 - `./gradlew spotlessJavaCheck` / `spotlessApply` (or `:server:spotlessJavaCheck`): enforce formatter profile in `build-conventions/formatterConfig.xml`.

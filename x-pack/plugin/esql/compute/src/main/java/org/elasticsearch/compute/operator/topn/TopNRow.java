@@ -10,7 +10,8 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -30,14 +31,14 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
     /**
      * The sort keys, encoded into bytes so we can sort by calling {@link Arrays#compareUnsigned}.
      */
-    final BreakingBytesRefBuilder keys;
+    final PagedBytesBuilder keys;
 
     /**
      * Values to reconstruct the row. When we reconstruct the row we read
      * from both the {@link #keys} and the {@link #values}. So this only contains
      * what is required to reconstruct the row that isn't already stored in {@link #keys}.
      */
-    final BreakingBytesRefBuilder values;
+    final PagedBytesBuilder values;
 
     /**
      * Reference counter for the shard this row belongs to, used for rows containing a
@@ -46,13 +47,13 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
     @Nullable
     RefCounted shardRefCounter;
 
-    TopNRow(CircuitBreaker breaker, int preAllocatedKeysSize, int preAllocatedValueSize) {
+    TopNRow(CircuitBreaker breaker, PageCacheRecycler recycler, int preAllocatedKeysSize, int preAllocatedValueSize) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
         this.breaker = breaker;
         boolean success = false;
         try {
-            keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
-            values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
+            keys = new PagedBytesBuilder(recycler, breaker, "topn", preAllocatedKeysSize);
+            values = new PagedBytesBuilder(recycler, breaker, "topn", 0);
             success = true;
         } finally {
             if (success == false) {
@@ -97,7 +98,7 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
     public int compareTo(TopNRow rhs) {
         // TODO if we fill the trailing bytes with 0 we could do a comparison on the entire array
         // When Nik measured this it was marginally faster. But it's worth a bit of research.
-        return -keys.bytesRefView().compareTo(rhs.keys.bytesRefView());
+        return -keys.compareTo(rhs.keys);
     }
 
     @Override
@@ -106,33 +107,16 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
             return false;
         }
         TopNRow row = (TopNRow) o;
-        return keys.bytesRefView().equals(row.keys.bytesRefView());
+        return keys.equals(row.keys);
     }
 
     @Override
     public int hashCode() {
-        return keys.bytesRefView().hashCode();
+        return keys.hashCode();
     }
 
     @Override
     public String toString() {
-        StringBuilder b = new StringBuilder("TopNRow[key=");
-        b.append(keys.bytesRefView());
-        b.append(", values=");
-
-        if (values.length() < 100) {
-            b.append(values.bytesRefView());
-        } else {
-            b.append('[');
-            assert values.bytesRefView().offset == 0;
-            for (int i = 0; i < 100; i++) {
-                if (i != 0) {
-                    b.append(" ");
-                }
-                b.append(Integer.toHexString(values.bytesRefView().bytes[i] & 255));
-            }
-            b.append("...");
-        }
-        return b.append("]").toString();
+        return "TopNRow[key=" + keys + ", values=[" + values + "]]";
     }
 }

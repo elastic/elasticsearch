@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -420,6 +422,60 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
 
         assertEquals(positions, block1.getPositionCount());
         assertAllEquals(List.of(block1, block2, block3));
+    }
+
+    public void testAppendBytesRefPagedBytes() {
+        int size = randomIntBetween(1, 20);
+        byte[][] data = new byte[size][];
+        for (int i = 0; i < size; i++) {
+            data[i] = randomByteArrayOfLength(randomIntBetween(0, 100));
+        }
+
+        BytesRefBlock.Builder refBlockBuilder = blockFactory.newBytesRefBlockBuilder(size);
+        BytesRefBlock.Builder pagedBlockBuilder = blockFactory.newBytesRefBlockBuilder(size);
+        BytesRefBlock.Builder builderBlockBuilder = blockFactory.newBytesRefBlockBuilder(size);
+        BytesRefVector.Builder refVectorBuilder = blockFactory.newBytesRefVectorBuilder(size);
+        BytesRefVector.Builder pagedVectorBuilder = blockFactory.newBytesRefVectorBuilder(size);
+        BytesRefVector.Builder builderVectorBuilder = blockFactory.newBytesRefVectorBuilder(size);
+        for (byte[] datum : data) {
+            refBlockBuilder.appendBytesRef(new BytesRef(datum));
+            refVectorBuilder.appendBytesRef(new BytesRef(datum));
+            try (
+                PagedBytesBuilder paged = new PagedBytesBuilder(
+                    PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST),
+                    "test",
+                    datum.length
+                );
+                PagedBytesBuilder built = new PagedBytesBuilder(
+                    PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST),
+                    "test",
+                    datum.length
+                )
+            ) {
+                paged.append(datum, 0, datum.length);
+                built.append(datum, 0, datum.length);
+                pagedBlockBuilder.appendBytesRef(paged.view());
+                pagedVectorBuilder.appendBytesRef(paged.view());
+                builderBlockBuilder.appendBytesRef(built);
+                builderVectorBuilder.appendBytesRef(built);
+            }
+        }
+        try (
+            BytesRefBlock ref = refBlockBuilder.build();
+            BytesRefBlock paged = pagedBlockBuilder.build();
+            BytesRefBlock built = builderBlockBuilder.build()
+        ) {
+            assertAllEquals(List.of(ref, paged, built));
+        }
+        try (
+            BytesRefVector ref = refVectorBuilder.build();
+            BytesRefVector paged = pagedVectorBuilder.build();
+            BytesRefVector built = builderVectorBuilder.build()
+        ) {
+            assertAllEquals(List.of(ref, paged, built));
+        }
     }
 
     BytesRefArray arrayOf(String... values) {

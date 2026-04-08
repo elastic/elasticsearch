@@ -139,6 +139,7 @@ public class TopNBenchmark {
             ClusterSettings.createBuiltInClusterSettings()
         );
         SharedMinCompetitive.Supplier minCompetitive = new SharedMinCompetitive.Supplier(
+            blockFactory.bigArrays().recycler(),
             blockFactory.breaker(),
             IntStream.range(0, encoders.size())
                 .mapToObj(

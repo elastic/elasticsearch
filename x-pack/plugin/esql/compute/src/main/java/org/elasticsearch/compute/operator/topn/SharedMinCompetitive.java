@@ -7,13 +7,15 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.SideChannel;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -31,17 +33,19 @@ public class SharedMinCompetitive extends SideChannel {
     public record KeyConfig(ElementType elementType, TopNEncoder encoder, boolean asc, boolean nullsFirst) {}
 
     public static class Supplier extends SideChannel.Supplier<SharedMinCompetitive> {
+        private final PageCacheRecycler recycler;
         private final CircuitBreaker breaker;
         private final List<KeyConfig> keyConfigs;
 
-        public Supplier(CircuitBreaker breaker, List<KeyConfig> keyConfig) {
+        public Supplier(PageCacheRecycler recycler, CircuitBreaker breaker, List<KeyConfig> keyConfig) {
+            this.recycler = recycler;
             this.breaker = breaker;
             this.keyConfigs = keyConfig;
         }
 
         @Override
         protected SharedMinCompetitive build() {
-            return new SharedMinCompetitive(breaker, keyConfigs, this);
+            return new SharedMinCompetitive(recycler, breaker, keyConfigs, this);
         }
 
         public List<KeyConfig> keyConfigs() {
@@ -49,12 +53,13 @@ public class SharedMinCompetitive extends SideChannel {
         }
     }
 
-    private final BreakingBytesRefBuilder value;
+    private final PagedBytesBuilder value;
     private final List<KeyConfig> keyConfig;
+    private final PagedBytesCursor scratch = new PagedBytesCursor();
 
-    private SharedMinCompetitive(CircuitBreaker breaker, List<KeyConfig> keyConfig, Supplier supplier) {
+    private SharedMinCompetitive(PageCacheRecycler recycler, CircuitBreaker breaker, List<KeyConfig> keyConfig, Supplier supplier) {
         super(supplier);
-        this.value = new BreakingBytesRefBuilder(breaker, "min_competitive");
+        this.value = new PagedBytesBuilder(recycler, breaker, "min_competitive", 0);
         this.keyConfig = keyConfig;
     }
 
@@ -69,9 +74,9 @@ public class SharedMinCompetitive extends SideChannel {
      *         value in the local top n is greater than or equal to the minimum
      *         competitive value already recorded
      */
-    public boolean offer(BytesRef minCompetitive) {
+    public boolean offer(PagedBytesBuilder minCompetitive) {
         synchronized (value) {
-            if (value.length() > 0 && value.bytesRefView().compareTo(minCompetitive) <= 0) {
+            if (value.length() > 0 && value.compareTo(minCompetitive) <= 0) {
                 return false;
             }
             value.clear();
@@ -87,31 +92,32 @@ public class SharedMinCompetitive extends SideChannel {
      */
     @Nullable
     public Page get(BlockFactory blockFactory) {
-        try (BreakingBytesRefBuilder copy = new BreakingBytesRefBuilder(blockFactory.breaker(), "min_competitive_copy")) {
+        int length = value.length();
+        if (length == 0) {
+            return null;
+        }
+        PageCacheRecycler recycler = blockFactory.bigArrays().recycler();
+        try (PagedBytesBuilder copy = new PagedBytesBuilder(recycler, blockFactory.breaker(), "min_competitive_copy", length);) {
             synchronized (value) {
-                if (value.bytesRefView().length == 0) {
+                if (value.length() == 0) {
                     // Not assigned anything yet
                     return null;
                 }
-                copy.append(value.bytesRefView());
+                copy.append(value);
             }
             ResultBuilder[] builders = new ResultBuilder[keyConfig.size()];
-            BytesRef shallow = copy.bytesRefView();
-            try {
+            try (PagedBytes ref = copy.build()) {
+                PagedBytesCursor cursor = ref.cursor(scratch);
                 for (int i = 0; i < builders.length; i++) {
                     KeyConfig config = keyConfig.get(i);
                     ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, config.elementType, config.encoder, true, 1);
                     builders[i] = builder;
-                    if (shallow.bytes[shallow.offset] == (config.nullsFirst ? SMALL_NULL : BIG_NULL)) {
-                        builder.decodeValue(new BytesRef(new byte[] { 0 }));
-                        shallow.offset += 1;
-                        shallow.length -= 1;
+                    if (cursor.readByte() == (config.nullsFirst ? SMALL_NULL : BIG_NULL)) {
+                        builder.appendNull();
                         continue;
                     }
-                    shallow.offset += 1;
-                    shallow.length -= 1;
-                    builder.decodeKey(shallow, config.asc());
-                    builder.decodeValue(new BytesRef(new byte[] { 1 }));
+                    builder.decodeKey(cursor, config.asc());
+                    builder.appendFromKey();
                 }
                 return new Page(ResultBuilder.buildAll(builders));
             } finally {

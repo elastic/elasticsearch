@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -49,6 +52,18 @@ $endif$
      */
 $if(BytesRef)$
     BytesRef getBytesRef(int valueIndex, BytesRef dest);
+
+    /**
+     * Retrieves the value stored at the given value index as a {@link PagedBytesCursor}.
+     *
+     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
+     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
+     *
+     * @param valueIndex the value index
+     * @param scratch a cursor to use as scratch space; may be returned directly or a new cursor may be returned
+     * @return the data value as a {@link PagedBytesCursor}
+     */
+    PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch);
 
 $else$
     $type$ get$Type$(int valueIndex);
@@ -361,6 +376,23 @@ $endif$
         @Override
         Builder append$Type$($type$ value);
 
+$if(BytesRef)$
+        /**
+         * Appends the bytes in {@code value} to the current entry.
+         */
+        Builder appendBytesRef(PagedBytes value);
+
+        /**
+         * Appends the bytes written to a {@link PagedBytesBuilder} to the current entry.
+         */
+        Builder appendBytesRef(PagedBytesBuilder value);
+
+        /**
+         * Appends the bytes remaining in {@code value} to the current entry.
+         */
+        Builder append(PagedBytesCursor value);
+
+$endif$
         /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.

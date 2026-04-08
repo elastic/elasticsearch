@@ -8,16 +8,16 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
@@ -66,9 +66,13 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
         @Override
         public GroupedTopNOperator get(DriverContext driverContext) {
-            var scratch = new BreakingBytesRefBuilder(driverContext.breaker(), "group-key-encoder");
             int[] groupKeysArray = groupKeys.stream().mapToInt(Integer::intValue).toArray();
-            var keyEncoder = new GroupKeyEncoder(groupKeysArray, elementTypes, scratch);
+            var keyEncoder = new GroupKeyEncoder(
+                groupKeysArray,
+                elementTypes,
+                driverContext.breaker(),
+                driverContext.bigArrays().recycler()
+            );
             return new GroupedTopNOperator(
                 driverContext.blockFactory(),
                 driverContext.breaker(),
@@ -160,6 +164,10 @@ public class GroupedTopNOperator implements Operator, Accountable {
         for (TopNOperator.SortOrder so : sortOrders) {
             channelInKey[so.channel()] = true;
         }
+        // TODO: group-key columns are currently stored in row.values just like any other
+        // non-sort-key column. This is redundant — their bytes already live in keysHash.
+        // Instead, keep keysHash alive through buildResult(), skip writing group-key columns
+        // into values, and restore them from the hash at output time.
     }
 
     @Override
@@ -176,8 +184,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             }
             TopNOperator.RowFiller rowFiller = new TopNOperator.RowFiller(elementTypes, encoders, sortOrders, channelInKey, page);
             for (int pos = 0; pos < page.getPositionCount(); pos++) {
-                BytesRef key = keyEncoder.encode(page, pos);
-                long hashOrd = keysHash.add(key);
+                long hashOrd = keyEncoder.encodeAndAdd(page, pos, keysHash);
                 long groupId = BlockHash.hashOrdToGroup(hashOrd);
                 processRow(rowFiller, pos, groupId);
             }
@@ -191,7 +198,12 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     private void processRow(TopNOperator.RowFiller rowFiller, int position, long groupId) {
         if (spare == null) {
-            spare = new TopNRow(breaker, rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
+            spare = new TopNRow(
+                breaker,
+                blockFactory.bigArrays().recycler(),
+                rowFiller.preAllocatedKeysSize(),
+                rowFiller.preAllocatedValueSize()
+            );
         } else {
             spare.clear();
         }
@@ -327,6 +339,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
     private class Result implements ReleasableIterator<Page> {
         private final List<TopNRow> rows;
         private int r;
+        private final PagedBytesCursor scratch = new PagedBytesCursor();
 
         private Result(List<TopNRow> rows) {
             this.rows = rows;
@@ -352,8 +365,12 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 int rEnd = r + size;
                 while (r < rEnd) {
                     try (TopNRow row = rows.set(r++, null)) {
-                        readKeys(builders, row.keys.bytesRefView());
-                        readValues(builders, row.values.bytesRefView());
+                        try (PagedBytes keysRef = row.keys.build()) {
+                            readKeys(builders, keysRef);
+                        }
+                        try (PagedBytes valuesRef = row.values.build()) {
+                            readValues(builders, valuesRef.cursor(scratch));
+                        }
                     }
                     if (totalSize(builders) > jumboPageBytes) {
                         break;
@@ -380,27 +397,24 @@ public class GroupedTopNOperator implements Operator, Accountable {
             Releasables.close(rows);
         }
 
-        private void readKeys(ResultBuilder[] builders, BytesRef keys) {
+        private void readKeys(ResultBuilder[] builders, PagedBytes keysRef) {
+            PagedBytesCursor cursor = keysRef.cursor(scratch);
             for (TopNOperator.SortOrder so : sortOrders) {
-                if (keys.bytes[keys.offset] == so.nul()) {
-                    keys.offset++;
-                    keys.length--;
+                if (cursor.readByte() == so.nul()) {
                     continue;
                 }
-                keys.offset++;
-                keys.length--;
-                builders[so.channel()].decodeKey(keys, so.asc());
+                builders[so.channel()].decodeKey(cursor, so.asc());
             }
-            if (keys.length != 0) {
+            if (cursor.remaining() != 0) {
                 throw new IllegalArgumentException("didn't read all keys");
             }
         }
 
-        private void readValues(ResultBuilder[] builders, BytesRef values) {
+        private void readValues(ResultBuilder[] builders, PagedBytesCursor cursor) {
             for (ResultBuilder builder : builders) {
-                builder.decodeValue(values);
+                builder.decodeValue(cursor);
             }
-            if (values.length != 0) {
+            if (cursor.remaining() != 0) {
                 throw new IllegalArgumentException("didn't read all values");
             }
         }

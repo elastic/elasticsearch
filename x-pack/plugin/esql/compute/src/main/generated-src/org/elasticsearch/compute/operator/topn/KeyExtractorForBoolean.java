@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 import java.util.Locale;
 
@@ -43,12 +43,12 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    protected final void nonNul(BreakingBytesRefBuilder key, boolean value) {
+    protected final void nonNul(PagedBytesBuilder key, boolean value) {
         key.append(nonNul);
         encoder.encodeBoolean(value, key);
     }
 
-    protected final void nul(BreakingBytesRefBuilder key) {
+    protected final void nul(PagedBytesBuilder key) {
         key.append(nul);
     }
 
@@ -66,7 +66,7 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             nonNul(key, vector.getBoolean(position));
         }
     }
@@ -80,7 +80,7 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             if (block.isNull(position)) {
                 nul(key);
                 return;
@@ -98,7 +98,7 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             if (block.isNull(position)) {
                 nul(key);
                 return;
@@ -116,7 +116,7 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 nul(key);
@@ -143,7 +143,7 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(PagedBytesBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 nul(key);

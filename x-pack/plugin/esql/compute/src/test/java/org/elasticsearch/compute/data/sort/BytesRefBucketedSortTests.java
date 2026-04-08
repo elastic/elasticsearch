@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data.sort;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -74,6 +75,43 @@ public class BytesRefBucketedSortTests extends BucketedSortTestCase<BytesRefBuck
         var scratch = new BytesRef();
         for (int i = 0; i < values.size(); i++) {
             assertThat("expected value on block position " + i, typedBlock.getBytesRef(i, scratch), equalTo(values.get(i)));
+        }
+    }
+
+    public void testCollectPagedGatherMode() {
+        BigArrays bigArrays = bigArrays();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        var values = threeSortedValues();
+        try (
+            BytesRefBucketedSort sort = build(SortOrder.DESC, 3);
+            PagedBytesBuilder b0 = new PagedBytesBuilder(bigArrays.recycler(), breaker, "test", values.get(0).length);
+            PagedBytesBuilder b1 = new PagedBytesBuilder(bigArrays.recycler(), breaker, "test", values.get(1).length);
+            PagedBytesBuilder b2 = new PagedBytesBuilder(bigArrays.recycler(), breaker, "test", values.get(2).length)
+        ) {
+            b0.append(values.get(0).bytes, values.get(0).offset, values.get(0).length);
+            b1.append(values.get(1).bytes, values.get(1).offset, values.get(1).length);
+            b2.append(values.get(2).bytes, values.get(2).offset, values.get(2).length);
+            sort.collect(b0, 0);
+            sort.collect(b1, 0);
+            sort.collect(b2, 0);
+            assertBlock(sort, 0, List.of(values.get(2), values.get(1), values.get(0)));
+        }
+    }
+
+    public void testCollectPagedCompetitive() {
+        BigArrays bigArrays = bigArrays();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        var values = threeSortedValues();
+        try (
+            BytesRefBucketedSort sort = build(SortOrder.DESC, 1);
+            PagedBytesBuilder small = new PagedBytesBuilder(bigArrays.recycler(), breaker, "test", values.get(0).length);
+            PagedBytesBuilder large = new PagedBytesBuilder(bigArrays.recycler(), breaker, "test", values.get(2).length)
+        ) {
+            small.append(values.get(0).bytes, values.get(0).offset, values.get(0).length);
+            large.append(values.get(2).bytes, values.get(2).offset, values.get(2).length);
+            sort.collect(small, 0);   // gathered, becomes root
+            sort.collect(large, 0);   // larger — should replace root
+            assertBlock(sort, 0, List.of(values.get(2)));
         }
     }
 }

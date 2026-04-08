@@ -10,9 +10,9 @@ package org.elasticsearch.compute.operator.topn;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,21 +34,17 @@ public abstract class AbstractVersionTopNEncoderTests extends AbstractSortableTo
     }
 
     private static TestCase<BytesRef> testCase(String name, Supplier<BytesRef> randomValue) {
-        return new TestCase<>(
-            name,
-            randomValue,
-            BytesRef::compareTo,
-            TopNEncoder::encodeBytesRef,
-            (encoder, encoded) -> encoder.decodeBytesRef(encoded, new BytesRef())
-        );
+        return new TestCase<>(name, randomValue, BytesRef::compareTo, TopNEncoder::encodeBytesRef, (encoder, cursor) -> {
+            PagedBytesCursor decoded = encoder.decodeBytesRef(cursor, new PagedBytesCursor());
+            return decoded.readBytesRef(decoded.remaining(), new BytesRef());
+        });
     }
 
     public void testContainingNul() {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
         BytesRef v = (BytesRef) testCase.randomValue().get();
         insertNul(v);
-        try (BreakingBytesRefBuilder bytes = new BreakingBytesRefBuilder(breaker, "bytes")) {
-            Exception e = expectThrows(IllegalArgumentException.class, () -> encoder().encodeBytesRef(v, bytes));
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler(), new NoopCircuitBreaker("test"), "bytes", 0)) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> encoder().encodeBytesRef(v, builder));
             assertThat(e.getMessage(), equalTo("Can't sort versions containing nul"));
         }
     }

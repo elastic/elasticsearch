@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -15,10 +16,9 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
- * Extracts keys into a {@link BreakingBytesRefBuilder}.
+ * Extracts keys into a {@link PagedBytesBuilder}.
  * <p>
  *     The keys are encoded as a sequence of bytes:
  * </p>
@@ -33,7 +33,7 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
  * </p>
  */
 interface KeyExtractor {
-    void writeKey(BreakingBytesRefBuilder key, int position);
+    void writeKey(PagedBytesBuilder key, int position);
 
     /**
      * Build a {@link KeyExtractor} extractor for the provided configuration.

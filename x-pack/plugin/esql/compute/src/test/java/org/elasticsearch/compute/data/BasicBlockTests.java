@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -1704,6 +1705,129 @@ public class BasicBlockTests extends ESTestCase {
         try (var sliced = vector.slice(beginInclusive, endExclusive)) {
             assertThat(sliced, instanceOf(OrdinalBytesRefVector.class));
             assertThat(sliced.getPositionCount(), equalTo(endExclusive - beginInclusive));
+        }
+    }
+
+    public void testCursorGetBytesRefArrayVector() {
+        int positionCount = randomIntBetween(1, 1000);
+        BytesRef[] values = new BytesRef[positionCount];
+        try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                values[i] = new BytesRef(randomByteArrayOfLength(between(0, 100)));
+                builder.appendBytesRef(values[i]);
+            }
+            try (BytesRefBlock block = builder.build().asBlock()) {
+                BytesRefVector vector = block.asVector();
+                PagedBytesCursor cursor = new PagedBytesCursor();
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < positionCount; i++) {
+                    int pos = randomIntBetween(0, positionCount - 1);
+                    BytesRef expected = vector.getBytesRef(pos, scratch);
+                    PagedBytesCursor result = vector.get(pos, cursor);
+                    assertThat(result.remaining(), equalTo(expected.length));
+                    assertThat(result.readBytesRef(result.remaining(), scratch), equalTo(expected));
+                }
+                for (int i = 0; i < positionCount; i++) {
+                    int pos = randomIntBetween(0, positionCount - 1);
+                    BytesRef expected = block.getBytesRef(pos, scratch);
+                    PagedBytesCursor result = block.get(pos, cursor);
+                    assertThat(result.remaining(), equalTo(expected.length));
+                    assertThat(result.readBytesRef(result.remaining(), scratch), equalTo(expected));
+                }
+            }
+        }
+    }
+
+    public void testCursorGetConstantBytesRefVector() {
+        int positionCount = randomIntBetween(1, 1000);
+        BytesRef value = new BytesRef(randomByteArrayOfLength(between(0, 100)));
+        try (BytesRefBlock block = blockFactory.newConstantBytesRefBlockWith(value, positionCount)) {
+            BytesRefVector vector = block.asVector();
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < 100; i++) {
+                int pos = randomIntBetween(0, positionCount - 1);
+                BytesRef expected = vector.getBytesRef(pos, scratch);
+                PagedBytesCursor result = vector.get(pos, cursor);
+                assertThat(result.remaining(), equalTo(expected.length));
+                assertThat(result.readBytesRef(result.remaining(), scratch), equalTo(expected));
+            }
+            for (int i = 0; i < 100; i++) {
+                int pos = randomIntBetween(0, positionCount - 1);
+                BytesRef expected = block.getBytesRef(pos, scratch);
+                PagedBytesCursor result = block.get(pos, cursor);
+                assertThat(result.remaining(), equalTo(expected.length));
+                assertThat(result.readBytesRef(result.remaining(), scratch), equalTo(expected));
+            }
+        }
+    }
+
+    public void testCursorGetBytesRefArrayBlockWithNulls() {
+        int positionCount = randomIntBetween(1, 1000);
+        BytesRef[] values = new BytesRef[positionCount];
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                    values[i] = null;
+                } else {
+                    values[i] = new BytesRef(randomByteArrayOfLength(between(0, 100)));
+                    builder.appendBytesRef(values[i]);
+                }
+            }
+            try (BytesRefBlock block = builder.build()) {
+                PagedBytesCursor cursor = new PagedBytesCursor();
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < positionCount; i++) {
+                    int pos = randomIntBetween(0, positionCount - 1);
+                    if (block.isNull(pos)) {
+                        continue;
+                    }
+                    BytesRef expected = block.getBytesRef(block.getFirstValueIndex(pos), scratch);
+                    PagedBytesCursor result = block.get(block.getFirstValueIndex(pos), cursor);
+                    assertThat(result.remaining(), equalTo(expected.length));
+                    assertThat(result.readBytesRef(result.remaining(), scratch), equalTo(expected));
+                }
+            }
+        }
+    }
+
+    public void testCursorGetOrdinalBytesRefBlock() {
+        int dictSize = between(1, 20);
+        int positionCount = between(1, 1000);
+        BytesRef[] dict = new BytesRef[dictSize];
+        try (
+            BytesRefVector.Builder dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
+            IntBlock.Builder ordinalBuilder = blockFactory.newIntBlockBuilder(positionCount)
+        ) {
+            for (int i = 0; i < dictSize; i++) {
+                dict[i] = new BytesRef(randomByteArrayOfLength(between(0, 50)));
+                dictBuilder.appendBytesRef(dict[i]);
+            }
+            for (int i = 0; i < positionCount; i++) {
+                ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+            }
+            try (OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ordinalBuilder.build(), dictBuilder.build())) {
+                PagedBytesCursor cursor = new PagedBytesCursor();
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < positionCount; i++) {
+                    int pos = randomIntBetween(0, positionCount - 1);
+                    int valueIndex = block.getFirstValueIndex(pos);
+                    BytesRef expected = block.getBytesRef(valueIndex, scratch);
+                    PagedBytesCursor result = block.get(valueIndex, cursor);
+                    assertThat(result.remaining(), equalTo(expected.length));
+                    assertThat(result.readBytesRef(result.remaining(), scratch), equalTo(expected));
+                }
+                OrdinalBytesRefVector vector = block.asVector();
+                assertThat(vector, notNullValue());
+                for (int i = 0; i < positionCount; i++) {
+                    int pos = randomIntBetween(0, positionCount - 1);
+                    BytesRef expected = vector.getBytesRef(pos, scratch);
+                    PagedBytesCursor result = vector.get(pos, cursor);
+                    assertThat(result.remaining(), equalTo(expected.length));
+                    assertThat(result.readBytesRef(result.remaining(), scratch), equalTo(expected));
+                }
+            }
         }
     }
 

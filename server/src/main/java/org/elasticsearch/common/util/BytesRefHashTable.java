@@ -11,6 +11,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytes;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -35,6 +36,19 @@ public interface BytesRefHashTable extends Accountable, Releasable {
      * present in the table.
      */
     long add(BytesRef key);
+
+    /**
+     * Finds the id associated with the given key, or -1 if the key is
+     * not contained in the hash.
+     */
+    long find(PagedBytes key);
+
+    /**
+     * Adds the given key to the table. Return its newly allocated id if
+     * it wasn't in the table yet, or {@code -1-id} if it was already
+     * present in the table.
+     */
+    long add(PagedBytes key);
 
     /** Returns the size (number of key/value pairs) in the table.*/
     long size();

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 
@@ -34,31 +34,41 @@ class ResultBuilderForDouble implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys, boolean asc) {
+    public void decodeKey(PagedBytesCursor keys, boolean asc) {
         assert inKey;
         key = encoder.toSortable(asc).decodeDouble(keys);
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
+    public void decodeValue(PagedBytesCursor cursor) {
+        int count = cursor.readVInt();
         switch (count) {
             case 0 -> {
                 builder.appendNull();
             }
-            case 1 -> builder.appendDouble(inKey ? key : readValueFromValues(values));
+            case 1 -> builder.appendDouble(inKey ? key : readValueFromValues(cursor));
             default -> {
                 builder.beginPositionEntry();
                 for (int i = 0; i < count; i++) {
-                    builder.appendDouble(readValueFromValues(values));
+                    builder.appendDouble(readValueFromValues(cursor));
                 }
                 builder.endPositionEntry();
             }
         }
     }
 
-    private double readValueFromValues(BytesRef values) {
-        return TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(values);
+    private double readValueFromValues(PagedBytesCursor cursor) {
+        return TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(cursor);
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        builder.appendDouble(key);
     }
 
     @Override

@@ -10,6 +10,8 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -20,7 +22,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.sort.BytesRefBucketedSort;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.topn.DefaultUnsortableTopNEncoder;
 import org.elasticsearch.core.Releasables;
@@ -97,6 +98,7 @@ class SampleBytesRefAggregator {
             BytesRefBlock.Builder BytesRefBlock = driverContext.blockFactory().newBytesRefBlockBuilder(bytesRefBlock.getPositionCount())
         ) {
             BytesRef scratch = new BytesRef();
+            PagedBytesCursor cursorScratch = new PagedBytesCursor();
             for (int position = 0; position < block.getPositionCount(); position++) {
                 if (bytesRefBlock.isNull(position)) {
                     BytesRefBlock.appendNull();
@@ -108,9 +110,9 @@ class SampleBytesRefAggregator {
                     int start = bytesRefBlock.getFirstValueIndex(position);
                     int end = start + valueCount;
                     for (int i = start; i < end; i++) {
-                        BytesRef value = bytesRefBlock.getBytesRef(i, scratch).clone();
-                        ENCODER.decodeLong(value);
-                        BytesRefBlock.appendBytesRef(ENCODER.decodeBytesRef(value, scratch));
+                        PagedBytesCursor cursor = PagedBytesCursor.fromBytesRef(bytesRefBlock.getBytesRef(i, scratch));
+                        ENCODER.decodeLong(cursor);
+                        BytesRefBlock.append(ENCODER.decodeBytesRef(cursor, cursorScratch));
                     }
                     if (valueCount > 1) {
                         BytesRefBlock.endPositionEntry();
@@ -123,14 +125,14 @@ class SampleBytesRefAggregator {
 
     public static class GroupingState implements GroupingAggregatorState {
         private final BytesRefBucketedSort sort;
-        private final BreakingBytesRefBuilder bytesRefBuilder;
+        private final PagedBytesBuilder keyBuilder;
 
         private GroupingState(BigArrays bigArrays, int limit) {
             CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
             this.sort = new BytesRefBucketedSort(breaker, "sample", bigArrays, SortOrder.ASC, limit);
             boolean success = false;
             try {
-                this.bytesRefBuilder = new BreakingBytesRefBuilder(breaker, "sample");
+                this.keyBuilder = new PagedBytesBuilder(bigArrays.recycler(), breaker, "sample", 0);
                 success = true;
             } finally {
                 if (success == false) {
@@ -140,10 +142,10 @@ class SampleBytesRefAggregator {
         }
 
         public void add(int groupId, BytesRef value) {
-            ENCODER.encodeLong(Randomness.get().nextLong(), bytesRefBuilder);
-            ENCODER.encodeBytesRef(value, bytesRefBuilder);
-            sort.collect(bytesRefBuilder.bytesRefView(), groupId);
-            bytesRefBuilder.clear();
+            ENCODER.encodeLong(Randomness.get().nextLong(), keyBuilder);
+            ENCODER.encodeBytesRef(value, keyBuilder);
+            sort.collect(keyBuilder, groupId);
+            keyBuilder.clear();
         }
 
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
@@ -161,7 +163,7 @@ class SampleBytesRefAggregator {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(sort, bytesRefBuilder);
+            Releasables.closeExpectNoException(sort, keyBuilder);
         }
     }
 

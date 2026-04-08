@@ -7,83 +7,61 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 /**
  * A {@link TopNEncoder} that encodes values to byte arrays that may be sorted directly.
  */
 public abstract class SortableAscTopNEncoder implements TopNEncoder {
     @Override
-    public final void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);
-        NumericUtils.longToSortableBytes(value, bytesRefBuilder.bytes(), bytesRefBuilder.length());
-        bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES);
+    public final void encodeLong(long value, PagedBytesBuilder builder) {
+        builder.append(value ^ Long.MIN_VALUE);
     }
 
     @Override
-    public final long decodeLong(BytesRef bytes) {
-        if (bytes.length < Long.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        long v = NumericUtils.sortableBytesToLong(bytes.bytes, bytes.offset);
-        bytes.offset += Long.BYTES;
-        bytes.length -= Long.BYTES;
-        return v;
+    public final long decodeLong(PagedBytesCursor bytes) {
+        return bytes.readLong() ^ Long.MIN_VALUE;
     }
 
     @Override
-    public final void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.grow(bytesRefBuilder.length() + Integer.BYTES);
-        NumericUtils.intToSortableBytes(value, bytesRefBuilder.bytes(), bytesRefBuilder.length());
-        bytesRefBuilder.setLength(bytesRefBuilder.length() + Integer.BYTES);
+    public final void encodeInt(int value, PagedBytesBuilder builder) {
+        builder.append(value ^ Integer.MIN_VALUE);
     }
 
     @Override
-    public final int decodeInt(BytesRef bytes) {
-        if (bytes.length < Integer.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        int v = NumericUtils.sortableBytesToInt(bytes.bytes, bytes.offset);
-        bytes.offset += Integer.BYTES;
-        bytes.length -= Integer.BYTES;
-        return v;
+    public final int decodeInt(PagedBytesCursor bytes) {
+        return bytes.readInt() ^ Integer.MIN_VALUE;
     }
 
     @Override
-    public final void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder) {
-        encodeInt(NumericUtils.floatToSortableInt(value), bytesRefBuilder);
+    public final void encodeFloat(float value, PagedBytesBuilder builder) {
+        encodeInt(NumericUtils.floatToSortableInt(value), builder);
     }
 
     @Override
-    public final float decodeFloat(BytesRef bytes) {
+    public final float decodeFloat(PagedBytesCursor bytes) {
         return NumericUtils.sortableIntToFloat(decodeInt(bytes));
     }
 
     @Override
-    public final void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder) {
-        encodeLong(NumericUtils.doubleToSortableLong(value), bytesRefBuilder);
+    public final void encodeDouble(double value, PagedBytesBuilder builder) {
+        encodeLong(NumericUtils.doubleToSortableLong(value), builder);
     }
 
     @Override
-    public final double decodeDouble(BytesRef bytes) {
+    public final double decodeDouble(PagedBytesCursor bytes) {
         return NumericUtils.sortableLongToDouble(decodeLong(bytes));
     }
 
     @Override
-    public final void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.append(value ? (byte) 1 : (byte) 0);
+    public final void encodeBoolean(boolean value, PagedBytesBuilder builder) {
+        builder.append(value ? (byte) 1 : (byte) 0);
     }
 
     @Override
-    public final boolean decodeBoolean(BytesRef bytes) {
-        if (bytes.length < Byte.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        boolean v = bytes.bytes[bytes.offset] == 1;
-        bytes.offset += Byte.BYTES;
-        bytes.length -= Byte.BYTES;
-        return v;
+    public final boolean decodeBoolean(PagedBytesCursor bytes) {
+        return bytes.readByte() == 1;
     }
 }

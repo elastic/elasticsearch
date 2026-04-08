@@ -8,7 +8,8 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
     private final int length;
@@ -20,26 +21,17 @@ class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
     }
 
     @Override
-    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+    public void encodeBytesRef(BytesRef value, PagedBytesBuilder builder) {
         if (value.length != length) {
             throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");
         }
-        int startOffset = bytesRefBuilder.length();
-        bytesRefBuilder.append(value);
-        bitwiseNot(bytesRefBuilder.bytes(), startOffset, bytesRefBuilder.length());
+        builder.appendNot(value.bytes, value.offset, value.length);
     }
 
     @Override
-    public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        if (bytes.length < length) {
-            throw new IllegalArgumentException("expected [" + length + "] bytes but only [" + bytes.length + "] remain");
-        }
-        scratch.bytes = bytes.bytes;
-        scratch.offset = bytes.offset;
-        scratch.length = length;
-        bytes.offset += length;
-        bytes.length -= length;
-        bitwiseNot(scratch.bytes, scratch.offset, scratch.offset + length);
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
+        cursor.slice(length, scratch);
+        scratch.bitwiseNot();
         return scratch;
     }
 

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.LongRangeBlock;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 public class ValueExtractorForLongRange implements ValueExtractor {
     private final LongRangeBlock block;
@@ -19,8 +19,8 @@ public class ValueExtractorForLongRange implements ValueExtractor {
     }
 
     @Override
-    public void writeValue(BreakingBytesRefBuilder values, int position) {
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(1, values);
+    public void writeValue(PagedBytesBuilder values, int position) {
+        values.appendVInt(1);
         if (block.getFromBlock().isNull(position)) {
             TopNEncoder.DEFAULT_UNSORTABLE.encodeBoolean(false, values);
         } else {

@@ -19,10 +19,10 @@ public abstract class AbstractDefaultSortableTopNEncoderTests extends AbstractSo
     public static Iterable<Object[]> parameters() {
         List<TestCase<?>> tests = new ArrayList<>();
         tests.add(new TestCase<>("long", ESTestCase::randomLong, Long::compare, TopNEncoder::encodeLong, TopNEncoder::decodeLong));
+        tests.add(new TestCase<>("int", ESTestCase::randomInt, Integer::compare, TopNEncoder::encodeInt, TopNEncoder::decodeInt));
         tests.add(
             new TestCase<>("double", ESTestCase::randomDouble, Double::compare, TopNEncoder::encodeDouble, TopNEncoder::decodeDouble)
         );
-        tests.add(new TestCase<>("int", ESTestCase::randomInt, Integer::compare, TopNEncoder::encodeInt, TopNEncoder::decodeInt));
         tests.add(new TestCase<>("float", ESTestCase::randomFloat, Float::compare, TopNEncoder::encodeFloat, TopNEncoder::decodeFloat));
         tests.add(
             new TestCase<>("bool", ESTestCase::randomBoolean, Boolean::compare, TopNEncoder::encodeBoolean, TopNEncoder::decodeBoolean)

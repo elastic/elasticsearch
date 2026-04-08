@@ -12,6 +12,7 @@ import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -138,6 +139,13 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
         dest.length = length;
         valueBuffer.getBytes(start, dest.bytes, 0, length);
         return dest;
+    }
+
+    @Override
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        getBytesRef(valueIndex, scratch.scratchBytes);
+        scratch.init(scratch.scratchBytes);
+        return scratch;
     }
 
     @Override

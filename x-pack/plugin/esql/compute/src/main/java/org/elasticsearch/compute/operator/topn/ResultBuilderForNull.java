@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ConstantNullBlock;
@@ -21,17 +21,27 @@ public class ResultBuilderForNull implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys, boolean asc) {
+    public void decodeKey(PagedBytesCursor keys, boolean asc) {
         throw new AssertionError("somehow got a value for a null key");
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int size = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
+    public void decodeValue(PagedBytesCursor cursor) {
+        int size = cursor.readVInt();
         if (size != 0) {
             throw new IllegalArgumentException("null columns should always have 0 entries");
         }
         positions++;
+    }
+
+    @Override
+    public void appendNull() {
+        positions++;
+    }
+
+    @Override
+    public void appendFromKey() {
+        throw new AssertionError("somehow got a value for a null key");
     }
 
     @Override

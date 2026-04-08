@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -110,6 +111,8 @@ public sealed interface ExponentialHistogramBlock extends HistogramBlock permits
         long readLong();
 
         BytesRef readBytesRef(BytesRef scratch);
+
+        PagedBytesCursor readBytesRef(PagedBytesCursor scratch);
     }
 
 }

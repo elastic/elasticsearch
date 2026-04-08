@@ -8,18 +8,11 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 class VersionAscTopNEncoder extends SortableAscTopNEncoder {
     private final VersionDescTopNEncoder descEncoder = new VersionDescTopNEncoder(this);
-
-    @Override
-    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
-        refuseNul(value);
-        bytesRefBuilder.append(value);
-        bytesRefBuilder.append(Utf8AscTopNEncoder.TERMINATOR);
-    }
 
     static void refuseNul(BytesRef value) {
         int end = value.offset + value.length;
@@ -31,16 +24,17 @@ class VersionAscTopNEncoder extends SortableAscTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        int i = bytes.offset;
-        while (bytes.bytes[i] != Utf8AscTopNEncoder.TERMINATOR) {
-            i++;
-        }
-        scratch.bytes = bytes.bytes;
-        scratch.offset = bytes.offset;
-        scratch.length = i - bytes.offset;
-        bytes.offset += scratch.length + 1;
-        bytes.length -= scratch.length + 1;
+    public void encodeBytesRef(BytesRef value, PagedBytesBuilder builder) {
+        // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
+        refuseNul(value);
+        builder.append(value);
+        builder.append(Utf8AscTopNEncoder.TERMINATOR);
+    }
+
+    @Override
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
+        cursor.readTerminatedBytesRef(Utf8AscTopNEncoder.TERMINATOR, scratch.scratchBytes);
+        scratch.init(scratch.scratchBytes);
         return scratch;
     }
 

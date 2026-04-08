@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -15,7 +15,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Builds {@link Block}s from keys and values encoded into {@link BytesRef}s.
+ * Builds {@link Block}s from keys and values encoded into {@link PagedBytesCursor}s.
  */
 interface ResultBuilder extends Releasable {
     /**
@@ -26,7 +26,7 @@ interface ResultBuilder extends Releasable {
      *            Keys are encoded with their bits flipped when sorting descending. This
      *            undoes that.
      */
-    void decodeKey(BytesRef keys, boolean asc);
+    void decodeKey(PagedBytesCursor keys, boolean asc);
 
     /**
      * Called once per row to decode the value and write to the internal {@link Block.Builder}.
@@ -35,7 +35,18 @@ interface ResultBuilder extends Releasable {
      * implementations don't write single valued fields that appear in the key and instead
      * use the value form {@link #decodeKey}.
      */
-    void decodeValue(BytesRef values);
+    void decodeValue(PagedBytesCursor cursor);
+
+    /**
+     * Append a {@code null} value to the underlying {@link Block.Builder}.
+     */
+    void appendNull();
+
+    /**
+     * Call after {@link #decodeKey} to append the key that read
+     * to the underlying {@link Block.Builder}.
+     */
+    void appendFromKey();
 
     /**
      * Build the result block.

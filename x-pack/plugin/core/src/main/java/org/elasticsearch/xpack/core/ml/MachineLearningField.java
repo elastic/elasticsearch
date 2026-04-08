@@ -63,7 +63,7 @@ public final class MachineLearningField {
      * security check that blocks models with dangerous operations.
      */
     public static final Setting<Boolean> MODEL_GRAPH_VALIDATION_ENABLED = Setting.boolSetting(
-        "xpack.ml.model_graph_validation_enabled",
+        "xpack.ml.trained_models.graph_validation_enabled",
         true,
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope

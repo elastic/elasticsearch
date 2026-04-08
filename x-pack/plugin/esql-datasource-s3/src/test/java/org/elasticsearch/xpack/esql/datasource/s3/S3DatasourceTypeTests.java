@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DatasourceType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceType;
 
 import java.util.Map;
+import java.util.Set;
 
 public class S3DatasourceTypeTests extends ESTestCase {
 
-    private final S3DatasourceType type = S3DatasourceType.INSTANCE;
+    private final DatasourceType type = new FileDatasourceType("s3", S3Configuration::fromMap, Set.of("s3://", "s3a://", "s3n://"));
 
     public void testType() {
         assertEquals("s3", type.type());

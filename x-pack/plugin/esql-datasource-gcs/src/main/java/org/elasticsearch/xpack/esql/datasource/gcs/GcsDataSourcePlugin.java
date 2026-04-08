@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceType;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
@@ -64,6 +65,6 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public List<DatasourceType> datasourceTypes() {
-        return List.of(GcsDatasourceType.INSTANCE);
+        return List.of(new FileDatasourceType("gcs", GcsConfiguration::fromMap, Set.of("gs://")));
     }
 }

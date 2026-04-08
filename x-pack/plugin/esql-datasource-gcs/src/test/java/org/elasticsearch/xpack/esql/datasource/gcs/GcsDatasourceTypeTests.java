@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DatasourceType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceType;
 
 import java.util.Map;
+import java.util.Set;
 
 public class GcsDatasourceTypeTests extends ESTestCase {
 
-    private final GcsDatasourceType type = GcsDatasourceType.INSTANCE;
+    private final DatasourceType type = new FileDatasourceType("gcs", GcsConfiguration::fromMap, Set.of("gs://"));
 
     public void testType() {
         assertEquals("gcs", type.type());

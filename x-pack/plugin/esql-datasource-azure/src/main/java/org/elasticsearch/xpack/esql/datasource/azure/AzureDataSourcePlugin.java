@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceType;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
@@ -66,6 +67,6 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public List<DatasourceType> datasourceTypes() {
-        return List.of(AzureDatasourceType.INSTANCE);
+        return List.of(new FileDatasourceType("azure_blob", AzureConfiguration::fromMap, Set.of("wasbs://", "wasb://")));
     }
 }

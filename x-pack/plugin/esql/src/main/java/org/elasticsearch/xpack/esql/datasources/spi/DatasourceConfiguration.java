@@ -41,6 +41,15 @@ public abstract class DatasourceConfiguration {
         return settings.get(key);
     }
 
+    /** Converts to a map of {@link SettingValue}s with secret classification from {@link #fields()}. */
+    public Map<String, SettingValue> toSettingValues() {
+        Map<String, SettingValue> result = new HashMap<>();
+        for (var entry : settings.entrySet()) {
+            result.put(entry.getKey(), new SettingValue(entry.getValue(), fields().getOrDefault(entry.getKey(), false)));
+        }
+        return result;
+    }
+
     /**
      * Parses a raw settings map: rejects unknown fields, stringifies values, lowercases auth.
      * Returns the normalized map for passing to the constructor.

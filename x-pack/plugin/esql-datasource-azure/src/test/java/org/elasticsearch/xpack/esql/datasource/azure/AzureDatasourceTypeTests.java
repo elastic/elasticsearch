@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DatasourceType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceType;
 
 import java.util.Map;
+import java.util.Set;
 
 public class AzureDatasourceTypeTests extends ESTestCase {
 
-    private final AzureDatasourceType type = AzureDatasourceType.INSTANCE;
+    private final DatasourceType type = new FileDatasourceType("azure_blob", AzureConfiguration::fromMap, Set.of("wasbs://", "wasb://"));
 
     public void testType() {
         assertEquals("azure_blob", type.type());

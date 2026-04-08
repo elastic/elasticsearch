@@ -400,11 +400,9 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 .get();
             RestoreInfo restoreInfo = resp.getRestoreInfo();
             if (restoreInfo == null) {
-                cleanupMountedIndex(mountedIndexName, snapshotName);
                 throw new ElasticsearchException("DLM failed to mount snapshot [{}] because the restore info was missing", snapshotName);
             }
             if (restoreInfo.failedShards() > 0 || restoreInfo.successfulShards() == 0) {
-                cleanupMountedIndex(mountedIndexName, snapshotName);
                 throw new ElasticsearchException(
                     "DLM failed to mount snapshot [{}] " + "because there were failed shards or no successful shards. Restore info: [{}]",
                     snapshotName,
@@ -431,11 +429,11 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             logger.debug("DLM cleaning up partially-mounted index [{}] for snapshot [{}]", mountedIndexName, snapshotName);
             deleteIndex(mountedIndexName);
         } catch (Exception e) {
-            throw ExceptionsHelper.convertToElastic(
-                e,
-                "DLM failed to clean up partially-mounted index [{}] for snapshot [{}]",
+            logger.warn(
+                "DLM failed to clean up partially-mounted index [{}] for snapshot [{}]: {}",
                 mountedIndexName,
-                snapshotName
+                snapshotName,
+                e.getMessage()
             );
         }
     }

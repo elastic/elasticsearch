@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -69,6 +71,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
     private ClusterService clusterService;
 
     private AtomicReference<MountSearchableSnapshotRequest> capturedMountRequest;
+    private AtomicReference<DeleteIndexRequest> capturedDeleteRequest;
     private AtomicReference<RestoreSnapshotResponse> mockMountResponse;
     private AtomicReference<Exception> mockMountFailure;
     private NoOpClient client;
@@ -85,6 +88,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null)
         );
         capturedMountRequest = new AtomicReference<>();
+        capturedDeleteRequest = new AtomicReference<>();
         mockMountResponse = new AtomicReference<>();
         mockMountFailure = new AtomicReference<>();
         client = createMockClient();
@@ -114,6 +118,9 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
                     } else {
                         fail("No mock mount response or failure configured for request [" + mountRequest + "]");
                     }
+                } else if (request instanceof DeleteIndexRequest deleteRequest) {
+                    capturedDeleteRequest.set(deleteRequest);
+                    listener.onResponse((Response) AcknowledgedResponse.TRUE);
                 } else {
                     fail("Unexpected request type [" + request.getClass().getName() + "] for action [" + action.name() + "]");
                 }
@@ -141,6 +148,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         convert.maybeMountSearchableSnapshot(indexName);
 
         assertThat(capturedMountRequest.get(), is(notNullValue()));
+        assertNull("No delete request should be issued on successful mount", capturedDeleteRequest.get());
     }
 
     public void testMountRequestHasCorrectParameters() throws InterruptedException {
@@ -172,6 +180,8 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("restore info was missing"));
+        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices(), equalTo(new String[] { DLMConvertToFrozen.snapshotName(indexName) }));
     }
 
     public void testThrowsWhenMountHasFailedShards() {
@@ -186,6 +196,8 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("failed shards"));
+        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices(), equalTo(new String[] { DLMConvertToFrozen.snapshotName(indexName) }));
     }
 
     public void testThrowsWhenMountHasZeroSuccessfulShards() {
@@ -200,6 +212,8 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("failed shards or no successful shards"));
+        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices(), equalTo(new String[] { DLMConvertToFrozen.snapshotName(indexName) }));
     }
 
     public void testThrowsWhenMountFails() {
@@ -213,6 +227,8 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("mounting snapshot"));
+        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices(), equalTo(new String[] { DLMConvertToFrozen.snapshotName(indexName) }));
     }
 
     /**

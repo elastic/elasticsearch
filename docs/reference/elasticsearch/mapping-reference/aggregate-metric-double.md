@@ -40,7 +40,10 @@ PUT my-index
 
 `default_metric` {applies_to}`stack: deprecated 9.4` {applies_to}`serverless: deprecated`
 :   :::{admonition} Deprecated in 9.4
-    The average value will be used as the default metric value, calculated using the `sum` and `value_count`, unless there is only a single sub-field, in which case it will use that metric (see [deprecations]( https://www.elastic.co/docs/release-notes/elasticsearch/deprecations) for more information).
+    The default metric value depends on the number of sub-fields:
+    - When there are multiple sub-fields, the default is the average, calculated from `sum` and `value_count`.
+    - When there is only a single sub-field, that sub-field's value is used directly.
+    % (see [deprecations]( https://www.elastic.co/docs/release-notes/elasticsearch/deprecations) for more information).
     :::
 
     (Required, string) Default metric sub-field to use for queries, scripts, and aggregations that don’t use a sub-field. Must be a value from the `metrics` array.

@@ -9,9 +9,9 @@ deprecation:
   details: |-
     The `default_metric` parameter in the `aggregate_metric_double` used to determine which sub-field would be used in
     non-native operations, for example, the queries `range`, `term` and `exists`.
-    In Elasticsearch `9.4`, we change this behaviour to use the average as a more representative signal compared to a
-    single sub-field, unless the `aggregate_metric_double` only has one sub-field configured, in which case it will
-    delegate to this sub-field.
+    In Elasticsearch `9.4`, we change this behaviour, the default metric value depends on the number of sub-fields:
+    - When there are multiple sub-fields, the default is the average, calculated from `sum` and `value_count`.
+    - When there is only a single sub-field, that sub-field's value is used directly.
 
     This change aims to both simplify the configuration of `aggregate_metric_double` and improve its use by non-native operations.
   impact: |-

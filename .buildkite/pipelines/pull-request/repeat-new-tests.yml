@@ -4,9 +4,3 @@ steps:
       npm install -g bun@1.0.4
       bun .buildkite/scripts/repeat-new-tests.ts
     timeout_in_minutes: 10
-    agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2404
-      machineType: n4-custom-32-98304
-      diskType: hyperdisk-balanced
-      buildDirectory: /dev/shm/bk

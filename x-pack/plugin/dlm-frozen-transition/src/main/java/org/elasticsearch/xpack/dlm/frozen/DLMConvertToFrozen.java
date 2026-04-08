@@ -84,9 +84,9 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
     private static final Logger logger = LogManager.getLogger(DLMConvertToFrozen.class);
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
-    private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
     private static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
     private static final TimeValue SNAPSHOT_POLL_INTERVAL = TimeValue.timeValueSeconds(30);
+    static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
     static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
     static final String DLM_MANAGED_METADATA_KEY = "dlm-managed";
 

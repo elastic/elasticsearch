@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.dlm.frozen;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -22,11 +22,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -238,31 +240,30 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
                 return;
             }
 
-            // TODO: Snapshot check's
+            // TODO: Snapshot checks
         }
     }
 
-    private void deleteIndex(String indexName, ProjectId projectId) {
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).indicesOptions(
-            IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED
+    void deleteIndex(String indexToDelete, ProjectId projectId) {
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexToDelete).indicesOptions(
+            DLMConvertToFrozen.IGNORE_MISSING_OPTIONS
         ).masterNodeTimeout(TimeValue.MAX_VALUE);
-        logger.debug("DLM cleanup issuing request to delete index [{}]", indexName);
-        var listener = new ActionListener<AcknowledgedResponse>() {
-            @Override
-            public void onResponse(AcknowledgedResponse resp) {
-                if (resp.isAcknowledged()) {
-                    logger.debug("DLM cleanup successfully deleted index [{}]", indexName);
-                } else {
-                    logger.warn("DLM cleanup failed to acknowledge deletion of index [{}]", indexName);
-                }
+        logger.debug("DLM cleanup issuing request to delete index [{}]", indexToDelete);
+        try {
+            AcknowledgedResponse resp = client.projectClient(projectId).admin().indices().delete(deleteIndexRequest).get();
+            if (resp.isAcknowledged()) {
+                logger.debug("DLM cleanup successfully deleted index [{}]", indexToDelete);
+            } else {
+                logger.warn("DLM cleanup failed to acknowledge deletion of index [{}]", indexToDelete);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn("DLM cleanup failed to delete index [{}]", indexName, e);
+        } catch (IndexNotFoundException e) {
+            logger.debug("Index [{}] was not found during DLM cleanup delete attempt, it may have already been deleted", indexToDelete);
+        } catch (Exception e) {
+            logger.warn(Strings.format("DLM cleanup failed to delete index [%s]", indexToDelete), e);
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
             }
-        };
-        client.projectClient(projectId).admin().indices().delete(deleteIndexRequest, listener);
+        }
     }
 
     private void deleteSnapshot(String repository, String snapshotName, ProjectId projectId) {

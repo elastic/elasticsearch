@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.knn.data;
 
+import org.elasticsearch.test.knn.KnnIndexer;
 import org.elasticsearch.test.knn.TestConfiguration;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -51,6 +52,10 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
      */
     DataGenerator createDataGenerator(TestConfiguration config) throws IOException;
 
+    default String partitionFieldName() {
+        return null;
+    }
+
     /** A dataset that is downloaded from a Google Cloud Storage bucket. */
     record GcpDataset(String name) implements DatasetConfig {
 
@@ -91,11 +96,14 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
     }
 
     /** A synthetically generated partitioned dataset. */
-    record PartitionGenerated(int numPartitions, PartitionDistribution partitionDistribution, long generatorSeed) implements DatasetConfig {
+    record PartitionGenerated(int numPartitions, PartitionDistribution partitionDistribution, long generatorSeed, boolean sliceIndex)
+        implements
+            DatasetConfig {
 
         static final ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
         static final ParseField PARTITION_DISTRIBUTION_FIELD = new ParseField("partition_distribution");
         static final ParseField GENERATOR_SEED_FIELD = new ParseField("generator_seed");
+        static final ParseField SLICE_INDEX_FIELD = new ParseField("slice_index");
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -104,6 +112,7 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             builder.field("num_partitions", numPartitions);
             builder.field("partition_distribution", partitionDistribution.name().toLowerCase(Locale.ROOT));
             builder.field("generator_seed", generatorSeed);
+            builder.field("slice_index", sliceIndex);
             builder.endObject();
             return builder.endObject();
         }
@@ -114,22 +123,31 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             PARSER.declareInt(Builder::setNumPartitions, NUM_PARTITIONS_FIELD);
             PARSER.declareString(Builder::setPartitionDistribution, PARTITION_DISTRIBUTION_FIELD);
             PARSER.declareLong(Builder::setGeneratorSeed, GENERATOR_SEED_FIELD);
+            PARSER.declareBoolean(Builder::setSliceIndex, SLICE_INDEX_FIELD);
         }
 
         static PartitionGenerated fromXContent(XContentParser parser) throws IOException {
             Builder builder = PARSER.apply(parser, null);
-            return new PartitionGenerated(builder.numPartitions, builder.partitionDistribution, builder.generatorSeed);
+            return new PartitionGenerated(builder.numPartitions, builder.partitionDistribution, builder.generatorSeed, builder.sliceIndex);
         }
 
         @Override
         public DataGenerator createDataGenerator(TestConfiguration config) {
-            return new PartitionDataGenerator(config.numDocs(), config.dimensions(), numPartitions, partitionDistribution, generatorSeed);
+            return new PartitionDataGenerator(
+                config.numDocs(),
+                config.dimensions(),
+                numPartitions,
+                partitionDistribution,
+                generatorSeed,
+                sliceIndex
+            );
         }
 
         private static class Builder {
             private int numPartitions = 100;
             private PartitionDistribution partitionDistribution = PartitionDistribution.UNIFORM;
             private long generatorSeed = 42L;
+            private boolean sliceIndex = false;
 
             void setNumPartitions(int numPartitions) {
                 this.numPartitions = numPartitions;
@@ -142,6 +160,14 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             void setGeneratorSeed(long generatorSeed) {
                 this.generatorSeed = generatorSeed;
             }
+
+            void setSliceIndex(boolean sliceIndex) {
+                this.sliceIndex = sliceIndex;
+            }
+        }
+
+        public String partitionFieldName() {
+            return sliceIndex ? KnnIndexer.PARTITION_ID_FIELD : null;
         }
     }
 

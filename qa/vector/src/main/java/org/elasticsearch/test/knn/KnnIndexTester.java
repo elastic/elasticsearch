@@ -240,7 +240,7 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    null
+                    args.datasetConfig().partitionFieldName()
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {

@@ -178,6 +178,10 @@ public class KnnSearcher {
 
         /** Maps a search operation index to a query vector array index */
         int queryIndex(int searchIndex);
+
+        String partitionField();
+
+        BytesRef partition(int searchIndex);
     }
 
     /** Consumes search result IDs and computes recall metrics. */
@@ -190,11 +194,18 @@ public class KnnSearcher {
         private final List<String> sampledPartitions;
         private final int numQueryVectors;
         private final Query selectivityFilter;
+        private final boolean sliceIndex;
 
-        public PartitionFilterQueryProvider(List<String> sampledPartitions, int numQueryVectors, @Nullable Query selectivityFilter) {
+        public PartitionFilterQueryProvider(
+            List<String> sampledPartitions,
+            int numQueryVectors,
+            @Nullable Query selectivityFilter,
+            boolean sliceIndex
+        ) {
             this.sampledPartitions = sampledPartitions;
             this.numQueryVectors = numQueryVectors;
             this.selectivityFilter = selectivityFilter;
+            this.sliceIndex = sliceIndex;
         }
 
         @Override
@@ -204,14 +215,28 @@ public class KnnSearcher {
 
         @Override
         public Query filter(int searchIndex) {
-            int p = searchIndex / numQueryVectors;
-            Query partitionFilter = SortedDocValuesField.newSlowExactQuery(PARTITION_ID_FIELD, new BytesRef(sampledPartitions.get(p)));
+            Query partitionFilter = SortedDocValuesField.newSlowExactQuery(PARTITION_ID_FIELD, getPartition(searchIndex));
             return combineFilters(partitionFilter, selectivityFilter);
         }
 
         @Override
         public int queryIndex(int searchIndex) {
             return searchIndex % numQueryVectors;
+        }
+
+        @Override
+        public String partitionField() {
+            return sliceIndex ? PARTITION_ID_FIELD : null;
+        }
+
+        private BytesRef getPartition(int searchIndex) {
+            int p = searchIndex / numQueryVectors;
+            return new BytesRef(sampledPartitions.get(p));
+        }
+
+        @Override
+        public BytesRef partition(int searchIndex) {
+            return sliceIndex ? getPartition(searchIndex) : null;
         }
 
         List<String> sampledPartitions() {
@@ -242,6 +267,16 @@ public class KnnSearcher {
         @Override
         public int queryIndex(int searchIndex) {
             return searchIndex;
+        }
+
+        @Override
+        public String partitionField() {
+            return null;
+        }
+
+        @Override
+        public BytesRef partition(int searchIndex) {
+            return null;
         }
     }
 
@@ -356,7 +391,7 @@ public class KnnSearcher {
             }
             long nnElapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - nnStartNS);
             logger.info("computed {} exact partitioned NN matches in {} ms", totalSearches, nnElapsedMS);
-            writeNN(nn, nnPath);
+            // writeNN(nn, nnPath); does not work
             return nn;
         }
     }
@@ -455,7 +490,14 @@ public class KnnSearcher {
                     if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                         doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                     } else {
-                        doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters);
+                        doVectorQuery(
+                            floatQueries[qIdx],
+                            searcher,
+                            filter,
+                            searchParameters,
+                            filterProvider.partitionField(),
+                            filterProvider.partition(i)
+                        );
                     }
                 }
 
@@ -466,7 +508,14 @@ public class KnnSearcher {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             results[searchIdx] = doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                         } else {
-                            results[searchIdx] = doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters);
+                            results[searchIdx] = doVectorQuery(
+                                floatQueries[qIdx],
+                                searcher,
+                                filter,
+                                searchParameters,
+                                filterProvider.partitionField(),
+                                filterProvider.partition(searchIdx)
+                            );
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -702,7 +751,14 @@ public class KnnSearcher {
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
-    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters) throws IOException {
+    TopDocs doVectorQuery(
+        float[] vector,
+        IndexSearcher searcher,
+        Query filterQuery,
+        SearchParameters searchParameters,
+        String pf,
+        BytesRef p
+    ) throws IOException {
         Query knnQuery;
         int overSampledTopK = searchParameters.topK();
         if (searchParameters.overSamplingFactor() > 1f) {
@@ -712,7 +768,17 @@ public class KnnSearcher {
         int efSearch = Math.max(overSampledTopK, searchParameters.numCandidates());
         if (indexType == KnnIndexTester.IndexType.IVF) {
             float visitRatio = (float) (searchParameters.visitPercentage() / 100);
-            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, overSampledTopK, efSearch, filterQuery, visitRatio, doPrecondition);
+            knnQuery = new IVFKnnFloatVectorQuery(
+                VECTOR_FIELD,
+                vector,
+                overSampledTopK,
+                efSearch,
+                filterQuery,
+                visitRatio,
+                doPrecondition,
+                pf,
+                p
+            );
         } else {
             knnQuery = new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,

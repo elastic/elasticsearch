@@ -109,7 +109,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // https://github.com/elastic/elasticsearch/issues/145570
         "function cannot operate on \\[from .*\\], which is not a field from an index mapping",
         // https://github.com/elastic/elasticsearch/issues/145570
-        "function cannot operate on \\[\\], which is not a field from an index mapping",
+        "function cannot operate on \\[.*\\], which is not a field from an index mapping",
+        "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
         "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",

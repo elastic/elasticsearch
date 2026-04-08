@@ -11,6 +11,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <algorithm>
 
 #include "vec.h"
 #include "vec_common.h"
@@ -243,12 +244,23 @@ static inline void bf16Qf32_bulk_avx512(
 
     // 16 bf16 elements per 256-bit load, widened to 512-bit f32
     constexpr int elements = sizeof(__m256) / sizeof(bf16_t);
+    const int lines_to_fetch = dims * sizeof(bf16_t) / CACHE_LINE_SIZE + 1;
+
+    const bf16_t* current_vecs[batches];
+    init_pointers<batches, bf16_t, bf16_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
 
     for (; c + batches - 1 < count; c += batches) {
-        const bf16_t* as[batches];
+        const bf16_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
+
         __m512 sums[batches];
         apply_indexed<batches>([&](auto I) {
-            as[I] = mapper(a, c + I, offsets, pitch);
             sums[I] = _mm512_setzero_ps();
         });
 
@@ -256,7 +268,7 @@ static inline void bf16Qf32_bulk_avx512(
         for (; i + elements <= dims; i += elements) {
             __m512 qi = load_f32(b, i);
             apply_indexed<batches>([&](auto I) {
-                sums[I] = vector_op(load_bf16(as[I], i), qi, sums[I]);
+                sums[I] = vector_op(load_bf16(current_vecs[I], i), qi, sums[I]);
             });
         }
 
@@ -266,7 +278,7 @@ static inline void bf16Qf32_bulk_avx512(
             __mmask16 mask = (__mmask16)((1U << rem) - 1);
             __m512 qi = _mm512_maskz_loadu_ps(mask, b + i);
             apply_indexed<batches>([&](auto I) {
-                __m512 ai = bf16_to_f32(_mm256_maskz_loadu_epi16(mask, as[I] + i));
+                __m512 ai = bf16_to_f32(_mm256_maskz_loadu_epi16(mask, current_vecs[I] + i));
                 sums[I] = vector_op(ai, qi, sums[I]);
             });
         }
@@ -274,6 +286,10 @@ static inline void bf16Qf32_bulk_avx512(
         apply_indexed<batches>([&](auto I) {
             results[c + I] = _mm512_reduce_add_ps(sums[I]);
         });
+
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     // Remaining vectors that don't fill a full batch
@@ -309,12 +325,23 @@ static inline void dotDbf16Qbf16_bulk_avx512(
 ) {
     int c = 0;
     constexpr int elements = sizeof(__m512bh) / sizeof(bf16_t);
+    const int lines_to_fetch = dims * sizeof(bf16_t) / CACHE_LINE_SIZE + 1;
+
+    const bf16_t* current_vecs[batches];
+    init_pointers<batches, bf16_t, bf16_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
 
     for (; c + batches - 1 < count; c += batches) {
-        const bf16_t* as[batches];
+        const bf16_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
+
         __m512 sums[batches];
         apply_indexed<batches>([&](auto I) {
-            as[I] = mapper(a, c + I, offsets, pitch);
             sums[I] = _mm512_setzero_ps();
         });
 
@@ -323,7 +350,7 @@ static inline void dotDbf16Qbf16_bulk_avx512(
             __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i);
             apply_indexed<batches>([&](auto I) {
                 sums[I] = _mm512_dpbf16_ps(sums[I],
-                    (__m512bh)_mm512_loadu_epi16(as[I] + i), qi);
+                    (__m512bh)_mm512_loadu_epi16(current_vecs[I] + i), qi);
             });
         }
 
@@ -334,7 +361,7 @@ static inline void dotDbf16Qbf16_bulk_avx512(
             __mmask16 dpMask = (__mmask16)((1U << (rem / 2)) - 1);
             __m512bh qi = (__m512bh)_mm512_maskz_loadu_epi16(readMask, b + i);
             apply_indexed<batches>([&](auto I) {
-                __m512bh ai = (__m512bh)_mm512_maskz_loadu_epi16(readMask, as[I] + i);
+                __m512bh ai = (__m512bh)_mm512_maskz_loadu_epi16(readMask, current_vecs[I] + i);
                 sums[I] = _mm512_mask_dpbf16_ps(sums[I], dpMask, ai, qi);
             });
         }
@@ -342,10 +369,14 @@ static inline void dotDbf16Qbf16_bulk_avx512(
         apply_indexed<batches>([&](auto I) {
             f32_t result = _mm512_reduce_add_ps(sums[I]);
             if ((rem & 1) != 0) {
-                result += dot_scalar(as[I][dims - 1], b[dims - 1]);
+                result += dot_scalar(current_vecs[I][dims - 1], b[dims - 1]);
             }
             results[c + I] = result;
         });
+
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     for (; c < count; c++) {
@@ -374,15 +405,26 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
 ) {
     int c = 0;
     constexpr int elements = sizeof(__m512bh) / sizeof(bf16_t);
+    const int lines_to_fetch = dims * sizeof(bf16_t) / CACHE_LINE_SIZE + 1;
+
+    const bf16_t* current_vecs[batches];
+    init_pointers<batches, bf16_t, bf16_t, mapper>(current_vecs, a, pitch, offsets, 0, count);
 
     // Compute squared distance (|a - b|^2) as its expansion (a dot a + b dot b - 2(a dot b)),
     // using 3x dpbf16 operations, accumulating them in sum_aa, sum_qq, sum_ab
     for (; c + batches - 1 < count; c += batches) {
-        const bf16_t* as[batches];
+        const bf16_t* next_vecs[batches];
+        const bool has_next = c + 2 * batches - 1 < count;
+        if (has_next) {
+            apply_indexed<batches>([&](auto I) {
+                next_vecs[I] = mapper(a, c + batches + I, offsets, pitch);
+                prefetch(next_vecs[I], lines_to_fetch);
+            });
+        }
+
         __m512 sum_aa[batches];
         __m512 sum_ab[batches];
         apply_indexed<batches>([&](auto I) {
-            as[I] = mapper(a, c + I, offsets, pitch);
             sum_aa[I] = _mm512_setzero_ps();
             sum_ab[I] = _mm512_setzero_ps();
         });
@@ -393,7 +435,7 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
             __m512bh qi = (__m512bh)_mm512_loadu_epi16(b + i);
             sum_qq = _mm512_dpbf16_ps(sum_qq, qi, qi);
             apply_indexed<batches>([&](auto I) {
-                __m512bh ai = (__m512bh)_mm512_loadu_epi16(as[I] + i);
+                __m512bh ai = (__m512bh)_mm512_loadu_epi16(current_vecs[I] + i);
                 sum_aa[I] = _mm512_dpbf16_ps(sum_aa[I], ai, ai);
                 sum_ab[I] = _mm512_dpbf16_ps(sum_ab[I], ai, qi);
             });
@@ -407,7 +449,7 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
             __m512bh qi = (__m512bh)_mm512_maskz_loadu_epi16(readMask, b + i);
             sum_qq = _mm512_mask_dpbf16_ps(sum_qq, dpMask, qi, qi);
             apply_indexed<batches>([&](auto I) {
-                __m512bh ai = (__m512bh)_mm512_maskz_loadu_epi16(readMask, as[I] + i);
+                __m512bh ai = (__m512bh)_mm512_maskz_loadu_epi16(readMask, current_vecs[I] + i);
                 sum_aa[I] = _mm512_mask_dpbf16_ps(sum_aa[I], dpMask, ai, ai);
                 sum_ab[I] = _mm512_mask_dpbf16_ps(sum_ab[I], dpMask, ai, qi);
             });
@@ -422,11 +464,15 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
             f32_t aa = _mm512_reduce_add_ps(sum_aa[I]);
             f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
             if ((rem & 1) != 0) {
-                aa += dot_scalar(as[I][dims - 1], as[I][dims - 1]);
-                ab += dot_scalar(as[I][dims - 1], b[dims - 1]);
+                aa += dot_scalar(current_vecs[I][dims - 1], current_vecs[I][dims - 1]);
+                ab += dot_scalar(current_vecs[I][dims - 1], b[dims - 1]);
             }
             results[c + I] = aa + qq - 2.0f * ab;
         });
+
+        if (has_next) {
+            std::copy_n(next_vecs, batches, current_vecs);
+        }
     }
 
     for (; c < count; c++) {

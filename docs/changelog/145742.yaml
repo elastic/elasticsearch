@@ -20,8 +20,8 @@ highlight:
     ----
   notable: true
   title: Improve the supportability of `aggregate_metric_double` by ES|QL.
-issues:
-  - 128356
+issues: []
 pr: 145742
-summary: Improve the supportability of `aggregate_metric_double` by non-native ES|QL aggregation functions, such as std_dev.
+summary: "Improve the supportability of `aggregate_metric_double` by non-native ES|QL\
+  \ aggregation functions, such as std_dev."
 type: enhancement

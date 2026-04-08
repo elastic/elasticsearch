@@ -3612,9 +3612,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(subPlans.size(), equalTo(5));
 
         // fork branch 1
-        limit = as(subPlans.get(0), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        Project project = as(limit.child(), Project.class);
+        Project project = as(subPlans.get(0), Project.class);
         List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         Eval eval = as(project.child(), Eval.class);
@@ -3629,9 +3627,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 2
-        limit = as(subPlans.get(1), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(1), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3646,9 +3642,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 3
-        limit = as(subPlans.get(2), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(2), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3665,9 +3659,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 4
-        limit = as(subPlans.get(3), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(3), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3680,9 +3672,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 5
-        limit = as(subPlans.get(4), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(4), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3715,9 +3705,7 @@ public class AnalyzerTests extends ESTestCase {
         var expectedOutput = List.of("emp_no", "first_name", "_fork", "xyz", "x", "y");
 
         // fork branch 1
-        limit = as(subPlans.get(0), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
-        Project project = as(limit.child(), Project.class);
+        Project project = as(subPlans.get(0), Project.class);
         List<String> projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
 
@@ -3746,9 +3734,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 2
-        limit = as(subPlans.get(1), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(1), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3776,9 +3762,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // fork branch 3
-        limit = as(subPlans.get(2), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        project = as(limit.child(), Project.class);
+        project = as(subPlans.get(2), Project.class);
         projectColumns = project.expressions().stream().map(exp -> as(exp, Attribute.class).name()).toList();
         assertThat(projectColumns, equalTo(expectedOutput));
         eval = as(project.child(), Eval.class);
@@ -3981,8 +3965,8 @@ public class AnalyzerTests extends ESTestCase {
     public void testValidFuse() {
         LogicalPlan plan = basic().query("""
              from test metadata _id, _index, _score
-             | fork ( where first_name:"foo" )
-                    ( where first_name:"bar" )
+             | fork ( where first_name:"foo" | LIMIT 100)
+                    ( where first_name:"bar" | LIMIT 100)
              | fuse
             """);
 
@@ -4120,7 +4104,7 @@ public class AnalyzerTests extends ESTestCase {
             """
                 FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""",
             ParsingException.class,
-            containsString(" error building [text_embedding]: function [text_embedding] expects exactly two arguments")
+            containsString("error building [text_embedding]: expects exactly two arguments")
         );
     }
 
@@ -6318,8 +6302,7 @@ public class AnalyzerTests extends ESTestCase {
             assertEquals(2, fork.children().size());
 
             for (int i = 0; i < 2; i++) {
-                limit = as(fork.children().get(i), Limit.class);
-                Project project = as(limit.child(), Project.class);
+                Project project = as(fork.children().get(i), Project.class);
                 assertEquals(1, project.projections().size());
                 ReferenceAttribute referenceAttribute = as(project.projections().getFirst(), ReferenceAttribute.class);
                 assertEquals("_fork", referenceAttribute.name());
@@ -6347,8 +6330,7 @@ public class AnalyzerTests extends ESTestCase {
             assertEquals(2, fork.children().size());
 
             for (int i = 0; i < 2; i++) {
-                limit = as(fork.children().get(i), Limit.class);
-                Project project = as(limit.child(), Project.class);
+                Project project = as(fork.children().get(i), Project.class);
                 assertEquals(1, project.projections().size());
                 ReferenceAttribute referenceAttribute = as(project.projections().getFirst(), ReferenceAttribute.class);
                 assertEquals("_fork", referenceAttribute.name());

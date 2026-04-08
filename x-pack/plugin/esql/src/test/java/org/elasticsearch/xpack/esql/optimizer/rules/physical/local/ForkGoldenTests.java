@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
@@ -40,7 +41,7 @@ public class ForkGoldenTests extends GoldenTestCase {
                    ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
             | FUSE
             | SORT _score DESC
-            """, STAGES, SEARCH_STATS, TransportVersion.current());
+            """, STAGES, SEARCH_STATS, TransportVersionUtils.randomVersionSupporting(Sum.ESQL_SUM_LONG_OVERFLOW_FIX));
     }
 
     public void testWithTopResultsAndStats() {

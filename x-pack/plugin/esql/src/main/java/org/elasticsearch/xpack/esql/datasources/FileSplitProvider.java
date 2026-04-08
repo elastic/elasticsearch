@@ -12,6 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -42,8 +43,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 /**
@@ -117,6 +120,7 @@ public class FileSplitProvider implements SplitProvider {
         PartitionMetadata partitionInfo = context.partitionInfo();
         Map<String, Object> config = context.config();
         List<Expression> filterHints = context.filterHints();
+        Set<String> projectedDataColumns = fileBackedProjectedColumns(context.projectedDataColumns(), partitionInfo);
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = fileList.fileSchemaInfo();
         List<ExternalSplit> splits = new ArrayList<>();
         // Dedup cache: files with content-equal mappings share the same ColumnMapping
@@ -138,6 +142,13 @@ public class FileSplitProvider implements SplitProvider {
 
             if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
                 if (matchesPartitionFilters(partitionValues, filterHints) == false) {
+                    continue;
+                }
+            }
+
+            if (projectedDataColumns.isEmpty() == false && schemaInfo != null) {
+                SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
+                if (info != null && hasNoProjectedColumns(info.fileSchema(), projectedDataColumns)) {
                     continue;
                 }
             }
@@ -504,6 +515,32 @@ public class FileSplitProvider implements SplitProvider {
         long result = ByteSizeValue.parseBytesSizeValue(s, CONFIG_TARGET_SPLIT_SIZE).getBytes();
         Check.isTrue(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_TARGET_SPLIT_SIZE, value);
         return result;
+    }
+
+    /**
+     * Returns the subset of projected data columns that must come from file bytes,
+     * excluding partition columns whose values come from paths, not file data.
+     */
+    static Set<String> fileBackedProjectedColumns(Set<String> projectedDataColumns, PartitionMetadata partitionInfo) {
+        if (projectedDataColumns.isEmpty() || partitionInfo == null || partitionInfo.isEmpty()) {
+            return projectedDataColumns;
+        }
+        Set<String> result = new LinkedHashSet<>(projectedDataColumns);
+        result.removeAll(partitionInfo.partitionColumns().keySet());
+        return result;
+    }
+
+    /**
+     * Returns {@code true} when the file's data columns have zero overlap with the projected set,
+     * meaning this file would produce only NULL rows for all needed columns.
+     */
+    static boolean hasNoProjectedColumns(List<Attribute> fileSchema, Set<String> projectedDataColumns) {
+        for (Attribute attr : fileSchema) {
+            if (projectedDataColumns.contains(attr.name())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     static boolean matchesPartitionFilters(Map<String, Object> partitionValues, List<Expression> filters) {

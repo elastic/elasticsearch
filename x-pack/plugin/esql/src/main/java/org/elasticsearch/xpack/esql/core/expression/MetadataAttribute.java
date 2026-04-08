@@ -36,6 +36,7 @@ public class MetadataAttribute extends TypedAttribute {
     public static final String INDEX = "_index";
     public static final String TIMESERIES = "_timeseries";
     public static final String SIZE = "_size";
+    public static final String DOC = "_doc";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,

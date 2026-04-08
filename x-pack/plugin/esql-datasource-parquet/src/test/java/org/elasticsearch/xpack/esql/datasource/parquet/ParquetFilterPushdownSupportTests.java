@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.parquet.filter2.compat.FilterCompat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -50,7 +49,7 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
 
         assertTrue(result.hasPushedFilter());
-        assertThat(result.pushedFilter(), instanceOf(FilterCompat.Filter.class));
+        assertThat(result.pushedFilter(), instanceOf(ParquetPushedExpressions.class));
         assertEquals(1, result.remainder().size());
     }
 
@@ -198,7 +197,7 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testIsNullUnsupportedTypeNotPushed() {
-        Attribute col = attr("ts", DataType.DATETIME);
+        Attribute col = attr("loc", DataType.GEO_POINT);
         Expression filter = new IsNull(Source.EMPTY, col);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -246,9 +245,9 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testRangeUnsupportedTypeNotPushed() {
-        Attribute col = attr("ts", DataType.DATETIME);
-        Literal lower = new Literal(Source.EMPTY, 1000L, DataType.DATETIME);
-        Literal upper = new Literal(Source.EMPTY, 2000L, DataType.DATETIME);
+        Attribute col = attr("loc", DataType.GEO_POINT);
+        Literal lower = new Literal(Source.EMPTY, new BytesRef("point1"), DataType.GEO_POINT);
+        Literal upper = new Literal(Source.EMPTY, new BytesRef("point2"), DataType.GEO_POINT);
         Expression filter = new Range(Source.EMPTY, col, lower, true, upper, true, ZoneOffset.UTC);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -333,9 +332,9 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     public void testAndPartialPushdown() {
         Attribute salary = attr("salary", DataType.LONG);
-        Attribute ts = attr("ts", DataType.DATETIME);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
         Expression supported = new GreaterThan(Source.EMPTY, salary, longLit(50000L), null);
-        Expression unsupported = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Expression unsupported = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
         Expression filter = new And(Source.EMPTY, supported, unsupported);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -345,10 +344,10 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testAndBothUnsupportedNotPushed() {
-        Attribute ts1 = attr("ts1", DataType.DATETIME);
-        Attribute ts2 = attr("ts2", DataType.DATETIME);
-        Expression left = new Equals(Source.EMPTY, ts1, new Literal(Source.EMPTY, 1000L, DataType.DATETIME), null);
-        Expression right = new Equals(Source.EMPTY, ts2, new Literal(Source.EMPTY, 2000L, DataType.DATETIME), null);
+        Attribute loc1 = attr("loc1", DataType.GEO_POINT);
+        Attribute loc2 = attr("loc2", DataType.GEO_POINT);
+        Expression left = new Equals(Source.EMPTY, loc1, new Literal(Source.EMPTY, new BytesRef("p1"), DataType.GEO_POINT), null);
+        Expression right = new Equals(Source.EMPTY, loc2, new Literal(Source.EMPTY, new BytesRef("p2"), DataType.GEO_POINT), null);
         Expression filter = new And(Source.EMPTY, left, right);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -372,9 +371,9 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     public void testOrWithUnsupportedSideNotPushed() {
         Attribute salary = attr("salary", DataType.LONG);
-        Attribute ts = attr("ts", DataType.DATETIME);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
         Expression supported = new GreaterThan(Source.EMPTY, salary, longLit(50000L), null);
-        Expression unsupported = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Expression unsupported = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
         Expression filter = new Or(Source.EMPTY, supported, unsupported);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -396,8 +395,8 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testNotWithUnsupportedInnerNotPushed() {
-        Attribute ts = attr("ts", DataType.DATETIME);
-        Expression inner = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
+        Expression inner = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
         Expression filter = new Not(Source.EMPTY, inner);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -405,15 +404,79 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertFalse(result.hasPushedFilter());
     }
 
-    // --- Unsupported types ---
+    // --- DATETIME pushdown tests ---
 
-    public void testUnsupportedDatetimeNotPushed() {
+    public void testDatetimeEqualsPushed() {
         Attribute col = attr("ts", DataType.DATETIME);
-        Expression filter = new Equals(Source.EMPTY, col, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Expression filter = new Equals(Source.EMPTY, col, datetimeLit(1234567890L), null);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
 
-        assertFalse(result.hasPushedFilter());
+        assertTrue(result.hasPushedFilter());
+        assertThat(result.pushedFilter(), instanceOf(ParquetPushedExpressions.class));
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testDatetimeRangePushed() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        Expression filter = new Range(Source.EMPTY, col, datetimeLit(1000L), true, datetimeLit(2000L), true, ZoneOffset.UTC);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testDatetimeGreaterThanPushed() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        Expression filter = new GreaterThan(Source.EMPTY, col, datetimeLit(1700000000000L), null);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+    }
+
+    public void testDatetimeIsNullPushed() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        Expression filter = new IsNull(Source.EMPTY, col);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+    }
+
+    public void testDatetimeInListPushed() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        Expression filter = new In(Source.EMPTY, col, List.of(datetimeLit(1000L), datetimeLit(2000L), datetimeLit(3000L)));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+    }
+
+    public void testDatetimeAndLongBothPushed() {
+        Attribute salary = attr("salary", DataType.LONG);
+        Attribute ts = attr("ts", DataType.DATETIME);
+        Expression left = new GreaterThan(Source.EMPTY, salary, longLit(50000L), null);
+        Expression right = new Equals(Source.EMPTY, ts, datetimeLit(1234567890L), null);
+        Expression filter = new And(Source.EMPTY, left, right);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testDatetimeOrIntegerBothPushed() {
+        Attribute ts = attr("ts", DataType.DATETIME);
+        Attribute status = attr("status", DataType.INTEGER);
+        Expression left = new GreaterThan(Source.EMPTY, ts, datetimeLit(1000L), null);
+        Expression right = new Equals(Source.EMPTY, status, intLit(1), null);
+        Expression filter = new Or(Source.EMPTY, left, right);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
     }
 
     // --- Mixed filters ---
@@ -425,7 +488,7 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
         Expression eq = new Equals(Source.EMPTY, name, keywordLit("alice"), null);
         Expression gt = new GreaterThan(Source.EMPTY, salary, longLit(50000L), null);
-        Expression tsFilter = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Expression tsFilter = new Equals(Source.EMPTY, ts, datetimeLit(1234567890L), null);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(eq, gt, tsFilter));
 
@@ -447,8 +510,8 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testNoTranslatableExpressions() {
-        Attribute ts = attr("ts", DataType.DATETIME);
-        Expression filter = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
+        Expression filter = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
 
@@ -466,13 +529,20 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testCanPushReturnsNoForUnsupported() {
-        Attribute col = attr("ts", DataType.DATETIME);
-        Expression filter = new Equals(Source.EMPTY, col, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Attribute col = attr("loc", DataType.GEO_POINT);
+        Expression filter = new Equals(Source.EMPTY, col, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
 
         assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
     }
 
     // --- canConvert tests ---
+
+    public void testCanConvertDatetime() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        Expression filter = new Equals(Source.EMPTY, col, datetimeLit(1234567890L), null);
+
+        assertTrue(ParquetFilterPushdownSupport.canConvert(filter));
+    }
 
     public void testCanConvertNotEquals() {
         Attribute col = attr("salary", DataType.INTEGER);
@@ -504,18 +574,18 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     public void testCanConvertAndPartial() {
         Attribute salary = attr("salary", DataType.LONG);
-        Attribute ts = attr("ts", DataType.DATETIME);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
         Expression supported = new Equals(Source.EMPTY, salary, longLit(50000L), null);
-        Expression unsupported = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1000L, DataType.DATETIME), null);
+        Expression unsupported = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
 
         assertTrue(ParquetFilterPushdownSupport.canConvert(new And(Source.EMPTY, supported, unsupported)));
     }
 
     public void testCanConvertOrRequiresBothSides() {
         Attribute salary = attr("salary", DataType.LONG);
-        Attribute ts = attr("ts", DataType.DATETIME);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
         Expression supported = new Equals(Source.EMPTY, salary, longLit(50000L), null);
-        Expression unsupported = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1000L, DataType.DATETIME), null);
+        Expression unsupported = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
 
         assertFalse(ParquetFilterPushdownSupport.canConvert(new Or(Source.EMPTY, supported, unsupported)));
     }
@@ -528,8 +598,8 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testCanConvertNotWithUnsupportedInner() {
-        Attribute ts = attr("ts", DataType.DATETIME);
-        Expression inner = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1000L, DataType.DATETIME), null);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
+        Expression inner = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
 
         assertFalse(ParquetFilterPushdownSupport.canConvert(new Not(Source.EMPTY, inner)));
     }
@@ -632,5 +702,9 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     private static Literal boolLit(boolean value) {
         return new Literal(Source.EMPTY, value, DataType.BOOLEAN);
+    }
+
+    private static Literal datetimeLit(long millis) {
+        return new Literal(Source.EMPTY, millis, DataType.DATETIME);
     }
 }

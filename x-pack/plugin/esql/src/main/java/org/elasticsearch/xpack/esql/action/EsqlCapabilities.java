@@ -1050,6 +1050,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_NO_ROWS_COUNT_0,
 
         /**
+         * Support binary operators for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_BINARY_OPERATORS,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -2283,11 +2288,6 @@ public class EsqlCapabilities {
          * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
          */
         TS_INFO_COMMAND,
-
-        /**
-         * FORK with no implicit LIMIT
-         */
-        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
 
         /**
          * Dense_vector SUM aggregation function

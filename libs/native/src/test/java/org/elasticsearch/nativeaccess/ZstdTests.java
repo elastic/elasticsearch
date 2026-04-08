@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -67,7 +68,7 @@ public class ZstdTests extends ESTestCase {
 
             var npe1 = expectThrows(NullPointerException.class, () -> zstd.decompress(null, original));
             assertThat(npe1.getMessage(), equalTo("Null destination buffer"));
-            var npe2 = expectThrows(NullPointerException.class, () -> zstd.decompress(compressed, null));
+            var npe2 = expectThrows(NullPointerException.class, () -> zstd.decompress(compressed, (CloseableByteBuffer) null));
             assertThat(npe2.getMessage(), equalTo("Null source buffer"));
 
             // Invalid compressed format
@@ -85,8 +86,25 @@ public class ZstdTests extends ESTestCase {
         }
     }
 
+    public void testDecompressDirectByteBufferValidation() {
+        try (var dst = nativeAccess.newConfinedBuffer(500)) {
+            var npe1 = expectThrows(NullPointerException.class, () -> zstd.decompress(null, ByteBuffer.allocateDirect(1)));
+            assertThat(npe1.getMessage(), equalTo("Null destination buffer"));
+            var npe2 = expectThrows(NullPointerException.class, () -> zstd.decompress(dst, (ByteBuffer) null));
+            assertThat(npe2.getMessage(), equalTo("Null source buffer"));
+
+            var heapBuf = ByteBuffer.allocate(100);
+            var iae = expectThrows(IllegalArgumentException.class, () -> zstd.decompress(dst, heapBuf));
+            assertThat(iae.getMessage(), equalTo("Source buffer must be direct"));
+        }
+    }
+
     public void testOneByte() {
         doTestRoundtrip(new byte[] { 'z' });
+    }
+
+    public void testOneByteDirectByteBuffer() {
+        doTestRoundtripWithDirectByteBuffer(new byte[] { 'z' });
     }
 
     public void testConstant() {
@@ -95,12 +113,50 @@ public class ZstdTests extends ESTestCase {
         doTestRoundtrip(b);
     }
 
+    public void testConstantDirectByteBuffer() {
+        byte[] b = new byte[randomIntBetween(100, 1000)];
+        Arrays.fill(b, randomByte());
+        doTestRoundtripWithDirectByteBuffer(b);
+    }
+
     public void testCycle() {
         byte[] b = new byte[randomIntBetween(100, 1000)];
         for (int i = 0; i < b.length; ++i) {
             b[i] = (byte) (i & 0x0F);
         }
         doTestRoundtrip(b);
+    }
+
+    public void testCycleDirectByteBuffer() {
+        byte[] b = new byte[randomIntBetween(100, 1000)];
+        for (int i = 0; i < b.length; ++i) {
+            b[i] = (byte) (i & 0x0F);
+        }
+        doTestRoundtripWithDirectByteBuffer(b);
+    }
+
+    /**
+     * Compress with CloseableByteBuffer, then decompress using a direct ByteBuffer source
+     * to exercise the {@link Zstd#decompress(CloseableByteBuffer, ByteBuffer)} overload.
+     */
+    private void doTestRoundtripWithDirectByteBuffer(byte[] data) {
+        try (
+            var original = nativeAccess.newConfinedBuffer(data.length);
+            var compressed = nativeAccess.newConfinedBuffer(zstd.compressBound(data.length));
+            var restored = nativeAccess.newConfinedBuffer(data.length)
+        ) {
+            original.buffer().put(0, data);
+            int compressedLength = zstd.compress(compressed, original, randomIntBetween(-3, 9));
+
+            ByteBuffer directSrc = ByteBuffer.allocateDirect(compressedLength);
+            for (int i = 0; i < compressedLength; i++) {
+                directSrc.put(i, compressed.buffer().get(i));
+            }
+
+            int decompressedLength = zstd.decompress(restored, directSrc);
+            assertThat(restored.buffer(), equalTo(original.buffer()));
+            assertThat(decompressedLength, equalTo(data.length));
+        }
     }
 
     private void doTestRoundtrip(byte[] data) {

@@ -64,7 +64,7 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
         var updatedSettings = (ContextualAiRerankTaskSettings) originalSettings.updatedTaskSettings(
             buildTaskSettingsMap(NEW_RETURN_DOCUMENTS, NEW_TOP_N, NEW_INSTRUCTION)
         );
-        assertEquals(new ContextualAiRerankTaskSettings(NEW_RETURN_DOCUMENTS, NEW_TOP_N, NEW_INSTRUCTION), updatedSettings);
+        assertThat(updatedSettings, is(new ContextualAiRerankTaskSettings(NEW_RETURN_DOCUMENTS, NEW_TOP_N, NEW_INSTRUCTION)));
     }
 
     public void testUpdatedTaskSettings_EmptyMap_ReturnsEmptySettings() {
@@ -74,10 +74,10 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
     }
 
     public void testFromMap_AllValues_CreatesSettingsSuccessfully() {
-        assertEquals(
-            new ContextualAiRerankTaskSettings(TEST_RETURN_DOCUMENTS, TEST_TOP_N, TEST_INSTRUCTION),
-            ContextualAiRerankTaskSettings.fromMap(buildTaskSettingsMap(TEST_RETURN_DOCUMENTS, TEST_TOP_N, TEST_INSTRUCTION))
+        var taskSettings = ContextualAiRerankTaskSettings.fromMap(
+            buildTaskSettingsMap(TEST_RETURN_DOCUMENTS, TEST_TOP_N, TEST_INSTRUCTION)
         );
+        assertThat(taskSettings, is(new ContextualAiRerankTaskSettings(TEST_RETURN_DOCUMENTS, TEST_TOP_N, TEST_INSTRUCTION)));
     }
 
     public void testFromMap_NullMap_ReturnsEmptySettings() {
@@ -91,7 +91,7 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
     public void testFromMap_ReturnDocumentsIsInvalidValue_ThrowsValidationException() {
         assertFromMap_ThrowsValidationException(
             new HashMap<>(Map.of(RETURN_DOCUMENTS_FIELD, INVALID_FIELD_TYPE_STRING)),
-            String.format(
+            Strings.format(
                 "field [return_documents] is not of the expected type. The value [%s] cannot be converted to a [Boolean]",
                 INVALID_FIELD_TYPE_STRING
             )
@@ -101,7 +101,7 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
     public void testFromMap_TopNIsInvalidValue_ThrowsValidationException() {
         assertFromMap_ThrowsValidationException(
             new HashMap<>(Map.of(TOP_N_FIELD, INVALID_FIELD_TYPE_STRING)),
-            String.format(
+            Strings.format(
                 "field [top_n] is not of the expected type. The value [%s] cannot be converted to a [Integer]",
                 INVALID_FIELD_TYPE_STRING
             )
@@ -112,7 +112,7 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
         int invalidInstructionValue = 123;
         assertFromMap_ThrowsValidationException(
             new HashMap<>(Map.of(INSTRUCTION_FIELD, invalidInstructionValue)),
-            String.format(
+            Strings.format(
                 "field [instruction] is not of the expected type. The value [%d] cannot be converted to a [String]",
                 invalidInstructionValue
             )
@@ -132,7 +132,7 @@ public class ContextualAiRerankTaskSettingsTests extends AbstractBWCWireSerializ
     private static void assertFromMap_TopNIsInvalid_ThrowsValidationException(int invalidTopNValue) {
         assertFromMap_ThrowsValidationException(
             buildTaskSettingsMap(null, invalidTopNValue, null),
-            String.format("[task_settings] Invalid value [%d]. [top_n] must be a positive integer", invalidTopNValue)
+            Strings.format("[task_settings] Invalid value [%d]. [top_n] must be a positive integer", invalidTopNValue)
         );
     }
 

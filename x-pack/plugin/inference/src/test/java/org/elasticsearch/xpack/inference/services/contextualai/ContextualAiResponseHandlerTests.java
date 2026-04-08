@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.hamcrest.MatcherAssert;
 
 import java.nio.charset.StandardCharsets;
 
@@ -37,63 +36,63 @@ public class ContextualAiResponseHandlerTests extends ESTestCase {
     public void testCheckForFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(500, "id"));
         assertTrue(exception.shouldRetry());
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getCause().getMessage(),
             containsString("Received a server error status code for request from inference entity id [id] status [500]")
         );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
     public void testCheckForFailureStatusCode_ThrowsFor503_WithShouldRetryTrue() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(503, "id"));
         assertTrue(exception.shouldRetry());
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getCause().getMessage(),
             containsString("Received a server error status code for request from inference entity id [id] status [503]")
         );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
     public void testCheckForFailureStatusCode_ThrowsFor429() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(429, "id"));
         assertTrue(exception.shouldRetry());
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getCause().getMessage(),
             containsString("Received a rate limit status code for request from inference entity id [id] status [429]")
         );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testCheckForFailureStatusCode_ThrowsFor401() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(401, "inferenceEntityId"));
         assertFalse(exception.shouldRetry());
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getCause().getMessage(),
             containsString(
                 "Received an authentication error status code for request from inference entity id [inferenceEntityId] status [401]"
             )
         );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.UNAUTHORIZED));
     }
 
     public void testCheckForFailureStatusCode_ThrowsFor400() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(400, "id"));
         assertFalse(exception.shouldRetry());
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getCause().getMessage(),
             containsString("Received an unsuccessful status code for request from inference entity id [id] status [400]")
         );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
     public void testCheckForFailureStatusCode_ThrowsFor300() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(300, "id"));
         assertFalse(exception.shouldRetry());
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getCause().getMessage(),
             containsString("Unhandled redirection for request from inference entity id [id] status [300]")
         );
-        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
     }
 
     private static void callCheckForFailureStatusCode(int statusCode, String modelId) {

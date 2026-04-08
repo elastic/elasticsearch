@@ -38,10 +38,11 @@ import static org.mockito.Mockito.mock;
 
 public class ContextualAiServiceTests extends InferenceServiceTestCase {
 
-    private static final String INFERENCE_ENTITY_ID_VALUE = "test-inference-entity-id";
-    private static final String MODEL_ID_VALUE = "some-model";
-    private static final String URL_VALUE = "url-value";
-    private static final String API_KEY_VALUE = "test-api-key";
+    private static final String INFERENCE_ENTITY_ID = "test-inference-entity-id";
+    private static final String TEST_MODEL_ID = "some-model";
+    private static final String TEST_URL = "http://www.abc.com";
+    private static final String TEST_API_KEY = "some-api-key";
+    private static final int RERANKER_WINDOW_SIZE = 5500;
     private ThreadPool threadPool;
 
     @Override
@@ -67,24 +68,24 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_ID_VALUE), is(5500));
+        assertThat(rerankingInferenceService.rerankerWindowSize(TEST_MODEL_ID), is(RERANKER_WINDOW_SIZE));
     }
 
     public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException, URISyntaxException {
         var model = new ContextualAiRerankModel(
-            INFERENCE_ENTITY_ID_VALUE,
+            INFERENCE_ENTITY_ID,
             new ContextualAiRerankServiceSettings(
-                new ContextualAiServiceSettings.CommonSettings(new URI(URL_VALUE), MODEL_ID_VALUE, new RateLimitSettings(1000))
+                new ContextualAiServiceSettings.CommonSettings(new URI(TEST_URL), TEST_MODEL_ID, new RateLimitSettings(1000))
             ),
             new ContextualAiRerankTaskSettings(null, null, null),
-            new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
+            new DefaultSecretSettings(new SecureString(TEST_API_KEY.toCharArray()))
         );
         validateModelBuilding(model);
     }
 
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
         var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ENTITY_ID_VALUE,
+            INFERENCE_ENTITY_ID,
             TaskType.CHAT_COMPLETION,
             ContextualAiService.NAME,
             mock(ServiceSettings.class)

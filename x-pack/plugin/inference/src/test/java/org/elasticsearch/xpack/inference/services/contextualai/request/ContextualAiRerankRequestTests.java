@@ -26,6 +26,11 @@ import java.net.URI;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequestEntity.DOCUMENTS_FIELD;
+import static org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequestEntity.INSTRUCTION_FIELD;
+import static org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequestEntity.MODEL_FIELD;
+import static org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequestEntity.QUERY_FIELD;
+import static org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequestEntity.TOP_N_FIELD;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -40,12 +45,6 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
     private static final String INFERENCE_ENTITY_ID_VALUE = "test-inference-entity-id";
     private static final int TOP_N_VALUE = 7;
     private static final String INSTRUCTION_VALUE = "Rerank by relevance.";
-
-    private static final String QUERY_FIELD = "query";
-    private static final String DOCUMENTS_FIELD = "documents";
-    private static final String MODEL_FIELD = "model";
-    private static final String TOP_N_FIELD = "top_n";
-    private static final String INSTRUCTION_FIELD = "instruction";
 
     public void testCreateRequest_CustomUrl() throws IOException {
         assertCreateHttpRequest(createRequest(URI.create(URL_VALUE), new ContextualAiRerankTaskSettings(null, null, null), null, null));
@@ -113,7 +112,7 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is(ContextualAiRerankRequestTests.URL_VALUE));
+        assertThat(httpPost.getURI().toString(), is(URL_VALUE));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", API_KEY_VALUE)));
 
@@ -136,11 +135,7 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
         var model = new ContextualAiRerankModel(
             INFERENCE_ENTITY_ID_VALUE,
             new ContextualAiRerankServiceSettings(
-                new ContextualAiServiceSettings.CommonSettings(
-                    serviceUri,
-                    ContextualAiRerankRequestTests.MODEL_ID_VALUE,
-                    new RateLimitSettings(1000L)
-                )
+                new ContextualAiServiceSettings.CommonSettings(serviceUri, MODEL_ID_VALUE, new RateLimitSettings(1000L))
             ),
             taskSettings,
             new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))

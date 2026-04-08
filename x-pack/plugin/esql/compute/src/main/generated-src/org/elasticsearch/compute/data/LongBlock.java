@@ -21,7 +21,8 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock, LongBigArrayBlock,
-    org.elasticsearch.compute.data.arrow.LongArrowBufBlock {
+    org.elasticsearch.compute.data.arrow.LongArrowBufBlock, org.elasticsearch.compute.data.arrow.UInt32ArrowBufBlock,
+    org.elasticsearch.compute.data.arrow.LongMul1kArrowBufBlock {
 
     /**
      * Retrieves the long value stored at the given value index.

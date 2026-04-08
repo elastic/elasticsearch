@@ -111,7 +111,21 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
                         listener.onFailure(mockMountFailure.get());
                     } else if (mockMountResponse.get() != null) {
                         listener.onResponse((Response) mockMountResponse.get());
+                    } else {
+                        listener.onFailure(
+                            new AssertionError("No mock mount response or failure configured for request [" + mountRequest + "]")
+                        );
                     }
+                } else {
+                    listener.onFailure(
+                        new AssertionError(
+                            "Unexpected request type ["
+                                + request.getClass().getName()
+                                + "] for action ["
+                                + action.name()
+                                + "]"
+                        )
+                    );
                 }
             }
         };

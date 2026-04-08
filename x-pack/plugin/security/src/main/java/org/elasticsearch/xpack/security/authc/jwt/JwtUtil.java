@@ -265,39 +265,39 @@ public class JwtUtil {
     public static CloseableHttpAsyncClient createHttpClient(final RealmConfig realmConfig, final SSLService sslService) {
         try {
             final ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor();
-                final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
-                final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-                final SSLContext clientContext = sslService.sslContext(sslConfiguration);
-                final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
-                final Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
-                    .register("http", NoopIOSessionStrategy.INSTANCE)
-                    .register("https", new SSLIOSessionStrategy(clientContext, verifier))
-                    .build();
-                final PoolingNHttpClientConnectionManager connectionManager = new PoolingNHttpClientConnectionManager(ioReactor, registry);
-                connectionManager.setDefaultMaxPerRoute(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS));
-                connectionManager.setMaxTotal(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_CONNECTIONS));
-                final RequestConfig requestConfig = RequestConfig.custom()
-                    .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT).getMillis()))
-                    .setConnectionRequestTimeout(
-                        Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT).getMillis())
+            final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
+            final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
+            final SSLContext clientContext = sslService.sslContext(sslConfiguration);
+            final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
+            final Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
+                .register("http", NoopIOSessionStrategy.INSTANCE)
+                .register("https", new SSLIOSessionStrategy(clientContext, verifier))
+                .build();
+            final PoolingNHttpClientConnectionManager connectionManager = new PoolingNHttpClientConnectionManager(ioReactor, registry);
+            connectionManager.setDefaultMaxPerRoute(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS));
+            connectionManager.setMaxTotal(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_CONNECTIONS));
+            final RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT).getMillis()))
+                .setConnectionRequestTimeout(
+                    Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT).getMillis())
+                )
+                .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT).getMillis()))
+                .build();
+            final HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
+                .setConnectionManager(connectionManager)
+                .setDefaultRequestConfig(requestConfig);
+            if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
+                httpAsyncClientBuilder.setProxy(
+                    new HttpHost(
+                        realmConfig.getSetting(HTTP_PROXY_HOST),
+                        realmConfig.getSetting(HTTP_PROXY_PORT),
+                        realmConfig.getSetting(HTTP_PROXY_SCHEME)
                     )
-                    .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT).getMillis()))
-                    .build();
-                final HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
-                    .setConnectionManager(connectionManager)
-                    .setDefaultRequestConfig(requestConfig);
-                if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
-                    httpAsyncClientBuilder.setProxy(
-                        new HttpHost(
-                            realmConfig.getSetting(HTTP_PROXY_HOST),
-                            realmConfig.getSetting(HTTP_PROXY_PORT),
-                            realmConfig.getSetting(HTTP_PROXY_SCHEME)
-                        )
-                    );
-                }
-                final CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
-                httpAsyncClient.start();
-                return httpAsyncClient;
+                );
+            }
+            final CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
+            httpAsyncClient.start();
+            return httpAsyncClient;
         } catch (IOException e) {
             throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
         }

@@ -19,10 +19,11 @@ import org.ietf.jgss.GSSManager;
 import org.ietf.jgss.Oid;
 
 import java.nio.file.Path;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.CompletionException;
 
 import javax.security.auth.Subject;
 import javax.security.auth.login.AppConfigurationEntry;
@@ -139,8 +140,11 @@ public class KerberosTicketValidator {
     private static byte[] acceptSecContext(final byte[] base64decodedTicket, final GSSContext gssContext, Subject subject)
         throws GSSException {
         try {
-            return Subject.callAs(subject, () -> gssContext.acceptSecContext(base64decodedTicket, 0, base64decodedTicket.length));
-        } catch (CompletionException e) {
+            return Subject.doAs(
+                subject,
+                (PrivilegedExceptionAction<byte[]>) () -> gssContext.acceptSecContext(base64decodedTicket, 0, base64decodedTicket.length)
+            );
+        } catch (PrivilegedActionException e) {
             if (e.getCause() instanceof GSSException gsse) {
                 throw gsse;
             }
@@ -158,11 +162,16 @@ public class KerberosTicketValidator {
      */
     private static GSSCredential createCredentials(final GSSManager gssManager, final Subject subject) throws GSSException {
         try {
-            return Subject.callAs(
+            return Subject.doAs(
                 subject,
-                () -> gssManager.createCredential(null, GSSCredential.DEFAULT_LIFETIME, SUPPORTED_OIDS, GSSCredential.ACCEPT_ONLY)
+                (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(
+                    null,
+                    GSSCredential.DEFAULT_LIFETIME,
+                    SUPPORTED_OIDS,
+                    GSSCredential.ACCEPT_ONLY
+                )
             );
-        } catch (CompletionException e) {
+        } catch (PrivilegedActionException e) {
             if (e.getCause() instanceof GSSException gsse) {
                 throw gsse;
             }

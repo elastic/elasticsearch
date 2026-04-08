@@ -13,12 +13,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 import java.util.List;
@@ -151,24 +151,20 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] dims = VectorScorerOSQBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            String[] bits = VectorScorerOSQBenchmark.class.getField("bits").getAnnotationsByType(Param.class)[0].value();
-            String[] int4Encodings = VectorScorerOSQBenchmark.class.getField("int4Encoding").getAnnotationsByType(Param.class)[0].value();
+        String[] dims = Utils.possibleValues(VectorScorerOSQBenchmark.class, "dims").toArray(new String[0]);
+        String[] bits = Utils.possibleValues(VectorScorerOSQBenchmark.class, "bits").toArray(new String[0]);
+        String[] int4Encodings = Utils.possibleValues(VectorScorerOSQBenchmark.class, "int4Encoding").toArray(new String[0]);
 
-            return () -> Arrays.stream(dims)
-                .map(Integer::parseInt)
-                .flatMap(d -> Arrays.stream(bits).map(Byte::parseByte).map(b -> List.<Object>of(d, b)))
-                .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
-                .flatMap(
-                    params -> Arrays.stream(int4Encodings)
-                        .map(ES940OSQVectorsScorer.SymmetricInt4Encoding::valueOf)
-                        .map(encoding -> appendToCopy(params, encoding))
-                )
-                .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+        return () -> Arrays.stream(dims)
+            .map(Integer::parseInt)
+            .flatMap(d -> Arrays.stream(bits).map(Byte::parseByte).map(b -> List.<Object>of(d, b)))
+            .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
+            .flatMap(
+                params -> Arrays.stream(int4Encodings)
+                    .map(ES940OSQVectorsScorer.SymmetricInt4Encoding::valueOf)
+                    .map(encoding -> appendToCopy(params, encoding))
+            )
+            .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))
+            .iterator();
     }
 }

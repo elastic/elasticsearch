@@ -16,15 +16,14 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.common.lucene.store.DirectAccessIndexInput;
 import org.elasticsearch.core.DirectAccessInput;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -58,7 +57,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessWrapper("dai", rawIn, data);
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
                 assertThat(in, instanceOf(DirectAccessInput.class));
                 verifyWithSlice(in, data);
             }
@@ -124,7 +123,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessWrapper("dai", rawIn, data);
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
                 new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
             }
         }
@@ -159,7 +158,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessWrapper("dai", rawIn, data);
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
                 assertThat(in, instanceOf(DirectAccessInput.class));
                 verifyWithSlices(in, data, 64);
             }
@@ -218,7 +217,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessWrapper("dai", rawIn, data);
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
                 assertThat(in, instanceOf(DirectAccessInput.class));
                 verifyWithSliceAddresses(in, data, 64);
             }
@@ -303,51 +302,4 @@ public class IndexInputUtilsTests extends ESTestCase {
         }
     }
 
-    /**
-     * Wraps an existing IndexInput with DirectAccessInput support,
-     * serving byte-buffer slices from the provided data array.
-     */
-    static class DirectAccessWrapper extends FilterIndexInput implements DirectAccessInput {
-        private final byte[] data;
-
-        DirectAccessWrapper(String resourceDescription, IndexInput delegate, byte[] data) {
-            super(resourceDescription, delegate);
-            this.data = data;
-        }
-
-        @Override
-        public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-            try (Arena arena = Arena.ofConfined()) {
-                MemorySegment segment = arena.allocate(length);
-                MemorySegment.copy(data, (int) offset, segment, ValueLayout.JAVA_BYTE, 0, (int) length);
-                action.accept(segment.asByteBuffer().asReadOnlyBuffer());
-                return true;
-            }
-        }
-
-        @Override
-        public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
-            throws IOException {
-            try (Arena arena = Arena.ofConfined()) {
-                ByteBuffer[] buffers = new ByteBuffer[count];
-                for (int i = 0; i < count; i++) {
-                    MemorySegment segment = arena.allocate(length);
-                    MemorySegment.copy(data, (int) offsets[i], segment, ValueLayout.JAVA_BYTE, 0, length);
-                    buffers[i] = segment.asByteBuffer().asReadOnlyBuffer();
-                }
-                action.accept(buffers);
-                return true;
-            }
-        }
-
-        @Override
-        public IndexInput clone() {
-            return new DirectAccessWrapper("clone", in.clone(), data);
-        }
-
-        @Override
-        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            return new DirectAccessWrapper(sliceDescription, in.slice(sliceDescription, offset, length), data);
-        }
-    }
 }

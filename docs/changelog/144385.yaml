@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 140495
+pr: 144385
+summary: Fix `ArrayIndexOutOfBoundsException` in fetch phase with partial results
+type: bug

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -310,6 +311,57 @@ public class OrcPushdownFiltersTests extends ESTestCase {
 
     public void testConvertLiteralNull() {
         assertNull(OrcPushdownFilters.convertLiteral(null, DataType.INTEGER));
+    }
+
+    // --- StartsWith tests ---
+
+    public void testCanConvertStartsWithKeyword() {
+        FieldAttribute f = field("name", DataType.KEYWORD);
+        Expression sw = new StartsWith(SOURCE, f, literal("alice", DataType.KEYWORD));
+        assertTrue(OrcPushdownFilters.canConvert(sw));
+    }
+
+    public void testCanConvertStartsWithText() {
+        FieldAttribute f = field("description", DataType.TEXT);
+        Expression sw = new StartsWith(SOURCE, f, literal("hello", DataType.TEXT));
+        assertTrue(OrcPushdownFilters.canConvert(sw));
+    }
+
+    public void testCanConvertStartsWithInteger() {
+        FieldAttribute f = field("age", DataType.INTEGER);
+        Expression sw = new StartsWith(SOURCE, f, literal(10, DataType.INTEGER));
+        assertFalse(OrcPushdownFilters.canConvert(sw));
+    }
+
+    public void testCanConvertStartsWithNonFoldable() {
+        FieldAttribute f = field("name", DataType.KEYWORD);
+        FieldAttribute prefix = field("prefix", DataType.KEYWORD);
+        Expression sw = new StartsWith(SOURCE, f, prefix);
+        assertFalse(OrcPushdownFilters.canConvert(sw));
+    }
+
+    public void testBuildSearchArgumentStartsWith() {
+        FieldAttribute f = field("name", DataType.KEYWORD);
+        Expression sw = new StartsWith(SOURCE, f, literal("alice", DataType.KEYWORD));
+        SearchArgument sarg = OrcPushdownFilters.buildSearchArgument(List.of(sw));
+        assertNotNull(sarg);
+        assertEquals(2, sarg.getLeaves().size());
+        PredicateLeaf lowerLeaf = sarg.getLeaves().get(0);
+        assertEquals("name", lowerLeaf.getColumnName());
+        assertEquals(PredicateLeaf.Type.STRING, lowerLeaf.getType());
+        assertEquals(PredicateLeaf.Operator.LESS_THAN, lowerLeaf.getOperator());
+        assertEquals("alice", lowerLeaf.getLiteral());
+    }
+
+    public void testStartsWithInAndExpression() {
+        FieldAttribute nameField = field("name", DataType.KEYWORD);
+        FieldAttribute ageField = field("age", DataType.INTEGER);
+        Expression sw = new StartsWith(SOURCE, nameField, literal("alice", DataType.KEYWORD));
+        Expression eqExpr = eq("age", DataType.INTEGER, 30);
+        And and = new And(SOURCE, sw, eqExpr);
+        SearchArgument sarg = OrcPushdownFilters.buildSearchArgument(List.of(and));
+        assertNotNull(sarg);
+        assertTrue(sarg.getLeaves().size() >= 2);
     }
 
     // --- Helpers ---

@@ -68,9 +68,7 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleAiStudioEmbeddingsServiceSettings(model, maxInputTokens, dims, similarityMeasure, rateLimitSettings);
     }

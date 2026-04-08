@@ -89,9 +89,9 @@ public class VectorScorerFloat32OperationBenchmark {
 
         arena = Arena.ofConfined();
         nativeSegA = arena.allocate((long) floatsA.length * Float.BYTES);
-        MemorySegment.copy(MemorySegment.ofArray(floatsA), LAYOUT_LE_FLOAT, 0L, nativeSegA, LAYOUT_LE_FLOAT, 0L, floatsA.length);
+        MemorySegment.copy(floatsA, 0, nativeSegA, LAYOUT_LE_FLOAT, 0L, floatsA.length);
         nativeSegB = arena.allocate((long) floatsB.length * Float.BYTES);
-        MemorySegment.copy(MemorySegment.ofArray(floatsB), LAYOUT_LE_FLOAT, 0L, nativeSegB, LAYOUT_LE_FLOAT, 0L, floatsB.length);
+        MemorySegment.copy(floatsB, 0, nativeSegB, LAYOUT_LE_FLOAT, 0L, floatsB.length);
 
         luceneImpl = switch (function) {
             case DOT_PRODUCT -> VectorUtil::dotProduct;

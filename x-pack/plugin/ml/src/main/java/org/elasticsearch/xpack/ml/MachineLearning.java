@@ -309,6 +309,7 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
+import org.elasticsearch.xpack.ml.datafeed.CrossClusterSearchStats;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
@@ -751,6 +752,44 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Maximum total time to retry the job opening pipeline when a system-initiated reassignment encounters transient failures
+     * (e.g. during rolling upgrades). User-initiated opens are not retried. Minimum is 1 minute.
+     */
+    public static final Setting<TimeValue> JOB_OPEN_RETRY_TIMEOUT = Setting.timeSetting(
+        "xpack.ml.job_open_retry_timeout",
+        TimeValue.timeValueMinutes(60),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(365),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum number of consecutive search cycles a cross-cluster scope change must persist before being
+     * confirmed. Lowering this value (together with {@link #CCS_STABILIZATION_FLOOR}) enables faster
+     * detection in integration tests without waiting for production timeouts.
+     */
+    public static final Setting<Integer> CCS_STABILIZATION_CYCLES = Setting.intSetting(
+        "xpack.ml.ccs_stabilization_cycles",
+        CrossClusterSearchStats.DEFAULT_STABILIZATION_CYCLES,
+        1,
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum wall-clock duration since a cross-cluster scope change was first observed before it can
+     * be confirmed. Works in conjunction with {@link #CCS_STABILIZATION_CYCLES}.
+     */
+    public static final Setting<TimeValue> CCS_STABILIZATION_FLOOR = Setting.timeSetting(
+        "xpack.ml.ccs_stabilization_floor",
+        CrossClusterSearchStats.DEFAULT_MIN_STABILIZATION_DURATION,
+        TimeValue.ZERO,
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */
@@ -866,6 +905,9 @@ public class MachineLearning extends Plugin
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
+            JOB_OPEN_RETRY_TIMEOUT,
+            CCS_STABILIZATION_CYCLES,
+            CCS_STABILIZATION_FLOOR,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,

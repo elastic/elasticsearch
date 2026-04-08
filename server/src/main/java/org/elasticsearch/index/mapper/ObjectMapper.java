@@ -205,6 +205,10 @@ public class ObjectMapper extends Mapper {
             return builder;
         }
 
+        public List<Mapper.Builder> getChildBuilders() {
+            return mappersBuilders;
+        }
+
         private static Builder findObjectBuilder(String fullName, DocumentParserContext context) {
             // does the object mapper already exist? if so, use that
             ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);

@@ -89,6 +89,10 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(nodesArray.get(0).get("allocation_delay"), equalsOptionalTimeValue(allocationDelay));
             assertThat(nodesArray.get(0).get("target_node_name"), equalTo(targetNodeName));
             assertThat(nodesArray.get(0).get("grace_period"), equalsOptionalTimeValue(grace));
+            assertThat(
+                nodesArray.getFirst().get("shard_snapshots"),
+                equalTo(Map.of("completed_shards", 0, "paused_shards", 0, "running_shards", 0, "status", "COMPLETE"))
+            );
         }
 
         if (delete) {

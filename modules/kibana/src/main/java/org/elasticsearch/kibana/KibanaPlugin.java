@@ -29,10 +29,13 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -133,7 +136,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     private static SystemDataStreamDescriptor workflowsEventsSystemDataStreamDescriptor() {
         try {
             ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
-                "/workflows-events.json",
+                "workflows-events.json",
                 Map.of("kibana.workflows.events.managed.index.version", Integer.toString(WORKFLOWS_EVENTS_MAPPINGS_VERSION))
             );
             return new SystemDataStreamDescriptor(
@@ -154,7 +157,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     private static SystemDataStreamDescriptor workflowsExecutionDataStreamLogsSystemDataStreamDescriptor() {
         try {
             ComposableIndexTemplate composableIndexTemplate = loadWorkflowsComposableTemplate(
-                "/workflows-execution-data-stream-logs.json",
+                "workflows-execution-data-stream-logs.json",
                 Map.of(
                     "kibana.workflows.execution.logs.managed.index.version",
                     Integer.toString(WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION)
@@ -175,16 +178,49 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         }
     }
 
-    private static ComposableIndexTemplate loadWorkflowsComposableTemplate(String resource, Map<String, String> variables)
+    /**
+     * Loads a composable template from {@code org/elasticsearch/kibana/} resources using the same {@code ${variable}}
+     * substitution rules as {@code org.elasticsearch.xpack.core.template.TemplateUtils} (Fleet built-in templates).
+     * <p>
+     * Templates live in this module (not {@code x-pack} template-resources) so {@code org.elasticsearch.kibana} does not
+     * {@code require org.elasticsearch.xcore}. That {@code requires} breaks JPMS plugin layer resolution: the kibana module
+     * resolves in a layer where {@code org.elasticsearch.xcore} is not on the module path (see {@code PluginsLoader}).
+     */
+    private static ComposableIndexTemplate loadWorkflowsComposableTemplate(String resourceFileName, Map<String, String> variables)
         throws IOException {
-        return TemplateUtils.loadTemplate(
-            resource,
-            Version.CURRENT.toString(),
-            KIBANA_WORKFLOWS_VERSION_VARIABLE,
-            variables,
-            false,
-            ComposableIndexTemplate::parse
-        );
+        try (InputStream in = KibanaPlugin.class.getResourceAsStream(resourceFileName)) {
+            if (in == null) {
+                throw new IOException("missing workflows template resource [" + resourceFileName + "]");
+            }
+            String raw = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            String source = substituteWorkflowsTemplateVariables(
+                raw,
+                KIBANA_WORKFLOWS_VERSION_VARIABLE,
+                Version.CURRENT.toString(),
+                variables
+            );
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, source.getBytes(StandardCharsets.UTF_8))) {
+                return ComposableIndexTemplate.parse(parser);
+            }
+        }
+    }
+
+    /** Same substitution semantics as {@code TemplateUtils.replaceVariables}. */
+    private static String substituteWorkflowsTemplateVariables(
+        String input,
+        String versionProperty,
+        String version,
+        Map<String, String> variables
+    ) {
+        String template = replaceWorkflowsTemplateVariable(input, versionProperty, version);
+        for (Map.Entry<String, String> variable : variables.entrySet()) {
+            template = replaceWorkflowsTemplateVariable(template, variable.getKey(), variable.getValue());
+        }
+        return template;
+    }
+
+    private static String replaceWorkflowsTemplateVariable(String input, String variable, String value) {
+        return input.replace("${" + variable + "}", value);
     }
 
     @Override

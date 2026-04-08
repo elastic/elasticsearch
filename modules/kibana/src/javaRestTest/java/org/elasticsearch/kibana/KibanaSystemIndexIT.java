@@ -39,7 +39,6 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("reindex")
         .module("data-streams")
-        .module("x-pack-core")
         .module("kibana")
         .user("test_kibana_user", "x-pack-test-password", "kibana_system", false)
         .build();

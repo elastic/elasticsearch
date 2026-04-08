@@ -15,8 +15,6 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(path: ':x-pack:plugin:core')
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:data-streams')
-  clusterModules project(path: ':x-pack:plugin:core')
 }

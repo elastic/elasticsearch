@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper.ToEvaluator
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -33,6 +34,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 
 public class RangeMax extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RangeMax", RangeMax::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RangeMax.class).unary(RangeMax::new).name("range_max");
 
     @FunctionInfo(
         returnType = "date",

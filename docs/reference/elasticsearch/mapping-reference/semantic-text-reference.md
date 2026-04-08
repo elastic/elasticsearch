@@ -53,16 +53,16 @@ the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/opera
     Learn how to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search).
 
 `index_options` {applies_to}`stack: ga 9.1`
-:   (Optional, object) Specifies the index options to override default values
-for the field. Currently, `dense_vector` and `sparse_vector` index options are supported. For text embeddings, `index_options` may match any allowed.
+:   (Optional, object) Specifies the index options to override default values for the field.
+`dense_vector` and `sparse_vector` index options are supported.
 
     :::{note}
     This parameter configures vector indexing structures. It is distinct from the [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md) parameter used by term-based fields to control whether term frequencies, positions, and offsets are stored in the inverted index.
     :::
 
-- [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options)
+- [dense_vector index options](semantic-text-setup-configuration.md#index-options-dense_vectors)
 
-- [sparse_vector index options](/reference/elasticsearch/mapping-reference/sparse-vector.md#sparse-vectors-params) {applies_to}`stack: ga 9.2`
+- [sparse_vector index options](semantic-text-setup-configuration.md#index-options-sparse_vectors) {applies_to}`stack: ga 9.2`
 
 `chunking_settings` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Settings for chunking text into smaller passages.
@@ -112,9 +112,13 @@ PUT my-index-000004
 3. Disables automatic chunking by setting the chunking strategy to `none`.
 
 ::::{note}
-{applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
+{applies_to}`serverless: ga` {applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically as long as they have a minimum of 64 dimensions.
+
+{applies_to}`serverless: ga` {applies_to}`stack: ga 9.4` Newly created indices with `semantic_text` fields that use dense embeddings with the `float` element type will automatically use the [`bfloat16`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-element-type) element type.
+This halves the storage required per vector dimension (2 bytes instead of 4) with a negligible impact on search relevance for most use cases.
+You can [override this default](./semantic-text-setup-configuration.md#index-options-dense_vectors-element-type-override) by explicitly setting `element_type` in `index_options`.
 ::::
 
 ## {{infer-cap}} endpoints [configuring-inference-endpoints]

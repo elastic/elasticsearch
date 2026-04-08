@@ -1,7 +1,5 @@
 ---
 navigation_title: "Combine result sets with subqueries"
-mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-subquery.html
 applies_to:
   serverless: preview
   stack: preview 9.4.0

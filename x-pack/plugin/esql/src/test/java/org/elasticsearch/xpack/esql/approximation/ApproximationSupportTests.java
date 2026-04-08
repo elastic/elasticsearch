@@ -146,9 +146,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Fork.class,
         UnionAll.class,
         ViewUnionAll.class,
-        Join.class,
         InlineJoin.class,
-        LookupJoin.class,
         ParameterizedQuery.class,
 
         // InlineStats is not supported yet.
@@ -180,6 +178,7 @@ public class ApproximationSupportTests extends ESTestCase {
         StubRelation.class,
         Drop.class,
         Keep.class,
+        LookupJoin.class,
         Rename.class,
         ResolvingProject.class,
         SparklineGenerateEmptyBuckets.class,

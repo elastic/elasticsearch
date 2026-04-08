@@ -614,6 +614,44 @@ c:long  |           b:date        | _approximation_confidence_interval(c):long |
 ;
 
 
+Lookup join before stats
+required_capability: approximation_v6
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| EVAL language_code = sv % 4 + 1
+| LOOKUP JOIN languages_lookup ON language_code
+| EVAL length = LENGTH(language_name)
+| STATS AVG(length)
+;
+
+AVG(length):double | _approximation_confidence_interval(AVG(length)):double | _approximation_certified(AVG(length)):boolean
+6.4..6.6           | [6.4..6.6,6.4..6.6]                                    | {any}
+;
+
+
+Lookup join after stats by
+required_capability: approximation_v6
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | EVAL language_code = sv % 4 + 1
+    | STATS count=COUNT() BY language_code
+    | LOOKUP JOIN languages_lookup ON language_code
+    | SORT language_name
+    | LIMIT 5
+;
+
+count:long   | language_code:integer | language_name:keyword | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+40000..80000 | 1                     | English               | [40000..80000,40000..80000]                    | {any}
+40000..80000 | 2                     | French                | [40000..80000,40000..80000]                    | {any}
+40000..80000 | 4                     | German                | [40000..80000,40000..80000]                    | {any}
+40000..80000 | 3                     | Spanish               | [40000..80000,40000..80000]                    | {any}
+;
+
+
 Warn on no stats
 required_capability: approximation_v6
 request_stored: skip

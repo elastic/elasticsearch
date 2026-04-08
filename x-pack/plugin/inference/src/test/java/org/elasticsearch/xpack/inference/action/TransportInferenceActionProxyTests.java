@@ -22,15 +22,19 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -62,7 +66,25 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest() {
+    public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest_TimeoutSpecified() {
+        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest_NullTimeout() {
+        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest(null, TimeValue.timeValueSeconds(120));
+    }
+
+    public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest_TimeoutNotDetermined() {
+        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest(
+            TIMEOUT_NOT_DETERMINED,
+            TimeValue.timeValueSeconds(120)
+        );
+    }
+
+    private void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_InRequest(
+        TimeValue timeout,
+        TimeValue expectedTimeout
+    ) {
         String requestJson = """
             {
                 "model": "gpt-4o",
@@ -87,17 +109,37 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             "id",
             new BytesArray(requestJson),
             XContentType.JSON,
-            TimeValue.ONE_MINUTE,
+            timeout,
             true,
             InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);
 
-        verify(client, times(1)).execute(eq(UnifiedCompletionAction.INSTANCE), any(), any());
+        var captor = ArgumentCaptor.forClass(UnifiedCompletionAction.Request.class);
+        verify(client, times(1)).execute(eq(UnifiedCompletionAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
     }
 
-    public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage() {
+    public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage_TimeoutSpecified() {
+        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage_NullTimeout() {
+        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage(null, TimeValue.timeValueSeconds(120));
+    }
+
+    public void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage_TimeoutNotDetermined() {
+        testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage(
+            TIMEOUT_NOT_DETERMINED,
+            TimeValue.timeValueSeconds(120)
+        );
+    }
+
+    private void testExecutesAUnifiedCompletionRequest_WhenTaskTypeIsChatCompletion_FromStorage(
+        TimeValue timeout,
+        TimeValue expectedTimeout
+    ) {
         String requestJson = """
             {
                 "model": "gpt-4o",
@@ -130,17 +172,31 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             "id",
             new BytesArray(requestJson),
             XContentType.JSON,
-            TimeValue.ONE_MINUTE,
+            timeout,
             true,
             InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);
 
-        verify(client, times(1)).execute(eq(UnifiedCompletionAction.INSTANCE), any(), any());
+        var captor = ArgumentCaptor.forClass(UnifiedCompletionAction.Request.class);
+        verify(client, times(1)).execute(eq(UnifiedCompletionAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
     }
 
-    public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest() {
+    public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest_TimeoutSpecified() {
+        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest_NullTimeout() {
+        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest(null, TimeValue.timeValueSeconds(120));
+    }
+
+    public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest_TimeoutNotDetermined() {
+        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest(TIMEOUT_NOT_DETERMINED, TimeValue.timeValueSeconds(120));
+    }
+
+    private void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_InRequest(TimeValue timeout, TimeValue expectedTimeout) {
         String requestJson = """
             {
                 "input": ["some text"]
@@ -154,17 +210,31 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             "id",
             new BytesArray(requestJson),
             XContentType.JSON,
-            TimeValue.ONE_MINUTE,
+            timeout,
             true,
             InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);
 
-        verify(client, times(1)).execute(eq(InferenceAction.INSTANCE), any(), any());
+        var captor = ArgumentCaptor.forClass(InferenceAction.Request.class);
+        verify(client, times(1)).execute(eq(InferenceAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getInferenceTimeout(), is(expectedTimeout));
     }
 
-    public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage() {
+    public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage_TimeoutSpecified() {
+        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage_NullTimeout() {
+        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage(null, TimeValue.timeValueSeconds(120));
+    }
+
+    public void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage_TimeoutNotDetermined() {
+        testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage(TIMEOUT_NOT_DETERMINED, TimeValue.timeValueSeconds(120));
+    }
+
+    private void testExecutesAnInferenceAction_WhenTaskTypeIsCompletion_FromStorage(TimeValue timeout, TimeValue expectedTimeout) {
         String requestJson = """
             {
                 "input": ["some text"]
@@ -184,13 +254,111 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             "id",
             new BytesArray(requestJson),
             XContentType.JSON,
-            TimeValue.ONE_MINUTE,
+            timeout,
             true,
             InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);
 
-        verify(client, times(1)).execute(eq(InferenceAction.INSTANCE), any(), any());
+        var captor = ArgumentCaptor.forClass(InferenceAction.Request.class);
+        verify(client, times(1)).execute(eq(InferenceAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getInferenceTimeout(), is(expectedTimeout));
+    }
+
+    public void testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest_TimeoutSpecified() {
+        testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest_NullTimeout() {
+        testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest(null, TimeValue.timeValueSeconds(30));
+    }
+
+    public void testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest_TimeoutNotDetermined() {
+        testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest(TIMEOUT_NOT_DETERMINED, TimeValue.timeValueSeconds(30));
+    }
+
+    private void testExecutesAnEmbeddingAction_WhenTaskTypeIsEmbedding_InRequest(TimeValue timeout, TimeValue expectedTimeout) {
+        String requestJson = """
+            {
+                "input": [
+                    {
+                       "content": {
+                            "value": "some text",
+                            "type": "text"
+                        }
+                    }
+                ]
+            }
+            """;
+
+        @SuppressWarnings("unchecked")
+        ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) mock(ActionListener.class);
+        var request = new InferenceActionProxy.Request(
+            TaskType.EMBEDDING,
+            "id",
+            new BytesArray(requestJson),
+            XContentType.JSON,
+            timeout,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        action.doExecute(mock(Task.class), request, listener);
+
+        var captor = ArgumentCaptor.forClass(EmbeddingAction.Request.class);
+        verify(client, times(1)).execute(eq(EmbeddingAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
+    }
+
+    public void testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage_TimeoutSpecified() {
+        testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage(TimeValue.ONE_MINUTE, TimeValue.ONE_MINUTE);
+    }
+
+    public void testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage_NullTimeout() {
+        testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage(null, TimeValue.timeValueSeconds(30));
+    }
+
+    public void testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage_TimeoutNotDetermined() {
+        testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage(TIMEOUT_NOT_DETERMINED, TimeValue.timeValueSeconds(30));
+    }
+
+    private void testExecutesAnEmbeddingRequest_WhenTaskTypeIsEmbedding_FromStorage(TimeValue timeout, TimeValue expectedTimeout) {
+        String requestJson = """
+            {
+                "input": [
+                    {
+                       "content": {
+                            "value": "some text",
+                            "type": "text"
+                        }
+                    }
+                ]
+            }
+            """;
+
+        doAnswer(invocation -> {
+            ActionListener<UnparsedModel> listener = invocation.getArgument(1);
+            listener.onResponse(new UnparsedModel("id", TaskType.EMBEDDING, "service", Collections.emptyMap(), Collections.emptyMap()));
+
+            return Void.TYPE;
+        }).when(modelRegistry).getModelWithSecrets(any(), any());
+
+        var listener = new PlainActionFuture<InferenceAction.Response>();
+        var request = new InferenceActionProxy.Request(
+            TaskType.ANY,
+            "id",
+            new BytesArray(requestJson),
+            XContentType.JSON,
+            timeout,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        action.doExecute(mock(Task.class), request, listener);
+
+        var captor = ArgumentCaptor.forClass(EmbeddingAction.Request.class);
+        verify(client, times(1)).execute(eq(EmbeddingAction.INSTANCE), captor.capture(), any());
+        assertThat(captor.getValue().getTimeout(), is(expectedTimeout));
     }
 }

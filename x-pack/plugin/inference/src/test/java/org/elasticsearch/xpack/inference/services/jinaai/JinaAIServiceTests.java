@@ -48,7 +48,6 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
@@ -998,18 +997,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
         try (var service = new JinaAIService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -1040,18 +1028,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var model = JinaAIEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "model", "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -1074,18 +1051,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var model = JinaAIRerankModelTests.createModel(getUrl(webServer), "model", 1024, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                "query",
-                null,
-                null,
-                List.of("candidate1", "candidate2"),
-                false,
-                new HashMap<>(),
-                null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, "query", null, null, List.of("candidate1", "candidate2"), false, new HashMap<>(), null, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -1161,18 +1127,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             List<String> input = List.of("abc");
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                input,
-                false,
-                new HashMap<>(),
-                inputType,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, input, false, new HashMap<>(), inputType, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -1232,7 +1187,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1314,7 +1269,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1408,7 +1363,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1488,7 +1443,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1652,15 +1607,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 inputs.add(anInput);
             }
 
-            service.chunkedInfer(
-                model,
-                null,
-                inputs,
-                new HashMap<>(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, inputs, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, hasSize(inputsAndEmbeddings.size()));
@@ -1753,15 +1700,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
@@ -1777,12 +1716,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.embeddingInfer(
-                mockModel,
-                new EmbeddingRequest(List.of(), InputType.UNSPECIFIED, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.embeddingInfer(mockModel, new EmbeddingRequest(List.of(), InputType.UNSPECIFIED, Map.of()), null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -1805,12 +1739,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(List.of(), InputType.UNSPECIFIED, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.embeddingInfer(model, new EmbeddingRequest(List.of(), InputType.UNSPECIFIED, Map.of()), null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -1840,12 +1769,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 new InferenceStringGroup("first_input"),
                 new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_IMAGE_DATA_URI))
             );
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.embeddingInfer(model, new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()), null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(thrownException.getMessage(), is("Non-text input provided for text-only model"));
@@ -1872,12 +1796,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 List.of(new InferenceString(TEXT, DataFormat.TEXT, "first_input"), new InferenceString(IMAGE, BASE64, TEST_IMAGE_DATA_URI))
             );
             inputs.add(indexToAdd, multipleInferenceStrings);
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.embeddingInfer(model, new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()), null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -1908,12 +1827,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var model = JinaAIEmbeddingsModelTests.createEmbeddingModel(getUrl(webServer), "model", "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(List.of(), InputType.UNSPECIFIED, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.embeddingInfer(model, new EmbeddingRequest(List.of(), InputType.UNSPECIFIED, Map.of()), null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -1993,12 +1907,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 new InferenceStringGroup("first_input"),
                 new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_IMAGE_DATA_URI))
             );
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(inputs, inputType, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.embeddingInfer(model, new EmbeddingRequest(inputs, inputType, Map.of()), null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 

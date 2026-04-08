@@ -20,7 +20,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -86,7 +85,7 @@ public class TransportPutInferenceModelActionTests extends ESTestCase {
             randomIdentifier(),
             new BytesArray(""),
             XContentType.JSON,
-            InferenceAction.Request.DEFAULT_TIMEOUT
+            null
         );
         var state = mock(ClusterState.class);
         var listener = new PlainActionFuture<PutInferenceModelAction.Response>();

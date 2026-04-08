@@ -15,8 +15,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
@@ -24,6 +24,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.modifiableMap;
@@ -1124,8 +1125,14 @@ public class ServiceUtilsTests extends ESTestCase {
         var providedTimeout = TimeValue.timeValueSeconds(45);
 
         for (InputType inputType : InputType.values()) {
-            var result = ServiceUtils.resolveInferenceTimeout(providedTimeout, inputType, clusterService);
-            assertEquals("Input type " + inputType + " should return provided timeout", providedTimeout, result);
+            for (TaskType taskType : TaskType.values()) {
+                var result = ServiceUtils.resolveInferenceTimeout(providedTimeout, inputType, clusterService, taskType);
+                assertEquals(
+                    "Input type " + inputType + " with task type " + taskType + " should return provided timeout",
+                    providedTimeout,
+                    result
+                );
+            }
         }
     }
 
@@ -1135,29 +1142,33 @@ public class ServiceUtilsTests extends ESTestCase {
             Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
         );
 
-        Map<InputType, TimeValue> expectedTimeouts = Map.of(
-            InputType.SEARCH,
-            configuredTimeout,
-            InputType.INTERNAL_SEARCH,
-            configuredTimeout,
-            InputType.INGEST,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            InputType.INTERNAL_INGEST,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            InputType.CLASSIFICATION,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            InputType.CLUSTERING,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            InputType.UNSPECIFIED,
-            InferenceAction.Request.DEFAULT_TIMEOUT
-        );
+        for (InputType inputType : InputType.values()) {
+            for (TaskType taskType : TaskType.values()) {
+                TimeValue expectedTimeout = getTimeoutProviderForInputType(inputType, configuredTimeout).apply(taskType);
 
-        for (Map.Entry<InputType, TimeValue> entry : expectedTimeouts.entrySet()) {
-            InputType inputType = entry.getKey();
-            TimeValue expectedTimeout = entry.getValue();
-
-            var result = ServiceUtils.resolveInferenceTimeout(null, inputType, clusterService);
-            assertEquals("Input type " + inputType + " should return expected timeout", expectedTimeout, result);
+                var result = ServiceUtils.resolveInferenceTimeout(null, inputType, clusterService, taskType);
+                assertEquals(
+                    "Input type " + inputType + " with task type " + taskType + " should return expected timeout",
+                    expectedTimeout,
+                    result
+                );
+            }
         }
+    }
+
+    private static Function<TaskType, TimeValue> getTimeoutProviderForInputType(InputType inputType, TimeValue configuredTimeout) {
+        return switch (inputType) {
+            case InputType.SEARCH, INTERNAL_SEARCH -> t -> configuredTimeout;
+            default -> ServiceUtilsTests::getExpectedTimeoutForTaskType;
+        };
+    }
+
+    private static TimeValue getExpectedTimeoutForTaskType(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING, RERANK, EMBEDDING -> TimeValue.timeValueSeconds(30);
+            case COMPLETION, CHAT_COMPLETION -> TimeValue.timeValueSeconds(120);
+            // If the task type is still unknown when resolveInferenceTimeout() is called, a fallback timeout is returned
+            case ANY -> TimeValue.THIRTY_SECONDS;
+        };
     }
 }

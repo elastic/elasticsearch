@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
+
 public class TransportInferenceAction extends BaseTransportInferenceAction<InferenceAction.Request> {
 
     @Inject
@@ -79,7 +81,7 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
             request.isStreaming(),
             request.getTaskSettings(),
             request.getInputType(),
-            request.getInferenceTimeout(),
+            resolveTimeoutForTaskType(model.getTaskType(), request.getInferenceTimeout()),
             listener
         );
     }

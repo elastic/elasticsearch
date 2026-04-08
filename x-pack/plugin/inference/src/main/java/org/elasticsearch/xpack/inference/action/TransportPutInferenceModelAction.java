@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.common.SemanticTextInfoExtractor.getModelSettingsForIndicesReferencingInferenceEndpoints;
@@ -209,7 +210,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             request.getInferenceEntityId(),
             resolvedTaskType,
             requestAsMap,
-            request.getTimeout(),
+            resolveTimeoutForTaskType(resolvedTaskType, request.getTimeout()),
             state.metadata(),
             listener
         );

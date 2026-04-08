@@ -170,7 +170,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             listener.onFailure(createInvalidModelException(model));
             return;
         }
-        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
+        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
         var inferenceRequest = new SageMakerInferenceRequest(query, returnDocuments, topN, input, stream, inputType);
 
         try {

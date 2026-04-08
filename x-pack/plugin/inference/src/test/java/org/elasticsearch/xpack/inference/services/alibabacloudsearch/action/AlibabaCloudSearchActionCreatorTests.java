@@ -19,7 +19,6 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -95,7 +94,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createTextEmbeddingsAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), null, listener);
 
         var result = listener.actionGet(TIMEOUT);
         assertThat(result.asMap(), is(buildExpectationFloat(List.of(values))));
@@ -106,7 +105,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createTextEmbeddingsAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("error"));
@@ -117,7 +116,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createTextEmbeddingsAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), null, listener);
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("Failed to send AlibabaCloud Search text embeddings request. Cause: error"));
@@ -140,7 +139,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createSparseEmbeddingsAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), null, listener);
 
         var result = listener.actionGet(TIMEOUT);
         assertThat(
@@ -158,7 +157,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createSparseEmbeddingsAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("error"));
@@ -169,7 +168,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createSparseEmbeddingsAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of(randomAlphaOfLength(10)), null), null, listener);
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("Failed to send AlibabaCloud Search sparse embeddings request. Cause: error"));
@@ -187,11 +186,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createRerankAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new QueryAndDocsInputs("query", List.of(randomAlphaOfLength(10))),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new QueryAndDocsInputs("query", List.of(randomAlphaOfLength(10))), null, listener);
 
         var result = listener.actionGet(TIMEOUT);
         assertThat(
@@ -209,11 +204,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createRerankAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new QueryAndDocsInputs("query", List.of(randomAlphaOfLength(10))),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new QueryAndDocsInputs("query", List.of(randomAlphaOfLength(10))), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("error"));
@@ -224,11 +215,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createRerankAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new QueryAndDocsInputs("query", List.of(randomAlphaOfLength(10))),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new QueryAndDocsInputs("query", List.of(randomAlphaOfLength(10))), null, listener);
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("Failed to send AlibabaCloud Search rerank request. Cause: error"));
@@ -245,7 +232,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createCompletionAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of(randomAlphaOfLength(10))), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of(randomAlphaOfLength(10))), null, listener);
 
         var result = listener.actionGet(TIMEOUT);
         assertThat(result.asMap(), is(buildExpectationCompletion(List.of(resultString))));
@@ -256,7 +243,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createCompletionAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of(randomAlphaOfLength(10))), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of(randomAlphaOfLength(10))), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("error"));
@@ -267,7 +254,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createCompletionAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of(randomAlphaOfLength(10))), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of(randomAlphaOfLength(10))), null, listener);
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("Failed to send AlibabaCloud Search completion request. Cause: error"));

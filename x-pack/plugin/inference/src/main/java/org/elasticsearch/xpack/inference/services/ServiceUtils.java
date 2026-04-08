@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,7 +24,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
@@ -41,11 +42,14 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.apache.logging.log4j.LogManager.getLogger;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSettingErrorMsg;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeAPositiveIntegerErrorMessage;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeGreaterThanOrEqualNumberErrorMessage;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeLessThanOrEqualNumberErrorMessage;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.FALLBACK_TIMEOUT;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
@@ -53,6 +57,8 @@ import static org.elasticsearch.xpack.inference.rest.Paths.STREAM_SUFFIX;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
 public final class ServiceUtils {
+    private static final Logger logger = getLogger(ServiceUtils.class);
+
     /**
      * Remove the object from the map and cast to the expected type.
      * If the object cannot be cast to type an ElasticsearchStatusException
@@ -1082,19 +1088,30 @@ public final class ServiceUtils {
     }
 
     /**
-     * Resolves the inference timeout based on input type and cluster settings.
+     * Resolves the inference timeout based on input type, task type and cluster settings. If the supplied timeout is null and
      *
-     * @param timeout The provided timeout value, may be null
-     * @param inputType The input type for the inference request
+     * @param timeout        The provided timeout value, may be null
+     * @param inputType      The input type for the inference request
      * @param clusterService The cluster service to get timeout settings from
+     * @param taskType       The task type of the request
      * @return The resolved timeout value
      */
-    public static TimeValue resolveInferenceTimeout(@Nullable TimeValue timeout, InputType inputType, ClusterService clusterService) {
-        if (timeout == null) {
+    public static TimeValue resolveInferenceTimeout(
+        @Nullable TimeValue timeout,
+        InputType inputType,
+        ClusterService clusterService,
+        TaskType taskType
+    ) {
+        if (timeout == null || timeout.equals(TIMEOUT_NOT_DETERMINED)) {
             if (inputType == InputType.SEARCH || inputType == InputType.INTERNAL_SEARCH) {
                 return clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
             } else {
-                return InferenceAction.Request.DEFAULT_TIMEOUT;
+                var defaultTimeoutForTaskType = BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType);
+                // Fall back to a generic timeout in case one could not be determined for the task type, but log a warning
+                if (defaultTimeoutForTaskType.equals(TIMEOUT_NOT_DETERMINED)) {
+                    logger.warn("Default inference timeout could not be determined for task type [{}]", taskType);
+                }
+                return defaultTimeoutForTaskType.equals(TIMEOUT_NOT_DETERMINED) ? FALLBACK_TIMEOUT : defaultTimeoutForTaskType;
             }
         }
         return timeout;

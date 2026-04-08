@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
+
 public class TransportEmbeddingAction extends BaseTransportInferenceAction<EmbeddingAction.Request> {
 
     @Inject
@@ -79,6 +81,11 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.embeddingInfer(model, request.getEmbeddingRequest(), request.getTimeout(), listener);
+        service.embeddingInfer(
+            model,
+            request.getEmbeddingRequest(),
+            resolveTimeoutForTaskType(model.getTaskType(), request.getTimeout()),
+            listener
+        );
     }
 }

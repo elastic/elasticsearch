@@ -264,6 +264,20 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_V5,
 
         /**
+         * Do not depend on mentioning fields in expressions to trigger loading them.
+         * Otherwise, {@code SET unmapped_fields="load"; FROM logs-*} will return nulls
+         * for partially mapped keyword fields, while {@code FROM logs-* | KEEP *} will
+         * trigger their loading.
+         * <p>
+         * Also, always load values of partially mapped fields from the indices where
+         * they are mapped.
+         * <p>
+         * Fixes https://github.com/elastic/elasticsearch/issues/141994
+         * and https://github.com/elastic/elasticsearch/issues/145206
+         */
+        OPTIONAL_FIELDS_FIX_LOAD_PARTIALLY_MAPPED,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

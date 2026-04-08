@@ -100,6 +100,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
@@ -254,6 +255,7 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
+            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), logger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
                 actual.values(),

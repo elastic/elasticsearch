@@ -814,3 +814,50 @@ COUNT_DISTINCT(c):long|COUNT_DISTINCT(null):long|COUNT_DISTINCT(null - 1):long|a
 0                     |0                        |0                            |2
 0                     |0                        |0                            |3
 ;
+
+// Tests for fix: (a IS NOT NULL OR p) AND a IS NULL must not discard the surviving OR branch p.
+// Without the fix, PropagateNullable.nullify() replaced the entire OR with null, returning 0 rows.
+
+isNullWithOrDisjunctionAllRows
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no > 10000) AND gender IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+isNullWithOrDisjunctionSurvivingBranchFilters
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no > 10015) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10016         |null
+10017         |null
+10018         |null
+10019         |null
+;
+
+isNullWithNestedOrDisjunction
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE emp_no > 10000 AND (gender IS NOT NULL OR languages > 4) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10011         |null
+10012         |null
+10014         |null
+10015         |null
+;

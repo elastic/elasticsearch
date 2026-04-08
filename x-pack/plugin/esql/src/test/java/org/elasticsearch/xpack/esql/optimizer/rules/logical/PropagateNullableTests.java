@@ -23,7 +23,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import static java.util.Arrays.asList;
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
@@ -36,6 +37,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 public class PropagateNullableTests extends ESTestCase {
     private Expression propagateNullable(And e) {
@@ -71,16 +73,17 @@ public class PropagateNullableTests extends ESTestCase {
         assertEquals(FALSE, propagateNullable(and));
     }
 
-    // a IS NULL AND a > 1 => a IS NULL AND false
+    // a IS NULL AND a > 1 => a IS NULL AND null > 1
+    // (null > 1 folds to null in the next FoldNull pass)
     public void testIsNullAndComparison() {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);
 
         And and = new And(EMPTY, isNull, greaterThanOf(fa, ONE));
-        assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), propagateNullable(and));
+        assertEquals(new And(EMPTY, isNull, greaterThanOf(nullOf(INTEGER), ONE)), propagateNullable(and));
     }
 
-    // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 => a IS NULL AND b < 1 AND c < 1
+    // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 AND null < 1
     public void testIsNullAndMultipleComparison() {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);
@@ -90,11 +93,14 @@ public class PropagateNullableTests extends ESTestCase {
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
 
         Expression optimized = propagateNullable(top);
-        Expression expected = new And(EMPTY, and, nullOf(BOOLEAN));
+        // "and" (IsNull + LT(b) + LT(c)) is unchanged; LT(fa, ONE) becomes LT(null, ONE)
+        Expression expected = new And(EMPTY, and, lessThanOf(nullOf(INTEGER), ONE));
         assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
 
-    // ((a+1)/2) > 1 AND a + 2 AND a IS NULL AND b < 3 => NULL AND NULL AND a IS NULL AND b < 3
+    // ((a+1)/2) > 1 AND a+2 > 1 AND a IS NULL AND b < 3
+    // => ((null+1)/2) > 1 AND null+2 > 1 AND a IS NULL AND b < 3
+    // (the arithmetic folds to null > 1 in the next FoldNull pass)
     public void testIsNullAndDeeplyNestedExpression() {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);
@@ -108,8 +114,17 @@ public class PropagateNullableTests extends ESTestCase {
         And and = new And(EMPTY, nullified, kept);
 
         Expression optimized = propagateNullable(and);
-        Expression expected = new And(EMPTY, new And(EMPTY, nullOf(BOOLEAN), nullOf(BOOLEAN)), kept);
 
+        Literal nullInt = nullOf(INTEGER);
+        Expression expected = new And(
+            EMPTY,
+            new And(
+                EMPTY,
+                greaterThanOf(new Div(EMPTY, new Add(EMPTY, nullInt, ONE, TEST_CFG), TWO), ONE),
+                greaterThanOf(new Add(EMPTY, nullInt, TWO, TEST_CFG), ONE)
+            ),
+            kept
+        );
         assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
 
@@ -142,17 +157,77 @@ public class PropagateNullableTests extends ESTestCase {
         assertEquals(and, propagateNullable(and));
     }
 
-    public void testDoNotOptimizeIsNullAndMultipleComparisonWithConstants() {
+    // IS NULL applied to a constant: LT(ONE, ONE) has both children replaced with null
+    public void testIsNullAndMultipleComparisonWithConstants() {
         Literal a = ONE;
         Literal b = ONE;
+        FieldAttribute c = getFieldAttribute("c");
         IsNull aIsNull = new IsNull(EMPTY, a);
 
-        And bLT1_AND_cLT1 = new And(EMPTY, lessThanOf(b, ONE), lessThanOf(getFieldAttribute("c"), ONE));
+        And bLT1_AND_cLT1 = new And(EMPTY, lessThanOf(b, ONE), lessThanOf(c, ONE));
         And aIsNull_AND_bLT1_AND_cLT1 = new And(EMPTY, aIsNull, bLT1_AND_cLT1);
         And aIsNull_AND_bLT1_AND_cLT1_AND_aLT1 = new And(EMPTY, aIsNull_AND_bLT1_AND_cLT1, lessThanOf(a, ONE));
 
         Expression optimized = propagateNullable(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1);
-        Literal nullLiteral = new Literal(EMPTY, null, BOOLEAN);
-        assertEquals(asList(aIsNull, nullLiteral, nullLiteral, nullLiteral), Predicates.splitAnd(optimized));
+        // ONE occurrences are replaced with null; LT(ONE, ONE) -> LT(null, null), LT(c, ONE) -> LT(c, null)
+        Literal nullInt = nullOf(INTEGER);
+        assertEquals(
+            List.of(aIsNull, lessThanOf(nullInt, nullInt), lessThanOf(c, nullInt), lessThanOf(nullInt, nullInt)),
+            Predicates.splitAnd(optimized)
+        );
+    }
+
+    // (a IS NOT NULL OR b > 1) AND a IS NULL => OR(false, b > 1) AND a IS NULL
+    // BooleanSimplification (next pass) will fold OR(false, b > 1) -> b > 1
+    public void testIsNullPreservesOrDisjunctionBranch() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Expression gt = greaterThanOf(fb, ONE);
+        Or or = new Or(EMPTY, new IsNotNull(EMPTY, fa), gt);
+        And and = new And(EMPTY, or, isNull);
+
+        Expression optimized = propagateNullable(and);
+
+        Literal falseLiteral = new Literal(EMPTY, Boolean.FALSE, BOOLEAN);
+        Expression expectedOr = new Or(EMPTY, falseLiteral, gt);
+        assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
+    }
+
+    // (a IS NULL OR b > 1) AND a IS NULL => OR(true, b > 1) AND a IS NULL
+    // BooleanSimplification (next pass) will fold OR(true, b > 1) -> true -> a IS NULL
+    public void testIsNullPreservesIsNullBranchInOr() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Expression gt = greaterThanOf(fb, ONE);
+        Or or = new Or(EMPTY, new IsNull(EMPTY, fa), gt);
+        And and = new And(EMPTY, or, isNull);
+
+        Expression optimized = propagateNullable(and);
+
+        Literal trueLiteral = new Literal(EMPTY, Boolean.TRUE, BOOLEAN);
+        Expression expectedOr = new Or(EMPTY, trueLiteral, gt);
+        assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
+    }
+
+    // (a > 5 OR b > 1) AND a IS NULL => (null > 5 OR b > 1) AND a IS NULL
+    // FoldNull (next pass) folds null > 5 -> null; BooleanSimplification folds OR(null, b > 1)
+    public void testIsNullNullifiesFieldReferenceInOr() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Expression gt_b = greaterThanOf(fb, ONE);
+        Or or = new Or(EMPTY, greaterThanOf(fa, ONE), gt_b);
+        And and = new And(EMPTY, or, isNull);
+
+        Expression optimized = propagateNullable(and);
+
+        Expression expectedOrLeft = greaterThanOf(nullOf(INTEGER), ONE);
+        Expression expectedOr = new Or(EMPTY, expectedOrLeft, gt_b);
+        assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
     }
 }

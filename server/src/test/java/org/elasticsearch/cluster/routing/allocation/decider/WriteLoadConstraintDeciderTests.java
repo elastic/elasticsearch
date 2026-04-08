@@ -662,8 +662,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         // one shard has 100% of the load
         assertThat(
             WriteLoadConstraintDecider.maxShardWriteLoadProportion(
-                List.of(testShardId1),
-                Map.of(testShardId1, randomDoubleBetween(0.0001, 10.0, true))
+                List.of(testShardId1, testShardId2),
+                randomBoolean()
+                    ? Map.of(testShardId1, randomDoubleBetween(0.0001, 10.0, true), testShardId2, 0.0)
+                    : Map.of(testShardId1, randomDoubleBetween(0.0001, 10.0, true))
             ),
             equalTo(1.0)
         );

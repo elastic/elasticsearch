@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  */
 public class ClampMax extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMax", ClampMax::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ClampMax.class).binary(ClampMax::new).name("clamp_max");
     private DataType resolvedType;
 
     @FunctionInfo(

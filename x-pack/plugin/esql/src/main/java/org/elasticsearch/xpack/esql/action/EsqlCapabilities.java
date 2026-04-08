@@ -1045,6 +1045,16 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_AVG_AS_DEFAULT_METRIC,
 
         /**
+         * Return 0 (instead of null) for count on AMD when there are no rows
+         */
+        AGGREGATE_METRIC_DOUBLE_NO_ROWS_COUNT_0,
+
+        /**
+         * Support binary operators for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_BINARY_OPERATORS,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -2280,11 +2290,6 @@ public class EsqlCapabilities {
         TS_INFO_COMMAND,
 
         /**
-         * FORK with no implicit LIMIT
-         */
-        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
-
-        /**
          * Dense_vector SUM aggregation function
          */
         DENSE_VECTOR_SUM_FUNCTION,
@@ -2441,6 +2446,19 @@ public class EsqlCapabilities {
          * Parquet and ORC filter pushdown for StartsWith (prefix range predicates).
          */
         PARQUET_ORC_STARTS_WITH_PUSHDOWN,
+
+        /**
+         * Alias for calling FIRST (or LAST) and only passing the search field. The sort field is implicitly set to @timestamp.
+         * These are not time series agg functions.
+         */
+        EARLIEST_LATEST_AGGS,
+
+        /**
+         * Fix for full-text functions (MATCH, MATCH_PHRASE, :) on constant_keyword fields.
+         * The optimizer no longer replaces their field arguments with literal constants.
+         * See https://github.com/elastic/elasticsearch/issues/145570
+         */
+        FIX_FULL_TEXT_FUNCTIONS_ON_CONSTANT_KEYWORD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

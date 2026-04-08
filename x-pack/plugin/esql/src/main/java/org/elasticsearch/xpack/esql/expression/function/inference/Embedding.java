@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -48,6 +49,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * It can manage multiple data types and formats (e.g. text, images) based on the options provided
  */
 public class Embedding extends InferenceFunction<Embedding> implements OptionalArgument, PostOptimizationVerificationAware {
+
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Embedding.class).ternary(Embedding::new).name("embedding");
 
     private static final String OPTION_TYPE = "type";
     private static final String OPTION_FORMAT = "format";

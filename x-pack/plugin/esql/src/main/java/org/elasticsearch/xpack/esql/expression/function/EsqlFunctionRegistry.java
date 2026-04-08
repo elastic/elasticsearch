@@ -610,7 +610,7 @@ public class EsqlFunctionRegistry {
                 Magnitude.DEFINITION,
                 ToDateRange.DEFINITION,
                 Sparkline.DEFINITION,
-                Embedding.DEFINITION} };
+                Embedding.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

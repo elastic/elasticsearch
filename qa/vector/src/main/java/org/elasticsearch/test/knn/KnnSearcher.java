@@ -20,12 +20,12 @@
 
 package org.elasticsearch.test.knn;
 
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionQuery;
@@ -48,7 +48,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -58,6 +57,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -205,7 +205,7 @@ public class KnnSearcher {
         @Override
         public Query filter(int searchIndex) {
             int p = searchIndex / numQueryVectors;
-            Query partitionFilter = new TermQuery(new Term(PARTITION_ID_FIELD, sampledPartitions.get(p)));
+            Query partitionFilter = SortedDocValuesField.newSlowExactQuery(PARTITION_ID_FIELD, new BytesRef(sampledPartitions.get(p)));
             return combineFilters(partitionFilter, selectivityFilter);
         }
 
@@ -334,7 +334,10 @@ public class KnnSearcher {
             try (Directory indexDir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(indexDir)) {
                 List<Callable<Void>> tasks = new ArrayList<>();
                 for (int p = 0; p < numSampledPartitions; p++) {
-                    Query partitionFilter = new TermQuery(new Term(PARTITION_ID_FIELD, provider.sampledPartitions().get(p)));
+                    Query partitionFilter = SortedDocValuesField.newSlowExactQuery(
+                        PARTITION_ID_FIELD,
+                        new BytesRef(provider.sampledPartitions().get(p))
+                    );
                     Query combinedFilter = combineFilters(partitionFilter, selectivityFilter);
                     for (int q = 0; q < numQueryVectors; q++) {
                         int idx = p * numQueryVectors + q;

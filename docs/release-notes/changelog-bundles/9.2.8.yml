@@ -1,0 +1,113 @@
+version: 9.2.8
+released: false
+generated: 2026-04-03T00:20:00.235175980Z
+changelogs:
+  - pr: 137598
+    summary: Improve SAML error handling by adding metadata
+    area: Authentication
+    type: enhancement
+    issues:
+      - 128179
+  - pr: 137599
+    summary: In-response-to in saml successful response
+    area: Authentication
+    type: enhancement
+    issues:
+      - 128179
+  - pr: 138776
+    summary: "[Inference API] Support chunking settings for sparse embeddings in custom service"
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 139668
+    summary: Fix anomaly detection jobs stuck in opening by continously retrying to set the state to opened.
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 143016
+    summary: Cancel async query on expiry
+    area: ES|QL
+    type: bug
+    issues:
+      - 142662
+  - pr: 143175
+    summary: Reduce `LuceneOperator.Status` memory consumption with large QueryDSL queries
+    area: ES|QL
+    type: bug
+    issues:
+      - 143164
+  - pr: 144333
+    summary: Fix wrong return value in `ContextIndexSearcher.totalTermFreq`
+    area: Search
+    type: bug
+    issues: []
+  - pr: 144385
+    summary: Fix `ArrayIndexOutOfBoundsException` in fetch phase with partial results
+    area: Search
+    type: bug
+    issues:
+      - 140495
+  - pr: 144453
+    summary: Fix createLDAPCertStore failing in FIPS mode
+    area: FIPS
+    type: bug
+    issues:
+      - 144376
+      - 144377
+  - pr: 144581
+    summary: Fix request cache invalidation to use ES cache helper consistently
+    area: Search
+    type: bug
+    issues: []
+  - pr: 144637
+    summary: Fix `geo_centroid` over `geo_shape` merging multiple shards
+    area: Geo
+    type: bug
+    issues:
+      - 144504
+  - pr: 144654
+    summary: Fix up exception messages in `AzureBlobStore`
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 144685
+    summary: Skip automaton construction for literal resource strings in application privilege checks
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 144759
+    summary: Validate Watcher Proxy Allowlist
+    area: Watcher
+    type: bug
+    issues: []
+  - pr: 144782
+    summary: Fix system index mapping update for reindexed indices after migration
+    area: Infra/Core
+    type: bug
+    issues:
+      - 144764
+  - pr: 144827
+    summary: Fix circuit breaker leak in percolator query construction
+    area: Search
+    type: bug
+    issues: []
+  - pr: 144859
+    summary: Fix `ArrayIndexOutOfBoundsException` in cat nodes for partial load average arrays
+    area: CAT APIs
+    type: bug
+    issues: []
+  - pr: 144938
+    summary: "[DiskBBQ] Fix index sorting on flush"
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 145035
+    summary: CCR follower index needs to copy transport version from CCR leader index
+    area: CCR
+    type: bug
+    issues: []
+  - pr: 145076
+    summary: "[DiskBBQ] Fix index sorting on flush (2nd attempt)"
+    area: Vector Search
+    type: bug
+    issues: []

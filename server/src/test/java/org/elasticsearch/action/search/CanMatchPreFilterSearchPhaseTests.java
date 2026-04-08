@@ -177,7 +177,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             false,
             EMPTY_CONTEXT_PROVIDER,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-            Map.of()
+            Map.of(),
+            false
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -198,6 +199,82 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             assertEquals(shard1 ? 0 : 1, result.get().iterators().get(0).shardId().id());
             assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, 1), result.get().skippedByClusterAlias());
         }
+    }
+
+    /**
+     * When {@code includeSkippedShardsInIterators} is {@code true} (as for peers before
+     * {@link SearchShardsResponse#SEARCH_SHARDS_NUM_SKIPPED2}), skipped shards must appear as iterators with
+     * {@link SearchShardIterator#skip()} true and{@link CanMatchPreFilterSearchPhase.CanMatchResult#skippedByClusterAlias()} must stay
+     * empty so {@link SearchShardsResponse} can serialize to those peers.
+     */
+    public void testBwcPacksSkipsOnIteratorsWhenAggregateCountUnsupported() throws InterruptedException {
+        final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
+            0,
+            System.nanoTime(),
+            System::nanoTime
+        );
+
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
+
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+            @Override
+            public void sendCanMatch(
+                Transport.Connection connection,
+                CanMatchNodeRequest request,
+                SearchTask task,
+                ActionListener<CanMatchNodeResponse> listener
+            ) {
+                final List<ResponseOrFailure> responses = new ArrayList<>();
+                for (CanMatchNodeRequest.Shard shard : request.getShardLevelRequests()) {
+                    responses.add(new ResponseOrFailure(new CanMatchShardResponse(shard.shardId().id() == 0, null)));
+                }
+                new Thread(() -> listener.onResponse(new CanMatchNodeResponse(responses))).start();
+            }
+        };
+
+        AtomicReference<CanMatchPreFilterSearchPhase.CanMatchResult> result = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        List<SearchShardIterator> shardsIter = getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            2,
+            false,
+            primaryNode,
+            null
+        );
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
+
+        CanMatchPreFilterSearchPhase.execute(
+            logger,
+            searchTransportService,
+            (clusterAlias, node) -> lookup.get(node),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
+            Collections.emptyMap(),
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+            searchRequest,
+            shardsIter,
+            timeProvider,
+            null,
+            false,
+            EMPTY_CONTEXT_PROVIDER,
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+            Map.of(),
+            true
+        ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
+            result.set(iter);
+            latch.countDown();
+        }));
+        latch.await();
+
+        assertEquals(Collections.emptyMap(), result.get().skippedByClusterAlias());
+        assertEquals(2, result.get().iterators().size());
+        SearchShardIterator shard0 = result.get().iterators().stream().filter(i -> i.shardId().id() == 0).findFirst().orElseThrow();
+        SearchShardIterator shard1 = result.get().iterators().stream().filter(i -> i.shardId().id() == 1).findFirst().orElseThrow();
+        assertFalse(shard0.skip());
+        assertTrue(shard1.skip());
     }
 
     public void testFilterWithFailure() throws InterruptedException {
@@ -273,7 +350,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             true,
             EMPTY_CONTEXT_PROVIDER,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-            Map.of()
+            Map.of(),
+            false
         ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
@@ -377,7 +455,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 true,
                 EMPTY_CONTEXT_PROVIDER,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                Map.of()
+                Map.of(),
+                false
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -482,7 +561,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 shardsIter.size() > shardToSkip.size(),
                 EMPTY_CONTEXT_PROVIDER,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                Map.of()
+                Map.of(),
+                false
             ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
@@ -1470,7 +1550,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 true,
                 contextProvider,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                Map.of()
+                Map.of(),
+                false
             ),
             requests
         );

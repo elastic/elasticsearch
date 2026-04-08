@@ -21,7 +21,7 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock, DoubleBigArrayBlock,
-    org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock {
+    org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock, org.elasticsearch.compute.data.arrow.Float16ArrowBufBlock {
 
     /**
      * Retrieves the double value stored at the given value index.

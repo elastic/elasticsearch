@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -48,6 +49,9 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         "LastOverTime",
         LastOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(LastOverTime.class)
+        .ternary(LastOverTime::new)
+        .name("last_over_time");
 
     private final Expression timestamp;
 

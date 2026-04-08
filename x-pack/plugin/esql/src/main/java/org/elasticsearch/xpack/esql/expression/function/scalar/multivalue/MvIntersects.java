@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -66,6 +67,9 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
         "MvIntersects",
         MvIntersects::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvIntersects.class)
+        .binary(MvIntersects::new)
+        .name("mv_intersects");
 
     @FunctionInfo(
         returnType = "boolean",

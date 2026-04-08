@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -22,6 +23,7 @@ import java.util.List;
 public class Sha1 extends AbstractHashFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "SHA1", Sha1::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sha1.class).unary(Sha1::new).name("sha1");
 
     private static final Hash.HashFunction SHA1 = Hash.HashFunction.create("SHA1");
 

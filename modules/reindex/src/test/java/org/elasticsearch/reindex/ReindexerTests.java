@@ -69,6 +69,8 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.tasks.TaskResult;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpClient;
@@ -89,6 +91,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -382,6 +385,7 @@ public class ReindexerTests extends ESTestCase {
         task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         task.requestRelocation();
 
+        final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(new TaskId("source-node", 987), randomNonNegativeLong());
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         final ActionListener<ResumeBulkByScrollResponse> relocationListener = spy(ActionListener.noop());
         final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
@@ -391,8 +395,7 @@ public class ReindexerTests extends ESTestCase {
             future
         );
 
-        final BulkByScrollResponse response = reindexResponseWithResumeInfo();
-        wrapped.onResponse(response);
+        wrapped.onResponse(reindexResponseWithResumeInfo(origin));
 
         assertTrue(future.isDone());
         verify(relocationListener).onResponse(any());
@@ -442,6 +445,123 @@ public class ReindexerTests extends ESTestCase {
             verify(metrics).recordRelocationFailure(e);
         }
         verifyNoMoreInteractions(metrics);
+    }
+
+    public void testListenerWithRelocationsSendsSourceTaskResultInResumeRequest() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
+        final DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.localNode()).thenReturn(sourceNode);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.get("target-node")).thenReturn(targetNode);
+
+        final TransportService transportService = mock(TransportService.class);
+        doAnswer(invocation -> {
+            ResumeBulkByScrollRequest resumeRequest = invocation.getArgument(2);
+            TaskResult sourceTaskResult = resumeRequest.getDelegate().getResumeInfo().get().sourceTaskResult();
+            assertNotNull("source task result should be set on the resume request", sourceTaskResult);
+            assertThat(sourceTaskResult.getTask().taskId(), equalTo(new TaskId("source-node", 987)));
+            assertTrue("source task result should be completed", sourceTaskResult.isCompleted());
+
+            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            return null;
+        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+
+        final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.requestRelocation();
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final ActionListener<ResumeBulkByScrollResponse> resumeListener = spy(ActionListener.noop());
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), resumeListener, future);
+        wrapped.onResponse(reindexResponseWithResumeInfo());
+
+        assertTrue(future.isDone());
+        verify(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+        verify(resumeListener).onResponse(any());
+        verifyNoMoreInteractions(resumeListener);
+    }
+
+    public void testExecuteStoresSourceTaskResult() throws Exception {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final TaskId sourceTaskId = new TaskId("source-node", 42);
+        final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(sourceTaskId, System.currentTimeMillis());
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+
+        final TaskResultsService taskResultsService = mock(TaskResultsService.class);
+        doAnswer(invocation -> {
+            TaskResult stored = invocation.getArgument(0);
+            assertThat(stored.getTask().taskId().getNodeId(), equalTo("source-node"));
+            final Map<String, Object> errorMap = stored.getErrorAsMap();
+            assertThat(errorMap.get("type"), equalTo("task_relocated_exception"));
+            assertThat(errorMap.get("original_task_id"), equalTo(sourceTaskId.toString()));
+            assertThat(errorMap.get("relocated_task_id"), equalTo("dest-node:" + task.getId()));
+            invocation.<ActionListener<Void>>getArgument(1).onResponse(null);
+            return null;
+        }).when(taskResultsService).storeResult(any(TaskResult.class), any());
+
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.builder("dest-node").build());
+        final Reindexer reindexer = reindexerWithRelocation(clusterService, mock(TransportService.class), taskResultsService);
+
+        final TaskResult sourceTaskResult = task.result(DiscoveryNodeUtils.builder("source-node").build(), new TaskRelocatedException());
+        final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
+            "test-scroll-id",
+            System.currentTimeMillis(),
+            new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
+            null
+        );
+        final ReindexRequest request = reindexRequest();
+        request.setResumeInfo(new ResumeInfo(origin, workerResumeInfo, null, sourceTaskResult));
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        reindexer.execute(task, request, mock(Client.class), future);
+
+        verify(taskResultsService).storeResult(any(TaskResult.class), any());
+    }
+
+    public void testExecuteFailsWhenSourceTaskResultStorageFails() throws Exception {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final TaskResultsService taskResultsService = mock(TaskResultsService.class);
+        final Exception storageFailure = new RuntimeException("simulated .tasks write failure");
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(1);
+            listener.onFailure(storageFailure);
+            return null;
+        }).when(taskResultsService).storeResult(any(TaskResult.class), any());
+
+        final TaskId sourceTaskId = new TaskId("source-node", 42);
+        final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(sourceTaskId, System.currentTimeMillis());
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.builder("dest-node").build());
+        final Reindexer reindexer = reindexerWithRelocation(clusterService, mock(TransportService.class), taskResultsService);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+
+        final TaskResult sourceTaskResult = task.result(DiscoveryNodeUtils.builder("source-node").build(), new TaskRelocatedException());
+        final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
+            "test-scroll-id",
+            System.currentTimeMillis(),
+            new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
+            null
+        );
+        final ReindexRequest request = reindexRequest();
+        request.setResumeInfo(new ResumeInfo(origin, workerResumeInfo, null, sourceTaskResult));
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        reindexer.execute(task, request, mock(Client.class), future);
+
+        assertTrue(future.isDone());
+        ExecutionException e = expectThrows(ExecutionException.class, future::get);
+        assertSame(storageFailure, e.getCause());
     }
 
     /**
@@ -667,7 +787,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 // Simulate a worker request: PIT already set by leader, slice info from leader
@@ -900,7 +1021,8 @@ public class ReindexerTests extends ESTestCase {
                 null,
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
-                featureService
+                featureService,
+                mock(TaskResultsService.class)
             );
 
             final ReindexRequest request = new ReindexRequest();
@@ -969,7 +1091,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1047,7 +1170,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1120,7 +1244,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final String projectRouting = "_alias:linked";
@@ -1195,7 +1320,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 // Simulate a worker request: PIT already set by leader, slice info from leader
@@ -1270,7 +1396,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1344,7 +1471,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1418,7 +1546,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1710,7 +1839,8 @@ public class ReindexerTests extends ESTestCase {
                 null,
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
-                featureService
+                featureService,
+                mock(TaskResultsService.class)
             );
 
             BulkByScrollTask task = new BulkByScrollTask(
@@ -1762,6 +1892,10 @@ public class ReindexerTests extends ESTestCase {
     }
 
     private BulkByScrollResponse reindexResponseWithResumeInfo() {
+        return reindexResponseWithResumeInfo(randomOrigin());
+    }
+
+    private BulkByScrollResponse reindexResponseWithResumeInfo(ResumeInfo.RelocationOrigin origin) {
         final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
             "test-scroll-id",
             System.nanoTime(),
@@ -1774,7 +1908,7 @@ public class ReindexerTests extends ESTestCase {
             List.of(),
             List.of(),
             false,
-            new ResumeInfo(randomOrigin(), workerResumeInfo, null)
+            new ResumeInfo(origin, workerResumeInfo, null)
         );
     }
 
@@ -1848,6 +1982,14 @@ public class ReindexerTests extends ESTestCase {
     }
 
     private static Reindexer reindexerWithRelocation(ClusterService clusterService, TransportService transportService) {
+        return reindexerWithRelocation(clusterService, transportService, mock(TaskResultsService.class));
+    }
+
+    private static Reindexer reindexerWithRelocation(
+        ClusterService clusterService,
+        TransportService transportService,
+        TaskResultsService taskResultsService
+    ) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         return new Reindexer(
@@ -1861,7 +2003,8 @@ public class ReindexerTests extends ESTestCase {
             transportService,
             mock(ReindexRelocationNodePicker.class),
             // Will default REINDEX_PIT_SEARCH_FEATURE to false
-            mock(FeatureService.class)
+            mock(FeatureService.class),
+            taskResultsService
         );
     }
 
@@ -1870,10 +2013,14 @@ public class ReindexerTests extends ESTestCase {
     }
 
     private static ResumeInfo.RelocationOrigin randomOrigin() {
-        return new ResumeInfo.RelocationOrigin(randomTaskId(), randomNonNegativeLong());
+        return new ResumeInfo.RelocationOrigin(randomRealTaskId(), randomNonNegativeLong());
     }
 
     private static TaskId randomTaskId() {
-        return randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
+        return randomBoolean() ? TaskId.EMPTY_TASK_ID : randomRealTaskId();
+    }
+
+    private static TaskId randomRealTaskId() {
+        return new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
     }
 }

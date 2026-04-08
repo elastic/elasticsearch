@@ -2721,7 +2721,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
+            equalTo("Found ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
         );
     }
 
@@ -2814,7 +2814,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]")
+            equalTo("Found ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]")
         );
     }
 
@@ -2831,7 +2831,7 @@ public class VerifierTests extends ESTestCase {
 
         analyzerWithLanguagesLookup().error(
             queryString,
-            equalTo(" ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
+            equalTo("Found ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]")
         );
     }
 
@@ -3148,7 +3148,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFuse() {
-        String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
+        String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true) | limit 100";
 
         defaultAnalyzer().query(queryPrefix + " | fuse");
         defaultAnalyzer().query(queryPrefix + " | fuse rrf");
@@ -3269,6 +3269,11 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().error(
             "FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE",
+            containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
+        );
+
+        defaultAnalyzer().error(
+            "FROM test METADATA _index, _score, _id | FORK (WHERE true) (WHERE true) | FUSE",
             containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
 
@@ -3516,16 +3521,16 @@ public class VerifierTests extends ESTestCase {
             "FROM test\n"
                 + "| WHERE emp_no == 10048 OR emp_no == 10081\n"
                 + "| FORK (EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
-                + "        | GROK a \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                + "        | GROK a \"%{WORD:x} %{WORD:y} %{WORD:z}\"\n"
+                + "        | LIMIT 100)\n"
                 + "       (EVAL b = CONCAT(last_name, \" \", emp_no::keyword, \" \", first_name)\n"
-                + "        | GROK b \"%{WORD:x} %{WORD:y} %{WORD:z}\" )\n"
+                + "        | GROK b \"%{WORD:x} %{WORD:y} %{WORD:z}\"\n"
+                + "        | LIMIT 100)\n"
                 + "| SORT _fork, emp_no"
                 + "| INLINE STATS max_lang = MAX(languages) BY gender",
             containsString(
-                "7:23: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
-                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
-                    + "after [(EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
-                    + "        | GROK a \"%{WORD:x} %{WORD:y} %{WOR...] [@3:8]"
+                "9:23: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 100] [@5:11]"
             )
         );
 
@@ -3546,16 +3551,14 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "FROM test\n"
                 + "| KEEP emp_no, languages, gender\n"
-                + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
-                + "       (WHERE emp_no == 10081 OR emp_no == 10087)\n"
+                + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081 | LIMIT 100)\n"
+                + "       (WHERE emp_no == 10081 OR emp_no == 10087 | LIMIT 100)\n"
                 + "| INLINE STATS max_lang = MAX(languages) BY gender \n"
                 + "| SORT emp_no, gender, _fork\n"
                 + "| LIMIT 5",
             containsString(
-                "5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
-                    + "but was [INLINE STATS max_lang = MAX(languages) BY gender] "
-                    + "after [(WHERE emp_no == 10048 OR emp_no == 10081)\n"
-                    + "       (WHERE emp_no == 10081 OR emp_no == 10087)] [@3:8]"
+                "5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"
+                    + " but was [INLINE STATS max_lang = MAX(languages) BY gender] after [LIMIT 100] [@3:52]"
             )
         );
     }
@@ -3935,10 +3938,14 @@ public class VerifierTests extends ESTestCase {
 
     public void testMMRLimitIsValid() {
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
-
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5",
-            equalTo("1:58: MMR limit must be a positive integer")
+            equalTo("1:58: MMR limit must be a positive integer, got [-5]")
+        );
+
+        defaultAnalyzer().error(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 0",
+            equalTo("1:58: MMR limit must be a positive integer, got [0]")
         );
     }
 
@@ -3957,6 +3964,11 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"7e7e\" on dense_embedding limit 10");
         defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [15, 16, 20] on dense_embedding limit 10");
+
+        fullText().error(
+            "FROM test | LIMIT 100 | MMR published_date ON vector LIMIT 10",
+            equalTo("1:25: MMR query vector must be a DENSE_VECTOR, found [published_date] of type [DATETIME]")
+        );
     }
 
     public void testMMRLambdaValueIsValid() {
@@ -3966,23 +3978,28 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"unknown\": true }",
-            equalTo("1:58: Invalid option [unknown] in <MMR>, expected one of [[lambda]]")
+            equalTo("1:58: Invalid option [unknown] in [mmr on dense_embedding limit 10 with { \"unknown\": true }]")
         );
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with "
                 + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
-            equalTo("1:58: Invalid option [unknown_extra] in <MMR>, expected one of [[lambda]]")
+            containsString("1:58: Invalid option [unknown_extra]")
         );
 
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 2.5 }",
-            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0, got [2.5]")
         );
         defaultAnalyzer().error(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": -2.5 }",
-            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0, got [-2.5]")
         );
+
+        defaultAnalyzer().error("""
+            row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
+            | mmr on dense_embedding limit 10 with { "lambda": "hello" }
+            """, equalTo("2:3: expected lambda to be numeric, got [\"hello\"]"));
     }
 
     public void testMMRLimitedInput() {
@@ -4007,6 +4024,19 @@ public class VerifierTests extends ESTestCase {
 
     public void testTopSnippetsQueryFoldableConcatConstants() {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
+    }
+
+    /**
+     * A second {@code STATS} on a time-series pipeline becomes a regular {@link org.elasticsearch.xpack.esql.plan.logical.Aggregate};
+     * {@code WITHOUT} is only valid on {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate} until non-TS support exists.
+     */
+    public void testWithoutOnlyInTimeSeriesStats() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        k8s().error("""
+            FROM k8s
+            | STATS mc = max(network.cost) BY cluster, pod, region
+            | STATS d = sum(mc) BY WITHOUT(region)
+            """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
     }
 
     private static TestAnalyzer defaultAnalyzer() {

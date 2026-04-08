@@ -45,6 +45,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceService.random;
 
@@ -129,9 +130,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             }
             TaskSettings taskSettings = model.getTaskSettings().updatedTaskSettings(taskSettingsMap);
 
-            switch (model.getConfigurations().getTaskType()) {
-                case ANY, RERANK -> listener.onResponse(makeResults(input, (TestRerankingServiceExtension.TestTaskSettings) taskSettings));
-                default -> listener.onFailure(
+            if (model.getConfigurations().getTaskType() == TaskType.RERANK) {
+                listener.onResponse(makeResults(input, (TestRerankingServiceExtension.TestTaskSettings) taskSettings));
+            } else {
+                listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST
@@ -279,13 +281,41 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         static final String NAME = "test_reranking_task_settings";
 
+        private record OptionalTaskSettings(
+            Boolean shouldFailValidation,
+            Boolean useTextLength,
+            Float minScore,
+            Float resultDiff,
+            Integer topN,
+            Boolean hideTopN
+        ) {}
+
         public static TestTaskSettings fromMap(Map<String, Object> map) {
             boolean shouldFailValidation = false;
             boolean useTextLength = false;
             float minScore = random.nextFloat(-1f, 1f);
             float resultDiff = 0.2f;
-            Integer topN = null;
             boolean hideTopN = false;
+
+            var optionalSettings = parseAsOptional(map);
+
+            return new TestTaskSettings(
+                Objects.requireNonNullElse(optionalSettings.shouldFailValidation, shouldFailValidation),
+                Objects.requireNonNullElse(optionalSettings.useTextLength, useTextLength),
+                Objects.requireNonNullElse(optionalSettings.minScore, minScore),
+                Objects.requireNonNullElse(optionalSettings.resultDiff, resultDiff),
+                optionalSettings.topN,
+                Objects.requireNonNullElse(optionalSettings.hideTopN, hideTopN)
+            );
+        }
+
+        private static OptionalTaskSettings parseAsOptional(Map<String, Object> map) {
+            Boolean shouldFailValidation = null;
+            Boolean useTextLength = null;
+            Float minScore = null;
+            Float resultDiff = null;
+            Integer topN = null;
+            Boolean hideTopN = null;
 
             if (map.containsKey("should_fail_validation")) {
                 shouldFailValidation = Boolean.parseBoolean(map.remove("should_fail_validation").toString());
@@ -311,7 +341,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 hideTopN = Boolean.parseBoolean(map.remove("hide_top_n").toString());
             }
 
-            return new TestTaskSettings(shouldFailValidation, useTextLength, minScore, resultDiff, topN, hideTopN);
+            return new OptionalTaskSettings(shouldFailValidation, useTextLength, minScore, resultDiff, topN, hideTopN);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
@@ -365,14 +395,14 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettingsMap) {
-            TestTaskSettings newSettingsObject = fromMap(new HashMap<>(newSettingsMap));
+            var optionalTaskSettings = parseAsOptional(newSettingsMap);
             return new TestTaskSettings(
-                newSettingsMap.containsKey("should_fail_validation") ? newSettingsObject.shouldFailValidation() : shouldFailValidation,
-                newSettingsMap.containsKey("use_text_length") ? newSettingsObject.useTextLength() : useTextLength,
-                newSettingsMap.containsKey("min_score") ? newSettingsObject.minScore() : minScore,
-                newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff,
-                newSettingsMap.containsKey("top_n") ? newSettingsObject.topN() : topN,
-                newSettingsMap.containsKey("hide_top_n") ? newSettingsObject.hideTopN() : hideTopN
+                Objects.requireNonNullElse(optionalTaskSettings.shouldFailValidation(), shouldFailValidation),
+                Objects.requireNonNullElse(optionalTaskSettings.useTextLength(), useTextLength),
+                Objects.requireNonNullElse(optionalTaskSettings.minScore(), minScore),
+                Objects.requireNonNullElse(optionalTaskSettings.resultDiff(), resultDiff),
+                optionalTaskSettings.topN() != null ? optionalTaskSettings.topN() : topN,
+                Objects.requireNonNullElse(optionalTaskSettings.hideTopN(), hideTopN)
             );
         }
     }
@@ -393,9 +423,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 }
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestServiceSettings(model);
         }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.junit.BeforeClass;
 
 import java.util.List;
@@ -36,9 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizerTests {
 
     @BeforeClass
-    public static void checkLimitByCapability() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
-    }
+    public static void checkLimitByCapability() {}
 
     /**
      * <pre>{@code
@@ -294,8 +290,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
         for (var branch : fork.children()) {
             var project = as(branch, Project.class);
             var eval = as(project.child(), Eval.class);
-            var branchLimit = as(eval.child(), Limit.class);
-            as(branchLimit.child(), Filter.class);
+            as(eval.child(), Filter.class);
         }
     }
 
@@ -329,147 +324,6 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
         assertFalse(lowerLimitBy.duplicated());
 
         as(lowerLimitBy.child(), EsRelation.class);
-    }
-
-    /**
-     * A LEFT JOIN (LOOKUP JOIN) can increase the number of rows, so we duplicate the LimitBy: keep the original above
-     * and add a copy on the left (first) grandchild. The inner LimitBy is then pushed below the Eval by
-     * {@link PushDownAndCombineLimitBy} because emp_no does not depend on the Eval.
-     * <pre>{@code
-     * Limit[1000[INTEGER],false,false]
-     * \_LimitBy[5,duplicated,[emp_no{f}#N]]
-     *   \_Join[LEFT,[language_code{r}#N],[language_code{f}#N]]
-     *     |_Eval[[languages{f}#N AS language_code#N]]
-     *     | \_LimitBy[5,[emp_no{f}#N]]
-     *     |   \_EsRelation[test][...]
-     *     \_EsRelation[languages_lookup][LOOKUP][...]
-     * }</pre>
-     */
-    public void testLimitByOriginalFieldDuplicated() {
-        var plan = plan("""
-            FROM test
-            | EVAL language_code = languages
-            | LOOKUP JOIN languages_lookup ON language_code
-            | LIMIT 5 BY emp_no
-            """);
-
-        var defaultLimit = as(plan, Limit.class);
-        var upperLimitBy = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) upperLimitBy.limitPerGroup()).value(), equalTo(5));
-        assertThat(Expressions.names(upperLimitBy.groupings()), contains("emp_no"));
-        assertTrue(upperLimitBy.duplicated());
-
-        var join = as(upperLimitBy.child(), Join.class);
-        var eval = as(join.left(), Eval.class);
-        var lowerLimitBy = as(eval.child(), LimitBy.class);
-        assertThat(((Literal) lowerLimitBy.limitPerGroup()).value(), equalTo(5));
-        assertThat(Expressions.names(lowerLimitBy.groupings()), contains("emp_no"));
-        assertFalse(lowerLimitBy.duplicated());
-        as(lowerLimitBy.child(), EsRelation.class);
-        as(join.right(), EsRelation.class);
-    }
-
-    /**
-     * A grouped LIMIT (LIMIT BY) whose grouping references a field introduced by a LEFT JOIN (from the right side)
-     * must not be duplicated below the join, because the field would not exist there.
-     * <pre>{@code
-     * Limit[1000[INTEGER],false,false]
-     * \_LimitBy[5,[language_name{f}#N],false]
-     *   \_Join[LEFT,[language_code{r}#N],[language_code{f}#N]]
-     *     |_Eval[[languages{f}#N AS language_code#N]]
-     *     | \_EsRelation[test][...]
-     *     \_EsRelation[languages_lookup][LOOKUP][...]
-     * }</pre>
-     */
-    public void testLimitByFieldIntroducedInTheJoinNotDuplicated() {
-        var plan = plan("""
-            FROM test
-            | EVAL language_code = languages
-            | LOOKUP JOIN languages_lookup ON language_code
-            | LIMIT 5 BY language_name
-            """);
-
-        var defaultLimit = as(plan, Limit.class);
-        var limitBy = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(5));
-        assertThat(Expressions.names(limitBy.groupings()), contains("language_name"));
-        assertFalse(limitBy.duplicated());
-
-        var join = as(limitBy.child(), Join.class);
-        var eval = as(join.left(), Eval.class);
-        as(eval.child(), EsRelation.class);
-    }
-
-    /**
-     * We cannot duplicate the LIMIT BY if we limit by a shadowed non-join field
-     *
-     * <pre>{@code
-     * Limit[1000[INTEGER],false,false]
-     * \_LimitBy[5[INTEGER],[language_name{f}#23],false]
-     *   \_Join[LEFT,[language_code{r}#5],[language_code{f}#22],null]
-     *     |_Eval[[languages{f}#14 AS language_code#5]]
-     *     | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
-     * }</pre>
-     */
-    public void testLimitByShadowedNonJoinFieldNotDuplicated() {
-        var plan = plan("""
-            FROM test
-            | EVAL language_code = languages
-            | EVAL language_name = 2*salary
-            | LOOKUP JOIN languages_lookup ON language_code
-            | LIMIT 5 BY language_name
-            """);
-
-        var defaultLimit = as(plan, Limit.class);
-        var upperLimitBy = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) upperLimitBy.limitPerGroup()).value(), equalTo(5));
-        assertThat(Expressions.names(upperLimitBy.groupings()), contains("language_name"));
-        assertFalse(upperLimitBy.duplicated());
-
-        var join = as(upperLimitBy.child(), Join.class);
-        var eval = as(join.left(), Eval.class);
-        as(eval.child(), EsRelation.class);
-        as(join.right(), EsRelation.class);
-    }
-
-    /**
-     * We duplicate the LIMIT BY if we limit by a shadowed join field
-     *
-     * <pre>{@code
-     * Limit[1000[INTEGER],false,false]
-     * \_LimitBy[5[INTEGER],[language_code{r}#5],true]
-     *   \_Join[LEFT,[language_code{r}#5],[language_code{f}#22],null]
-     *     |_LimitBy[5[INTEGER],[language_code{r}#5],false]
-     *     | \_Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
-     *     |           languages{f}#14 AS language_code#5, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
-     *     |   \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
-     * }</pre>
-     */
-    public void testLimitByShadowedJoinFieldDuplicated() {
-        var plan = plan("""
-            FROM test
-            | RENAME languages AS language_code
-            | EVAL language_name = 2*salary
-            | LOOKUP JOIN languages_lookup ON language_code
-            | LIMIT 5 BY language_code
-            """);
-
-        var defaultLimit = as(plan, Limit.class);
-        var upperLimitBy = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) upperLimitBy.limitPerGroup()).value(), equalTo(5));
-        assertThat(Expressions.names(upperLimitBy.groupings()), contains("language_code"));
-        assertTrue(upperLimitBy.duplicated());
-
-        var join = as(upperLimitBy.child(), Join.class);
-        var lowerLimitBy = as(join.left(), LimitBy.class);
-        assertThat(((Literal) lowerLimitBy.limitPerGroup()).value(), equalTo(5));
-        assertThat(lowerLimitBy.groupings(), equalTo(upperLimitBy.groupings()));
-        assertFalse(lowerLimitBy.duplicated());
-        var project = as(lowerLimitBy.child(), Project.class);
-        as(project.child(), EsRelation.class);
-        as(join.right(), EsRelation.class);
     }
 
     private static List<String> orderNames(TopN topN) {

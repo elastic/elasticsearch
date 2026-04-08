@@ -84,9 +84,9 @@ public class VectorScorerInt8OperationBenchmark {
 
         arena = Arena.ofConfined();
         nativeSegA = arena.allocate(bytesA.length);
-        MemorySegment.copy(MemorySegment.ofArray(bytesA), JAVA_BYTE, 0L, nativeSegA, JAVA_BYTE, 0L, bytesA.length);
+        MemorySegment.copy(bytesA, 0, nativeSegA, JAVA_BYTE, 0L, bytesA.length);
         nativeSegB = arena.allocate(bytesB.length);
-        MemorySegment.copy(MemorySegment.ofArray(bytesB), JAVA_BYTE, 0L, nativeSegB, JAVA_BYTE, 0L, bytesB.length);
+        MemorySegment.copy(bytesB, 0, nativeSegB, JAVA_BYTE, 0L, bytesB.length);
 
         luceneImpl = switch (function) {
             case COSINE -> VectorUtil::cosine;

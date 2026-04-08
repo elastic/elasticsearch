@@ -480,7 +480,12 @@ public class ReindexerTests extends ESTestCase {
 
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         final ActionListener<ResumeBulkByScrollResponse> resumeListener = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), resumeListener, future);
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            reindexRequest(),
+            resumeListener,
+            future
+        );
         wrapped.onResponse(reindexResponseWithResumeInfo());
 
         assertTrue(future.isDone());

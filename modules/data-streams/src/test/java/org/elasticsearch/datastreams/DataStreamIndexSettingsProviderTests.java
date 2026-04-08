@@ -66,9 +66,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         } else {
             indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_CREATED_DURING_ROUTING);
         }
-        expectedDisabledSequenceNumbers = (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
-            && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS))
-            || indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT);
+        expectedDisabledSequenceNumbers = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT);
         indexDimensionsTsidStrategyEnabledSetting = usually();
         expectedIndexDimensionsTsidOptimizationEnabled = indexDimensionsTsidStrategyEnabledSetting
             && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);

@@ -268,7 +268,7 @@ public class HashAggregationOperator implements Operator {
     public void addInput(Page page) {
         try {
             maybeReinitializeAfterPeriodicallyEmitted();
-            GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
+            List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(aggregators.size());
             class AddInput implements GroupingAggregatorFunction.AddInput {
                 long hashStart = System.nanoTime();
                 long aggStart;
@@ -312,17 +312,21 @@ public class HashAggregationOperator implements Operator {
 
                 @Override
                 public void close() {
-                    Releasables.closeExpectNoException(prepared);
+                    Releasables.closeExpectNoException(Releasables.wrap(prepared));
                 }
             }
             try (AddInput add = new AddInput()) {
                 checkState(needsInput(), "Operator is already finishing");
                 requireNonNull(page, "page is null");
 
-                for (int i = 0; i < prepared.length; i++) {
-                    prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
+                for (GroupingAggregator aggregator : aggregators) {
+                    GroupingAggregatorFunction.AddInput p = aggregator.prepareProcessPage(blockHash, page);
+                    if (p != null) {
+                        prepared.add(p);
+                    }
                 }
 
+                // TODO we can skip the page *entirely* if we know we don't need "empty" results.
                 blockHash.add(page, add);
                 hashNanos += System.nanoTime() - add.hashStart;
             }

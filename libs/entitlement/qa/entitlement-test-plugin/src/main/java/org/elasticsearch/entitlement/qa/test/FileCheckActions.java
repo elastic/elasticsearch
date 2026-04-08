@@ -127,19 +127,19 @@ class FileCheckActions {
         return readFile().toFile().exists();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileIsDirectory() {
-        readFile().toFile().isDirectory();
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileIsDirectory() {
+        return readFile().toFile().isDirectory();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileIsFile() {
-        readFile().toFile().isFile();
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileIsFile() {
+        return readFile().toFile().isFile();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileIsHidden() {
-        readFile().toFile().isHidden();
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false", expectedDefaultType = boolean.class)
+    static boolean fileIsHidden() {
+        return readFile().toFile().isHidden();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "0", expectedDefaultType = long.class)

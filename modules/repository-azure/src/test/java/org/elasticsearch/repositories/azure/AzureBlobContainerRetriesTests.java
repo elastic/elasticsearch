@@ -366,7 +366,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * nbBlocks);
         final CountDown countDownComplete = new CountDown(nbErrors);
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, TimeValue.timeValueSeconds(5));
+        final BlobContainer blobContainer = createBlobContainer(maxRetries);
         final Map<String, BytesReference> blocks = new ConcurrentHashMap<>();
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob"), exchange -> {
 
@@ -427,7 +427,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
             blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
         }
-        assertThat(countDownUploads.get(), lessThanOrEqualTo(0));
+        assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
         assertThat(blocks.isEmpty(), is(true));
     }
@@ -750,7 +750,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         if (timeout != null) {
             clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), timeout);
         } else {
-            clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), TimeValue.timeValueSeconds(1));
+            clientSettings.put(TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), SAFE_AWAIT_TIMEOUT);
         }
         if (readTimeout != null) {
             clientSettings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeout);

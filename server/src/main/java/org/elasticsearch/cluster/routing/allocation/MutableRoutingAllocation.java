@@ -33,25 +33,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     private final RoutingNodes routingNodes;
     private final boolean isSimulating;
     private boolean isReconciling;
-
-    /**
-     * Creates a new {@link RoutingAllocation}
-     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
-     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
-     * @param clusterState cluster state before rerouting
-     * @param clusterInfo {@link ClusterInfo} to use for allocation decisions
-     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
-     */
-    MutableRoutingAllocation(
-        AllocationDeciders deciders,
-        RoutingNodes routingNodes,
-        ClusterState clusterState,
-        ClusterInfo clusterInfo,
-        SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
-    ) {
-        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, RoutingChangesObserver.NOOP);
-    }
+    private boolean hasPendingAsyncFetch;
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -162,6 +144,16 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     @Override
     public boolean routingNodesChanged() {
         return nodesChangedObserver.isChanged();
+    }
+
+    @Override
+    public boolean hasPendingAsyncFetch() {
+        return hasPendingAsyncFetch;
+    }
+
+    @Override
+    public void setHasPendingAsyncFetch() {
+        this.hasPendingAsyncFetch = true;
     }
 
     /**

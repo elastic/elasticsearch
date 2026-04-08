@@ -33,10 +33,12 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.logging.LogManager.getLogger;
 
@@ -168,6 +170,13 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
                 return;
             }
 
+            Set<String> projectIndexUUIDs = projectMetadata.indices()
+                .values()
+                .stream()
+                .map(IndexMetadata::getIndex)
+                .map(Index::getUUID)
+                .collect(Collectors.toSet());
+
             for (IndexMetadata indexMetadata : projectMetadata.indices().values()) {
                 if (Thread.currentThread().isInterrupted() || closing.get()) {
                     return;
@@ -185,7 +194,7 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
                 }
 
                 String sourceUUID = sourceIndex.getUUID();
-                if (projectMetadata.indices().values().stream().noneMatch(idx -> idx.getIndexUUID().equals(sourceUUID))) {
+                if (!projectIndexUUIDs.contains(sourceUUID)) {
                     logger.info("Source index with UUID [{}] for clone [{}] no longer exists, deleting clone", sourceUUID, indexName);
                     deleteIndex(indexName, projectMetadata.id());
                 }

@@ -282,24 +282,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocIdGroupingAggregatorFunctionTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/145923
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidBigIntegerWithoutCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145926
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testFromStatsProjectAgg
   issue: https://github.com/elastic/elasticsearch/issues/145927
 - class: org.elasticsearch.xpack.security.failurestore.FailureStoreSecurityRestIT
   method: testWatcher
   issue: https://github.com/elastic/elasticsearch/issues/145928
-- class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcFetchSizeIT
-  method: testNestedDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/145930
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetWaitForCompletionDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/145931
+- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
+  method: testGetReindexFollowsRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/144364
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/145900
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcWarningsIT
+  method: testSingleDeprecationWarning
+  issue: https://github.com/elastic/elasticsearch/issues/145933
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidNumbersWithCastingFromUnsignedLong
+  issue: https://github.com/elastic/elasticsearch/issues/145934
 
 # Examples:
 #

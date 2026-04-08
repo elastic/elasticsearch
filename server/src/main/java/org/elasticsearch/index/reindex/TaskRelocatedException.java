@@ -7,17 +7,22 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.reindex;
+package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.TaskId;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /** Reason for a task failing because it's been relocated to another node to continue execution. */
 public class TaskRelocatedException extends ElasticsearchException {
+
+    public static final TransportVersion TASK_RELOCATED_EXCEPTION_VERSION = TransportVersion.fromName("task_relocated_exception");
 
     private static final String ORIGINAL_TASK_ID_KEY = "original_task_id";
     private static final String ORIGINAL_TASK_ID_METADATA_KEY = "es." + ORIGINAL_TASK_ID_KEY;
@@ -26,6 +31,10 @@ public class TaskRelocatedException extends ElasticsearchException {
 
     public TaskRelocatedException() {
         super("Task was relocated");
+    }
+
+    public TaskRelocatedException(StreamInput in) throws IOException {
+        super(in);
     }
 
     public TaskRelocatedException(TaskId originalTaskId, TaskId relocatedTaskId) {

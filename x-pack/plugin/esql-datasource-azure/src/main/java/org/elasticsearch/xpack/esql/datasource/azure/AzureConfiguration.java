@@ -30,8 +30,8 @@ public class AzureConfiguration extends DatasourceConfiguration {
         Map.entry("auth", false)
     );
 
-    private AzureConfiguration(Map<String, String> settings) {
-        super(settings);
+    private AzureConfiguration(Map<String, Object> raw) {
+        super(raw);
     }
 
     @Override
@@ -52,10 +52,7 @@ public class AzureConfiguration extends DatasourceConfiguration {
     }
 
     public static AzureConfiguration fromMap(Map<String, Object> raw) {
-        if (raw == null || raw.isEmpty()) {
-            return null;
-        }
-        return new AzureConfiguration(parseRaw(raw, FIELDS));
+        return raw == null || raw.isEmpty() ? null : new AzureConfiguration(raw);
     }
 
     public static AzureConfiguration fromParams(Map<String, Expression> params) {

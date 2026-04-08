@@ -33,8 +33,8 @@ public class GcsConfiguration extends DatasourceConfiguration {
         false
     );
 
-    private GcsConfiguration(Map<String, String> settings) {
-        super(settings);
+    private GcsConfiguration(Map<String, Object> raw) {
+        super(raw);
     }
 
     @Override
@@ -53,10 +53,7 @@ public class GcsConfiguration extends DatasourceConfiguration {
     }
 
     public static GcsConfiguration fromMap(Map<String, Object> raw) {
-        if (raw == null || raw.isEmpty()) {
-            return null;
-        }
-        return new GcsConfiguration(parseRaw(raw, FIELDS));
+        return raw == null || raw.isEmpty() ? null : new GcsConfiguration(raw);
     }
 
     public static GcsConfiguration fromParams(Map<String, Expression> params) {

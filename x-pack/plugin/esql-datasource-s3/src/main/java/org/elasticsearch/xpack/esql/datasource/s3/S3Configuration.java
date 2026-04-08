@@ -32,8 +32,8 @@ public class S3Configuration extends DatasourceConfiguration {
         false
     );
 
-    private S3Configuration(Map<String, String> settings) {
-        super(settings);
+    private S3Configuration(Map<String, Object> raw) {
+        super(raw);
     }
 
     @Override
@@ -54,10 +54,7 @@ public class S3Configuration extends DatasourceConfiguration {
     }
 
     public static S3Configuration fromMap(Map<String, Object> raw) {
-        if (raw == null || raw.isEmpty()) {
-            return null;
-        }
-        return new S3Configuration(parseRaw(raw, FIELDS));
+        return raw == null || raw.isEmpty() ? null : new S3Configuration(raw);
     }
 
     public static S3Configuration fromParams(Map<String, Expression> params) {

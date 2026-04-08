@@ -13,15 +13,42 @@ import java.util.Map;
 
 /**
  * Base class for datasource configurations. Handles map-backed storage, unknown field
- * rejection, value normalization, and toMap(). Subclasses provide {@link #fields()} and
- * {@link #validate()} for cross-field checks.
+ * rejection, value normalization, toMap(), and toSettingValues(). Subclasses provide
+ * {@link #fields()} and {@link #validate()} for cross-field checks.
+ *
+ * <p>Subclass fromMap() should be a one-liner:
+ * <pre>{@code
+ * public static S3Configuration fromMap(Map<String, Object> raw) {
+ *     return raw == null || raw.isEmpty() ? null : new S3Configuration(raw);
+ * }
+ * }</pre>
  */
 public abstract class DatasourceConfiguration {
 
     private final Map<String, String> settings;
 
-    protected DatasourceConfiguration(Map<String, String> settings) {
-        this.settings = Map.copyOf(settings);
+    /**
+     * Validates and normalizes raw settings from a REST request or CRUD layer.
+     * Rejects unknown fields, stringifies values, lowercases auth, then calls
+     * subclass {@link #validate()} for cross-field checks.
+     */
+    protected DatasourceConfiguration(Map<String, Object> raw) {
+        Map<String, String> parsed = new HashMap<>();
+        for (var entry : raw.entrySet()) {
+            if (fields().containsKey(entry.getKey()) == false) {
+                throw new IllegalArgumentException(
+                    "unknown datasource setting [" + entry.getKey() + "]; known settings: " + fields().keySet()
+                );
+            }
+            if (entry.getValue() != null) {
+                String value = entry.getValue().toString();
+                if ("auth".equals(entry.getKey())) {
+                    value = value.toLowerCase(Locale.ROOT);
+                }
+                parsed.put(entry.getKey(), value);
+            }
+        }
+        this.settings = Map.copyOf(parsed);
         validate();
     }
 
@@ -48,29 +75,6 @@ public abstract class DatasourceConfiguration {
             result.put(entry.getKey(), new SettingValue(entry.getValue(), fields().getOrDefault(entry.getKey(), false)));
         }
         return result;
-    }
-
-    /**
-     * Parses a raw settings map: rejects unknown fields, stringifies values, lowercases auth.
-     * Returns the normalized map for passing to the constructor.
-     */
-    protected static Map<String, String> parseRaw(Map<String, Object> raw, Map<String, Boolean> fields) {
-        Map<String, String> settings = new HashMap<>();
-        for (var entry : raw.entrySet()) {
-            if (fields.containsKey(entry.getKey()) == false) {
-                throw new IllegalArgumentException(
-                    "unknown datasource setting [" + entry.getKey() + "]; known settings: " + fields.keySet()
-                );
-            }
-            if (entry.getValue() != null) {
-                String value = entry.getValue().toString();
-                if ("auth".equals(entry.getKey())) {
-                    value = value.toLowerCase(Locale.ROOT);
-                }
-                settings.put(entry.getKey(), value);
-            }
-        }
-        return settings;
     }
 
     @Override

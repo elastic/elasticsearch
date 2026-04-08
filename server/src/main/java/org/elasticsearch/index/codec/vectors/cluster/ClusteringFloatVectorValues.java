@@ -75,7 +75,8 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
             // Triangle inequality skip: if this vector is close enough to its current centroid,
             // no other centroid can be closer (dist < minInterCentroidDist/2). Skip the expensive
             // all-centroids distance scan.
-            if (centroidSkipSqDist != null && assignment >= 0
+            if (centroidSkipSqDist != null
+                && assignment >= 0
                 && ESVectorUtil.squareDistance(vector, centroids[assignment]) < centroidSkipSqDist[assignment]) {
                 bestCentroid = assignment;
             } else {
@@ -144,8 +145,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
             assert assignment != -1 : "vector is not assigned to any cluster: ord=" + translatedOrd;
             final int bestCentroid;
             // Triangle inequality skip: same as bestCentroids — if within bound, no neighbor can be closer
-            if (centroidSkipSqDist != null
-                && ESVectorUtil.squareDistance(vector, centroids[assignment]) < centroidSkipSqDist[assignment]) {
+            if (centroidSkipSqDist != null && ESVectorUtil.squareDistance(vector, centroids[assignment]) < centroidSkipSqDist[assignment]) {
                 bestCentroid = assignment;
             } else {
                 bestCentroid = computeBestCentroidFromNeighbours(

@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySet
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.junit.After;
 
 import java.util.List;
@@ -155,16 +154,14 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
     }
 
     private LDAPConnectionPool createConnectionPool(LDAPURL ldapurl) throws LDAPException {
-        return LdapUtils.privilegedConnect(() -> {
-            final LDAPConnectionPool pool = new LDAPConnectionPool(
-                new SingleServerSet(ldapurl.getHost(), ldapurl.getPort()),
-                new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
-                0,
-                20
-            );
-            pool.setConnectionPoolName("pool-" + getTestName());
-            return pool;
-        });
+        final LDAPConnectionPool pool = new LDAPConnectionPool(
+            new SingleServerSet(ldapurl.getHost(), ldapurl.getPort()),
+            new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
+            0,
+            20
+        );
+        pool.setConnectionPoolName("pool-" + getTestName());
+        return pool;
     }
 
     private void connect(LDAPConnectionOptions options) throws LDAPException {
@@ -174,11 +171,9 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
             );
         }
         final LDAPURL ldapurl = new LDAPURL(ldapUrls()[0]);
-        this.connection = LdapUtils.privilegedConnect(() -> {
-            var c = new LDAPConnection(options, ldapurl.getHost(), ldapurl.getPort());
-            c.setConnectionName("test-connection-" + getTestName());
-            return c;
-        });
+        var c = new LDAPConnection(options, ldapurl.getHost(), ldapurl.getPort());
+        c.setConnectionName("test-connection-" + getTestName());
+        this.connection = c;
     }
 
     private List<String> resolveGroups(Settings settings, String userDn) {

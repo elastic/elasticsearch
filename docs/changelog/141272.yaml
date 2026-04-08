@@ -1,0 +1,6 @@
+pr: 141272
+summary: SUM long overflow fix
+area: ES|QL
+type: bug
+issues:
+ - 110437

@@ -130,9 +130,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             }
             TaskSettings taskSettings = model.getTaskSettings().updatedTaskSettings(taskSettingsMap);
 
-            switch (model.getConfigurations().getTaskType()) {
-                case ANY, RERANK -> listener.onResponse(makeResults(input, (TestRerankingServiceExtension.TestTaskSettings) taskSettings));
-                default -> listener.onFailure(
+            if (model.getConfigurations().getTaskType() == TaskType.RERANK) {
+                listener.onResponse(makeResults(input, (TestRerankingServiceExtension.TestTaskSettings) taskSettings));
+            } else {
+                listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST

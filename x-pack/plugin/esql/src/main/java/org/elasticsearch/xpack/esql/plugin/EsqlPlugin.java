@@ -29,8 +29,10 @@ import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MMROperator;
+import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
+import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
@@ -79,6 +81,8 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
@@ -116,8 +120,6 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.core.esql.EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
@@ -257,42 +259,35 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
-        List<Object> components = new ArrayList<>(
-            List.of(
-                new PlanExecutor(
-                    new IndexResolver(services.client()),
-                    services.telemetryProvider().getMeterRegistry(),
-                    getLicenseState(),
-                    new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
-                    extraCheckers,
-                    services.crossProjectModeDecider(),
-                    dataSourceModule,
-                    functionRegistry,
-                    parser
-                ),
-                new ExchangeService(
-                    services.clusterService().getSettings(),
-                    services.threadPool(),
-                    ThreadPool.Names.SEARCH,
-                    blockFactoryProvider.blockFactory()
-                ),
-                blockFactoryProvider,
-                dataSourceModule
-            )
+        ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
+        services.clusterService()
+            .getClusterSettings()
+            .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+
+        return List.of(
+            new PlanExecutor(
+                new IndexResolver(services.client()),
+                services.telemetryProvider().getMeterRegistry(),
+                getLicenseState(),
+                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
+                extraCheckers,
+                services.crossProjectModeDecider(),
+                dataSourceModule,
+                functionRegistry,
+                parser,
+                cacheService
+            ),
+            new ExchangeService(
+                services.clusterService().getSettings(),
+                services.threadPool(),
+                ThreadPool.Names.SEARCH,
+                blockFactoryProvider.blockFactory()
+            ),
+            blockFactoryProvider,
+            dataSourceModule,
+            new ViewResolver(services.clusterService(), services.projectResolver(), services.client(), services.crossProjectModeDecider()),
+            new ViewService(services.clusterService(), parser)
         );
-        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
-            components = new ArrayList<>(components);
-            components.add(
-                new ViewResolver(
-                    services.clusterService(),
-                    services.projectResolver(),
-                    services.client(),
-                    services.crossProjectModeDecider()
-                )
-            );
-            components.add(new ViewService(services.clusterService(), parser));
-        }
-        return components;
     }
 
     protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
@@ -326,15 +321,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 STORED_FIELDS_SEQUENTIAL_PROPORTION,
                 ESQL_WORKER_THREAD_POOL_SIZE,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
-                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
+                ViewService.MAX_VIEWS_COUNT_SETTING,
+                ViewService.MAX_VIEW_LENGTH_SETTING,
+                ViewResolver.MAX_VIEW_DEPTH_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());
-        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
-            settings.add(ViewService.MAX_VIEWS_COUNT_SETTING);
-            settings.add(ViewService.MAX_VIEW_LENGTH_SETTING);
-            settings.add(ViewResolver.MAX_VIEW_DEPTH_SETTING);
-        }
 
         // Inference command settings
         settings.addAll(InferenceSettings.getSettings());
@@ -342,12 +335,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // External source rate limiting settings
         settings.addAll(ExternalSourceSettings.settings());
 
+        // External source cache settings
+        settings.addAll(ExternalSourceCacheSettings.settings());
+
         return Collections.unmodifiableList(settings);
     }
 
     @Override
     public List<ActionHandler> getActions() {
-        List<ActionHandler> releasedActions = List.of(
+        return List.of(
             new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
             new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
             new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
@@ -357,21 +353,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
             new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class)
+            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
+            new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+            new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+            new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
         );
-        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
-            List<ActionHandler> actions = new ArrayList<>(releasedActions);
-            actions.addAll(
-                List.of(
-                    new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
-                    new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
-                    new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-                    new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
-                )
-            );
-            return actions;
-        }
-        return releasedActions;
     }
 
     @Override
@@ -381,20 +368,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         EsqlCapabilities capabilities = this.capabilities.get();
-        List<RestHandler> releasedRestHandlers = List.of(
+        return List.of(
             new RestEsqlQueryAction(capabilities),
             new RestEsqlAsyncQueryAction(capabilities),
             new RestEsqlGetAsyncResultAction(),
             new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction(),
-            new RestEsqlListQueriesAction()
+            new RestEsqlListQueriesAction(),
+            new RestPutViewAction(),
+            new RestDeleteViewAction(),
+            new RestGetViewAction()
         );
-        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
-            List<RestHandler> restHandlers = new ArrayList<>(releasedRestHandlers);
-            restHandlers.addAll(List.of(new RestPutViewAction(), new RestDeleteViewAction(), new RestGetViewAction()));
-            return restHandlers;
-        }
-        return releasedRestHandlers;
     }
 
     @Override
@@ -422,6 +406,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
+        entries.add(MetricsInfoOperator.Status.ENTRY);
+        entries.add(TsInfoOperator.Status.ENTRY);
         entries.add(LinearScoreEvalOperator.Status.ENTRY);
         entries.add(MMROperator.Status.ENTRY);
 
@@ -430,9 +416,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
-        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
-            entries.addAll(ViewMetadata.ENTRIES);
-        }
+        entries.addAll(ViewMetadata.ENTRIES);
 
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
@@ -441,13 +425,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
-            namedXContent.add(
-                new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent)
-            );
-        }
-        return namedXContent;
+        return List.of(
+            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent)
+        );
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {

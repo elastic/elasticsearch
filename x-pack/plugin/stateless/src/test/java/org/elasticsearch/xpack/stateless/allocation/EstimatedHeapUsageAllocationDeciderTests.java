@@ -574,7 +574,9 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
         final var allocationService = createAllocationService(
             decider,
             createClusterInfoWithGenNodeAndShardHeap(
-                Map.of(NODE_ID, randomLongBetween(0, watermark), OTHER_NODE_ID, randomLongBetween(watermark + 1, 100)),
+                // max watermark-1 percent, otherwise any extra heap usage for shards pushes the total heap usage over the limit
+                // (this test uses max 100 bytes heap usage for shards and a minimum of 1GB heap (so 100 bytes < 1% * 1GB))
+                Map.of(NODE_ID, randomLongBetween(0, watermark - 1), OTHER_NODE_ID, randomLongBetween(watermark + 1, 100)),
                 shardRouting.shardId()
             )
         );

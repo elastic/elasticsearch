@@ -394,19 +394,17 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        String filterStr = pushedFilter != null ? "[filter=" + pushedFilter + "]" : "";
-        String limitStr = pushedLimit != FormatReader.NO_LIMIT ? "[limit=" + pushedLimit + "]" : "";
-        String splitsStr = splits.isEmpty() == false ? "[splits=" + splits.size() + "]" : "";
-        return nodeName()
-            + "["
-            + sourcePath
-            + "]["
-            + sourceType
-            + "]"
-            + filterStr
-            + limitStr
-            + splitsStr
-            + NodeUtils.toString(attributes, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType).append("]");
+        if (pushedFilter != null) {
+            sb.append("[filter=").append(pushedFilter).append("]");
+        }
+        if (pushedLimit != FormatReader.NO_LIMIT) {
+            sb.append("[limit=").append(pushedLimit).append("]");
+        }
+        if (splits.isEmpty() == false) {
+            sb.append("[splits=").append(splits.size()).append("]");
+        }
+        NodeUtils.toString(sb, attributes, format);
     }
 }

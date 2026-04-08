@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -34,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.getAuthenticationFromCrossClusterAccessMetadata;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
@@ -200,6 +202,11 @@ public class SecurityContext {
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, TransportVersion version) {
         // Preserve request headers other than authentication
         final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
+        final Map<String, Object> authenticationTokens = threadContext.getTransientHeaders()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue() instanceof AuthenticationToken)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -209,6 +216,7 @@ public class SecurityContext {
                     threadContext.putHeader(k, v);
                 }
             });
+            authenticationTokens.forEach(threadContext::putTransient);
             consumer.accept(original);
         }
     }

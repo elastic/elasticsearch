@@ -37,5 +37,5 @@ steps:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
-          machineType: e2-custom-16-32768
-          diskType: pd-ssd
+          machineType: n4-custom-16-32768
+          diskType: hyperdisk-balanced

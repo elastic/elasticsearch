@@ -90,22 +90,27 @@ public class OrcFormatReader implements RangeAwareFormatReader {
 
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
+    private final OrcPushedExpressions pushedExpressions;
 
     public OrcFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, null);
+        this(blockFactory, null, null);
     }
 
-    private OrcFormatReader(BlockFactory blockFactory, SearchArgument pushedFilter) {
+    private OrcFormatReader(BlockFactory blockFactory, SearchArgument pushedFilter, OrcPushedExpressions pushedExpressions) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
+        this.pushedExpressions = pushedExpressions;
     }
 
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
-        if (pushedFilter == null) {
-            return this;
+        if (pushedFilter instanceof SearchArgument sarg) {
+            return new OrcFormatReader(this.blockFactory, sarg, null);
         }
-        return new OrcFormatReader(this.blockFactory, (SearchArgument) pushedFilter);
+        if (pushedFilter instanceof OrcPushedExpressions exprs) {
+            return new OrcFormatReader(this.blockFactory, null, exprs);
+        }
+        return this;
     }
 
     @Override
@@ -238,7 +243,7 @@ public class OrcFormatReader implements RangeAwareFormatReader {
         List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
-        Reader.Options readOptions = configureReadOptions(reader, batchSize, include);
+        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
         RecordReader rows = reader.rows(readOptions);
 
         CloseableIterator<Page> iter = new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
@@ -328,7 +333,7 @@ public class OrcFormatReader implements RangeAwareFormatReader {
         List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
-        Reader.Options readOptions = configureReadOptions(reader, batchSize, include);
+        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
         readOptions.range(rangeStart, rangeEnd - rangeStart);
         RecordReader rows = reader.rows(readOptions);
 
@@ -372,18 +377,19 @@ public class OrcFormatReader implements RangeAwareFormatReader {
         return include;
     }
 
-    private Reader.Options configureReadOptions(Reader reader, int batchSize, boolean[] include) {
+    private Reader.Options configureReadOptions(Reader reader, int batchSize, boolean[] include, TypeDescription schema) {
         Reader.Options readOptions = reader.options().rowBatchSize(batchSize);
         if (include != null) {
             readOptions.include(include);
         }
-        if (pushedFilter != null) {
-            List<PredicateLeaf> leaves = pushedFilter.getLeaves();
+        SearchArgument resolvedFilter = resolveSearchArgument(schema);
+        if (resolvedFilter != null) {
+            List<PredicateLeaf> leaves = resolvedFilter.getLeaves();
             LinkedHashSet<String> nameSet = new LinkedHashSet<>(leaves.size());
             for (PredicateLeaf leaf : leaves) {
                 nameSet.add(leaf.getColumnName());
             }
-            readOptions.searchArgument(pushedFilter, nameSet.toArray(new String[0]));
+            readOptions.searchArgument(resolvedFilter, nameSet.toArray(new String[0]));
         }
         return readOptions;
     }
@@ -401,6 +407,20 @@ public class OrcFormatReader implements RangeAwareFormatReader {
                 includeColumnForType(include, child);
             }
         }
+    }
+
+    /**
+     * Resolves the SearchArgument to use for a given file. If deferred expressions are present,
+     * builds the SearchArgument using the actual file schema for correct DATE/DECIMAL mapping.
+     */
+    private SearchArgument resolveSearchArgument(TypeDescription schema) {
+        if (pushedFilter != null) {
+            return pushedFilter;
+        }
+        if (pushedExpressions != null) {
+            return pushedExpressions.toSearchArgument(schema);
+        }
+        return null;
     }
 
     @Override
@@ -938,7 +958,7 @@ public class OrcFormatReader implements RangeAwareFormatReader {
 
         RowLimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
             if (rowLimit <= 0) {
-                throw new IllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
+                throw new QlIllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
             }
             this.delegate = delegate;
             this.remaining = rowLimit;

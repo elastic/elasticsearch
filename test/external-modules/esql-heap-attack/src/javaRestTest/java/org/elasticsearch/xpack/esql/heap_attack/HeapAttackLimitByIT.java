@@ -391,6 +391,6 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
      * from the group-key hash table.
      */
     private static String bytesRefHashClassName() {
-        return HashImplFactory.SWISS_TABLES_HASHING.isEnabled() ? BytesRefSwissHash.class.getName() : BytesRefHash.class.getName();
+        return HashImplFactory.SWISS_HASH_AVAILABLE ? BytesRefSwissHash.class.getName() : BytesRefHash.class.getName();
     }
 }

@@ -45,20 +45,22 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
         }
     }
 
-    public void testParser_withSingleContentObject() throws IOException {
-        var imageFormat = randomFrom(DataType.IMAGE.getSupportedFormats());
+    public void testParser_withBase64ImageContentObject() throws IOException {
+        var imageFormat = DataFormat.BASE64;
         var requestJson = Strings.format("""
             {
                 "input": {
-                    "content": {"type": "image", "format": "%s", "value": "some image input"}
+                    "content": {"type": "image", "format": "%s", "value": "%s"}
                 },
                 "input_type": "search"
             }
-            """, imageFormat);
+            """, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
             var expectedInputs = List.of(
-                new InferenceStringGroup(List.of(new InferenceString(DataType.IMAGE, imageFormat, "some image input")))
+                new InferenceStringGroup(
+                    List.of(new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI))
+                )
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
@@ -86,25 +88,25 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public void testParser_withSingleContentObjectWithMultipleEntries() throws IOException {
-        var imageFormat = randomFrom(DataType.IMAGE.getSupportedFormats());
+        var imageFormat = DataFormat.BASE64;
         var requestJson = Strings.format("""
             {
                 "input": {
                     "content": [
                         {"type": "text", "format": "text", "value": "some text input"},
-                        {"type": "image", "format": "%s", "value": "some image input"}
+                        {"type": "image", "format": "%s", "value": "%s"}
                     ]
                 },
                 "input_type": "search"
             }
-            """, imageFormat);
+            """, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
             var expectedInputs = List.of(
                 new InferenceStringGroup(
                     List.of(
                         new InferenceString(DataType.TEXT, DataFormat.TEXT, "some text input"),
-                        new InferenceString(DataType.IMAGE, imageFormat, "some image input")
+                        new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI)
                     )
                 )
             );
@@ -115,33 +117,37 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public void testParser_withMultipleContentObjects() throws IOException {
-        var imageFormat = randomFrom(DataType.IMAGE.getSupportedFormats());
+        var imageFormat = DataFormat.BASE64;
         var requestJson = Strings.format("""
             {
                 "input": [
                     {
-                        "content": {"type": "image", "format": "%s", "value": "some image input"}
+                        "content": {"type": "image", "format": "%s", "value": "%s"}
                     },
                     {
                         "content": [
                             {"type": "text", "format": "text", "value": "first text input"},
                             {"type": "text", "format": "text", "value": "second text input"}
                         ]
-                    }
+                    },
+                    "third input"
                 ],
                 "input_type": "search"
             }
-            """, imageFormat);
+            """, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
             var expectedInputs = List.of(
-                new InferenceStringGroup(List.of(new InferenceString(DataType.IMAGE, imageFormat, "some image input"))),
+                new InferenceStringGroup(
+                    List.of(new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_IMAGE_DATA_URI))
+                ),
                 new InferenceStringGroup(
                     List.of(
                         new InferenceString(DataType.TEXT, DataFormat.TEXT, "first text input"),
                         new InferenceString(DataType.TEXT, DataFormat.TEXT, "second text input")
                     )
-                )
+                ),
+                new InferenceStringGroup("third input")
             );
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
@@ -150,11 +156,11 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public void testParser_withUnspecifiedFormats_usesDefaults() throws IOException {
-        var requestJson = """
+        var requestJson = Strings.format("""
             {
                 "input": [
                     {
-                        "content": {"type": "image", "value": "some image input"}
+                        "content": {"type": "image", "value": "%s"}
                     },
                     {
                         "content": [
@@ -165,11 +171,13 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
                 ],
                 "input_type": "search"
             }
-            """;
+            """, InferenceStringTests.TEST_IMAGE_DATA_URI);
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
             var expectedInputs = List.of(
-                new InferenceStringGroup(List.of(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "some image input"))),
+                new InferenceStringGroup(
+                    List.of(new InferenceString(DataType.IMAGE, DataFormat.BASE64, InferenceStringTests.TEST_IMAGE_DATA_URI))
+                ),
                 new InferenceStringGroup(
                     List.of(
                         new InferenceString(DataType.TEXT, DataFormat.TEXT, "first text input"),

@@ -77,11 +77,13 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
@@ -123,7 +125,9 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -466,6 +470,7 @@ public final class EsqlTestUtils {
 
         private final Map<Config, Set<String>> includes = new HashMap<>();
         private final Map<Config, Set<String>> excludes = new HashMap<>();
+        private final Map<String, String> constantValues = new HashMap<>();
 
         public TestConfigurableSearchStats include(Config key, String... fields) {
             // If this method is called with no fields, it is interpreted to mean include none, so we include a dummy field
@@ -508,6 +513,16 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return isConfigationSet(Config.EXACT_SUBFIELD, field.string());
+        }
+
+        public TestConfigurableSearchStats withConstantValue(String field, String value) {
+            constantValues.put(field, value);
+            return this;
+        }
+
+        @Override
+        public String constantValue(FieldName name) {
+            return constantValues.get(name.string());
         }
 
         @Override
@@ -553,7 +568,7 @@ public final class EsqlTestUtils {
     }
 
     /**
-     * Returns a new builder for constructing test analyzer context instances.
+     * Helper for testing all things related to {@link Analyzer#analyze}.
      */
     public static TestAnalyzer analyzer() {
         return new TestAnalyzer();
@@ -579,10 +594,27 @@ public final class EsqlTestUtils {
      */
     @Deprecated
     public static TestAnalyzer fullyLoadedAnalyzer() {
-        return analyzer().addAnalysisTestsLookupResolutions()
+        return analyzer().addLanguagesLookup()
+            .addTestLookup()
+            .addSpatialLookup()
             .addAnalysisTestsEnrichResolution()
             .addAnalysisTestsInferenceResolution()
-            .addAnalysisTestsIndexResolutions();
+            .addLanguages()
+            .addSampleData()
+            .addDefaultIncompatible()
+            .addIndex("colors", "mapping-colors.json")
+            .addK8sDownsampled()
+            .addRemoteMissingIndex()
+            .addEmptyIndex()
+            .addNoFieldsIndex();
+    }
+
+    /**
+     * Helper for testing all things related to {@link LogicalPlanOptimizer#optimize}
+     * and {@link LocalLogicalPlanOptimizer#localOptimize}.
+     */
+    public static TestOptimizer optimizer() {
+        return new TestOptimizer();
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
@@ -692,6 +724,7 @@ public final class EsqlTestUtils {
             mock(IndexNameExpressionResolver.class),
             null,
             new InferenceService(mock(Client.class), clusterService),
+            UserAgentParserRegistry.NOOP,
             new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
             new PlannerSettings.Holder(clusterService),
             CrossProjectModeDecider.NOOP
@@ -1226,7 +1259,7 @@ public final class EsqlTestUtils {
             case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case EXPONENTIAL_HISTOGRAM -> EsqlTestUtils.randomExponentialHistogram();
-            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE -> throw new IllegalArgumentException(
+            case UNSUPPORTED, OBJECT, PARTIAL_AGG, DOC_DATA_TYPE -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"
             );
             case TDIGEST -> EsqlTestUtils.randomTDigest();

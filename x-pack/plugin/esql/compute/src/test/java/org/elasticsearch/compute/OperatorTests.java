@@ -115,8 +115,13 @@ public class OperatorTests extends MapperServiceTestCase {
             );
             List<Driver> drivers = new ArrayList<>();
             try {
+                /*
+                 * If we match no documents the factory wants 0 concurrency. But in
+                 * production we accept no less than 1 driver.
+                 */
+                int driverCount = Math.max(1, factory.taskConcurrency());
                 Set<Integer> actualDocIds = ConcurrentCollections.newConcurrentSet();
-                for (int t = 0; t < factory.taskConcurrency(); t++) {
+                for (int t = 0; t < driverCount; t++) {
                     PageConsumerOperator docCollector = new PageConsumerOperator(page -> {
                         DocVector docVector = page.<DocBlock>getBlock(0).asVector();
                         IntVector doc = docVector.docs();
@@ -494,6 +499,7 @@ public class OperatorTests extends MapperServiceTestCase {
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             randomPageSize(),
             limit,

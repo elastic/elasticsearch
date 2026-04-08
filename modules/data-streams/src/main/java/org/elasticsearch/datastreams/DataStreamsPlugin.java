@@ -44,7 +44,6 @@ import org.elasticsearch.datastreams.action.TransportModifyDataStreamsAction;
 import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamMappingsAction;
 import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
@@ -85,6 +84,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
@@ -100,7 +100,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
-public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin {
+public class DataStreamsPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, HealthPlugin {
 
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
@@ -143,7 +143,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         Setting.Property.Dynamic,
         Setting.Property.ServerlessPublic
     );
-    private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
 
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
@@ -182,7 +181,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
-        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING);
         return pluginSettings;
     }
 
@@ -201,14 +199,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
         });
         components.add(updateTimeSeriesRangeService);
-        errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore(services.threadPool()::absoluteTimeInMillis));
         dataStreamLifecycleErrorsPublisher.set(
-            new DataStreamLifecycleHealthInfoPublisher(
-                settings,
-                services.client(),
-                services.clusterService(),
-                errorStoreInitialisationService.get()
-            )
+            new DataStreamLifecycleHealthInfoPublisher(settings, services.client(), services.clusterService(), services.dlmErrorStore())
         );
 
         dataLifecycleInitialisationService.set(
@@ -219,7 +211,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 getClock(),
                 services.threadPool(),
                 services.threadPool()::absoluteTimeInMillis,
-                errorStoreInitialisationService.get(),
+                services.dlmErrorStore(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
                 services.dataStreamGlobalRetentionSettings()
@@ -228,7 +220,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         dataLifecycleInitialisationService.get().init();
         dataStreamLifecycleHealthIndicatorService.set(new DataStreamLifecycleHealthIndicatorService(services.projectResolver()));
 
-        components.add(errorStoreInitialisationService.get());
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
         return components;

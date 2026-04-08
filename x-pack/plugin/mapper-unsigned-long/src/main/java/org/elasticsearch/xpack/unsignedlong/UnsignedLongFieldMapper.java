@@ -82,13 +82,22 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     static final BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
     private static final BigDecimal BIGDECIMAL_2_64_MINUS_ONE = new BigDecimal(BIGINTEGER_2_64_MINUS_ONE);
 
+    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
+        true,
+        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+        FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+    );
+
     private static UnsignedLongFieldMapper toType(FieldMapper in) {
         return (UnsignedLongFieldMapper) in;
     }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
         private final Parameter<Boolean> indexed;
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.sorted(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> toType(m).docValuesParameters()
+        );
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<String> nullValue;
@@ -125,7 +134,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, hasDocValues::get);
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return false;
@@ -139,9 +148,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             });
 
             this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.GAUGE, MetricType.COUNTER).addValidator(v -> {
-                if (v != null && hasDocValues.getValue() == false) {
+                if (v != null && docValuesParameters.getValue().enabled() == false) {
                     throw new IllegalArgumentException(
-                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
+                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + docValuesParameters.name + "] is true"
                     );
                 }
             }).precludesParameters(dimension);
@@ -180,7 +189,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta, dimension, metric };
+            return new Parameter<?>[] { indexed, docValuesParameters, stored, ignoreMalformed, nullValue, meta, dimension, metric };
         }
 
         Number parsedNullValue() {
@@ -192,7 +201,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         private IndexType indexType() {
-            if (indexed.get() == false && hasDocValues.get()) {
+            if (indexed.get() == false && docValuesParameters.get().enabled()) {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return IndexType.skippers();
                 }
@@ -201,7 +210,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     return IndexType.skippers();
                 }
             }
-            return IndexType.points(indexed.get(), hasDocValues.get());
+            return IndexType.points(indexed.get(), docValuesParameters.get().enabled());
         }
 
         @Override
@@ -228,7 +237,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             String offsetsFieldName = getOffsetsFieldName(
                 context,
                 indexSettings.sourceKeepMode(),
-                hasDocValues.getValue(),
+                docValuesParameters.getValue().enabled(),
                 stored.getValue(),
                 this,
                 indexSettings.getIndexVersionCreated(),
@@ -676,7 +685,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     private final boolean isSourceSynthetic;
     private final boolean indexed;
-    private final boolean hasDocValues;
+    private final FieldMapper.DocValuesParameter.Values docValuesParameters;
     private final boolean stored;
     private final Explicit<Boolean> ignoreMalformed;
     private final String nullValue;
@@ -697,7 +706,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, builderParams);
         this.isSourceSynthetic = isSourceSynthetic;
         this.indexed = builder.indexed.getValue();
-        this.hasDocValues = builder.hasDocValues.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.stored = builder.stored.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.nullValue = builder.nullValue.getValue();
@@ -716,6 +725,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     @Override
     public boolean ignoreMalformed() {
         return ignoreMalformed.value();
+    }
+
+    public FieldMapper.DocValuesParameter.Values docValuesParameters() {
+        return docValuesParameters;
     }
 
     @Override
@@ -775,9 +788,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         if (numericValue != null) {
             List<Field> fields = new ArrayList<>();
-            if (indexed && hasDocValues) {
+            if (indexed && docValuesParameters.enabled()) {
                 fields.add(new LongField(fieldType().name(), numericValue, Field.Store.NO));
-            } else if (hasDocValues) {
+            } else if (docValuesParameters.enabled()) {
                 if (fieldType().indexType().hasDocValuesSkipper()) {
                     fields.add(SortedNumericDocValuesField.indexedField(fieldType().name(), numericValue));
                 } else {
@@ -793,7 +806,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             context.doc().addAll(fields);
 
-            if (hasDocValues == false && (stored || indexed)) {
+            if (docValuesParameters.enabled() == false && (stored || indexed)) {
                 context.addToFieldNames(fieldType().name());
             }
         }
@@ -921,7 +934,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        if (hasDocValues) {
+        if (docValuesParameters.enabled()) {
             return new SyntheticSourceSupport.Native(this::docValuesSyntheticFieldLoader);
         }
 

@@ -9,14 +9,14 @@ applies_to:
 
 # Set up and configure `semantic_text` fields [set-up-configuration-semantic-text]
 
-This page provides instructions for setting up and configuring `semantic_text` fields. Learn how to configure {{infer}} endpoints, including default and preconfigured options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
+This page provides instructions for setting up and configuring `semantic_text` fields. Learn how to configure {{infer}} endpoints, including [default](#default-endpoints) and [preconfigured](#preconfigured-endpoints) options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
 
 ## Configure {{infer}} endpoints [configure-inference-endpoints]
 
 You can configure {{infer}} endpoints for `semantic_text` fields in the following ways:
 
 - [Use ELSER on EIS](#using-elser-on-eis)
-- [Use default and preconfigured endpoints](#default-and-preconfigured-endpoints)
+- [Default](#default-endpoints) and [preconfigured](#preconfigured-endpoints) endpoints
 - [Use a custom {{infer}} endpoint](#using-custom-endpoint)
 
 :::{note}
@@ -25,19 +25,11 @@ If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML
 {applies_to}`stack: ga 9.1.0` If you use EIS, you don't have to set up dedicated endpoints.
 :::
 
-### Use default and preconfigured endpoints [default-and-preconfigured-endpoints]
+### Use default endpoints [default-endpoints]
 
-This section shows you how to set up `semantic_text` with different default and preconfigured endpoints.
+A default endpoint is the {{infer}} endpoint that is used when you create a `semantic_text` field without specifying an `inference_id`.
 
-:::::::{tab-set}
-
-::::::{tab-item} Default ELSER on EIS on {{serverless-short}}
-
-```{applies_to}
-serverless: ga
-```
-
-To use the default `.elser-v2-elastic` endpoint that runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis), you can set up `semantic_text` with the following API request:
+The following example shows a `semantic_text` field configured to use the default {{infer}} endpoint:
 
 ```console
 PUT my-index-000001
@@ -53,20 +45,43 @@ PUT my-index-000001
 ```
 % TEST[skip:Requires {{infer}} endpoint]
 
-If you don't specify an {{infer}} endpoint, the `inference_id` field defaults to
-`.elser-v2-elastic`, a preconfigured endpoint for the `elasticsearch` service.
+:::{important}
 
-::::::
+The default {{infer}} endpoint varies by deployment type and version:
 
-::::::{tab-item} Preconfigured ELSER on EIS in Cloud
+- {applies_to}`stack: ga 9.4` On {{ecloud}} 9.4+, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md). `.jina-embeddings-v5-text-small` is expected to become the default model for Serverless soon.
 
-```{applies_to}
-stack: ga 9.2
-deployment:
-  self: unavailable
-```
+- {applies_to}`stack: ga 9.3` {applies_to}`serverless: ga` In version 9.3 and on {{serverless-short}}, the `inference_id` parameter defaults to `.elser-2-elastic` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 
-To use the preconfigured `.elser-v2-elastic` endpoint that runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis), you can set up `semantic_text` with the following API request:
+- {applies_to}`stack: ga 9.0-9.2` In versions 9.0-9.2, the `inference_id` parameter defaults to `.elser-2-elasticsearch` and runs on the `elasticsearch` service.
+
+If you use the default {{infer}} endpoint, it might be updated to a newer version and use a different embedding model than the previous default endpoints. Queries that target these indices together can produce unexpected ranking results.
+For details, refer to [potential issues when mixing embedding models across indices](#default-endpoint-considerations).
+:::
+
+:::::{dropdown} Potential issues when mixing embedding models across indices
+:name: default-endpoint-considerations
+
+If a `semantic_text` field relies on the default {{infer}} endpoint, the model used to generate embeddings might change across versions or deployments. This can result in indices using different embedding models.
+
+For example, if the `semantic_text` field is created without specifying `inference_id`, indices created on {{ecloud}} 9.3 use the `.elser-2-elastic` endpoint by default, while indices created on {{ecloud}} 9.4+ use `.jina-embeddings-v5-text-small`. As a result, older indices contain ELSER embeddings while newer indices contain Jina embeddings.
+
+Mixed embedding models across indices can occur in several common scenarios, including:
+
+- [Data streams](docs-content://manage-data/data-store/data-streams.md) with [{{ilm-init}} rollover](docs-content://manage-data/lifecycle/index-lifecycle-management.md): When a data stream rolls over, older backing indices may contain ELSER embeddings while newer indices created after an upgrade use Jina embeddings.
+- [Aliases](docs-content://manage-data/data-store/aliases.md) referencing multiple indices: An alias can point to several indices created at different times. If some indices use ELSER and others use Jina, searches against the alias will query both.
+- Explicit [multi-index searches](/reference/elasticsearch/rest-apis/search-multiple-data-streams-indices.md): Queries that target multiple indices (for example `GET index1,index2/_search`) might combine results from indices using different embedding models.
+- [{{ccs-cap}}](docs-content://explore-analyze/cross-cluster-search.md): Searches across multiple clusters may query indices created on different stack versions, which may use different default {{infer}} endpoints.
+
+Queries that target indices using different embedding models can lead to issues or unexpected results. The following sections describe these issues and how to mitigate them.
+
+#### Incorrect ranking due to different scoring scales
+
+ELSER and Jina use different scoring ranges. ELSER scores typically range between `0` and above `10`, while Jina scores are normalized between `0` and `1`.
+
+When results from both models are ranked together, ELSER documents might appear ahead of Jina documents even if the Jina results are more relevant. This can lead to misleading rankings without any errors being returned.
+
+To mitigate this issue, ensure that indices queried together use the same embedding model by explicitly specifying the `inference_id` when defining `semantic_text` fields:
 
 ```console
 PUT my-index-000001
@@ -75,38 +90,70 @@ PUT my-index-000001
     "properties": {
       "inference_field": {
         "type": "semantic_text",
-        "inference_id": ".elser-v2-elastic"
+        "inference_id": ".jina-embeddings-v5-text-small"
       }
     }
   }
 }
 ```
+% TEST[skip:Requires {{infer}} endpoint]
 
-If you don't specify an {{infer}} endpoint, the `inference_id` field defaults to
-`.elser-2-elasticsearch`, a preconfigured endpoint for the `elasticsearch` service.
-
-::::::
-
-::::::{tab-item} Default ELSER
-
-If you use the default `.elser-2-elasticsearch` endpoint, you can set up `semantic_text` with the following API request:
+If indices using different embedding models must be queried together, normalize the scores using a [linear retriever](/reference/elasticsearch/rest-apis/retrievers/linear-retriever.md):
 
 ```console
-PUT my-index-000001
+GET my-index/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "how do neural networks learn",
+      "fields": ["inference_field"],
+      "normalizer": "minmax"
+    }
+  }
+}
+```
+
+#### Increased {{infer}} cost during search
+
+When a query targets indices that use different {{infer}} endpoints, {{es}} must generate query embeddings for each model. This increases {{infer}} workload and cost during search.
+
+To mitigate this issue, ensure that indices queried together use the same {{infer}} endpoint. You can do this by:
+
+- explicitly setting the `inference_id` when defining the `semantic_text` field for new indices, or
+- by [reindexing](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) older indices with the desired endpoint.
+
+#### Alerts based on raw relevance scores might stop triggering
+
+Some [alerts](docs-content://explore-analyze/alerting/alerts.md) or [rules](docs-content://explore-analyze/alerting/alerts/rule-types.md) rely on raw `_score` values. Because ELSER and Jina use different score ranges, score thresholds designed for ELSER might no longer work when results are generated with Jina.
+
+For example, a condition such as `_score > 10` might never be satisfied by Jina results, because Jina scores are normalized between `0` and `1`.
+
+To mitigate this issue, adjust alert thresholds to match the scoring range of the embedding model being used, or avoid relying on raw `_score` values in alert conditions.
+
+:::::
+
+### Use preconfigured endpoints [preconfigured-endpoints]
+
+Preconfigured endpoints are {{infer}} endpoints that are automatically available in the deployment or project and do not require manual creation. The available preconfigured endpoints vary across deployment types and versions.
+
+To view the list of available preconfigured endpoints for your deployment, go to **{{infer-cap}} endpoints** in {{kib}}.
+
+To use a preconfigured endpoint, set the `inference_id` parameter to the identifier of the endpoint you want to use:
+
+```console
+PUT my-index-000004
 {
   "mappings": {
     "properties": {
       "inference_field": {
-        "type": "semantic_text"
+        "type": "semantic_text",
+        "inference_id": ".jina-embeddings-v5-text-nano"
       }
     }
   }
 }
 ```
-
-::::::
-
-:::::::
+% TEST[skip:Requires {{infer}} endpoint]
 
 ### Use ELSER on EIS [using-elser-on-eis]
 
@@ -172,7 +219,7 @@ PUT my-index-000001
 
 ### Use a custom {{infer}} endpoint [using-custom-endpoint]
 
-To use a custom {{infer}} endpoint instead of the default endpoint, you
+To use a custom {{infer}} endpoint instead of the [default](#default-endpoints) or [preconfigured](#preconfigured-endpoints) endpoints, you
 must [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
 and specify its `inference_id` when setting up the `semantic_text` field type.
 
@@ -282,4 +329,97 @@ PUT semantic-embeddings
 1. (Optional) Selects the `int8_hnsw` vector quantization strategy. Learn about [default quantization types](/reference/elasticsearch/mapping-reference/dense-vector.md#default-quantization-types).
 2. (Optional) Sets `m` to 15 to control how many neighbors each node connects to in the HNSW graph. Default is `16`.
 3. (Optional) Sets `ef_construction` to 90 to control how many candidate neighbors are considered during graph construction. Default is `100`.
+
+### Default `bfloat16` element type [index-options-dense_vectors-bfloat16]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+For {{infer}} endpoints that produce `float` embeddings, `semantic_text` fields automatically use the [`bfloat16`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-element-type) element type.
+This reduces the storage required per vector dimension from 4 to 2 bytes with a negligible impact on search relevance for the vast majority of use cases.
+
+The `bfloat16` format uses a 2-byte floating-point encoding that maintains the same value range as 4-byte floats, but with reduced precision.
+You can check if your `semantic_text` field is using `bfloat16` by default by inspecting the default `index_options` for the field using the [get field mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-field-mapping):
+
+```console
+GET semantic-embeddings/_mapping/field/content?include_defaults
+```
+
+```console-result
+{
+  "semantic-embeddings": {
+    "mappings": {
+      "content": {
+        "full_name": "content",
+        "mapping": {
+          "content": {
+            "type": "semantic_text",
+            "inference_id": "my-float-embedding-endpoint",
+            "index_options": {
+              "dense_vector": {
+                "element_type": "bfloat16" <1>
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+1. Indicates that the `semantic_text` field defaulted to the `bfloat16` element type.
+
+#### Override the default element type [index-options-dense_vectors-element-type-override]
+
+If your use case requires full `float` precision, you can override the default `bfloat16` element type by specifying `element_type` in `index_options.dense_vector`:
+
+```console
+PUT semantic-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "semantic_text",
+        "inference_id": "my-float-embedding-endpoint",
+        "index_options": {
+          "dense_vector": {
+            "element_type": "float" <1>
+          }
+        }
+      }
+    }
+  }
+}
+```
+1. Overrides the default `bfloat16` element type to use full-precision `float` (4 bytes per dimension).
+
+You can also combine `element_type` with other index options:
+
+```console
+PUT semantic-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "semantic_text",
+        "inference_id": "my-float-embedding-endpoint",
+        "index_options": {
+          "dense_vector": {
+            "element_type": "float",
+            "type": "int8_hnsw"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+:::{note}
+The `element_type` override is only valid for {{infer}} endpoints that produce `float` embeddings.
+For `float` models, valid values are `float` and `bfloat16`.
+For other model element types (such as `byte` or `bit`), the `element_type` must match the model's native element type if specified.
+:::
 

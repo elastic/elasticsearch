@@ -14,9 +14,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.BulkKeywordLookup;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -60,6 +62,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private final List<QueryBuilder> lucenePushableFilterBuilders = new ArrayList<>();
     private final AliasFilter aliasFilter;
     private final ClusterService clusterService;
+    private BulkKeywordLookup bulkKeywordLookup = null;
 
     private ExpressionQueryList(
         List<QueryList> queryLists,
@@ -117,6 +120,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         @Nullable QueryBuilder pushedQuery,
         ClusterService clusterService,
         List<MatchConfig> matchFields,
+        List<String> extractFieldNames,
         Expression joinOnConditions,
         AliasFilter aliasFilter,
         Warnings warnings
@@ -139,18 +143,38 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             SearchContextStats.from(List.of(context)),
             new EsqlFlags(clusterService.getClusterSettings())
         );
-        expressionQueryList.buildJoinOnForExpressionJoin(joinOnConditions, matchFields, context, lucenePushdownPredicates, warnings);
+
+        expressionQueryList.buildJoinOnForExpressionJoin(
+            joinOnConditions,
+            matchFields,
+            extractFieldNames,
+            context,
+            lucenePushdownPredicates,
+            aliasFilter,
+            warnings
+        );
         return expressionQueryList;
+    }
+
+    @Override
+    public BulkKeywordLookup getBulkKeywordLookup() {
+        return bulkKeywordLookup;
     }
 
     private void buildJoinOnForExpressionJoin(
         Expression joinOnConditions,
         List<MatchConfig> matchFields,
+        List<String> extractFieldNames,
         SearchExecutionContext context,
         LucenePushdownPredicates lucenePushdownPredicates,
+        AliasFilter aliasFilter,
         Warnings warnings
     ) {
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
+        if (applyAsBulkKeywordLookup(expressions, matchFields, extractFieldNames, context, clusterService, aliasFilter, warnings)) {
+            // we managed to apply the whole condition as a fast keyword filter
+            return;
+        }
         for (Expression expr : expressions) {
             boolean applied = applyAsLeftRightBinaryComparison(expr, matchFields, context, clusterService, warnings);
             if (applied == false) {
@@ -160,6 +184,72 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 throw new IllegalArgumentException("Cannot apply join condition: " + expr);
             }
         }
+    }
+
+    private boolean applyAsBulkKeywordLookup(
+        List<Expression> expressions,
+        List<MatchConfig> matchFields,
+        List<String> extractFieldNames,
+        SearchExecutionContext context,
+        ClusterService clusterService,
+        AliasFilter aliasFilter,
+        Warnings warnings
+    ) {
+
+        if (aliasFilter != null && aliasFilter != AliasFilter.EMPTY) {
+
+            // Other "applyAs" methods here implicitly handle AliasFilter in QueryList.getQuery()
+            // which adds the filter clause to the query sent to Lucene. Unfortunately this
+            // optimization avoids Lucene queries so we can't use it when an AliasFilter is in effect.
+            //
+            return false;
+        }
+
+        if (expressions.size() == 1) {
+            Expression expr = expressions.get(0);
+            if (expr instanceof EsqlBinaryComparison binaryComparison
+                && binaryComparison.left() instanceof Attribute leftAttribute
+                && binaryComparison.right() instanceof Attribute rightAttribute) {
+
+                // the left side comes from the page that was sent to the lookup node
+                // the right side is the field from the lookup index
+                // check if the left side is in the matchFields
+                int matchChannelOffset = -1;
+                DataType dataType = null;
+                for (int i = 0; i < matchFields.size(); i++) {
+                    if (matchFields.get(i).fieldName().equals(leftAttribute.name())) {
+                        matchChannelOffset = i;
+                        dataType = matchFields.get(i).type();
+                        break;
+                    }
+                }
+
+                if (matchChannelOffset != -1 && dataType == DataType.KEYWORD) {
+
+                    // bulkLookupMvFilterOperator() needs the extractChannelOffset later
+                    // when filtering out false-positive multivalue matches
+                    //
+                    int extractChannelOffset = -1;
+                    for (int i = 0; i < extractFieldNames.size(); i++) {
+                        if (extractFieldNames.get(i).equals(rightAttribute.name())) {
+                            extractChannelOffset = i;
+                            break;
+                        }
+                    }
+                    MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
+
+                    if (extractChannelOffset != -1 && rightFieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                        // special handle Equals operator on keyword fields
+                        // we can apply as a BulkKeywordLookup for better performance
+                        if (binaryComparison instanceof Equals) {
+                            bulkKeywordLookup = new BulkKeywordLookup(rightFieldType, matchChannelOffset, extractChannelOffset, warnings);
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private boolean applyAsRightSidePushableFilter(
@@ -281,26 +371,30 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     @Override
     public Query getQuery(int position, Page inputPage, SearchExecutionContext searchExecutionContext) {
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        for (QueryList queryList : queryLists) {
-            Query q = queryList.getQuery(position, inputPage, searchExecutionContext);
-            if (q == null) {
-                // if any of the matchFields are null, it means there is no match for this position
-                // A AND NULL is always NULL, so we can skip this position
-                return null;
+        try {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            for (QueryList queryList : queryLists) {
+                Query q = queryList.getQuery(position, inputPage, searchExecutionContext);
+                if (q == null) {
+                    // if any of the matchFields are null, it means there is no match for this position
+                    // A AND NULL is always NULL, so we can skip this position
+                    return null;
+                }
+                builder.add(q, BooleanClause.Occur.FILTER);
             }
-            builder.add(q, BooleanClause.Occur.FILTER);
-        }
-        // also attach the pre-join filter if it exists
-        // Build queries from QueryBuilders dynamically to avoid caching stale IndexReader references
-        for (QueryBuilder queryBuilder : lucenePushableFilterBuilders) {
-            try {
-                builder.add(queryBuilder.toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
+            // also attach the pre-join filter if it exists
+            // Build queries from QueryBuilders dynamically to avoid caching stale IndexReader references
+            for (QueryBuilder queryBuilder : lucenePushableFilterBuilders) {
+                try {
+                    builder.add(queryBuilder.toQuery(searchExecutionContext), BooleanClause.Occur.FILTER);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
+                }
             }
+            return builder.build();
+        } finally {
+            searchExecutionContext.releaseQueryConstructionMemory();
         }
-        return builder.build();
     }
 
     /**
@@ -311,6 +405,9 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     @Override
     public int getPositionCount(Page inputPage) {
+        if (bulkKeywordLookup != null) {
+            return bulkKeywordLookup.getPositionCount(inputPage);
+        }
         int positionCount = queryLists.get(0).getPositionCount(inputPage);
         for (QueryList queryList : queryLists) {
             if (queryList.getPositionCount(inputPage) != positionCount) {

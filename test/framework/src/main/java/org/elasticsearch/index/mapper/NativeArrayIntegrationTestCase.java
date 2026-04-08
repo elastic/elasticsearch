@@ -141,7 +141,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         mapping.field("ignore_malformed", true).endObject().endObject().endObject();
         var indexService = createIndex(
             "test-index",
-            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put("index.use_time_series_doc_values_format", true)
+                .build(),
             mapping
         );
         for (int i = 0; i < inputDocuments.size(); i++) {
@@ -191,7 +195,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         var indexService = createIndex(
             "test-index",
-            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put("index.use_time_series_doc_values_format", true)
+                .build(),
             mapping
         );
 
@@ -286,7 +294,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         var indexService = createIndex(
             "test-index",
-            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put("index.use_time_series_doc_values_format", true)
+                .build(),
             mapping
         );
         for (int i = 0; i < inputArrays.length; i++) {
@@ -336,7 +348,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         mapping.endObject().endObject().endObject().endObject().endObject();
         var indexService = createIndex(
             "test-index",
-            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put("index.use_time_series_doc_values_format", true)
+                .build(),
             mapping
         );
         for (int i = 0; i < documents.size(); i++) {
@@ -401,7 +417,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         var indexService = createIndex(
             "test-index",
-            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put("index.use_time_series_doc_values_format", true)
+                .build(),
             mapping
         );
         for (int i = 0; i < documents.size(); i++) {

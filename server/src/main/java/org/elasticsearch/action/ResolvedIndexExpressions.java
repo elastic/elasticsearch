@@ -40,8 +40,12 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         return expressions.stream().flatMap(e -> e.remoteExpressions().stream()).toList();
     }
 
-    public boolean localIndicesIsEmpty() {
-        return expressions.stream().allMatch(e -> e.localExpressions().indices().isEmpty());
+    public boolean localIndicesEmptyOrMissing() {
+        return expressions.stream().noneMatch(e -> {
+            var local = e.localExpressions();
+            return local.localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                && local.indices().isEmpty() == false;
+        });
     }
 
     public static Builder builder() {

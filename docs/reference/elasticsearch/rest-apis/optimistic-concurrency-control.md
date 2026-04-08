@@ -9,6 +9,10 @@ applies_to:
 
 {{es}} is distributed. When documents are created, updated, or deleted, the new version of the document has to be replicated to other nodes in the cluster. {{es}} is also asynchronous and concurrent, meaning that these replication requests are sent in parallel, and may arrive at their destination out of sequence. {{es}} needs a way of ensuring that an older version of a document never overwrites a newer version.
 
+::::{warning}
+Optimistic concurrency control is not available on indices that have sequence numbers disabled via the [`index.disable_sequence_numbers`](/reference/elasticsearch/index-settings/index-modules.md#index-disable-sequence-numbers) setting. On such indices, the `if_seq_no` and `if_primary_term` parameters will be rejected.
+::::
+
 To ensure an older version of a document doesn’t overwrite a newer version, every operation performed to a document is assigned a sequence number by the primary shard that coordinates that change. The sequence number is increased with each operation and thus newer operations are guaranteed to have a higher sequence number than older operations. {{es}} can then use the sequence number of operations to make sure a newer document version is never overridden by a change that has a smaller sequence number assigned to it.
 
 For example, the following indexing command will create a document and assign it an initial sequence number and primary term:

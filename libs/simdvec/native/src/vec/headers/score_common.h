@@ -44,7 +44,7 @@ static inline f32_t apply_corrections_euclidean_inner(
     // For euclidean, we need to invert the score and apply the additional correction, which is
     // assumed to be the squared l2norm of the centroid centered vectors.
     score = queryAdditionalCorrection + additionalCorrection - 2 * score;
-    return fmax(1.0f / (1.0f + score), 0.0f);
+    return __builtin_fmaxf(1.0f / (1.0f + score), 0.0f);
 }
 
 static inline f32_t apply_corrections_maximum_inner_product_inner(
@@ -104,7 +104,7 @@ static inline f32_t apply_corrections_dot_product_inner(
     // For dot product we need to apply the additional correction, which is
     // assumed to be the non-centered dot-product between the vector and the centroid
     score += queryAdditionalCorrection + additionalCorrection - centroidDp;
-    return fmax((1.0f + score) / 2.0f, 0.0f);
+    return __builtin_fmaxf((1.0f + score) / 2.0f, 0.0f);
 }
 
 #endif //SCORE_COMMON_H

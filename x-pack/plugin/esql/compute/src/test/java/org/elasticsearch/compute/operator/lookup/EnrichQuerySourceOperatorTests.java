@@ -36,7 +36,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.operator.WarningsTests.TestWarningsSource;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;

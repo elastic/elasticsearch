@@ -1,0 +1,7 @@
+area: Vector Search
+issues:
+ - 145444
+pr: 145577
+summary: Fix intercepted query cases that can create orphaned unique async action
+  consumers
+type: bug

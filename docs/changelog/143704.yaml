@@ -1,0 +1,17 @@
+area: ES|QL
+issues: []
+pr: 143704
+summary: Support of a window that is not an exact multiple of the bucket
+type: enhancement
+highlight:
+  title: "Time series aggregations support windows that are not an exact multiple of the bucket"
+  notable: true
+  body: |-
+    Time series aggregations in ES|QL are enhanced to support windows that are not an exact multiple of the time bucket.
+
+    [source,yaml]
+    ----
+    TS metrics | STATS AVG(RATE(requests, 15m)) BY TBUCKET(10m), host
+    ----
+
+    Previously, only window values that were exact multiples of the time bucket were supported.

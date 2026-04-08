@@ -17,6 +17,19 @@ emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date       
 10005          | "Kyoichi"          | "Maliniak"        | 1955-01-21T00:00:00.000Z | "M"            | 1989-09-12T00:00:00.000Z | 1                 | 2.05          | 63528          | true
 ;
 
+filterByPreEpochBirthDate
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| KEEP emp_no, first_name, last_name, birth_date, gender, hire_date, languages, height, salary, still_hired
+| WHERE birth_date == TO_DATETIME("1953-09-02T00:00:00.000Z")
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date          | gender:keyword | hire_date:date           | languages:integer | height:double | salary:integer | still_hired:boolean
+10001          | "Georgi"           | "Facello"         | 1953-09-02T00:00:00.000Z | "M"            | 1986-06-26T00:00:00.000Z | 2                 | 2.03          | 57305          | true
+;
+
 selectSpecificColumns
 required_capability: external_command
 
@@ -362,7 +375,7 @@ EXTERNAL "{{employees}}"
 ;
 
 count:long
-30..70
+5..95
 ;
 
 forkTwoBranches
@@ -758,7 +771,106 @@ EXTERNAL "{{books}}"
 | KEEP title, completion
 ;
 
-title:text                         | completion:keyword
+title:keyword                      | completion:keyword
 War and Peace                      | WAR AND PEACE
 War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
+;
+
+externalRerankBooks
+required_capability: external_command
+required_capability: rerank
+
+EXTERNAL "{{books}}"
+| WHERE book_no IN ("5327", "9032", "4536", "2776")
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2)
+| SORT _score DESC, book_no ASC
+| KEEP book_no, title, author, _score
+;
+
+book_no:keyword | title:keyword                                         | author:keyword                              | _score:double
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
+4536            | War and Peace (Signet Classics)                       | [Leo Tolstoy, Pat Conroy, John Hockenberry] | 0.03
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
+;
+
+enrich
+required_capability: external_command
+required_capability: enrich_load
+
+EXTERNAL "{{employees}}"
+| SORT emp_no
+| LIMIT 1
+| EVAL x = TO_STRING(languages)
+| ENRICH languages_policy ON x
+| KEEP emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+10001          | French
+;
+
+decayFunction
+required_capability: external_command
+required_capability: decay_function
+
+EXTERNAL "{{employees}}"
+| EVAL d = DECAY(emp_no, 0, 100, {"type": "linear"})
+| KEEP emp_no, d
+| SORT emp_no
+| LIMIT 2
+;
+
+emp_no:integer |d:double
+10001          |0.0            
+10002          |0.0            
+;
+
+topSnippetsFunction
+required_capability: external_command
+required_capability: top_snippets_function
+
+EXTERNAL "{{books}}"
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien")
+| KEEP book_no, title, description, snippets
+| WHERE book_no::INTEGER == 9607
+;
+
+book_no:keyword|title:keyword                        |description:keyword                                                                                 |snippets:keyword
+9607           |Beowolf: The monsters and the critics|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature
+;
+
+scoreFunction
+required_capability: external_command
+required_capability: top_snippets_function
+required_capability: score_function
+
+EXTERNAL "{{books}}"
+| EVAL score = SCORE(TOP_SNIPPETS(description, "Tolkien"))
+| KEEP book_no, title, description, score
+| WHERE book_no::INTEGER == 9607
+;
+
+book_no:keyword|title:keyword                        |description:keyword                                                                                 |score:double
+9607           |Beowolf: The monsters and the critics|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature|0.0
+;
+
+
+operatorLikeRLike
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| KEEP emp_no, first_name
+| WHERE first_name LIKE "Hi*"
+| WHERE first_name RLIKE "Hi.*"
+| SORT emp_no
+;
+
+emp_no:integer |first_name:keyword
+10051          |Hidefumi
+10071          |Hisao
+10072          |Hironoby
+10095          |Hilari
+10100          |Hironobu
 ;

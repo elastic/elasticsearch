@@ -36,6 +36,8 @@ def ccsSupportedVersion = bwcVersion -> {
 
 buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
 
+  def currentVersion = project.version
+
   def remoteCluster = testClusters.register("${baseName}-remote") {
     numberOfNodes = 2
     versions = [bwcVersion.toString()]
@@ -66,13 +68,53 @@ buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, ba
     doFirst {
       nonInputProperties.systemProperty('tests.rest.suite', 'multi_cluster')
       nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
       nonInputProperties.systemProperty('tests.rest.remote_cluster_version', bwcVersion.toString())
     }
     dependsOn "${baseName}#remote-cluster"
   }
 
+  // Reverse version: old local coordinator + new remote.
+
+  def revRemoteCluster = testClusters.register("${baseName}-rev-remote") {
+    numberOfNodes = 2
+    versions = [currentVersion] // <-- remote cluster uses the current version
+    setting 'node.roles', '[data,ingest,master]'
+  }
+
+  def revLocalCluster = testClusters.register("${baseName}-rev-local") {
+    versions = [bwcVersion.toString()] // <-- local cluster uses the old version
+    setting 'node.roles', '[data,ingest,master,remote_cluster_client]'
+    setting 'cluster.remote.connections_per_cluster', '1'
+    setting 'cluster.remote.my_remote_cluster.seeds',
+      { "\"${revRemoteCluster.get().getAllTransportPortURI().get(0)}\"" }
+    setting 'cluster.remote.my_remote_cluster.skip_unavailable', 'false'
+  }
+
+  tasks.register("${baseName}#rev-remote-setup", RestIntegTestTask) {
+    useCluster revRemoteCluster
+    doFirst {
+      nonInputProperties.systemProperty('tests.rest.suite', 'remote_cluster')
+      nonInputProperties.systemProperty('tests.rest.cluster', revRemoteCluster.map(c -> c.allHttpSocketURI.join(",")))
+    }
+    dependsOn "processTestResources"
+  }
+
+  tasks.register("${baseName}#multi-cluster-reverse", RestIntegTestTask) {
+    useCluster revLocalCluster
+    useCluster revRemoteCluster
+    doFirst {
+      nonInputProperties.systemProperty('tests.rest.suite', 'multi_cluster')
+      nonInputProperties.systemProperty('tests.rest.cluster', revLocalCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.remote_cluster', revRemoteCluster.map(c -> c.allHttpSocketURI.join(",")))
+      nonInputProperties.systemProperty('tests.rest.remote_cluster_version', currentVersion)
+    }
+    dependsOn "${baseName}#rev-remote-setup"
+    mustRunAfter "${baseName}#multi-cluster"
+  }
+
   tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn "${baseName}#multi-cluster"
+    dependsOn "${baseName}#multi-cluster", "${baseName}#multi-cluster-reverse"
     mustRunAfter("precommit")
   }
 }

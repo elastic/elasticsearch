@@ -87,6 +87,133 @@ setup:
   - length: { views: 0 }
 
 ---
+"delete-multiple-views":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.put_view:
+        name: cats
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.put_view:
+        name: foxes
+        body:
+          query: 'FROM test | WHERE animal == "fox"'
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 3 }
+
+  - do:
+      esql.delete_view:
+        name: dogs,cats
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 1 }
+  - match: { views.0.name: "foxes" }
+
+  - do:
+      esql.delete_view:
+        name: foxes
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 0 }
+
+---
+"delete-multiple-views-with-wildcard":
+  - do:
+      esql.put_view:
+        name: animals-1
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.put_view:
+        name: animals-2
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.put_view:
+        name: faxes
+        body:
+          query: 'FROM test | WHERE animal == "office_appliance"'
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 3 }
+
+  - do:
+      esql.delete_view:
+        name: animals-*
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 1 }
+  - match: { views.0.name: "faxes" }
+
+---
+"delete-all-views":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.put_view:
+        name: cats
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 2 }
+
+  - do:
+      esql.delete_view:
+        name: _all
+
+  - do:
+      esql.get_view: { }
+
+  - length: { views: 0 }
+
+---
+"delete-multiple-views-one-missing":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      catch: /view \[nonexistent\] not found/
+      esql.delete_view:
+        name: dogs,nonexistent
+
+  # The view should still exist since the request failed
+  - do:
+      esql.get_view:
+        name: dogs
+
+  - match: { views.0.name: "dogs" }
+
+---
 "invalid-views":
   - do:
       catch: /invalid view name/
@@ -128,6 +255,27 @@ setup:
         name: dogs
         body:
           query: 'FRO test'
+
+  - do:
+      catch: /Not enough actual parameters 0/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == ?'
+
+  - do:
+      catch: /Unknown query parameter \[animal\]/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == ?animal'
+
+  - do:
+      catch: /No parameter is defined for position 1/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == ?1'
 
   - do:
       esql.get_view: { }
@@ -479,3 +627,24 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [1, "cat"] }
   - match: { values.1: [4, "dog"] }
+
+---
+"query-view-with-outer-params":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM dogs | WHERE color == ? | SORT id | KEEP id, color | LIMIT 10'
+          params: ["brown"]
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "color" }
+  - length: { values: 3 }
+  - match: { values.0: [2, "brown"] }
+  - match: { values.1: [4, "brown"] }
+  - match: { values.2: [6, "brown"] }

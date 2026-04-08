@@ -65,7 +65,8 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                         random().nextBoolean(),
                         ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),
                         random().nextBoolean(),
-                        ES819TSDBDocValuesFormatTests.randomNumericBlockSize()
+                        ES819TSDBDocValuesFormatTests.randomNumericBlockSize(),
+                        randomBoolean()
                     )
                     : new TestES87TSDBDocValuesFormat();
 
@@ -463,7 +464,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
                 int docId = docIdsToAdvanceTo[i];
                 int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
-                if (baselineTarget != NO_MORE_DOCS) {
+                if (baselineTarget == NO_MORE_DOCS) {
                     break;
                 }
                 assertEquals(baseline.binaryValue(), contender.binaryValue());

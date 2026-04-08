@@ -97,6 +97,15 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public ConstantNullBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(endExclusive - beginInclusive);
+    }
+
+    @Override
     public ConstantNullBlock keepMask(BooleanVector mask) {
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(getPositionCount());
     }

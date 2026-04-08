@@ -75,6 +75,31 @@ final class ByteArrayUtils {
         return length - continuations;
     }
 
+    /**
+     * Checks whether {@code term} appears as a contiguous subsequence within {@code value}.
+     * Adapted from {@code StringUTF16.indexOfLatin1Unsafe}.
+     */
+    static boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        byte first = term[termOffset];
+        int max = valueOffset + valueLength - termLength;
+        for (int i = valueOffset; i <= max; i++) {
+            if (value[i] != first) {
+                while (++i <= max && value[i] != first)
+                    ;
+            }
+            if (i <= max) {
+                int j = i + 1;
+                int end = j + termLength - 1;
+                for (int k = termOffset + 1; j < end && value[j] == term[k]; j++, k++)
+                    ;
+                if (j == end) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static long readLongNative(byte[] arr, int offset) {
         return (long) VH_NATIVE_LONG.get(arr, offset);
     }

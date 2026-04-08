@@ -67,6 +67,18 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     OrdinalBytesRefBlock asOrdinals();
 
     @Override
+    default BytesRefBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
     BytesRefBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**

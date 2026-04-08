@@ -2577,7 +2577,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
             boolean useTimeSeriesSyntheticId = shouldUseTimeSeriesSyntheticId(isTsdb, indexCreatedVersion, settings);
             final boolean sequenceNumbersDisabled = indexCreatedVersion.onOrAfter(
-                IndexVersions.DISABLE_SEQUENCE_NUMBERS
+                IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT
             ) && settings.getAsBoolean(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);
             return new IndexMetadata(
                 new Index(index, uuid),

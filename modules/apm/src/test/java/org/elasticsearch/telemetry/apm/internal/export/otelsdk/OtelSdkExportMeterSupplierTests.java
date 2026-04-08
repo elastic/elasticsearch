@@ -82,7 +82,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         supplier.attemptFlushMetrics(); // must not throw
     }
 
-    /** attemptFlushMetrics() with initialised resources triggers an export of buffered metric data. */
+    /** attemptFlushMetrics() with initialized resources triggers an export of buffered metric data. */
     public void testAttemptFlushMetricsTriggersExport() {
         InMemoryMetricExporter exporter = InMemoryMetricExporter.create();
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(testResources(exporter));

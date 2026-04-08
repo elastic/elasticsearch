@@ -39,7 +39,8 @@ class JdkZstdLibrary implements ZstdLibrary {
     private static final MethodHandle getErrorName$mh = downcallHandle("ZSTD_getErrorName", FunctionDescriptor.of(ADDRESS, JAVA_LONG));
     private static final MethodHandle decompress$mh = downcallHandle(
         "ZSTD_decompress",
-        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT)
+        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT),
+        LinkerHelperUtil.critical()
     );
 
     @Override
@@ -115,6 +116,16 @@ class JdkZstdLibrary implements ZstdLibrary {
         var segmentSrc = MemorySegment.ofBuffer(src);
         try {
             return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public long decompress(MemorySegment dst, int dstSize, MemorySegment src, int srcSize) {
+        assert dst != null && src != null && dstSize >= 0 && dstSize <= dst.byteSize() && srcSize >= 0 && srcSize <= src.byteSize();
+        try {
+            return (long) decompress$mh.invokeExact(dst, dstSize, src, srcSize);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

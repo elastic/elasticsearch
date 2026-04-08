@@ -29,7 +29,9 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterIndexInput;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
@@ -45,6 +47,9 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -524,9 +529,8 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 // we just build a mock graph where every node is connected to every other node
                 generateMockGraphAndWriteMeta(fieldInfo, numVectors);
             } else {
-                // getFlatRandomVectorScorerInnerSupplier returns null for ES94's scorer supplier
-                // (Lucene104's QuantizedCloseableRandomVectorScorerSupplier is not recognized),
-                // causing mergeFloatVectorField to fall through to MergedVectorValues.mergeFloatVectorValues.
+                // For Lucene99-backed formats, this unwraps the raw float scorer for mmap access.
+                // For ES94 (Lucene104), returns null and mergeFloatVectorField writes a temp file instead.
                 var randomScorerSupplier = VectorsFormatReflectionUtils.getFlatRandomVectorScorerInnerSupplier(scorerSupplier);
                 mergeFloatVectorField(fieldInfo, mergeState, randomScorerSupplier, numVectors);
             }
@@ -605,26 +609,88 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 }
             }
         } else {
-            logger.warn("Cannot get merged raw vectors from scorer.");
+            // ES94 path: scorer supplier is quantized (Lucene104), so raw float vectors
+            // are not accessible through the scorer. Write merged vectors to a temp file
+            // and mmap it for efficient GPU transfer.
+            mergeFloatVectorFieldViaTempFile(fieldInfo, mergeState, cagraIndexParams, numVectors);
+        }
+    }
+
+    /**
+     * Writes merged float vectors to a temp file and mmaps it for zero-copy GPU transfer.
+     * Falls back to per-vector host builder when the directory is not FS-backed (e.g. in tests).
+     */
+    private void mergeFloatVectorFieldViaTempFile(
+        FieldInfo fieldInfo,
+        MergeState mergeState,
+        CagraIndexParams cagraIndexParams,
+        int numVectors
+    ) throws IOException, InterruptedException {
+        int dims = fieldInfo.getVectorDimension();
+        long dataSize = (long) numVectors * dims * Float.BYTES;
+
+        FSDirectory fsDir;
+        try {
+            fsDir = MemorySegmentUtils.unwrapFSDirectory(segmentWriteState.directory);
+        } catch (IllegalArgumentException e) {
+            fsDir = null;
+        }
+
+        if (fsDir != null) {
             FloatVectorValues floatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
-
+            Path tempFile = writeVectorsToTempFile(floatVectorValues, dims, fsDir);
+            logger.info(
+                "Wrote [{}] merged vectors to temp file [{}] ([{}] bytes) for mmap GPU transfer",
+                numVectors,
+                tempFile.getFileName(),
+                dataSize
+            );
+            try (
+                var memorySegmentHolder = MemorySegmentUtils.createFileBackedMemorySegment(tempFile, dataSize);
+                var dataset = DatasetUtils.getInstance()
+                    .fromInput(memorySegmentHolder.memorySegment(), numVectors, dims, CuVSMatrix.DataType.FLOAT);
+                var resourcesHolder = new ResourcesHolder(
+                    cuVSResourceManager,
+                    cuVSResourceManager.acquire(numVectors, dims, CuVSMatrix.DataType.FLOAT, cagraIndexParams)
+                )
+            ) {
+                generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
+            }
+        } else {
+            logger.info("Cannot mmap directory for GPU merge; falling back to host builder");
+            FloatVectorValues floatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
             // TODO: revert to CuVSMatrix.deviceBuilder when cuvs has fixed the multiple copies problem
-            var builder = CuVSMatrix.hostBuilder(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT);
-
+            var builder = CuVSMatrix.hostBuilder(numVectors, dims, CuVSMatrix.DataType.FLOAT);
             final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
             for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
-                float[] vector = floatVectorValues.vectorValue(iterator.index());
-                builder.addVector(vector);
+                builder.addVector(floatVectorValues.vectorValue(iterator.index()));
             }
             try (
                 var dataset = builder.build();
                 var resourcesHolder = new ResourcesHolder(
                     cuVSResourceManager,
-                    cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), CuVSMatrix.DataType.FLOAT, cagraIndexParams)
+                    cuVSResourceManager.acquire(numVectors, dims, CuVSMatrix.DataType.FLOAT, cagraIndexParams)
                 )
             ) {
                 generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
             }
+        }
+    }
+
+    /**
+     * Writes float vectors to a temporary file as contiguous little-endian floats.
+     * The temp file is suitable for mmap-based GPU transfer.
+     */
+    private static Path writeVectorsToTempFile(FloatVectorValues floatVectorValues, int dims, FSDirectory fsDir) throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        try (IndexOutput tempOutput = fsDir.createTempOutput("gpu-merge", "vec_", IOContext.DEFAULT)) {
+            final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
+            for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+                float[] vector = floatVectorValues.vectorValue(iterator.index());
+                buffer.asFloatBuffer().put(vector);
+                tempOutput.writeBytes(buffer.array(), buffer.limit());
+            }
+            return fsDir.getDirectory().resolve(tempOutput.getName());
         }
     }
 

@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -53,7 +54,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.List;
@@ -448,13 +448,10 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 Map.of(NODE_ID, highWatermarkPercent + 5L, OTHER_NODE_ID, highWatermarkPercent / 2L),
                 shardRouting.shardId()
             );
-            final RoutingAllocation allocation = new RoutingAllocation(
-                createAllocationDeciders(decider),
-                clusterStateWithStartedShard,
-                clusterInfo,
-                SnapshotShardSizeInfo.EMPTY,
-                System.nanoTime()
-            );
+            final RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterStateWithStartedShard)
+                .allocationDeciders(createAllocationDeciders(decider))
+                .clusterInfo(clusterInfo)
+                .build();
             allocation.debugDecision(true);
 
             final ShardAllocationDecision explainDecision = createAllocationService(decider, clusterInfo).explainShardAllocation(
@@ -483,13 +480,10 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 Map.of(NODE_ID, highWatermarkPercent - 5L, OTHER_NODE_ID, highWatermarkPercent / 2L),
                 shardRouting.shardId()
             );
-            final RoutingAllocation allocation = new RoutingAllocation(
-                createAllocationDeciders(decider),
-                clusterStateWithStartedShard,
-                clusterInfo,
-                SnapshotShardSizeInfo.EMPTY,
-                System.nanoTime()
-            );
+            final RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterStateWithStartedShard)
+                .allocationDeciders(createAllocationDeciders(decider))
+                .clusterInfo(clusterInfo)
+                .build();
             allocation.debugDecision(true);
 
             final ShardAllocationDecision explainDecision = createAllocationService(decider, clusterInfo).explainShardAllocation(
@@ -525,13 +519,10 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 ),
                 shardRouting.shardId()
             );
-            final RoutingAllocation allocation = new RoutingAllocation(
-                createAllocationDeciders(decider),
-                clusterStateSearchShardStarted,
-                clusterInfo,
-                SnapshotShardSizeInfo.EMPTY,
-                System.nanoTime()
-            );
+            final RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterStateSearchShardStarted)
+                .allocationDeciders(createAllocationDeciders(decider))
+                .clusterInfo(clusterInfo)
+                .build();
             allocation.debugDecision(true);
 
             final ShardAllocationDecision explainDecision = createAllocationService(decider, clusterInfo).explainShardAllocation(
@@ -662,13 +653,10 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     }
 
     private RoutingAllocation createRoutingAllocation(AllocationDecider decider, ShardRouting shardRouting, ClusterInfo clusterInfo) {
-        final var routingAllocation = new RoutingAllocation(
-            createAllocationDeciders(decider),
-            createClusterState(shardRouting),
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(createClusterState(shardRouting))
+            .allocationDeciders(createAllocationDeciders(decider))
+            .clusterInfo(clusterInfo)
+            .build();
         routingAllocation.debugDecision(true);
         return routingAllocation;
     }

@@ -33,8 +33,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
-import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -231,21 +229,7 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
                 return;
             }
 
-            Optional.ofNullable(snapshotInfo.userMetadata())
-                .filter(metadata -> Boolean.TRUE.equals(metadata.get(DLMConvertToFrozen.DLM_MANAGED_METADATA_KEY)))
-                .map(__ -> snapshotInfo.indices())
-                .filter(indices -> indices.size() == 1)
-                .map(List::getFirst)
-                .filter(indexName -> clusterService.state().projectState(projectId).metadata().indices().containsKey(indexName) == false)
-                .ifPresent(indexName -> {
-                    logger.info(
-                        "Index [{}] for snapshot [{}] in repository [{}] no longer exists, deleting snapshot",
-                        indexName,
-                        snapshotInfo.snapshot().getSnapshotId().getName(),
-                        defaultRepository
-                    );
-                    deleteSnapshot(defaultRepository, snapshotInfo.snapshot().getSnapshotId().getName(), projectId);
-                });
+            // TODO: Snapshot check's
         }
     }
 

@@ -255,36 +255,6 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
         assertThat(client.capturedGetSnapshotsRequest, nullValue());
     }
 
-    public void testCheckForOrphanedResourcesCloneFailureDoesNotAffectSnapshotCleanup() {
-        String repository = randomAlphaOfLength(8);
-        String snapshotIndexName = randomAlphaOfLength(10);
-        String snapshotName = randomAlphaOfLength(10);
-        ProjectId projectId = randomUniqueProjectId();
-        String sourceName = randomAlphaOfLength(10);
-        String sourceUuid = randomAlphaOfLength(10);
-        String cloneName = CLONE_INDEX_PREFIX + sourceName;
-        setClusterStateWithRepository(
-            repository,
-            projectWithIndices(projectId, createCloneIndexMetadata(cloneName, randomAlphaOfLength(10), sourceName, sourceUuid))
-        );
-        client.deleteIndexFailure = new RuntimeException("simulated clone delete failure");
-        client.getSnapshotsResponse = new GetSnapshotsResponse(
-            List.of(createSnapshotInfo(repository, snapshotName, List.of(snapshotIndexName), Map.of(DLM_MANAGED_METADATA_KEY, true))),
-            null,
-            1,
-            0
-        );
-
-        runCleanup();
-
-        // Clone deletion was attempted but failed
-        assertThat(client.capturedDeleteIndexRequests, hasSize(1));
-        // Snapshot cleanup still ran despite clone failure
-        assertThat(client.capturedGetSnapshotsRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequest.snapshots(), arrayContaining(snapshotName));
-    }
-
     public void testCheckForOrphanedResourcesSkipsSnapshotCleanupWhenNoRepositoryConfigured() {
         ProjectId projectId = randomUniqueProjectId();
         setClusterState(Settings.EMPTY, ProjectMetadata.builder(projectId));
@@ -293,60 +263,6 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
 
         assertThat(client.capturedGetSnapshotsRequest, nullValue());
         assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
-    public void testCheckForOrphanedResourcesDeletesOrphanSnapshotFromDefaultRepository() {
-        String repository = randomAlphaOfLength(8);
-        String snapshotIndexName = randomAlphaOfLength(10);
-        String snapshotName = randomAlphaOfLength(10);
-        setClusterStateWithRepository(repository, emptyProjectMetadata());
-        client.getSnapshotsResponse = new GetSnapshotsResponse(
-            List.of(createSnapshotInfo(repository, snapshotName, List.of(snapshotIndexName), Map.of(DLM_MANAGED_METADATA_KEY, true))),
-            null,
-            1,
-            0
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsRequest, notNullValue());
-        assertThat(client.capturedGetSnapshotsRequest.repositories(), arrayContaining(repository));
-        assertThat(client.capturedGetSnapshotsRequest.snapshots(), arrayContaining("dlm-frozen-*"));
-        assertThat(client.capturedDeleteSnapshotRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequest.repository(), equalTo(repository));
-        assertThat(client.capturedDeleteSnapshotRequest.snapshots(), arrayContaining(snapshotName));
-        assertThat(client.capturedDeleteIndexRequests, empty());
-    }
-
-    /**
-     * Verifies that snapshot cleanup is scoped to the project whose repository was queried. When
-     * the snapshot's index exists only in a different project, the snapshot is considered orphaned
-     * within the queried project and is deleted.
-     */
-    public void testCheckForOrphanedResourcesDeletesSnapshotWhenIndexExistsOnlyInAnotherProject() {
-        String repository = randomAlphaOfLength(8);
-        String snapshotIndexName = randomAlphaOfLength(10);
-        ProjectId projectWithIndex = randomUniqueProjectId();
-        setClusterStateWithRepository(
-            repository,
-            projectWithIndices(projectWithIndex, createIndexMetadata(snapshotIndexName, randomAlphaOfLength(10))),
-            emptyProjectMetadata()
-        );
-        client.getSnapshotsResponse = new GetSnapshotsResponse(
-            List.of(
-                createSnapshotInfo(repository, randomAlphaOfLength(10), List.of(snapshotIndexName), Map.of(DLM_MANAGED_METADATA_KEY, true))
-            ),
-            null,
-            1,
-            0
-        );
-
-        runCleanup();
-
-        // The empty project sees the snapshot as orphaned (index absent from that project)
-        // and deletes it, even though it exists in the other project.
-        assertThat(client.capturedGetSnapshotsRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequest, notNullValue());
     }
 
     public void testCheckForOrphanedResourcesSkipsSnapshotWhenIndexExistsInSameProject() {
@@ -494,53 +410,6 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
         assertThat(client.capturedGetSnapshotsProjectIds, hasSize(2));
         assertThat(client.capturedGetSnapshotsProjectIds, containsInAnyOrder(projectId1, projectId2));
         assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
-    public void testCheckForOrphanedSnapshotsUsesProjectScopedClientForSnapshotOperations() {
-        String repository = randomAlphaOfLength(8);
-        String snapshotIndexName = randomAlphaOfLength(10);
-        String snapshotName = randomAlphaOfLength(10);
-        ProjectId projectId = randomUniqueProjectId();
-        setClusterStateWithRepository(repository, ProjectMetadata.builder(projectId));
-        client.getSnapshotsResponse = new GetSnapshotsResponse(
-            List.of(createSnapshotInfo(repository, snapshotName, List.of(snapshotIndexName), Map.of(DLM_MANAGED_METADATA_KEY, true))),
-            null,
-            1,
-            0
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsProjectIds, hasSize(1));
-        assertThat(client.capturedGetSnapshotsProjectIds.getFirst(), equalTo(projectId));
-        assertThat(client.capturedDeleteSnapshotRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotProjectIds, hasSize(1));
-        assertThat(client.capturedDeleteSnapshotProjectIds.getFirst(), equalTo(projectId));
-    }
-
-    public void testCheckForOrphanedSnapshotsFailureInOneProjectDoesNotAffectOthers() {
-        String repository = randomAlphaOfLength(8);
-        String mountAsIndexName = randomAlphaOfLength(10);
-        String snapshotName = randomAlphaOfLength(10);
-        ProjectId failingProjectId = randomUniqueProjectId();
-        ProjectId successProjectId = randomUniqueProjectId();
-        setClusterStateWithRepository(repository, ProjectMetadata.builder(failingProjectId), ProjectMetadata.builder(successProjectId));
-        client.getSnapshotsFailureByProject.put(failingProjectId, new RuntimeException("project failure"));
-        client.getSnapshotsResponseByProject.put(
-            successProjectId,
-            new GetSnapshotsResponse(
-                List.of(createSnapshotInfo(repository, snapshotName, List.of(mountAsIndexName), Map.of(DLM_MANAGED_METADATA_KEY, true))),
-                null,
-                1,
-                0
-            )
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsProjectIds, hasSize(2));
-        assertThat(client.capturedDeleteSnapshotProjectIds, hasSize(1));
-        assertThat(client.capturedDeleteSnapshotProjectIds.getFirst(), equalTo(successProjectId));
     }
 
     private void runCleanup() {

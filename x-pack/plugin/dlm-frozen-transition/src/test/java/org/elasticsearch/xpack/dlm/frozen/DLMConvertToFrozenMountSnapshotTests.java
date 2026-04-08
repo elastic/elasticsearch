@@ -119,11 +119,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
                 } else {
                     listener.onFailure(
                         new AssertionError(
-                            "Unexpected request type ["
-                                + request.getClass().getName()
-                                + "] for action ["
-                                + action.name()
-                                + "]"
+                            "Unexpected request type [" + request.getClass().getName() + "] for action [" + action.name() + "]"
                         )
                     );
                 }

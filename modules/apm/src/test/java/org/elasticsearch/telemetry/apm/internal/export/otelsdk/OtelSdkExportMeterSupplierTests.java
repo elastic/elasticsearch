@@ -90,7 +90,11 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         supplier.get().counterBuilder("test.counter").build().add(1);
         supplier.attemptFlushMetrics();
 
-        assertThat("expected at least one metric export after attemptFlushMetrics", exporter.getFinishedMetricItems().size(), greaterThan(0));
+        assertThat(
+            "expected at least one metric export after attemptFlushMetrics",
+            exporter.getFinishedMetricItems().size(),
+            greaterThan(0)
+        );
         supplier.close();
     }
 

@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.IndexSettings;
 
 import static org.hamcrest.Matchers.containsString;
 

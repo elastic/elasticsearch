@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
@@ -990,18 +991,16 @@ public final class IndexSettings {
         );
     }
 
-    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
-
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
         SeqNoFieldMapper.SeqNoIndexOptions.class,
         settings -> {
-            if (DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && settings.getAsBoolean("index.disable_sequence_numbers", false)) {
+            IndexVersion indexVersionCreated = SETTING_INDEX_VERSION_CREATED.get(settings);
+            if (settings.getAsBoolean("index.disable_sequence_numbers", false)) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             }
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
             if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
-                && (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)
-                    || IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).equals(IndexVersions.ZERO))) {
+                && (indexVersionCreated.onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS) || indexVersionCreated.equals(IndexVersions.ZERO))) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             }
             return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
@@ -1040,17 +1039,7 @@ public final class IndexSettings {
         false,
         new Setting.Validator<>() {
             @Override
-            public void validate(Boolean enabled) {
-                if (enabled && DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "The setting [%s] is only permitted when the feature flag is enabled.",
-                            DISABLE_SEQUENCE_NUMBERS.getKey()
-                        )
-                    );
-                }
-            }
+            public void validate(Boolean enabled) {}
 
             @Override
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
@@ -1186,6 +1175,7 @@ public final class IndexSettings {
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
+    private volatile boolean requestCacheEnabled;
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
@@ -1387,6 +1377,7 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        requestCacheEnabled = scopedSettings.get(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
         logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
         logsdbAddHostNameField = scopedSettings.get(LOGSDB_ADD_HOST_NAME_FIELD);
@@ -1442,8 +1433,7 @@ public final class IndexSettings {
                 );
             }
         }
-        disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && DISABLE_SEQUENCE_NUMBERS.get(settings);
-
+        disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold
@@ -1529,6 +1519,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
+        scopedSettings.addSettingsUpdateConsumer(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING, this::setRequestCacheEnabled);
         scopedSettings.addSettingsUpdateConsumer(
             IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
             this::setSkipIgnoredSourceWrite
@@ -2210,6 +2201,17 @@ public final class IndexSettings {
      */
     public boolean useEs812PostingsFormat() {
         return useEs812PostingsFormat;
+    }
+
+    /**
+     * Returns <code>true</code> if request cache is enabled.
+     */
+    public boolean isRequestCacheEnabled() {
+        return requestCacheEnabled;
+    }
+
+    private void setRequestCacheEnabled(boolean requestCacheEnabled) {
+        this.requestCacheEnabled = requestCacheEnabled;
     }
 
     /**

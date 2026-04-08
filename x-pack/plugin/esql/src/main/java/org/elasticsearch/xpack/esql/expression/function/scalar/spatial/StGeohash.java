@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -49,6 +50,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         "StGeohash",
         StGeohash::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StGeohash.class).ternary(StGeohash::new).name("st_geohash");
 
     /**
      * When checking grid cells with bounds, we need to check if the cell is valid (intersects with the bounds).

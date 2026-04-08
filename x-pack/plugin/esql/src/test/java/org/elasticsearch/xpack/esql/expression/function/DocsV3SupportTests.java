@@ -389,7 +389,7 @@ public class DocsV3SupportTests extends ESTestCase {
     private TestCallbacks renderTestClassDocs() throws Exception {
         FunctionInfo info = functionInfo(TestClass.class);
         assert info != null;
-        FunctionDefinition definition = EsqlFunctionRegistry.def(TestClass.class, TestClass::new, "count");
+        FunctionDefinition definition = FunctionDefinition.def(TestClass.class).unary(TestClass::new).name("count");
         TestCallbacks callbacks = new TestCallbacks();
         var docs = new DocsV3Support.FunctionDocsSupport("count", TestClass.class, definition, TestClass::signatures, callbacks);
         docs.renderDocs();

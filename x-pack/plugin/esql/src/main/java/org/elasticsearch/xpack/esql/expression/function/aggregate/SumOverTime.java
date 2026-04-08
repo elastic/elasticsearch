@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNat
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -46,6 +47,9 @@ public class SumOverTime extends TimeSeriesAggregateFunction
         "SumOverTime",
         SumOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SumOverTime.class)
+        .binary(SumOverTime::new)
+        .name("sum_over_time");
 
     @FunctionInfo(
         returnType = { "double", "long" },

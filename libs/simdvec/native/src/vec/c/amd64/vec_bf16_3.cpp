@@ -34,7 +34,7 @@ static inline __m512 load_f32(const f32_t* ptr, const int elements) {
  * Specialization for dot product of 2 vectors of BFloat16s using the dpbf16 instructions.
  */
 static inline f32_t dotDbf16Qbf16_inner_avx512(const bf16_t* d, const bf16_t* q, int32_t elementCount) {
-    constexpr int batches = 4;
+    constexpr int batches = 8;
 
     __m512 sums[batches];
     apply_indexed<batches>([&](auto I) {
@@ -147,6 +147,70 @@ EXPORT f32_t vec_sqrDbf16Qf32_3(const bf16_t* a, const f32_t* b, const int32_t e
     return bf16_inner_avx512<f32_t, load_f32, sqrf32_vector, sqr_scalar>(a, b, elementCount);
 }
 
+/*
+ * Squared distance of 2 bf16 vectors using dpbf16, via the identity:
+ *   ||a - b||² = a·a - 2·a·b + b·b
+ * Each term is a dot product computed natively with dpbf16, avoiding
+ * the costly bf16→f32 conversion that makes the generic path ALU-bound.
+ */
+static inline f32_t sqrDbf16Qbf16_inner_avx512(const bf16_t* a, const bf16_t* b, int32_t elementCount) {
+    constexpr int batches = 4;
+
+    __m512 sum_self[batches];
+    __m512 sum_cross[batches];
+    apply_indexed<batches>([&](auto I) {
+        sum_self[I] = _mm512_setzero_ps();
+        sum_cross[I] = _mm512_setzero_ps();
+    });
+
+    int i = 0;
+    constexpr int elements = sizeof(__m512bh) / sizeof(bf16_t);
+    constexpr int stride = elements * batches;
+    for (; i < (elementCount & ~(stride - 1)); i += stride) {
+        apply_indexed<batches>([&](auto I) {
+            __m512bh av = (__m512bh)_mm512_loadu_epi16(a + i + I * elements);
+            __m512bh bv = (__m512bh)_mm512_loadu_epi16(b + i + I * elements);
+            sum_self[I] = _mm512_dpbf16_ps(sum_self[I], av, av);
+            sum_self[I] = _mm512_dpbf16_ps(sum_self[I], bv, bv);
+            sum_cross[I] = _mm512_dpbf16_ps(sum_cross[I], av, bv);
+        });
+    }
+
+    __m512 total_self = tree_reduce<batches, __m512, _mm512_add_ps>(sum_self);
+    __m512 total_cross = tree_reduce<batches, __m512, _mm512_add_ps>(sum_cross);
+
+    // Non-batched tail
+    for (; i + elements <= elementCount; i += elements) {
+        __m512bh av = (__m512bh)_mm512_loadu_epi16(a + i);
+        __m512bh bv = (__m512bh)_mm512_loadu_epi16(b + i);
+        total_self = _mm512_dpbf16_ps(total_self, av, av);
+        total_self = _mm512_dpbf16_ps(total_self, bv, bv);
+        total_cross = _mm512_dpbf16_ps(total_cross, av, bv);
+    }
+
+    // Masked tail
+    const int maskRem = elementCount - i;
+    if (maskRem > 0) {
+        __mmask32 readMask = (__mmask32)((1UL << maskRem) - 1);
+        __mmask16 dpMask = (__mmask16)((1U << (maskRem / 2)) - 1);
+        __m512bh a_rem = (__m512bh)_mm512_maskz_loadu_epi16(readMask, a + i);
+        __m512bh b_rem = (__m512bh)_mm512_maskz_loadu_epi16(readMask, b + i);
+        total_self = _mm512_mask_dpbf16_ps(total_self, dpMask, a_rem, a_rem);
+        total_self = _mm512_mask_dpbf16_ps(total_self, dpMask, b_rem, b_rem);
+        total_cross = _mm512_mask_dpbf16_ps(total_cross, dpMask, a_rem, b_rem);
+    }
+
+    // ||a - b||² = (a·a + b·b) - 2·(a·b)
+    f32_t result = _mm512_reduce_add_ps(total_self) - 2.0f * _mm512_reduce_add_ps(total_cross);
+
+    // Scalar tail for odd remaining element
+    if ((maskRem & 1) != 0) {
+        result += sqr_scalar(a[elementCount - 1], b[elementCount - 1]);
+    }
+
+    return result;
+}
+
 EXPORT f32_t vec_sqrDbf16Qbf16_3(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {
-    return bf16_inner_avx512<bf16_t, load_bf16, sqrf32_vector, sqr_scalar>(a, b, elementCount);
+    return sqrDbf16Qbf16_inner_avx512(a, b, elementCount);
 }

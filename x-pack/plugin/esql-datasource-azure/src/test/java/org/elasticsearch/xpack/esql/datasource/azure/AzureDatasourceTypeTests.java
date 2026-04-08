@@ -64,4 +64,42 @@ public class AzureDatasourceTypeTests extends ESTestCase {
             () -> type.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("format", "parquet"))
         );
     }
+
+    public void testValidateDatasourceRejectsInvalidAuth() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("auth", "managed_identity")));
+    }
+
+    public void testValidateDatasourceAnonymousConflictConnectionString() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> type.validateDatasource(Map.of("auth", "none", "connection_string", "DefaultEndpointsProtocol=https"))
+        );
+    }
+
+    public void testValidateDatasourceAnonymousConflictSasToken() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("auth", "none", "sas_token", "?sv=2020-01-01")));
+    }
+
+    public void testValidateDatasetRequiresResource() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), null, Map.of()));
+    }
+
+    public void testValidateDatasetSchemaSampleSize() {
+        var result = type.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_sample_size", 50));
+        assertEquals("50", result.get("schema_sample_size").value());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> type.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_sample_size", 0))
+        );
+    }
+
+    public void testValidateDatasourceWithSasToken() {
+        var result = type.validateDatasource(Map.of("sas_token", "?sv=2020"));
+        assertTrue(result.get("sas_token").isSecret());
+    }
+
+    public void testValidateDatasourceWithConnectionString() {
+        var result = type.validateDatasource(Map.of("connection_string", "DefaultEndpointsProtocol=https;AccountName=x"));
+        assertTrue(result.get("connection_string").isSecret());
+    }
 }

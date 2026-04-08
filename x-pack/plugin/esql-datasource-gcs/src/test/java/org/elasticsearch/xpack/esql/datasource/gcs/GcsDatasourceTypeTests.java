@@ -54,4 +54,29 @@ public class GcsDatasourceTypeTests extends ESTestCase {
     public void testValidateDatasetRejectsUnknown() {
         expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "gs://b/p", Map.of("format", "parquet")));
     }
+
+    public void testValidateDatasourceRejectsInvalidAuth() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("auth", "oauth2")));
+    }
+
+    public void testValidateDatasourceAnonymousConflict() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> type.validateDatasource(Map.of("auth", "none", "credentials", "{\"type\":\"service_account\"}"))
+        );
+    }
+
+    public void testValidateDatasetRequiresResource() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), null, Map.of()));
+    }
+
+    public void testValidateDatasetBlankResource() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "", Map.of()));
+    }
+
+    public void testValidateDatasetSchemaSampleSize() {
+        var result = type.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 50));
+        assertEquals("50", result.get("schema_sample_size").value());
+        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 0)));
+    }
 }

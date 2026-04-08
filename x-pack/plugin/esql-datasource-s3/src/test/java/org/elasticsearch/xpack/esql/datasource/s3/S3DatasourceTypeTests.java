@@ -78,4 +78,39 @@ public class S3DatasourceTypeTests extends ESTestCase {
         assertEquals("50", result.get("schema_sample_size").value());
         expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0)));
     }
+
+    public void testValidateDatasetSchemaSampleSizeNonNumber() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", "abc")));
+    }
+
+    public void testValidateDatasetBlankResource() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "", Map.of()));
+    }
+
+    public void testValidateDatasetNullSettings() {
+        // null dataset settings should be treated as empty
+        var result = type.validateDataset(Map.of(), "s3://b/p", null);
+        assertTrue(result.isEmpty());
+    }
+
+    public void testValidateDatasourceAnonymousConflict() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> type.validateDatasource(Map.of("auth", "none", "access_key", "AKIA123", "secret_key", "secret"))
+        );
+    }
+
+    public void testValidateDatasourceNullSettings() {
+        assertTrue(type.validateDatasource(null).isEmpty());
+    }
+
+    public void testValidateDatasourceSkipsNullValues() {
+        // HashMap allows null values; they should be omitted from result
+        var settings = new java.util.HashMap<String, Object>();
+        settings.put("region", "us-east-1");
+        settings.put("endpoint", null);
+        var result = type.validateDatasource(settings);
+        assertEquals("us-east-1", result.get("region").value());
+        assertNull(result.get("endpoint"));
+    }
 }

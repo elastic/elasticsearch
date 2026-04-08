@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DatasourceType;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -60,5 +62,10 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
             }
         };
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
+    }
+
+    @Override
+    public List<DatasourceType> datasourceTypes() {
+        return List.of(AzureDatasourceType.INSTANCE);
     }
 }

@@ -9,58 +9,69 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
-import java.util.Locale;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Configuration for S3 access including credentials and endpoint settings.
  */
-public class S3Configuration {
+public class S3Configuration extends DatasourceConfiguration {
 
-    private final String accessKey;
-    private final String secretKey;
-    private final String endpoint;
-    private final String region;
-    private final String auth;
+    public static final Map<String, Boolean> FIELDS = Map.of(
+        "access_key",
+        true,
+        "secret_key",
+        true,
+        "endpoint",
+        false,
+        "region",
+        false,
+        "auth",
+        false
+    );
 
-    private S3Configuration(String accessKey, String secretKey, String endpoint, String region, String auth) {
-        this.accessKey = accessKey;
-        this.secretKey = secretKey;
-        this.endpoint = endpoint;
-        this.region = region;
-        this.auth = auth != null ? auth.toLowerCase(Locale.ROOT) : null;
-        validate();
+    private S3Configuration(Map<String, String> settings) {
+        super(settings);
     }
 
-    private void validate() {
-        if (auth != null && "none".equals(auth) == false) {
-            throw new IllegalArgumentException("Unsupported auth value [" + auth + "]; supported values: [none]");
+    @Override
+    public Map<String, Boolean> fields() {
+        return FIELDS;
+    }
+
+    @Override
+    protected void validate() {
+        if (auth() != null && "none".equals(auth()) == false) {
+            throw new IllegalArgumentException("Unsupported auth value [" + auth() + "]; supported values: [none]");
         }
-        if (isAnonymous() && (accessKey != null || secretKey != null)) {
+        if (isAnonymous() && (accessKey() != null || secretKey() != null)) {
             throw new IllegalArgumentException(
                 "auth=none cannot be combined with access_key/secret_key; anonymous access uses no credentials"
             );
         }
     }
 
+    public static S3Configuration fromMap(Map<String, Object> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+        return new S3Configuration(parseRaw(raw, FIELDS));
+    }
+
     public static S3Configuration fromParams(Map<String, Expression> params) {
         if (params == null || params.isEmpty()) {
             return null;
         }
-
-        String accessKey = extractStringParam(params, "access_key");
-        String secretKey = extractStringParam(params, "secret_key");
-        String endpoint = extractStringParam(params, "endpoint");
-        String region = extractStringParam(params, "region");
-        String auth = extractStringParam(params, "auth");
-
-        if (accessKey == null && secretKey == null && endpoint == null && region == null && auth == null) {
-            return null;
+        Map<String, Object> raw = new HashMap<>();
+        for (String field : FIELDS.keySet()) {
+            String value = extractStringParam(params, field);
+            if (value != null) {
+                raw.put(field, value);
+            }
         }
-
-        return new S3Configuration(accessKey, secretKey, endpoint, region, auth);
+        return raw.isEmpty() ? null : fromMap(raw);
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region) {
@@ -68,10 +79,13 @@ public class S3Configuration {
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region, String auth) {
-        if (accessKey == null && secretKey == null && endpoint == null && region == null && auth == null) {
-            return null;
-        }
-        return new S3Configuration(accessKey, secretKey, endpoint, region, auth);
+        Map<String, Object> raw = new HashMap<>();
+        if (accessKey != null) raw.put("access_key", accessKey);
+        if (secretKey != null) raw.put("secret_key", secretKey);
+        if (endpoint != null) raw.put("endpoint", endpoint);
+        if (region != null) raw.put("region", region);
+        if (auth != null) raw.put("auth", auth);
+        return raw.isEmpty() ? null : fromMap(raw);
     }
 
     private static String extractStringParam(Map<String, Expression> params, String key) {
@@ -87,51 +101,30 @@ public class S3Configuration {
     }
 
     public String accessKey() {
-        return accessKey;
+        return get("access_key");
     }
 
     public String secretKey() {
-        return secretKey;
+        return get("secret_key");
     }
 
     public String endpoint() {
-        return endpoint;
+        return get("endpoint");
     }
 
     public String region() {
-        return region;
+        return get("region");
     }
 
     public String auth() {
-        return auth;
+        return get("auth");
     }
 
     public boolean isAnonymous() {
-        return "none".equals(auth);
+        return "none".equals(auth());
     }
 
     public boolean hasCredentials() {
-        return accessKey != null && secretKey != null;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        S3Configuration that = (S3Configuration) o;
-        return Objects.equals(accessKey, that.accessKey)
-            && Objects.equals(secretKey, that.secretKey)
-            && Objects.equals(endpoint, that.endpoint)
-            && Objects.equals(region, that.region)
-            && Objects.equals(auth, that.auth);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(accessKey, secretKey, endpoint, region, auth);
+        return accessKey() != null && secretKey() != null;
     }
 }

@@ -1,0 +1,54 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasource.gcs;
+
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.Map;
+
+public class GcsDatasourceTypeTests extends ESTestCase {
+
+    private final GcsDatasourceType type = GcsDatasourceType.INSTANCE;
+
+    public void testType() {
+        assertEquals("gcs", type.type());
+    }
+
+    public void testValidateDatasourceWithCredentials() {
+        var result = type.validateDatasource(Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "proj"));
+        assertEquals("{\"type\":\"service_account\"}", result.get("credentials").value());
+        assertTrue(result.get("credentials").isSecret());
+        assertFalse(result.get("project_id").isSecret());
+    }
+
+    public void testValidateDatasourceEmpty() {
+        assertTrue(type.validateDatasource(Map.of()).isEmpty());
+    }
+
+    public void testValidateDatasourceRejectsUnknown() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("bucket", "x")));
+    }
+
+    public void testValidateDatasourceNormalizesAuth() {
+        var result = type.validateDatasource(Map.of("auth", "NONE"));
+        assertEquals("none", result.get("auth").value());
+    }
+
+    public void testValidateDatasetValid() {
+        var result = type.validateDataset(Map.of(), "gs://bucket/path/*.parquet", Map.of("partition_detection", "hive"));
+        assertEquals("hive", result.get("partition_detection").value());
+    }
+
+    public void testValidateDatasetWrongScheme() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "s3://bucket/path", Map.of()));
+    }
+
+    public void testValidateDatasetRejectsUnknown() {
+        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "gs://b/p", Map.of("format", "parquet")));
+    }
+}

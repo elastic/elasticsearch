@@ -11,49 +11,65 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.datasources.spi.DatasourceConfiguration;
 
-import java.util.Locale;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Configuration for Azure Blob Storage access including credentials and endpoint settings.
- * <p>
- * Supports multiple authentication modes:
- * <ul>
- *   <li>Connection string (full connection string)</li>
- *   <li>Account + key (SharedKey auth)</li>
- *   <li>SAS token</li>
- *   <li>{@code auth=none} for anonymous access to public containers</li>
- *   <li>DefaultAzureCredential when no explicit credentials are provided</li>
- * </ul>
  */
-public record AzureConfiguration(String connectionString, String account, String key, String sasToken, String endpoint, String auth) {
+public class AzureConfiguration extends DatasourceConfiguration {
 
-    public AzureConfiguration {
-        auth = auth != null ? auth.toLowerCase(Locale.ROOT) : null;
-        if (auth != null && "none".equals(auth) == false) {
-            throw new IllegalArgumentException("Unsupported auth value [" + auth + "]; supported values: [none]");
+    public static final Map<String, Boolean> FIELDS = Map.ofEntries(
+        Map.entry("connection_string", true),
+        Map.entry("account", false),
+        Map.entry("key", true),
+        Map.entry("sas_token", true),
+        Map.entry("endpoint", false),
+        Map.entry("auth", false)
+    );
+
+    private AzureConfiguration(Map<String, String> settings) {
+        super(settings);
+    }
+
+    @Override
+    public Map<String, Boolean> fields() {
+        return FIELDS;
+    }
+
+    @Override
+    protected void validate() {
+        if (auth() != null && "none".equals(auth()) == false) {
+            throw new IllegalArgumentException("Unsupported auth value [" + auth() + "]; supported values: [none]");
         }
-        if ("none".equals(auth) && hasExplicitCredentials(connectionString, account, key, sasToken)) {
+        if ("none".equals(auth()) && hasExplicitCredentials()) {
             throw new IllegalArgumentException(
                 "auth=none cannot be combined with connection_string/account+key/sas_token; anonymous access uses no credentials"
             );
         }
     }
 
+    public static AzureConfiguration fromMap(Map<String, Object> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+        return new AzureConfiguration(parseRaw(raw, FIELDS));
+    }
+
     public static AzureConfiguration fromParams(Map<String, Expression> params) {
         if (params == null || params.isEmpty()) {
             return null;
         }
-
-        String connectionString = extractStringParam(params, "connection_string");
-        String account = extractStringParam(params, "account");
-        String key = extractStringParam(params, "key");
-        String sasToken = extractStringParam(params, "sas_token");
-        String endpoint = extractStringParam(params, "endpoint");
-        String auth = extractStringParam(params, "auth");
-
-        return fromFields(connectionString, account, key, sasToken, endpoint, auth);
+        Map<String, Object> raw = new HashMap<>();
+        for (String field : FIELDS.keySet()) {
+            String value = extractStringParam(params, field);
+            if (value != null) {
+                raw.put(field, value);
+            }
+        }
+        return raw.isEmpty() ? null : fromMap(raw);
     }
 
     public static AzureConfiguration fromFields(String connectionString, String account, String key, String sasToken, String endpoint) {
@@ -68,10 +84,14 @@ public record AzureConfiguration(String connectionString, String account, String
         String endpoint,
         String auth
     ) {
-        if (connectionString == null && account == null && key == null && sasToken == null && endpoint == null && auth == null) {
-            return null;
-        }
-        return new AzureConfiguration(connectionString, account, key, sasToken, endpoint, auth);
+        Map<String, Object> raw = new HashMap<>();
+        if (connectionString != null) raw.put("connection_string", connectionString);
+        if (account != null) raw.put("account", account);
+        if (key != null) raw.put("key", key);
+        if (sasToken != null) raw.put("sas_token", sasToken);
+        if (endpoint != null) raw.put("endpoint", endpoint);
+        if (auth != null) raw.put("auth", auth);
+        return raw.isEmpty() ? null : fromMap(raw);
     }
 
     private static String extractStringParam(Map<String, Expression> params, String key) {
@@ -86,17 +106,41 @@ public record AzureConfiguration(String connectionString, String account, String
         return null;
     }
 
+    public String connectionString() {
+        return get("connection_string");
+    }
+
+    public String account() {
+        return get("account");
+    }
+
+    public String key() {
+        return get("key");
+    }
+
+    public String sasToken() {
+        return get("sas_token");
+    }
+
+    public String endpoint() {
+        return get("endpoint");
+    }
+
+    public String auth() {
+        return get("auth");
+    }
+
     public boolean isAnonymous() {
-        return "none".equals(auth);
+        return "none".equals(auth());
     }
 
     public boolean hasCredentials() {
-        return hasExplicitCredentials(connectionString, account, key, sasToken);
+        return hasExplicitCredentials();
     }
 
-    private static boolean hasExplicitCredentials(String connectionString, String account, String key, String sasToken) {
-        return (connectionString != null && connectionString.isEmpty() == false)
-            || (account != null && key != null)
-            || (sasToken != null && sasToken.isEmpty() == false);
+    private boolean hasExplicitCredentials() {
+        return (connectionString() != null && connectionString().isEmpty() == false)
+            || (account() != null && key() != null)
+            || (sasToken() != null && sasToken().isEmpty() == false);
     }
 }

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DatasourceType;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -51,5 +53,10 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
             }
         };
         return Map.of("s3", s3Factory, "s3a", s3Factory, "s3n", s3Factory);
+    }
+
+    @Override
+    public List<DatasourceType> datasourceTypes() {
+        return List.of(S3DatasourceType.INSTANCE);
     }
 }

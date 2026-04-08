@@ -119,4 +119,9 @@ public interface DataSourcePlugin {
     default List<NamedWriteableRegistry.Entry> namedWriteables() {
         return List.of();
     }
+
+    /** CRUD-time type descriptors for datasource and dataset validation. */
+    default List<DatasourceType> datasourceTypes() {
+        return List.of();
+    }
 }

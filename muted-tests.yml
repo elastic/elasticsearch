@@ -356,6 +356,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
   method: testGettingValidBigDecimalFromLongWithoutCasting
   issue: https://github.com/elastic/elasticsearch/issues/145866
+- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
+  method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
+  issue: https://github.com/elastic/elasticsearch/issues/145877
 
 # Examples:
 #

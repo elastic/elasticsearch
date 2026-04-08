@@ -204,7 +204,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                             final int nbDocs = randomIntBetween(10, 100);
                             for (int i = 0; i < nbDocs; i++) {
-                                if (i > 0 && randomBoolean()) {
+                                if (i > 0 && (randomBoolean() || i == nbDocs / 2)) {
                                     writer.flush();
                                 }
                                 Document doc = new Document();
@@ -310,7 +310,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                     try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                         final int nbDocs = randomIntBetween(10, 100);
                         for (int i = 0; i < nbDocs; i++) {
-                            if (i > 0 && randomBoolean()) {
+                            if (i > 0 && (randomBoolean() || i == nbDocs / 2)) {
                                 writer.flush();
                             }
                             Document doc = new Document();
@@ -399,7 +399,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                 final Instant now = Instant.now();
 
                 for (int seqNo = 0; seqNo < nbDocs; seqNo++) {
-                    if (seqNo > 0 && randomBoolean()) {
+                    if (seqNo > 0 && (randomBoolean() || seqNo == nbDocs / 2)) {
                         writer.flush();
                     }
                     var doc = newDocument(
@@ -606,7 +606,7 @@ public class PruningMergePolicyTests extends ESTestCase {
                 final Instant now = Instant.now();
 
                 for (int seqNo = 0; seqNo < nbDocs; seqNo++) {
-                    if (seqNo > 0 && randomBoolean()) {
+                    if (seqNo > 0 && (randomBoolean() || seqNo == nbDocs / 2)) {
                         writer.flush();
                     }
                     writer.addDocument(

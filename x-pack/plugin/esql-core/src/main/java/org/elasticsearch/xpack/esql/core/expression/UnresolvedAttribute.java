@@ -99,7 +99,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return toString();
     }
 

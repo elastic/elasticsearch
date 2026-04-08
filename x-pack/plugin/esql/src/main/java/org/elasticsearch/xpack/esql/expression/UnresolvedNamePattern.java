@@ -110,7 +110,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return toString();
     }
 

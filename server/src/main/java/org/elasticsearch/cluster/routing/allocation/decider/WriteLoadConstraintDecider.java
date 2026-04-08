@@ -210,7 +210,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             // shard will be unavailable briefly when it moves.
             //
             // The maxShardWriteLoadProportion is computed only for hot-spotting nodes, and cached within cluster info so it
-            // is only computed once per balancing round */
+            // is only computed once per balancing round.
             final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadProportionThreshold();
             final Supplier<Double> maxShardWriteLoadProportion = () -> allocation.clusterInfo()
                 .nodeMaxShardWriteLoadProportion(

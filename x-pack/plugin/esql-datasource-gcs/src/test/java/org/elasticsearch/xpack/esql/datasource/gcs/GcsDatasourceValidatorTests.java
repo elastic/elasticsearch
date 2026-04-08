@@ -67,7 +67,7 @@ public class GcsDatasourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasetSchemaSampleSize() {
         assertEquals(
-            "50",
+            50,
             findValue(validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 50)), "schema_sample_size")
         );
         expectThrows(
@@ -76,11 +76,11 @@ public class GcsDatasourceValidatorTests extends ESTestCase {
         );
     }
 
-    private static String findValue(Map<ConfigSetting, String> settings, String name) {
+    private static Object findValue(Map<ConfigSetting, Object> settings, String name) {
         return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElseThrow();
     }
 
-    private static ConfigSetting findKey(Map<ConfigSetting, String> settings, String name) {
+    private static ConfigSetting findKey(Map<ConfigSetting, Object> settings, String name) {
         return settings.keySet().stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
     }
 }

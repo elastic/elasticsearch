@@ -57,9 +57,9 @@ public abstract class DatasourceConfiguration {
     }
 
     /** Returns validated settings as a map from definition to value. */
-    public Map<ConfigSetting, String> toConfigSettings() {
+    public Map<ConfigSetting, Object> toConfigSettings() {
         Map<String, ConfigSetting> defs = settings();
-        Map<ConfigSetting, String> result = new LinkedHashMap<>();
+        Map<ConfigSetting, Object> result = new LinkedHashMap<>();
         for (var entry : values.entrySet()) {
             ConfigSetting def = defs.get(entry.getKey());
             if (def != null) {

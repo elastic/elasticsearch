@@ -103,7 +103,7 @@ public class S3DatasourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasetSchemaSampleSize() {
         assertEquals(
-            "50",
+            50,
             findValue(validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50)), "schema_sample_size")
         );
         expectThrows(
@@ -123,15 +123,15 @@ public class S3DatasourceValidatorTests extends ESTestCase {
         assertTrue(validator.validateDataset(Map.of(), "s3://b/p", null).isEmpty());
     }
 
-    private static String findValue(Map<ConfigSetting, String> settings, String name) {
+    private static Object findValue(Map<ConfigSetting, Object> settings, String name) {
         return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElseThrow();
     }
 
-    private static String findValueOrNull(Map<ConfigSetting, String> settings, String name) {
+    private static Object findValueOrNull(Map<ConfigSetting, Object> settings, String name) {
         return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElse(null);
     }
 
-    private static ConfigSetting findKey(Map<ConfigSetting, String> settings, String name) {
+    private static ConfigSetting findKey(Map<ConfigSetting, Object> settings, String name) {
         return settings.keySet().stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
     }
 }

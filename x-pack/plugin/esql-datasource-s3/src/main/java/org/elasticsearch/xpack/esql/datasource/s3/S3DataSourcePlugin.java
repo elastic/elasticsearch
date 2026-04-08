@@ -43,13 +43,7 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                 if (config == null || config.isEmpty()) {
                     return create(settings);
                 }
-                S3Configuration s3Config = S3Configuration.fromFields(
-                    (String) config.get("access_key"),
-                    (String) config.get("secret_key"),
-                    (String) config.get("endpoint"),
-                    (String) config.get("region"),
-                    (String) config.get("auth")
-                );
+                S3Configuration s3Config = S3Configuration.fromMap(config);
                 return new S3StorageProvider(s3Config);
             }
         };

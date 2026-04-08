@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -50,13 +49,7 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
                 if (config == null || config.isEmpty()) {
                     return create(settings);
                 }
-                GcsConfiguration gcsConfig = GcsConfiguration.fromFields(
-                    Objects.toString(config.get("credentials"), null),
-                    Objects.toString(config.get("project_id"), null),
-                    Objects.toString(config.get("endpoint"), null),
-                    Objects.toString(config.get("token_uri"), null),
-                    Objects.toString(config.get("auth"), null)
-                );
+                GcsConfiguration gcsConfig = GcsConfiguration.fromMap(config);
                 return new GcsStorageProvider(gcsConfig);
             }
         };

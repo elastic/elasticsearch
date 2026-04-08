@@ -25,7 +25,7 @@ public interface DatasourceValidator {
      * @return validated settings keyed by their {@link ConfigSetting} definition
      * @throws IllegalArgumentException if settings are invalid
      */
-    Map<ConfigSetting, String> validateDatasource(Map<String, Object> settings);
+    Map<ConfigSetting, Object> validateDatasource(Map<String, Object> settings);
 
     /**
      * Validates dataset settings against the parent datasource.
@@ -36,7 +36,7 @@ public interface DatasourceValidator {
      * @return validated dataset settings keyed by their {@link ConfigSetting} definition
      * @throws IllegalArgumentException if settings or resource are invalid
      */
-    Map<ConfigSetting, String> validateDataset(
+    Map<ConfigSetting, Object> validateDataset(
         Map<String, Object> datasourceSettings,
         String resource,
         Map<String, Object> datasetSettings

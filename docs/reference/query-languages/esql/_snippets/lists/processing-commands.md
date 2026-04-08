@@ -5,7 +5,7 @@
 * [`ENRICH`](/reference/query-languages/esql/commands/enrich.md)
 * [`EVAL`](/reference/query-languages/esql/commands/eval.md)
 * [`GROK`](/reference/query-languages/esql/commands/grok.md)
-* [`FORK`](/reference/query-languages/esql/commands/fork.md) {applies_to}`stack: preview 9.1` {applies_to}`serverless: preview`
+* [`FORK`](/reference/query-languages/esql/commands/fork.md) {applies_to}`stack: preview 9.1-9.3` {applies_to}`stack: ga 9.4`
 * [`FUSE`](/reference/query-languages/esql/commands/fuse.md) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * [`KEEP`](/reference/query-languages/esql/commands/keep.md)
 * [`LIMIT`](/reference/query-languages/esql/commands/limit.md)

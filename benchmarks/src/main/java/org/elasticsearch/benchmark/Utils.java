@@ -11,6 +11,12 @@ package org.elasticsearch.benchmark;
 
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
+import org.openjdk.jmh.annotations.Param;
+
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public final class Utils {
 
@@ -29,4 +35,25 @@ public final class Utils {
         LogConfigurator.configureESLogging();
     }
 
+    public static List<String> possibleValues(Class<?> clazz, String field) {
+        List<String> result = new ArrayList<>();
+        try {
+            Field f = clazz.getField(field);
+            Param[] paramAnns = f.getAnnotationsByType(Param.class);
+            if (paramAnns.length == 0) {
+                throw new AssertionError("missing @Param on " + clazz.getName() + "#" + field);
+            }
+            for (Param param : paramAnns) {
+                Collections.addAll(result, param.value());
+            }
+            for (ExtraParam param : f.getAnnotationsByType(ExtraParam.class)) {
+                Collections.addAll(result, param.value());
+            }
+            return result;
+        } catch (NoSuchFieldException e) {
+            AssertionError assertionError = new AssertionError("unknown field " + clazz.getName() + "#" + field);
+            assertionError.initCause(e);
+            throw assertionError;
+        }
+    }
 }

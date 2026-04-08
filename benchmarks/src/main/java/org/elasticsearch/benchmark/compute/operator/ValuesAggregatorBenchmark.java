@@ -93,14 +93,10 @@ public class ValuesAggregatorBenchmark {
 
     static void selfTest() {
         // Smoke test all the expected values and force loading subclasses more like prod
-        try {
-            for (String groups : ValuesAggregatorBenchmark.class.getField("groups").getAnnotationsByType(Param.class)[0].value()) {
-                for (String dataType : ValuesAggregatorBenchmark.class.getField("dataType").getAnnotationsByType(Param.class)[0].value()) {
-                    run(Integer.parseInt(groups), dataType, 10);
-                }
+        for (String groups : Utils.possibleValues(ValuesAggregatorBenchmark.class, "groups")) {
+            for (String dataType : Utils.possibleValues(ValuesAggregatorBenchmark.class, "dataType")) {
+                run(Integer.parseInt(groups), dataType, 10);
             }
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError();
         }
     }
 

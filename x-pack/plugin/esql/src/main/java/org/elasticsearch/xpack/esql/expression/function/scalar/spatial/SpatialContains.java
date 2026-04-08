@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -60,6 +61,9 @@ public class SpatialContains extends SpatialRelatesFunction {
         "SpatialContains",
         SpatialContains::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SpatialContains.class)
+        .binary(SpatialContains::new)
+        .name("st_contains");
 
     // public for test access with reflection
     public static final SpatialRelationsContains GEO = new SpatialRelationsContains(

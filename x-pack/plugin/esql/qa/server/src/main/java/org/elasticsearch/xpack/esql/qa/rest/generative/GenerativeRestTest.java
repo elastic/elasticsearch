@@ -20,9 +20,17 @@ import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RegisteredDomainGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
@@ -588,19 +596,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Set<String> createdColumns = new HashSet<>();
 
         switch (commandName) {
-            case "eval" -> {
+            case EvalGenerator.EVAL -> {
                 Object newCols = command.context().get(EvalGenerator.NEW_COLUMNS);
                 if (newCols instanceof List<?> list) {
                     list.forEach(name -> createdColumns.add((String) name));
                 }
             }
-            case "grok" -> {
+            case GrokGenerator.GROK -> {
                 Matcher gm = GROK_GENERATED_FIELD_PATTERN.matcher(command.commandString());
                 while (gm.find()) {
                     createdColumns.add(unquote(gm.group(1)));
                 }
             }
-            case "dissect" -> {
+            case DissectGenerator.DISSECT -> {
                 Matcher dm = DISSECT_GENERATED_FIELD_PATTERN.matcher(command.commandString());
                 while (dm.find()) {
                     String generated = dm.group(1);
@@ -609,19 +617,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
-            case "mv_expand" -> {
+            case MvExpandGenerator.MV_EXPAND -> {
                 String expanded = command.commandString().replaceFirst("(?i)^\\s*\\|\\s*mv_expand\\s+", "").trim();
                 // Not truly a newly created column, but we need to override the indexMapped flag so that full-text functions don't use it.
                 // https://github.com/elastic/elasticsearch/issues/142713
                 createdColumns.add(unquote(expanded));
             }
-            case "stats", "inline stats" -> {
+            case StatsGenerator.STATS, InlineStatsGenerator.INLINE_STATS -> {
                 return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
             }
-            case "rename" -> {
+            case RenameGenerator.RENAME -> {
                 return handleRenameIndexMapped(newSchema, prevMapped, command.commandString());
             }
-            case "registered_domain" -> {
+            case RegisteredDomainGenerator.REGISTERED_DOMAIN -> {
                 String prefix = (String) command.context().get("prefix");
                 if (prefix != null) {
                     for (String subField : List.of("domain", "registered_domain", "top_level_domain", "subdomain")) {
@@ -629,7 +637,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
-            case "uri_parts" -> {
+            case UriPartsGenerator.URI_PARTS -> {
                 String prefix = (String) command.context().get("prefix");
                 if (prefix != null) {
                     for (Column col : newSchema) {
@@ -639,7 +647,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     }
                 }
             }
-            case "enrich" -> {
+            case EnrichGenerator.ENRICH -> {
                 // Enrich fields can shadow existing index columns, so we use the policy's declared enrich_fields
                 // from the context to ensure they are marked as non-index-mapped even when names collide.
                 Object enrichFieldsObj = command.context().get(EnrichGenerator.ENRICH_FIELDS);
@@ -647,7 +655,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     enrichFieldsList.forEach(name -> createdColumns.add((String) name));
                 }
             }
-            case "lookup join" -> {
+            case LookupJoinGenerator.LOOKUP_JOIN -> {
                 // LookupJoinGenerator embeds RENAME commands before the actual LOOKUP JOIN to align
                 // left-side key columns with lookup index key names. Process these renames so that
                 // fields renamed from non-index-mapped sources correctly inherit indexMapped=false

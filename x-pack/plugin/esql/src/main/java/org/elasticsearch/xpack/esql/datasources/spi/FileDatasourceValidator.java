@@ -17,9 +17,9 @@ import java.util.function.Function;
  */
 public class FileDatasourceValidator implements DatasourceValidator {
 
-    private static final ConfigSetting PARTITION_DETECTION = new ConfigSetting("partition_detection", false);
-    private static final ConfigSetting SCHEMA_SAMPLE_SIZE = new ConfigSetting("schema_sample_size", false);
-    private static final ConfigSetting ERROR_MODE = new ConfigSetting("error_mode", false);
+    private static final ConfigSetting PARTITION_DETECTION = ConfigSetting.plaintext("partition_detection");
+    private static final ConfigSetting SCHEMA_SAMPLE_SIZE = ConfigSetting.plaintext("schema_sample_size");
+    private static final ConfigSetting ERROR_MODE = ConfigSetting.plaintext("error_mode");
     private static final Map<String, ConfigSetting> DATASET_SETTINGS = ConfigSetting.mapOf(
         PARTITION_DETECTION,
         SCHEMA_SAMPLE_SIZE,

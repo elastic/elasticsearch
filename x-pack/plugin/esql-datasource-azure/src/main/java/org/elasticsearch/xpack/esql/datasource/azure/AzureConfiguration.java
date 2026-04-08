@@ -28,12 +28,12 @@ import java.util.Map;
  */
 public class AzureConfiguration extends DatasourceConfiguration {
 
-    private static final ConfigSetting CONNECTION_STRING = new ConfigSetting("connection_string", true);
-    private static final ConfigSetting ACCOUNT = new ConfigSetting("account", false);
-    private static final ConfigSetting KEY = new ConfigSetting("key", true);
-    private static final ConfigSetting SAS_TOKEN = new ConfigSetting("sas_token", true);
-    private static final ConfigSetting ENDPOINT = new ConfigSetting("endpoint", false);
-    private static final ConfigSetting AUTH = new ConfigSetting("auth", false);
+    private static final ConfigSetting CONNECTION_STRING = ConfigSetting.secret("connection_string");
+    private static final ConfigSetting ACCOUNT = ConfigSetting.plaintext("account");
+    private static final ConfigSetting KEY = ConfigSetting.secret("key");
+    private static final ConfigSetting SAS_TOKEN = ConfigSetting.secret("sas_token");
+    private static final ConfigSetting ENDPOINT = ConfigSetting.plaintext("endpoint");
+    private static final ConfigSetting AUTH = ConfigSetting.plaintext("auth");
 
     private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(
         CONNECTION_STRING,

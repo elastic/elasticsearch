@@ -12,12 +12,26 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Describes a datasource configuration setting — its name and whether it holds a credential.
+ * Describes a datasource configuration setting — its name and sensitivity.
  *
  * @param name the setting's API name (e.g. "access_key", "region")
- * @param isSecret whether this setting contains a credential that should be masked/encrypted
+ * @param sensitivity whether this setting is secret or plaintext
  */
-public record ConfigSetting(String name, boolean isSecret) {
+public record ConfigSetting(String name, ConfigSettingSensitivity sensitivity) {
+
+    public boolean isSecret() {
+        return sensitivity == ConfigSettingSensitivity.SECRET;
+    }
+
+    /** A setting that holds a credential. */
+    public static ConfigSetting secret(String name) {
+        return new ConfigSetting(name, ConfigSettingSensitivity.SECRET);
+    }
+
+    /** A regular (non-secret) setting. */
+    public static ConfigSetting plaintext(String name) {
+        return new ConfigSetting(name, ConfigSettingSensitivity.PLAINTEXT);
+    }
 
     /** Builds a definition map keyed by setting name. Each name is typed once. */
     public static Map<String, ConfigSetting> mapOf(ConfigSetting... settings) {

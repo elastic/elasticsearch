@@ -25,11 +25,11 @@ import java.util.Map;
  */
 public class S3Configuration extends DatasourceConfiguration {
 
-    private static final ConfigSetting ACCESS_KEY = new ConfigSetting("access_key", true);
-    private static final ConfigSetting SECRET_KEY = new ConfigSetting("secret_key", true);
-    private static final ConfigSetting ENDPOINT = new ConfigSetting("endpoint", false);
-    private static final ConfigSetting REGION = new ConfigSetting("region", false);
-    private static final ConfigSetting AUTH = new ConfigSetting("auth", false);
+    private static final ConfigSetting ACCESS_KEY = ConfigSetting.secret("access_key");
+    private static final ConfigSetting SECRET_KEY = ConfigSetting.secret("secret_key");
+    private static final ConfigSetting ENDPOINT = ConfigSetting.plaintext("endpoint");
+    private static final ConfigSetting REGION = ConfigSetting.plaintext("region");
+    private static final ConfigSetting AUTH = ConfigSetting.plaintext("auth");
 
     private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(ACCESS_KEY, SECRET_KEY, ENDPOINT, REGION, AUTH);
 

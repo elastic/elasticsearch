@@ -25,11 +25,11 @@ import java.util.Map;
  */
 public class GcsConfiguration extends DatasourceConfiguration {
 
-    private static final ConfigSetting CREDENTIALS = new ConfigSetting("credentials", true);
-    private static final ConfigSetting PROJECT_ID = new ConfigSetting("project_id", false);
-    private static final ConfigSetting ENDPOINT = new ConfigSetting("endpoint", false);
-    private static final ConfigSetting TOKEN_URI = new ConfigSetting("token_uri", false);
-    private static final ConfigSetting AUTH = new ConfigSetting("auth", false);
+    private static final ConfigSetting CREDENTIALS = ConfigSetting.secret("credentials");
+    private static final ConfigSetting PROJECT_ID = ConfigSetting.plaintext("project_id");
+    private static final ConfigSetting ENDPOINT = ConfigSetting.plaintext("endpoint");
+    private static final ConfigSetting TOKEN_URI = ConfigSetting.plaintext("token_uri");
+    private static final ConfigSetting AUTH = ConfigSetting.plaintext("auth");
 
     private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(CREDENTIALS, PROJECT_ID, ENDPOINT, TOKEN_URI, AUTH);
 

@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -192,10 +191,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertEquals(clusterState.metadata().projects().size(), numberOfProjects);
 
         // Verify that the initial state has no unassigned shards
-        {
-            RoutingAllocation allocation = createRoutingAllocation(clusterState);
-            assertThat(allocation.routingNodes().unassigned().size(), is(0));
-        }
+        assertThat(clusterState.getRoutingNodes().unassigned().size(), is(0));
 
         // add new index to a random project
         var origProject = randomFrom(clusterState.metadata().projects().values());
@@ -214,8 +210,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).putProjectMetadata(updatedProject).routingTable(routingTable).build();
         // Verify that new state has 1 unassigned shard (with the expected name)
         {
-            RoutingAllocation allocation = createRoutingAllocation(clusterState);
-            final RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
+            final var unassigned = clusterState.getRoutingNodes().unassigned();
             assertThat(unassigned.size(), is(1));
             assertThat(unassigned.iterator().next().getIndexName(), equalTo(indexName));
         }

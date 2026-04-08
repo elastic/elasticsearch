@@ -24,8 +24,8 @@ import static org.hamcrest.Matchers.contains;
 
 public class APMMeterServiceTests extends ESTestCase {
 
-    /** doStop() must call forceFlush() before close() on the OTel supplier. */
-    public void testDoStopFlushesBeforeClose() throws Exception {
+    /** doStop() must call attemptFlushMetrics() before close() on the OTel supplier. */
+    public void testDoStopFlushesBeforeClose() {
         List<String> calls = new ArrayList<>();
         MeterSupplier trackingSupplier = new MeterSupplier() {
             @Override
@@ -46,6 +46,39 @@ public class APMMeterServiceTests extends ESTestCase {
         MeterSupplier noopSupplier = () -> OpenTelemetry.noop().getMeter("noop");
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
+        APMMeterService service = new APMMeterService(settings, trackingSupplier, noopSupplier);
+        service.start();
+        service.stop();
+
+        assertThat(calls, contains("attemptFlushMetrics", "close"));
+    }
+
+    /**
+     * doStop() delegates to the supplier unconditionally, regardless of the enabled flag.
+     * The supplier is responsible for being a no-op when uninitialised (e.g. resources == null
+     * in OtelSdkExportMeterSupplier when metrics were never enabled).
+     */
+    public void testDoStopDelegatesUnconditionallyWhenMetricsDisabled() {
+        List<String> calls = new ArrayList<>();
+        MeterSupplier trackingSupplier = new MeterSupplier() {
+            @Override
+            public Meter get() {
+                return OpenTelemetry.noop().getMeter("test");
+            }
+
+            @Override
+            public void attemptFlushMetrics() {
+                calls.add("attemptFlushMetrics");
+            }
+
+            @Override
+            public void close() {
+                calls.add("close");
+            }
+        };
+        MeterSupplier noopSupplier = () -> OpenTelemetry.noop().getMeter("noop");
+
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false).build();
         APMMeterService service = new APMMeterService(settings, trackingSupplier, noopSupplier);
         service.start();
         service.stop();

@@ -1053,13 +1053,13 @@ public final class IndexSettings {
                         // creation version.
                         return;
                     }
-                    if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT) == false) {
+                    if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false) {
                         throw new IllegalArgumentException(
                             String.format(
                                 Locale.ROOT,
                                 "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
                                 DISABLE_SEQUENCE_NUMBERS.getKey(),
-                                IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT,
+                                IndexVersions.DISABLE_SEQUENCE_NUMBERS,
                                 indexVersion
                             )
                         );

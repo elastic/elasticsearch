@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +105,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static final String PRE_TAG = "pre_tag";
     private static final String POST_TAG = "post_tag";
     private static final String ENCODER = "encoder";
+    private static final String ORDER = "order";
 
     static final String DEFAULT_PRE_TAG = "<em>";
     static final String DEFAULT_POST_TAG = "</em>";
@@ -115,7 +117,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         entry(HIGHLIGHT, DataType.BOOLEAN),
         entry(PRE_TAG, DataType.KEYWORD),
         entry(POST_TAG, DataType.KEYWORD),
-        entry(ENCODER, DataType.KEYWORD)
+        entry(ENCODER, DataType.KEYWORD),
+        entry(ORDER, DataType.KEYWORD)
     );
 
     @FunctionInfo(
@@ -209,7 +212,10 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 @MapParam.MapParamEntry(name = "encoder", type = "keyword", description = """
                     Controls HTML encoding of snippet text before tagging: `default` (no encoding) or `html`.
                     Only applies when highlight is true. Defaults to `default`.
-                    """, valueHint = { "default" }, applies_to = "stack: preview 9.4.1") }
+                    """, valueHint = { "default" }, applies_to = "stack: preview 9.4.1"),
+                @MapParam.MapParamEntry(name = "order", type = "keyword", description = """
+                    Order of returned snippets: `score` (default, by relevance) or `document` (original text order).
+                    """, valueHint = { "score", "document" }, applies_to = "stack: preview 9.4.1") }
         ) Expression options
     ) {
         super(source, options == null ? List.of(field, query) : List.of(field, query, options));
@@ -287,7 +293,15 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         validateOptionValueIsPositiveInteger(options, NUM_SNIPPETS);
         validateOptionValueIsNonNegativeInteger(options, NUM_WORDS);
         validateEncoder(options);
+        validateOrder(options);
         validateHighlightOnlyOptions(options);
+    }
+
+    private static void validateOrder(Map<String, Object> options) {
+        Object value = options.get(ORDER);
+        if (value != null && "score".equals(value) == false && "document".equals(value) == false) {
+            throw new InvalidArgumentException("'{}' option must be 'score' or 'document', found [{}]", ORDER, value);
+        }
     }
 
     private static void validateOptionValueIsPositiveInteger(Map<String, Object> options, String paramName) {
@@ -380,6 +394,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         @Fixed ChunkingSettings chunkingSettings,
         @Fixed MemoryIndexChunkScorer scorer,
         @Fixed int numSnippets,
+        @Fixed boolean documentOrder,
         @Fixed(includeInToString = false) PassageFormatter highlightFormatter
     ) {
         if (queryString == null) {
@@ -408,6 +423,9 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         Query luceneQuery = scorer.buildQuery(queryString);
         List<ScoredChunk> topChunks = scorer.scoreChunks(allChunks, luceneQuery, numSnippets, false);
+        if (documentOrder) {
+            topChunks = topChunks.stream().sorted(Comparator.comparingInt(ScoredChunk::originalIndex)).toList();
+        }
         if (topChunks.isEmpty()) {
             builder.appendNull();
             return;
@@ -481,12 +499,14 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         int numSnippets;
         int numWords;
+        boolean documentOrder;
         PassageFormatter highlightFormatter = null;
         if (options != null) {
             Map<String, Object> opts = new HashMap<>();
             Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
             numSnippets = numSnippets(opts);
             numWords = numWords(opts);
+            documentOrder = "document".equals(opts.get(ORDER));
             if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
                 String preTag = (String) opts.getOrDefault(PRE_TAG, DEFAULT_PRE_TAG);
                 String postTag = (String) opts.getOrDefault(POST_TAG, DEFAULT_POST_TAG);
@@ -497,6 +517,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         } else {
             numSnippets = DEFAULT_NUM_SNIPPETS;
             numWords = DEFAULT_WORD_SIZE;
+            documentOrder = false;
         }
 
         ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
@@ -514,6 +535,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             chunkingSettings,
             scorer,
             numSnippets,
+            documentOrder,
             highlightFormatter
         );
     }

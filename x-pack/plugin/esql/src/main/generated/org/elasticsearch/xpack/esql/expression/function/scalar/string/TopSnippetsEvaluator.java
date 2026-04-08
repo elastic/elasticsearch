@@ -39,6 +39,8 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
   private final int numSnippets;
 
+  private final boolean documentOrder;
+
   private final PassageFormatter highlightFormatter;
 
   private final DriverContext driverContext;
@@ -47,13 +49,14 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
   public TopSnippetsEvaluator(Source source, ExpressionEvaluator field, String queryString,
       ChunkingSettings chunkingSettings, MemoryIndexChunkScorer scorer, int numSnippets,
-      PassageFormatter highlightFormatter, DriverContext driverContext) {
+      boolean documentOrder, PassageFormatter highlightFormatter, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.queryString = queryString;
     this.chunkingSettings = chunkingSettings;
     this.scorer = scorer;
     this.numSnippets = numSnippets;
+    this.documentOrder = documentOrder;
     this.highlightFormatter = highlightFormatter;
     this.driverContext = driverContext;
   }
@@ -84,7 +87,7 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
           continue position;
         }
         try {
-          TopSnippets.process(result, p, fieldBlock, this.queryString, this.chunkingSettings, this.scorer, this.numSnippets, this.highlightFormatter);
+          TopSnippets.process(result, p, fieldBlock, this.queryString, this.chunkingSettings, this.scorer, this.numSnippets, this.documentOrder, this.highlightFormatter);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -96,7 +99,7 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "TopSnippetsEvaluator[" + "field=" + field + ", queryString=" + queryString + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + "]";
+    return "TopSnippetsEvaluator[" + "field=" + field + ", queryString=" + queryString + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + ", documentOrder=" + documentOrder + "]";
   }
 
   @Override
@@ -124,10 +127,13 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
     private final int numSnippets;
 
+    private final boolean documentOrder;
+
     private final PassageFormatter highlightFormatter;
 
     public Factory(Source source, ExpressionEvaluator.Factory field, String queryString,
         ChunkingSettings chunkingSettings, MemoryIndexChunkScorer scorer, int numSnippets,
+        boolean documentOrder,
         PassageFormatter highlightFormatter) {
       this.source = source;
       this.field = field;
@@ -135,17 +141,18 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
       this.chunkingSettings = chunkingSettings;
       this.scorer = scorer;
       this.numSnippets = numSnippets;
+      this.documentOrder = documentOrder;
       this.highlightFormatter = highlightFormatter;
     }
 
     @Override
     public TopSnippetsEvaluator get(DriverContext context) {
-      return new TopSnippetsEvaluator(source, field.get(context), queryString, chunkingSettings, scorer, numSnippets, highlightFormatter, context);
+      return new TopSnippetsEvaluator(source, field.get(context), queryString, chunkingSettings, scorer, numSnippets, documentOrder, highlightFormatter, context);
     }
 
     @Override
     public String toString() {
-      return "TopSnippetsEvaluator[" + "field=" + field + ", queryString=" + queryString + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + "]";
+      return "TopSnippetsEvaluator[" + "field=" + field + ", queryString=" + queryString + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + ", documentOrder=" + documentOrder + "]";
     }
   }
 }

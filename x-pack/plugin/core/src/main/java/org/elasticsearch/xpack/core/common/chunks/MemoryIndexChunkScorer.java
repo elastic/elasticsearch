@@ -100,9 +100,15 @@ public class MemoryIndexChunkScorer {
         }
 
         if (query == null) {
-            return backfillResults
-                ? chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList()
-                : new ArrayList<>();
+            if (backfillResults == false) {
+                return new ArrayList<>();
+            }
+            int limit = Math.min(maxResults, chunks.size());
+            List<ScoredChunk> backfill = new ArrayList<>(limit);
+            for (int i = 0; i < limit; i++) {
+                backfill.add(new ScoredChunk(chunks.get(i), 0.0f, i));
+            }
+            return backfill;
         }
 
         try (Directory directory = new ByteBuffersDirectory()) {
@@ -123,12 +129,18 @@ public class MemoryIndexChunkScorer {
 
                 List<ScoredChunk> scoredChunks = new ArrayList<>();
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                    scoredChunks.add(new ScoredChunk(chunks.get(scoreDoc.doc), scoreDoc.score));
+                    scoredChunks.add(new ScoredChunk(chunks.get(scoreDoc.doc), scoreDoc.score, scoreDoc.doc));
                 }
 
-                return backfillResults && scoredChunks.isEmpty()
-                    ? chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList()
-                    : scoredChunks;
+                if (backfillResults && scoredChunks.isEmpty()) {
+                    int limit = Math.min(maxResults, chunks.size());
+                    List<ScoredChunk> backfill = new ArrayList<>(limit);
+                    for (int i = 0; i < limit; i++) {
+                        backfill.add(new ScoredChunk(chunks.get(i), 0.0f, i));
+                    }
+                    return backfill;
+                }
+                return scoredChunks;
             }
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to score chunks", e);

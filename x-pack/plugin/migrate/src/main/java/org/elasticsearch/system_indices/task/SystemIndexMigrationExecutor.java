@@ -62,12 +62,16 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         this.projectResolver = client.projectResolver();
     }
 
-    /// Intentionally kept `false`.
+    /// Intentionally kept `false` for now.
+    ///
     /// The [SystemIndexMigrationExecutor] executes a run-to-completion one-shot migration task, not a
     /// continuously-running workflow, so there is no meaningful service gap to close by reassigning early.
     /// The task is retried automatically if the node leaves, and the durable checkpoint in
     /// [SystemIndexMigrationTaskState] ensures it resumes from where it left off. Early reassignment would risk
     /// concurrent reindex operations on the same indices during the overlap window, with low benefit.
+    ///
+    /// TODO: this should not be a persistent task and should instead be switched to a regular transport action, if
+    /// feasible (see #145753 discussion).
     @Override
     public boolean automaticReassignmentOnShutdown() {
         return false;

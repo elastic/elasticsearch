@@ -60,13 +60,17 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         this.migrationByVersion = migrationByVersion;
     }
 
-    /// Intentionally kept `false`.
+    /// Intentionally kept `false` for now.
+    ///
     /// The [SecurityMigrationExecutor] executes a run-to-completion one-shot set of migration tasks, not a
     /// continuously-running workflow, so there is no meaningful service gap to close by reassigning early.
     /// The task is retried automatically if the node leaves, and durable version checkpoints in cluster state ensure
     /// it resumes from where it left off. Opting in the automated shutdown would increase the chance of concurrent
     /// execution during the reassignment overlap and could produce conflicts and unnecessary failure-and-retry cycles.
     /// (e.g. in [SecurityMigrations.RoleMetadataFlattenedMigration]).
+    ///
+    /// TODO: this should not be a persistent task and should instead be switched to a regular transport action, if
+    /// feasible (see #145753 discussion).
     @Override
     public boolean automaticReassignmentOnShutdown() {
         return false;

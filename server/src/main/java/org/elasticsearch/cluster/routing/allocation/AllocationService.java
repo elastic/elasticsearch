@@ -153,7 +153,7 @@ public class AllocationService {
         if (startedShards.isEmpty()) {
             return clusterState;
         }
-        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
         // as starting a primary relocation target can reinitialize replica shards, start replicas first
         startedShards = new ArrayList<>(startedShards);
         startedShards.sort(Comparator.comparing(ShardRouting::primary));
@@ -213,7 +213,7 @@ public class AllocationService {
         ClusterState tmpState = IndexMetadataUpdater.removeStaleIdsWithoutRoutings(clusterState, staleShards, logger);
 
         long currentNanoTime = currentNanoTime();
-        RoutingAllocation allocation = createRoutingAllocation(tmpState, currentNanoTime);
+        RoutingAllocation allocation = createMutableRoutingAllocation(tmpState, currentNanoTime);
 
         for (FailedShard failedShardEntry : failedShards) {
             ShardRouting shardToFail = failedShardEntry.routingEntry();
@@ -287,7 +287,7 @@ public class AllocationService {
      * Unassign any shards that are associated with nodes that are no longer part of the cluster, potentially promoting replicas if needed.
      */
     public ClusterState disassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
-        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
 
         // first, clear from the shards any node id they used to belong to that is now dead
         disassociateDeadNodes(allocation);
@@ -425,7 +425,7 @@ public class AllocationService {
         boolean dryRun,
         ActionListener<Void> reroute
     ) {
-        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
         var explanations = shardsAllocator.execute(allocation, commands, explain, retryFailed);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
@@ -465,7 +465,7 @@ public class AllocationService {
      */
     public ClusterState executeWithRoutingAllocation(ClusterState clusterState, String reason, RerouteStrategy rerouteStrategy) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
-        RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(fixedClusterState, currentNanoTime());
         reroute(allocation, rerouteStrategy);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;
@@ -698,7 +698,7 @@ public class AllocationService {
     }
 
     private ClusterState rerouteWithResetFailedCounter(ClusterState clusterState) {
-        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
+        RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
         allocation.routingNodes().resetFailedCounter(allocation);
         reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation, ActionListener.noop()));
         return buildResultAndLogHealthChange(clusterState, allocation, "reroute with reset failed counter");
@@ -794,7 +794,7 @@ public class AllocationService {
         );
     }
 
-    private RoutingAllocation createRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
+    private RoutingAllocation createMutableRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
         return new MutableRoutingAllocation(
             allocationDeciders,
             clusterState.mutableRoutingNodes(),

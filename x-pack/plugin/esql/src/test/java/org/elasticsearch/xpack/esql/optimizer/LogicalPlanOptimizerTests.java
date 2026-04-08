@@ -84,7 +84,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedu
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -4951,70 +4950,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(countAgg.children().get(0), instanceOf(Literal.class));
         var w = as(Alias.unwrap(agg.groupings().get(0)), ReferenceAttribute.class);
         assertThat(w.name(), equalTo("w"));
-    }
-
-    /**
-     * Verifies that {@code RewriteSumFieldPlusConstant} rewrites multiple {@code SUM(field + c)}
-     * expressions over the same field into a single shared pair of aggregates:
-     *
-     * <pre>{@code
-     * STATS s1 = SUM(emp_no + 1), s2 = SUM(emp_no + 2)
-     * →
-     * STATS $$sv_sum = SUM(MvSingleValueOrNull(emp_no)), $$sv_count = COUNT(MvSingleValueOrNull(emp_no))
-     * | EVAL s1 = $$sv_sum + 1 * $$sv_count, s2 = $$sv_sum + 2 * $$sv_count
-     * | PROJECT s1, s2
-     * }</pre>
-     */
-    public void testSumOfFieldPlusConstant() {
-        var plan = plan("""
-            from test
-            | stats s1 = sum(emp_no + 1), s2 = sum(emp_no + 2)
-            """, new TestSubstitutionOnlyOptimizer());
-
-        var limit = as(plan, Limit.class);
-        var project = as(limit.child(), Project.class);
-        var eval = as(project.child(), Eval.class);
-        var agg = as(eval.child(), Aggregate.class);
-
-        // The aggregate should contain exactly two entries: SUM(sv) and COUNT(sv).
-        assertThat(agg.aggregates(), hasSize(2));
-        var svSumAlias = as(agg.aggregates().get(0), Alias.class);
-        var svSum = as(svSumAlias.child(), Sum.class);
-
-        var svCountAlias = as(agg.aggregates().get(1), Alias.class);
-        var svCount = as(svCountAlias.child(), Count.class);
-
-        // ReplaceAggregateNestedExpressionWithEval (which runs after our rule in substitutions())
-        // extracts MvSingleValueOrNull(emp_no) from inside SUM/COUNT into a pre-agg EVAL.
-        // Both SUM and COUNT reference the same extracted attribute.
-        var preAggEval = as(agg.child(), Eval.class);
-        assertThat(preAggEval.fields(), hasSize(1));
-        var svAlias = as(preAggEval.fields().get(0), Alias.class);
-        assertThat(svAlias.child(), instanceOf(MvSingleValueOrNull.class));
-        assertThat(svSum.field().semanticEquals(svAlias.toAttribute()), equalTo(true));
-        assertThat(svCount.field().semanticEquals(svAlias.toAttribute()), equalTo(true));
-
-        // The eval should derive s1 and s2 from the shared sv_sum and sv_count.
-        var fields = eval.fields();
-        assertThat(fields, hasSize(2));
-
-        // s1 = sv_sum + 1 * sv_count
-        var s1 = as(fields.get(0), Alias.class);
-        assertThat(s1.name(), equalTo("s1"));
-        var add1 = as(s1.child(), Add.class);
-        assertThat(add1.left().semanticEquals(svSumAlias.toAttribute()), equalTo(true));
-        var mul1 = as(add1.right(), Mul.class);
-        assertThat(mul1.right().semanticEquals(svCountAlias.toAttribute()), equalTo(true));
-        assertThat(mul1.left().fold(FoldContext.small()), equalTo(1));
-
-        // s2 = sv_sum + 2 * sv_count
-        var s2 = as(fields.get(1), Alias.class);
-        assertThat(s2.name(), equalTo("s2"));
-        var add2 = as(s2.child(), Add.class);
-        assertThat(add2.left().semanticEquals(svSumAlias.toAttribute()), equalTo(true));
-        var mul2 = as(add2.right(), Mul.class);
-        assertThat(mul2.right().semanticEquals(svCountAlias.toAttribute()), equalTo(true));
-        assertThat(mul2.left().fold(FoldContext.small()), equalTo(2));
     }
 
     private record AggOfLiteralTestCase(

@@ -47,7 +47,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         this.settings = settings;
     }
 
-    // package-private for testing: pre-initialises resources, bypasses OTLP exporter creation
+    // package-private for testing: pre-initializes resources, bypasses OTLP exporter creation
     OtelSdkExportMeterSupplier(OTelMetricsResources resources) {
         this.settings = Settings.EMPTY;
         this.resources = resources;

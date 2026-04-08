@@ -19,4 +19,4 @@ LimitExec[10000[INTEGER],null]
       \_LimitExec[1000[INTEGER],null]
         \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS total#36],FINAL,[$$total$count{r}#37, $$total$seen{r}#38],null]
           \_ExchangeExec[[$$total$count{r}#37, $$total$seen{r}#38],true]
-            \_EsStatsQueryExec[books], statsBasicStat[name=*, type=COUNT, query=null]], query[{"match":{"author":{"query":"Tolkien","lenient":true}}}][$$total$count{r}#39, $$total$seen{r}#40], limit[], 
+            \_EsStatsQueryExec[books], stats[BasicStat[name=*, type=COUNT, query=null]], query[{"match":{"author":{"query":"Tolkien","lenient":true}}}][$$total$count{r}#39, $$total$seen{r}#40], limit[], 

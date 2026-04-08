@@ -78,7 +78,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 `FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.""", file = "stats", tag = "count-or-null"),
             @Example(
                 description = "`COUNT` can also operate on `exponential_histogram` fields, "
-                    + "returning the count of the values which were used to construct the histograms.",
+                    + "returning the total number of values which were used to construct the histograms.",
                 file = "exponential_histogram",
                 tag = "countExpHistoForDocs"
             ) }

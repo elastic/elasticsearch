@@ -127,7 +127,9 @@ public class ValuesSourceReaderBenchmark {
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
-        selfTest();
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            selfTest();
+        }
     }
 
     static void selfTest() {

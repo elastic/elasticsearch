@@ -61,6 +61,7 @@ public class BulkByScrollTask extends CancellableTask {
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
     private volatile boolean relocationRequested = false;
+    private volatile boolean relocationHandoffInitiated = false;
 
     public BulkByScrollTask(
         TaskId taskId,
@@ -224,6 +225,22 @@ public class BulkByScrollTask extends CancellableTask {
      */
     public boolean isRelocationRequested() {
         return relocationRequested;
+    }
+
+    /**
+     * Marks that this task has initiated a relocation handoff (the resume request has been sent to the destination).
+     */
+    public void setRelocationHandoffInitiated() {
+        this.relocationHandoffInitiated = true;
+    }
+
+    /**
+     * If relocation handoff has started, the destination may have already stored the task result, so the source should
+     * use create-if-absent semantics to avoid overwriting it.
+     */
+    @Override
+    public boolean useCreateSemanticsForResultStorage() {
+        return relocationHandoffInitiated;
     }
 
     /** Returns the relocation origin if this task is a relocated continuation. */

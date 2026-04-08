@@ -714,6 +714,7 @@ public class Reindexer {
             final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
                 l.onFailure(new TaskRelocatedException(resumeInfo.relocationOrigin().originalTaskId(), resp.getTaskId()));
             }, l::onFailure);
+            task.setRelocationHandoffInitiated();
             transportService.sendRequest(
                 nodeToRelocateToNode,
                 ResumeReindexAction.NAME,

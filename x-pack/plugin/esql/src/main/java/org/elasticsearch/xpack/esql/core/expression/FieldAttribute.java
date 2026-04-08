@@ -29,6 +29,9 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Treat this as final - avoid creating new subclasses. This is used extensively throughout the codebase, making new subclasses risky.
+ * Consider using a new {@link EsField} subclass if needed.
+ * <p>
  * Attribute for an ES field.
  * This class offers:
  * - name - the name of the attribute, but not necessarily of the field.

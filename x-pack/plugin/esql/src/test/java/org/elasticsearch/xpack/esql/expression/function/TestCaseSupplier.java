@@ -1826,7 +1826,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             );
         }
 
-        TestCase(
+        public TestCase(
             Source source,
             Configuration configuration,
             List<TypedData> data,

@@ -1,0 +1,9 @@
+config:
+  auto-retry: true
+steps:
+  - label: has-existing-retry
+    command: echo 'existing retry'
+    retry:
+      automatic:
+        - exit_status: "2"
+          limit: 5

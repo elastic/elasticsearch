@@ -1485,14 +1485,35 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
     }
 
+    private static LogicalPlan injectDocAttribute(Source source, LogicalPlan input) {
+        return input.transformDown(r -> {
+            if (r instanceof UnresolvedRelation unresolved) {
+                List<NamedExpression> metadataFields = unresolved.metadataFields();
+                for (NamedExpression field : metadataFields) {
+                    if (field.name().equals(MetadataAttribute.DOC)) {
+                        return r;
+                    }
+                }
+                return unresolved.addMetadataField(new MetadataAttribute(source, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false));
+            }
+            return r;
+        });
+    }
+
     @Override
     public PlanFactory visitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx) {
-        return input -> new MetricsInfo(source(ctx), input);
+        return input -> {
+            Source source = source(ctx);
+            return new MetricsInfo(source, injectDocAttribute(source, input));
+        };
     }
 
     @Override
     public PlanFactory visitTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx) {
-        return input -> new TsInfo(source(ctx), input);
+        return input -> {
+            var source = source(ctx);
+            return new TsInfo(source, injectDocAttribute(source, input));
+        };
     }
 
     private String getValueColumnName(EsqlBaseParser.ValueNameContext ctx, String promqlQuery) {

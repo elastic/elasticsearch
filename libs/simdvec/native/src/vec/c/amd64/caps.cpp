@@ -99,6 +99,9 @@ EXPORT int vec_caps() {
         int avx512_bf16 = (eax & 0x00000020) != 0;
 
         if (avx512 && avx512_vnni && avx512_vpopcntdq && avx512_vl && avx512_bf16) {
+            return avxEnabledInOS ? 3 : -3;
+        }
+        if (avx512 && avx512_vnni && avx512_vpopcntdq) {
             return avxEnabledInOS ? 2 : -2;
         }
         if (avx2) {

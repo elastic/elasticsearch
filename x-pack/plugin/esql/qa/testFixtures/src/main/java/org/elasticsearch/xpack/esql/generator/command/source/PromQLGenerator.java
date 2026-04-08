@@ -26,7 +26,6 @@ import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomId
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomMetricsNumericField;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomNumericField;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomNumericOrDateField;
-import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomStringField;
 
 public class PromQLGenerator implements CommandGenerator {
 
@@ -148,7 +147,8 @@ public class PromQLGenerator implements CommandGenerator {
                 innerAgg = gaugeAggs.get(randomIntBetween(0, gaugeAggs.size() - 1));
             }
             default -> {
-                fieldName = randomBoolean() ? randomStringField(acceptableFields) : randomNumericOrDateField(acceptableFields);
+                // String/keyword fields are typically dimension fields in TSDB and cannot be used as metric selectors
+                fieldName = randomNumericOrDateField(acceptableFields);
                 List<String> innerAggs = List.of("count_over_time", "absent_over_time", "present_over_time");
                 innerAgg = innerAggs.get(randomIntBetween(0, innerAggs.size() - 1));
                 hasInnerAgg = true;

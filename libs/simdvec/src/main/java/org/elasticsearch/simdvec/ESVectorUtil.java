@@ -50,16 +50,17 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
-    public static ESNextOSQVectorsScorer getESNextOSQVectorsScorer(
+    public static ES940OSQVectorsScorer getES940OSQVectorsScorer(
         IndexInput input,
         byte queryBits,
         byte indexBits,
         int dimension,
         int dataLength,
-        int bulkSize
+        int bulkSize,
+        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
     ) throws IOException {
         return ESVectorizationProvider.getInstance()
-            .newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
+            .newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
     }
 
     public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
@@ -515,6 +516,30 @@ public class ESVectorUtil {
     public static int indexOf(byte[] bytes, int offset, int length, byte marker) {
         Objects.checkFromIndexSize(offset, length, bytes.length);
         return IMPL.indexOf(bytes, offset, length, marker);
+    }
+
+    /**
+     * Checks whether the byte sequence {@code term} appears as a contiguous subsequence
+     * within {@code value}.
+     *
+     * @param value       the byte array to search in
+     * @param valueOffset the starting index within value
+     * @param valueLength the number of bytes to search
+     * @param term        the byte array containing the term to search for
+     * @param termOffset  the starting index within term
+     * @param termLength  the number of bytes in the term
+     * @return true if term is found within value
+     */
+    public static boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        Objects.checkFromIndexSize(valueOffset, valueLength, value.length);
+        Objects.checkFromIndexSize(termOffset, termLength, term.length);
+        if (termLength == 0) {
+            return true;
+        }
+        if (termLength > valueLength) {
+            return false;
+        }
+        return IMPL.contains(value, valueOffset, valueLength, term, termOffset, termLength);
     }
 
     /**

@@ -27,9 +27,9 @@ import java.util.Set;
  * Parses key=value segments, validates consistency across all files, and infers types
  * using Spark-style rules: try Integer, Long, Double, Boolean, fallback to keyword.
  */
-final class HivePartitionDetector implements PartitionDetector {
+public final class HivePartitionDetector implements PartitionDetector {
 
-    static final HivePartitionDetector INSTANCE = new HivePartitionDetector();
+    public static final HivePartitionDetector INSTANCE = new HivePartitionDetector();
 
     HivePartitionDetector() {}
 

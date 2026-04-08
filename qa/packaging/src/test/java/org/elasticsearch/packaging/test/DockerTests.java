@@ -44,7 +44,9 @@ import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Distribution.Packaging;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
+import static org.elasticsearch.packaging.util.FileMatcher.p440;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
+import static org.elasticsearch.packaging.util.FileMatcher.p640;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p750;
@@ -630,6 +632,78 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that the elastic user's password can be configured via a file with group-readable (440) permissions.
+     */
+    public void test081ConfigurePasswordThroughEnvironmentVariableFileWith440Permissions() throws Exception {
+        final String xpackPassword = "hunter2";
+        final String passwordFilename = "password.txt";
+
+        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p440);
+        chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
+
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
+
+        try {
+            waitForElasticsearch(installation, "elastic", xpackPassword);
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
+
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            null,
+            null,
+            ServerUtils.getCaCert(installation)
+        );
+        assertThat("Expected server to require authentication", statusCode, equalTo(401));
+    }
+
+    /**
+     * Check that the elastic user's password can be configured via a file with owner-rw + group-readable (640) permissions.
+     */
+    public void test080cConfigurePasswordThroughEnvironmentVariableFileWith640Permissions() throws Exception {
+        final String xpackPassword = "hunter2";
+        final String passwordFilename = "password.txt";
+
+        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p640);
+        chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
+
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
+
+        try {
+            waitForElasticsearch(installation, "elastic", "hunter2");
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
+
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            null,
+            null,
+            ServerUtils.getCaCert(installation)
+        );
+        assertThat("Expected server to require authentication", statusCode, equalTo(401));
+    }
+
+    /**
      * Check that when verifying the file permissions of _FILE environment variables, symlinks
      * are followed.
      */
@@ -707,7 +781,9 @@ public class DockerTests extends PackagingTestCase {
         assertThat(
             dockerLogs.stderr(),
             containsString(
-                "ERROR: File /run/secrets/" + passwordFilename + " from ELASTIC_PASSWORD_FILE must have file permissions 400 or 600"
+                "ERROR: File /run/secrets/"
+                    + passwordFilename
+                    + " from ELASTIC_PASSWORD_FILE must have file permissions 400, 440, 600 or 640"
             )
         );
     }
@@ -747,7 +823,7 @@ public class DockerTests extends PackagingTestCase {
                     + passwordFilename
                     + " (target of symlink /run/secrets/"
                     + symlinkFilename
-                    + " from ELASTIC_PASSWORD_FILE) must have file permissions 400 or 600, but actually has: 775"
+                    + " from ELASTIC_PASSWORD_FILE) must have file permissions 400, 440, 600 or 640, but actually has: 775"
             )
         );
     }

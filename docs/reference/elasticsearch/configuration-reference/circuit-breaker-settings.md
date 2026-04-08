@@ -163,3 +163,17 @@ The request breaker settings (`indices.breaker.request.limit`, `indices.breaker.
 `breaker.model_inference.type`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The underlying type of the circuit breaker. There are two valid options: `noop` and `memory`. `noop` means the circuit breaker does nothing to prevent too much memory usage. `memory` means the circuit breaker tracks the memory used by trained models and can potentially break and prevent `OutOfMemory` errors. The default value is `memory`.
 
+
+## Synonym circuit breaker [circuit-breakers-page-synonym]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+The [`synonym`](/reference/text-analysis/analysis-synonym-tokenfilter.md) and [`synonym_graph`](/reference/text-analysis/analysis-synonym-graph-tokenfilter.md) token filters check real heap memory usage when building the synonyms map, to prevent large synonym sets from causing out-of-memory errors. This check uses the [parent circuit breaker](#parent-circuit-breaker), which trips when memory usage exceeds the `indices.breaker.total.limit` threshold (defaults to 95% of JVM heap when `indices.breaker.total.use_real_memory` is `true`).
+
+The threshold is configurable using the [parent circuit breaker settings](#parent-circuit-breaker). {applies_to}`serverless: unavailable`
+
+For details on behavior when the circuit breaker trips, refer to the [synonym token filter](/reference/text-analysis/analysis-synonym-tokenfilter.md#synonym-tokenizer-circuit-breaker) and [synonym graph token filter](/reference/text-analysis/analysis-synonym-graph-tokenfilter.md#synonym-graph-tokenizer-circuit-breaker) documentation.
+

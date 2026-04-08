@@ -159,13 +159,8 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public String toString() {
-        return "!" + qualifiedName();
-    }
-
-    @Override
-    public String nodeString(NodeStringFormat format) {
-        return toString();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append("!").append(qualifiedName());
     }
 
     @Override

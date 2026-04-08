@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -19,8 +22,10 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 
@@ -91,15 +96,23 @@ public final class SplitDiscoveryPhase {
         ExternalSourceFactory factory = sourceFactories.get(exec.sourceType());
         SplitProvider splitProvider = factory != null ? factory.splitProvider() : SplitProvider.SINGLE;
 
-        FileSet fileSet = exec.fileSet();
-        PartitionMetadata partitionInfo = fileSet != null ? fileSet.partitionMetadata() : null;
+        FileList fileList = exec.fileList();
+        PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
+
+        Set<String> projectedDataColumns = new LinkedHashSet<>();
+        for (Attribute attr : exec.output()) {
+            if (attr instanceof MetadataAttribute == false) {
+                projectedDataColumns.add(attr.name());
+            }
+        }
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             null,
-            fileSet != null ? fileSet : FileSet.UNRESOLVED,
+            fileList != null ? fileList : FileList.UNRESOLVED,
             exec.config(),
             partitionInfo,
-            ancestorFilters
+            ancestorFilters,
+            projectedDataColumns
         );
 
         List<ExternalSplit> splits;

@@ -18,7 +18,6 @@ import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -189,7 +188,7 @@ public class VoyageAIRerankTaskSettings implements TaskSettings, TopNProvider {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        VoyageAIRerankTaskSettings updatedSettings = VoyageAIRerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        VoyageAIRerankTaskSettings updatedSettings = VoyageAIRerankTaskSettings.fromMap(newSettings);
         return VoyageAIRerankTaskSettings.of(this, updatedSettings);
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -81,6 +82,18 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
             var plan = planPromql("PROMQL index=k8s step=1m " + query);
             assertThat(as(plan, LocalRelation.class).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
         });
+    }
+
+    public void testGroupByStepCollision() {
+        // "step" as a BY label collides with the built-in step output column.
+        // If this proves too restrictive, we could add an option to rename the built-in step column.
+        for (String query : List.of(
+            "PROMQL index=k8s step=1m result=(sum by (step) (network.eth0.rx))",
+            "PROMQL index=k8s step=1m result=(sum by (step, pod) (network.eth0.rx))"
+        )) {
+            var e = expectThrows(VerificationException.class, () -> planPromql(query));
+            assertThat(e.getMessage(), containsString("label [step] collides with the built-in [step] output column"));
+        }
     }
 
     public void testGroupByNonExistentLabel() {

@@ -584,3 +584,233 @@ FROM employees | WHERE emp_no IN (10001, null) AND first_name IS NOT NULL | SORT
 emp_no:integer | first_name:keyword
 10001          | Georgi
 ;
+
+sumOfNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| STATS s = SUM(null)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+sumOfNullPlusNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| STATS s = SUM(null + null)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+sumOfNullPlusOneWithEval
+
+ROW x = 1
+| STATS s = SUM(null + 1)
+| EVAL r = s + 1
+;
+
+s:long | r:long
+null   | null
+;
+
+sumOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| EVAL y = null
+| STATS s = SUM(y)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+sumOfNullifiedUnmappedWithEval
+required_capability: fix_sum_of_null_optimization
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS s = SUM(foo)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+avgOfNullWithEval
+
+ROW x = 1
+| STATS a = AVG(null)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+avgOfNullPlusNullWithEval
+
+ROW x = 1
+| STATS a = AVG(null + null)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+avgOfEvalNullWithEval
+
+ROW x = 1
+| EVAL y = null
+| STATS a = AVG(y)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+avgOfNullifiedUnmappedWithEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS a = AVG(foo)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+minOfNullWithEval
+
+ROW x = 1
+| STATS m = MIN(null)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+minOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| EVAL y = null
+| STATS m = MIN(y)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+minOfNullifiedUnmappedWithEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS m = MIN(foo)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+maxOfNullWithEval
+
+ROW x = 1
+| STATS m = MAX(null)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+maxOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| EVAL y = null
+| STATS m = MAX(y)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+maxOfNullifiedUnmappedWithEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS m = MAX(foo)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+multipleAggsOverNullExpressions
+required_capability: fix_sum_of_null_optimization
+
+ROW x=1, y=2
+| STATS c=count(null + 1),
+    c_d=count_distinct(1 + null),
+    a=avg(null + x),
+    mi=min(y + null),
+    ma=max(y + x * null),
+    s=sum(null)
+;
+
+ c:long | c_d:long | a:double | mi:integer | ma:integer | s:null
+0       |0         |null      |null        |null        |null
+;
+
+countOfNullWithGrouping
+
+ROW a = [1,2,3], c = 5 | EVAL c = null + c | STATS COUNT(c), COUNT(null), COUNT(null - 1) BY a
+;
+
+COUNT(c):long |COUNT(null):long|COUNT(null - 1):long|a:integer
+0             |0               |0                   |1
+0             |0               |0                   |2
+0             |0               |0                   |3
+;
+
+countOfNullGroupedByFoldableNull
+
+ROW a = 1+null, c = 5 | EVAL c = null + c | STATS COUNT(c), COUNT(null), COUNT(null - 1) BY a
+;
+
+COUNT(c):long |COUNT(null):long|COUNT(null - 1):long|a:integer
+0             |0               |0                   |null
+;
+
+countDistinctOfNullWithGrouping
+
+ROW a = [1,2,3], c = 5 | EVAL c = null + c | STATS COUNT_DISTINCT(c), COUNT_DISTINCT(null), COUNT_DISTINCT(null - 1) BY a
+;
+
+COUNT_DISTINCT(c):long|COUNT_DISTINCT(null):long|COUNT_DISTINCT(null - 1):long|a:integer
+0                     |0                        |0                            |1
+0                     |0                        |0                            |2
+0                     |0                        |0                            |3
+;

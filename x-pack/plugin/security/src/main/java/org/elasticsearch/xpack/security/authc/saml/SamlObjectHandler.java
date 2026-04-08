@@ -15,7 +15,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.io.Unmarshaller;
@@ -60,9 +60,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.Inflater;
@@ -386,8 +384,7 @@ public class SamlObjectHandler {
 
     protected ParsedQueryString parseQueryStringAndValidateSignature(String queryString, String samlMessageParameterName) {
         final String signatureInput = queryString.replaceAll("&Signature=.*$", "");
-        final Map<String, String> parameters = new HashMap<>();
-        RestUtils.decodeQueryString(queryString, 0, parameters);
+        final var parameters = RequestParams.fromQueryString(queryString);
         final String samlMessage = parameters.get(samlMessageParameterName);
         if (samlMessage == null) {
             throw samlException("Could not parse {} from query string: [{}]", samlMessageParameterName, queryString);

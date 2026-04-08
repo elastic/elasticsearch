@@ -160,6 +160,7 @@ class APMJvmOptions {
         if (agentMetricsEnabled == false) {
             propertiesMap.put("metrics_interval", "0s");
             propertiesMap.put("disable_metrics", "*");
+            disableMetricInstrumentation(propertiesMap);
         }
 
         // Configures a log file to write to. Don't disable writing to a log file,
@@ -261,6 +262,21 @@ class APMJvmOptions {
 
         propertiesMap.putAll(STATIC_CONFIG);
         return propertiesMap;
+    }
+
+    /**
+     * Disables the APM Agent hook that adds an exporter to application {@code SdkMeterProvider} instances.
+     * When Elasticsearch uses the OTel SDK for metrics, that hook is redundant and can break export;
+     * traces still use the APM Agent through {@code GlobalOpenTelemetry}.
+     */
+    static void disableMetricInstrumentation(Map<String, String> propertiesMap) {
+        String existing = propertiesMap.get("disable_instrumentations");
+        String otelMetrics = "opentelemetry-metrics";
+        if (existing == null || existing.isBlank()) {
+            propertiesMap.put("disable_instrumentations", otelMetrics);
+        } else {
+            propertiesMap.put("disable_instrumentations", existing + "," + otelMetrics);
+        }
     }
 
     private static StringJoiner extractGlobalLabels(String prefix, Map<String, String> propertiesMap, Settings settings) {

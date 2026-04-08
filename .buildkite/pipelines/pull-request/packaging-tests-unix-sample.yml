@@ -20,10 +20,10 @@ steps:
               - destructiveDistroTest.archives
         agents:
           provider: gcp
-          zones: us-east1-b,us-east1-c,us-east1-d,us-west1-a,us-west1-b,us-west1-c
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
-          machineType: custom-16-32768
+          machineType: n4-custom-16-32768
+          diskType: hyperdisk-balanced
         env:
           USE_PROD_DOCKER_CREDENTIALS: "true"
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

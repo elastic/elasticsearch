@@ -78,7 +78,6 @@ public final class ZstdDecompressHelper {
     ) throws IOException {
         bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, originalLength);
         MemorySegment destSegment = MemorySegment.ofArray(bytes.bytes).asSlice(0, originalLength);
-
         int decompressedLen = decompressFromBestSource(in, compressedLength, destSegment, originalLength, nativeAccess, zstd, copyBuffer);
         bytes.offset = offset;
         bytes.length = length;
@@ -102,7 +101,6 @@ public final class ZstdDecompressHelper {
     ) throws IOException {
         try (CloseableByteBuffer dest = nativeAccess.newConfinedBuffer(originalLength)) {
             MemorySegment destSegment = MemorySegment.ofBuffer(dest.buffer());
-
             int decompressedLen = decompressFromBestSource(
                 in,
                 compressedLength,
@@ -134,29 +132,61 @@ public final class ZstdDecompressHelper {
         byte[] copyBuffer
     ) throws IOException {
         if (in instanceof IndexInput indexIn && in instanceof MemorySegmentAccessInput msai) {
-            long startOffset = indexIn.getFilePointer();
-            MemorySegment srcSegment = msai.segmentSliceOrNull(startOffset, compressedLength);
-            if (srcSegment != null) {
-                int decompressedLen = invokeDecompress(zstd, destSegment, destSize, srcSegment, compressedLength);
-                indexIn.seek(startOffset + compressedLength);
-                return decompressedLen;
+            int result = decompressFromSegment(indexIn, msai, compressedLength, destSegment, destSize, zstd);
+            if (result >= 0) {
+                return result;
             }
         }
 
         if (in instanceof IndexInput indexIn && in instanceof DirectAccessInput directIn) {
-            long startOffset = indexIn.getFilePointer();
-            int[] resultHolder = { -1 };
-            boolean directSuccess = directIn.withByteBufferSlice(startOffset, compressedLength, srcBuf -> {
-                MemorySegment srcSegment = MemorySegment.ofBuffer(srcBuf);
-                resultHolder[0] = invokeDecompress(zstd, destSegment, destSize, srcSegment, compressedLength);
-            });
-            if (directSuccess) {
-                indexIn.seek(startOffset + compressedLength);
-                return resultHolder[0];
+            int result = decompressFromDirect(indexIn, directIn, compressedLength, destSegment, destSize, zstd);
+            if (result >= 0) {
+                return result;
             }
         }
 
         return copyAndDecompress(in, compressedLength, destSegment, destSize, nativeAccess, zstd, copyBuffer);
+    }
+
+    // Returns the decompressed length, or -1 if the segment slice was unavailable.
+    private static int decompressFromSegment(
+        IndexInput indexIn,
+        MemorySegmentAccessInput msai,
+        int compressedLength,
+        MemorySegment destSegment,
+        int destSize,
+        Zstd zstd
+    ) throws IOException {
+        long startOffset = indexIn.getFilePointer();
+        MemorySegment srcSegment = msai.segmentSliceOrNull(startOffset, compressedLength);
+        if (srcSegment == null) {
+            return -1;
+        }
+        int decompressedLen = invokeDecompress(zstd, destSegment, destSize, srcSegment, compressedLength);
+        indexIn.seek(startOffset + compressedLength);
+        return decompressedLen;
+    }
+
+    // Returns the decompressed length, or -1 if the direct buffer slice was unavailable.
+    private static int decompressFromDirect(
+        IndexInput indexIn,
+        DirectAccessInput directIn,
+        int compressedLength,
+        MemorySegment destSegment,
+        int destSize,
+        Zstd zstd
+    ) throws IOException {
+        long startOffset = indexIn.getFilePointer();
+        int[] resultHolder = { -1 };
+        boolean directSuccess = directIn.withByteBufferSlice(startOffset, compressedLength, srcBuf -> {
+            MemorySegment srcSegment = MemorySegment.ofBuffer(srcBuf);
+            resultHolder[0] = invokeDecompress(zstd, destSegment, destSize, srcSegment, compressedLength);
+        });
+        if (directSuccess) {
+            indexIn.seek(startOffset + compressedLength);
+            return resultHolder[0];
+        }
+        return -1;
     }
 
     private static int copyAndDecompress(

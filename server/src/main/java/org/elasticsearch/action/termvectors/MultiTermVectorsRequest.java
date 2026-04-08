@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
-import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,13 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
-@SuppressWarnings("unchecked")
-public class MultiTermVectorsRequest extends LegacyActionRequest
-    implements
-        Iterable<TermVectorsRequest>,
-        CompositeIndicesRequest,
-        RealtimeRequest {
+public class MultiTermVectorsRequest extends LegacyActionRequest implements Iterable<TermVectorsRequest>, CompositeIndicesRequest {
 
     String preference;
     List<TermVectorsRequest> requests = new ArrayList<>();
@@ -158,8 +151,6 @@ public class MultiTermVectorsRequest extends LegacyActionRequest
         return requests.size();
     }
 
-    @Override
-    @SuppressWarnings("unchecked")
     public MultiTermVectorsRequest realtime(boolean realtime) {
         for (TermVectorsRequest request : requests) {
             request.realtime(realtime);

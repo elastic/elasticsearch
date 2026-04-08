@@ -69,4 +69,12 @@ public class AllocationQueryContext {
     public Metadata metadata() {
         return routingAllocation.metadata();
     }
+
+    /**
+     * Do not use this method, it's here just to support a legacy API, it will be removed
+     */
+    @Deprecated
+    public RoutingAllocation routingAllocation() {
+        return routingAllocation;
+    }
 }

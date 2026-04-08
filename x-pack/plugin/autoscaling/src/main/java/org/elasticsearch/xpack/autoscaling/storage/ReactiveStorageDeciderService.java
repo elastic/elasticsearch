@@ -529,6 +529,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return nodesInTier(allocation.routingNodes()).anyMatch(node -> allocation.canAllocate(shard, node) != Decision.NO);
         }
 
+        @SuppressWarnings("deprecation")
         boolean needsThisTier(ShardRouting shard, AllocationQueryContext allocation) {
             if (isAssignedToTier(shard, allocation) == false) {
                 return false;
@@ -541,7 +542,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                         indexMetadata,
                         node.node(),
                         AllocationState::highestPreferenceTier,
-                        allocation
+                        allocation.routingAllocation()
                     )
                 )
                 .map(Decision::type)

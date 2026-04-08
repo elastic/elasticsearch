@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -17,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.AllocationQueryContext;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -65,32 +63,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     private static Decision shouldFilter(IndexMetadata indexMd, DiscoveryNode node, RoutingAllocation allocation) {
-        return shouldFilter(
-            indexMd,
-            node,
-            DataTierAllocationDecider::preferredAvailableTier,
-            allocation.getClusterState(),
-            allocation.desiredNodes(),
-            allocation.debugDecision(),
-            allocation::decision
-        );
-    }
-
-    public static Decision shouldFilter(
-        IndexMetadata indexMd,
-        DiscoveryNode node,
-        PreferredTierFunction preferredTierFunction,
-        AllocationQueryContext allocationQueryContext
-    ) {
-        return shouldFilter(
-            indexMd,
-            node,
-            preferredTierFunction,
-            allocationQueryContext.state(),
-            allocationQueryContext.desiredNodes(),
-            allocationQueryContext.debugDecision(),
-            allocationQueryContext::decision
-        );
+        return shouldFilter(indexMd, node, DataTierAllocationDecider::preferredAvailableTier, allocation);
     }
 
     public interface PreferredTierFunction {
@@ -104,18 +77,11 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     private static final Decision YES_PASSES = Decision.single(Decision.YES.type(), NAME, "node passes tier preference filters");
 
-    private interface DecisionFactory {
-        Decision create(Decision decision, String deciderLabel, String reason, Object... params);
-    }
-
-    private static Decision shouldFilter(
+    public static Decision shouldFilter(
         IndexMetadata indexMd,
         DiscoveryNode node,
         PreferredTierFunction preferredTierFunction,
-        ClusterState clusterState,
-        DesiredNodes desiredNodes,
-        boolean debugDecision,
-        DecisionFactory decisionFactory
+        RoutingAllocation allocation
     ) {
         List<String> tierPreference = indexMd.getTierPreference();
         if (tierPreference.isEmpty()) {
@@ -123,28 +89,28 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         }
         Optional<String> tier = preferredTierFunction.apply(
             tierPreference,
-            clusterState.nodes(),
-            desiredNodes,
-            clusterState.metadata().nodeShutdowns()
+            allocation.nodes(),
+            allocation.desiredNodes(),
+            allocation.getClusterState().metadata().nodeShutdowns()
         );
         if (tier.isPresent()) {
             String tierName = tier.get();
             assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
             if (node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName())) {
-                return debugDecision
-                    ? debugYesAllowed(decisionFactory, tierPreference, DiscoveryNodeRole.DATA_ROLE.roleName())
+                return allocation.debugDecision()
+                    ? debugYesAllowed(allocation, tierPreference, DiscoveryNodeRole.DATA_ROLE.roleName())
                     : Decision.YES;
             }
             if (node.hasRole(tierName)) {
-                return debugDecision ? debugYesAllowed(decisionFactory, tierPreference, tierName) : Decision.YES;
+                return allocation.debugDecision() ? debugYesAllowed(allocation, tierPreference, tierName) : Decision.YES;
             }
-            return debugDecision ? debugNoRequirementsNotMet(decisionFactory, tierPreference, tierName) : Decision.NO;
+            return allocation.debugDecision() ? debugNoRequirementsNotMet(allocation, tierPreference, tierName) : Decision.NO;
         }
-        return debugDecision ? debugNoNoNodesAvailable(decisionFactory, tierPreference) : Decision.NO;
+        return allocation.debugDecision() ? debugNoNoNodesAvailable(allocation, tierPreference) : Decision.NO;
     }
 
-    private static Decision debugNoNoNodesAvailable(DecisionFactory decisionFactory, List<String> tierPreference) {
-        return decisionFactory.create(
+    private static Decision debugNoNoNodesAvailable(RoutingAllocation allocation, List<String> tierPreference) {
+        return allocation.decision(
             Decision.NO,
             NAME,
             "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
@@ -152,8 +118,8 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         );
     }
 
-    private static Decision debugNoRequirementsNotMet(DecisionFactory decisionFactory, List<String> tierPreference, String tierName) {
-        return decisionFactory.create(
+    private static Decision debugNoRequirementsNotMet(RoutingAllocation allocation, List<String> tierPreference, String tierName) {
+        return allocation.decision(
             Decision.NO,
             NAME,
             "index has a preference for tiers [%s] and node does not meet the required [%s] tier",
@@ -162,8 +128,8 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         );
     }
 
-    private static Decision debugYesAllowed(DecisionFactory decisionFactory, List<String> tierPreference, String tierName) {
-        return decisionFactory.create(
+    private static Decision debugYesAllowed(RoutingAllocation allocation, List<String> tierPreference, String tierName) {
+        return allocation.decision(
             Decision.YES,
             NAME,
             "index has a preference for tiers [%s] and node has tier [%s]",

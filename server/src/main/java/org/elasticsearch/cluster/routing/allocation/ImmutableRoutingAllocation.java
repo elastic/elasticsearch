@@ -54,6 +54,10 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
         assert false : "This should never be called on an immutable routing allocation";
     }
 
+    /**
+     * Returns {@link RoutingChangesObserver#NOOP} since this is an immutable {@link RoutingAllocation}
+     * and there should be no routing changes to observe
+     */
     @Override
     public RoutingChangesObserver changes() {
         return RoutingChangesObserver.NOOP;

@@ -12,117 +12,126 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceValidator;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class S3DatasourceValidatorTests extends ESTestCase {
 
-    private final DatasourceValidator type = new FileDatasourceValidator(
+    private final DatasourceValidator validator = new FileDatasourceValidator(
         "s3",
         S3Configuration::fromMap,
         Set.of("s3://", "s3a://", "s3n://")
     );
 
     public void testType() {
-        assertEquals("s3", type.type());
+        assertEquals("s3", validator.type());
     }
 
     public void testValidateDatasourceWithCredentials() {
-        var result = type.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
-        assertEquals("AKIA123", findSetting(result, "access_key").value());
-        assertTrue(findSetting(result, "access_key").isSecret());
-        assertTrue(findSetting(result, "secret_key").isSecret());
-        assertEquals("us-east-1", findSetting(result, "region").value());
-        assertFalse(findSetting(result, "region").isSecret());
+        var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
+        assertEquals("AKIA123", findValue(result, "access_key"));
+        assertTrue(findKey(result, "access_key").isSecret());
+        assertTrue(findKey(result, "secret_key").isSecret());
+        assertEquals("us-east-1", findValue(result, "region"));
+        assertFalse(findKey(result, "region").isSecret());
     }
 
     public void testValidateDatasourceEmpty() {
-        assertTrue(type.validateDatasource(Map.of()).isEmpty());
+        assertTrue(validator.validateDatasource(Map.of()).isEmpty());
     }
 
     public void testValidateDatasourceRejectsUnknown() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("bucket", "x")));
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("bucket", "x")));
     }
 
     public void testValidateDatasourceRejectsInvalidAuth() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("auth", "oauth2")));
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
     }
 
     public void testValidateDatasourceNormalizesAuth() {
-        var result = type.validateDatasource(Map.of("auth", "NONE"));
-        assertEquals("none", findSetting(result, "auth").value());
-        assertFalse(findSetting(result, "auth").isSecret());
-    }
-
-    public void testValidateDatasetValid() {
-        var result = type.validateDataset(Map.of(), "s3://bucket/path/*.parquet", Map.of("partition_detection", "hive"));
-        assertEquals("hive", findSetting(result, "partition_detection").value());
-        assertFalse(findSetting(result, "partition_detection").isSecret());
-    }
-
-    public void testValidateDatasetRequiresResource() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), null, Map.of()));
-    }
-
-    public void testValidateDatasetWrongScheme() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "gs://bucket/path", Map.of()));
-    }
-
-    public void testValidateDatasetAllSchemes() {
-        for (String uri : new String[] { "s3://b/p", "s3a://b/p", "s3n://b/p" }) {
-            assertNotNull(type.validateDataset(Map.of(), uri, Map.of()));
-        }
-    }
-
-    public void testValidateDatasetRejectsUnknown() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "s3://b/p", Map.of("format", "parquet")));
-    }
-
-    public void testValidateDatasetSchemaSampleSize() {
-        var result = type.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50));
-        assertEquals("50", findSetting(result, "schema_sample_size").value());
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0)));
-    }
-
-    public void testValidateDatasetSchemaSampleSizeNonNumber() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", "abc")));
-    }
-
-    public void testValidateDatasetBlankResource() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "", Map.of()));
-    }
-
-    public void testValidateDatasetNullSettings() {
-        var result = type.validateDataset(Map.of(), "s3://b/p", null);
-        assertTrue(result.isEmpty());
+        var result = validator.validateDatasource(Map.of("auth", "NONE"));
+        assertEquals("none", findValue(result, "auth"));
+        assertFalse(findKey(result, "auth").isSecret());
     }
 
     public void testValidateDatasourceAnonymousConflict() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> type.validateDatasource(Map.of("auth", "none", "access_key", "AKIA123", "secret_key", "secret"))
+            () -> validator.validateDatasource(Map.of("auth", "none", "access_key", "AKIA123", "secret_key", "secret"))
         );
     }
 
     public void testValidateDatasourceNullSettings() {
-        assertTrue(type.validateDatasource(null).isEmpty());
+        assertTrue(validator.validateDatasource(null).isEmpty());
     }
 
     public void testValidateDatasourceSkipsNullValues() {
         var settings = new java.util.HashMap<String, Object>();
         settings.put("region", "us-east-1");
         settings.put("endpoint", null);
-        var result = type.validateDatasource(settings);
-        assertEquals("us-east-1", findSetting(result, "region").value());
-        assertNull(findSettingOrNull(result, "endpoint"));
+        var result = validator.validateDatasource(settings);
+        assertEquals("us-east-1", findValue(result, "region"));
+        assertNull(findValueOrNull(result, "endpoint"));
     }
 
-    private static ConfigSetting findSetting(List<ConfigSetting> settings, String name) {
-        return settings.stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
+    public void testValidateDatasetValid() {
+        var result = validator.validateDataset(Map.of(), "s3://bucket/path/*.parquet", Map.of("partition_detection", "hive"));
+        assertEquals("hive", findValue(result, "partition_detection"));
     }
 
-    private static ConfigSetting findSettingOrNull(List<ConfigSetting> settings, String name) {
-        return settings.stream().filter(s -> s.name().equals(name)).findFirst().orElse(null);
+    public void testValidateDatasetRequiresResource() {
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
+    }
+
+    public void testValidateDatasetBlankResource() {
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "", Map.of()));
+    }
+
+    public void testValidateDatasetWrongScheme() {
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "gs://bucket/path", Map.of()));
+    }
+
+    public void testValidateDatasetAllSchemes() {
+        for (String uri : new String[] { "s3://b/p", "s3a://b/p", "s3n://b/p" }) {
+            assertNotNull(validator.validateDataset(Map.of(), uri, Map.of()));
+        }
+    }
+
+    public void testValidateDatasetRejectsUnknown() {
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "parquet")));
+    }
+
+    public void testValidateDatasetSchemaSampleSize() {
+        assertEquals(
+            "50",
+            findValue(validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50)), "schema_sample_size")
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0))
+        );
+    }
+
+    public void testValidateDatasetSchemaSampleSizeNonNumber() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", "abc"))
+        );
+    }
+
+    public void testValidateDatasetNullSettings() {
+        assertTrue(validator.validateDataset(Map.of(), "s3://b/p", null).isEmpty());
+    }
+
+    private static String findValue(Map<ConfigSetting, String> settings, String name) {
+        return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElseThrow();
+    }
+
+    private static String findValueOrNull(Map<ConfigSetting, String> settings, String name) {
+        return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElse(null);
+    }
+
+    private static ConfigSetting findKey(Map<ConfigSetting, String> settings, String name) {
+        return settings.keySet().stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
     }
 }

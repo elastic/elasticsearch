@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -37,13 +36,13 @@ public class FileDatasourceValidator implements DatasourceValidator {
     }
 
     @Override
-    public List<ConfigSetting> validateDatasource(Map<String, Object> settings) {
+    public Map<ConfigSetting, String> validateDatasource(Map<String, Object> settings) {
         DatasourceConfiguration config = configFactory.apply(settings);
-        return config != null ? config.toConfigSettings() : List.of();
+        return config != null ? config.toConfigSettings() : Map.of();
     }
 
     @Override
-    public List<ConfigSetting> validateDataset(
+    public Map<ConfigSetting, String> validateDataset(
         Map<String, Object> datasourceSettings,
         String resource,
         Map<String, Object> datasetSettings

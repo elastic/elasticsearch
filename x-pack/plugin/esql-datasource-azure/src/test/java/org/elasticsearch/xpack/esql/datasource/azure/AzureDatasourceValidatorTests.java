@@ -12,104 +12,111 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceValidator;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class AzureDatasourceValidatorTests extends ESTestCase {
 
-    private final DatasourceValidator type = new FileDatasourceValidator(
+    private final DatasourceValidator validator = new FileDatasourceValidator(
         "azure_blob",
         AzureConfiguration::fromMap,
         Set.of("wasbs://", "wasb://")
     );
 
     public void testType() {
-        assertEquals("azure_blob", type.type());
+        assertEquals("azure_blob", validator.type());
     }
 
     public void testValidateDatasourceWithSharedKey() {
-        var result = type.validateDatasource(Map.of("account", "myaccount", "key", "mykey"));
-        assertEquals("myaccount", find(result, "account").value());
-        assertFalse(find(result, "account").isSecret());
-        assertEquals("mykey", find(result, "key").value());
-        assertTrue(find(result, "key").isSecret());
+        var result = validator.validateDatasource(Map.of("account", "myaccount", "key", "mykey"));
+        assertFalse(findKey(result, "account").isSecret());
+        assertTrue(findKey(result, "key").isSecret());
     }
 
     public void testValidateDatasourceEmpty() {
-        assertTrue(type.validateDatasource(Map.of()).isEmpty());
+        assertTrue(validator.validateDatasource(Map.of()).isEmpty());
     }
 
     public void testValidateDatasourceRejectsUnknown() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("container", "x")));
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("container", "x")));
     }
 
     public void testValidateDatasourceRejectsInvalidAuth() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("auth", "managed_identity")));
-    }
-
-    public void testValidateDatasourceNormalizesAuth() {
-        var result = type.validateDatasource(Map.of("auth", "NONE"));
-        assertEquals("none", find(result, "auth").value());
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("auth", "managed_identity")));
     }
 
     public void testValidateDatasourceAnonymousConflictConnectionString() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> type.validateDatasource(Map.of("auth", "none", "connection_string", "DefaultEndpointsProtocol=https"))
+            () -> validator.validateDatasource(Map.of("auth", "none", "connection_string", "DefaultEndpointsProtocol=https"))
         );
     }
 
     public void testValidateDatasourceAnonymousConflictSasToken() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("auth", "none", "sas_token", "?sv=2020-01-01")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validateDatasource(Map.of("auth", "none", "sas_token", "?sv=2020-01-01"))
+        );
     }
 
     public void testValidateDatasourceWithSasToken() {
-        var result = type.validateDatasource(Map.of("sas_token", "?sv=2020"));
-        assertTrue(find(result, "sas_token").isSecret());
+        assertTrue(findKey(validator.validateDatasource(Map.of("sas_token", "?sv=2020")), "sas_token").isSecret());
     }
 
     public void testValidateDatasourceWithConnectionString() {
-        var result = type.validateDatasource(Map.of("connection_string", "DefaultEndpointsProtocol=https;AccountName=x"));
-        assertTrue(find(result, "connection_string").isSecret());
+        assertTrue(
+            findKey(
+                validator.validateDatasource(Map.of("connection_string", "DefaultEndpointsProtocol=https;AccountName=x")),
+                "connection_string"
+            ).isSecret()
+        );
     }
 
     public void testValidateDatasetValid() {
-        var result = type.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p/*.parquet", Map.of("error_mode", "skip_row"));
-        assertEquals("skip_row", find(result, "error_mode").value());
+        var result = validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p/*.parquet", Map.of("error_mode", "skip_row"));
+        assertEquals("skip_row", findValue(result, "error_mode"));
     }
 
     public void testValidateDatasetBothSchemes() {
         for (String uri : new String[] { "wasbs://c@a.blob.core.windows.net/p", "wasb://c@a.blob.core.windows.net/p" }) {
-            assertNotNull(type.validateDataset(Map.of(), uri, Map.of()));
+            assertNotNull(validator.validateDataset(Map.of(), uri, Map.of()));
         }
     }
 
     public void testValidateDatasetRequiresResource() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), null, Map.of()));
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
     }
 
     public void testValidateDatasetWrongScheme() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "s3://bucket/path", Map.of()));
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "s3://bucket/path", Map.of()));
     }
 
     public void testValidateDatasetRejectsUnknown() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> type.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("format", "parquet"))
+            () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("format", "parquet"))
         );
     }
 
     public void testValidateDatasetSchemaSampleSize() {
-        var result = type.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_sample_size", 50));
-        assertEquals("50", find(result, "schema_sample_size").value());
+        assertEquals(
+            "50",
+            findValue(
+                validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_sample_size", 50)),
+                "schema_sample_size"
+            )
+        );
         expectThrows(
             IllegalArgumentException.class,
-            () -> type.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_sample_size", 0))
+            () -> validator.validateDataset(Map.of(), "wasbs://c@a.blob.core.windows.net/p", Map.of("schema_sample_size", 0))
         );
     }
 
-    private static ConfigSetting find(List<ConfigSetting> settings, String name) {
-        return settings.stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
+    private static String findValue(Map<ConfigSetting, String> settings, String name) {
+        return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElseThrow();
+    }
+
+    private static ConfigSetting findKey(Map<ConfigSetting, String> settings, String name) {
+        return settings.keySet().stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
     }
 }

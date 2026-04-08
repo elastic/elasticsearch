@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.List;
 import java.util.Map;
 
 /**
- * Describes a datasource type for CRUD-time validation.
+ * Validates datasource and dataset settings at CRUD time.
  * Each storage plugin provides a stateless singleton implementation.
  */
 public interface DatasourceValidator {
@@ -23,10 +22,10 @@ public interface DatasourceValidator {
      * Validates datasource settings. Rejects unknown fields, validates values, normalizes.
      *
      * @param settings the raw settings from the REST request body
-     * @return validated settings as a list of {@link ConfigSetting}s with values populated
+     * @return validated settings keyed by their {@link ConfigSetting} definition
      * @throws IllegalArgumentException if settings are invalid
      */
-    List<ConfigSetting> validateDatasource(Map<String, Object> settings);
+    Map<ConfigSetting, String> validateDatasource(Map<String, Object> settings);
 
     /**
      * Validates dataset settings against the parent datasource.
@@ -34,8 +33,12 @@ public interface DatasourceValidator {
      * @param datasourceSettings the parent datasource's validated settings
      * @param resource the resource path from the dataset definition
      * @param datasetSettings the raw dataset settings from the REST request body
-     * @return validated dataset settings as a list of {@link ConfigSetting}s
+     * @return validated dataset settings keyed by their {@link ConfigSetting} definition
      * @throws IllegalArgumentException if settings or resource are invalid
      */
-    List<ConfigSetting> validateDataset(Map<String, Object> datasourceSettings, String resource, Map<String, Object> datasetSettings);
+    Map<ConfigSetting, String> validateDataset(
+        Map<String, Object> datasourceSettings,
+        String resource,
+        Map<String, Object> datasetSettings
+    );
 }

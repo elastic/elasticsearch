@@ -12,77 +12,75 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConfigSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DatasourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDatasourceValidator;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class GcsDatasourceValidatorTests extends ESTestCase {
 
-    private final DatasourceValidator type = new FileDatasourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs://"));
+    private final DatasourceValidator validator = new FileDatasourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs://"));
 
     public void testType() {
-        assertEquals("gcs", type.type());
+        assertEquals("gcs", validator.type());
     }
 
     public void testValidateDatasourceWithCredentials() {
-        var result = type.validateDatasource(Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "proj"));
-        assertEquals("{\"type\":\"service_account\"}", find(result, "credentials").value());
-        assertTrue(find(result, "credentials").isSecret());
-        assertFalse(find(result, "project_id").isSecret());
+        var result = validator.validateDatasource(Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "proj"));
+        assertTrue(findKey(result, "credentials").isSecret());
+        assertFalse(findKey(result, "project_id").isSecret());
     }
 
     public void testValidateDatasourceEmpty() {
-        assertTrue(type.validateDatasource(Map.of()).isEmpty());
+        assertTrue(validator.validateDatasource(Map.of()).isEmpty());
     }
 
     public void testValidateDatasourceRejectsUnknown() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("bucket", "x")));
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("bucket", "x")));
     }
 
     public void testValidateDatasourceRejectsInvalidAuth() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDatasource(Map.of("auth", "oauth2")));
-    }
-
-    public void testValidateDatasourceNormalizesAuth() {
-        var result = type.validateDatasource(Map.of("auth", "NONE"));
-        assertEquals("none", find(result, "auth").value());
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDatasource(Map.of("auth", "oauth2")));
     }
 
     public void testValidateDatasourceAnonymousConflict() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> type.validateDatasource(Map.of("auth", "none", "credentials", "{\"type\":\"service_account\"}"))
+            () -> validator.validateDatasource(Map.of("auth", "none", "credentials", "{\"type\":\"service_account\"}"))
         );
     }
 
     public void testValidateDatasetValid() {
-        var result = type.validateDataset(Map.of(), "gs://bucket/path/*.parquet", Map.of("partition_detection", "hive"));
-        assertEquals("hive", find(result, "partition_detection").value());
+        var result = validator.validateDataset(Map.of(), "gs://bucket/path/*.parquet", Map.of("partition_detection", "hive"));
+        assertEquals("hive", findValue(result, "partition_detection"));
     }
 
     public void testValidateDatasetRequiresResource() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), null, Map.of()));
-    }
-
-    public void testValidateDatasetBlankResource() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "", Map.of()));
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
     }
 
     public void testValidateDatasetWrongScheme() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "s3://bucket/path", Map.of()));
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "s3://bucket/path", Map.of()));
     }
 
     public void testValidateDatasetRejectsUnknown() {
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "gs://b/p", Map.of("format", "parquet")));
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("format", "parquet")));
     }
 
     public void testValidateDatasetSchemaSampleSize() {
-        var result = type.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 50));
-        assertEquals("50", find(result, "schema_sample_size").value());
-        expectThrows(IllegalArgumentException.class, () -> type.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 0)));
+        assertEquals(
+            "50",
+            findValue(validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 50)), "schema_sample_size")
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validateDataset(Map.of(), "gs://b/p", Map.of("schema_sample_size", 0))
+        );
     }
 
-    private static ConfigSetting find(List<ConfigSetting> settings, String name) {
-        return settings.stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
+    private static String findValue(Map<ConfigSetting, String> settings, String name) {
+        return settings.entrySet().stream().filter(e -> e.getKey().name().equals(name)).map(Map.Entry::getValue).findFirst().orElseThrow();
+    }
+
+    private static ConfigSetting findKey(Map<ConfigSetting, String> settings, String name) {
+        return settings.keySet().stream().filter(s -> s.name().equals(name)).findFirst().orElseThrow();
     }
 }

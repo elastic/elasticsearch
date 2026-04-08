@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -22,11 +21,6 @@ public abstract class DatasourceConfiguration {
 
     private final Map<String, String> values;
 
-    /**
-     * Validates and normalizes raw settings from a REST request or CRUD layer.
-     * Rejects unknown fields, stringifies values, lowercases auth, then calls
-     * subclass {@link #validate()} for cross-field checks.
-     */
     protected DatasourceConfiguration(Map<String, Object> raw) {
         Map<String, ConfigSetting> defs = settings();
         Map<String, String> parsed = new HashMap<>();
@@ -62,14 +56,14 @@ public abstract class DatasourceConfiguration {
         return values.get(key);
     }
 
-    /** Returns validated settings as a list of {@link ConfigSetting}s with values populated. */
-    public List<ConfigSetting> toConfigSettings() {
+    /** Returns validated settings as a map from definition to value. */
+    public Map<ConfigSetting, String> toConfigSettings() {
         Map<String, ConfigSetting> defs = settings();
-        List<ConfigSetting> result = new ArrayList<>();
+        Map<ConfigSetting, String> result = new LinkedHashMap<>();
         for (var entry : values.entrySet()) {
             ConfigSetting def = defs.get(entry.getKey());
             if (def != null) {
-                result.add(def.withValue(entry.getValue()));
+                result.put(def, entry.getValue());
             }
         }
         return result;

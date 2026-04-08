@@ -63,7 +63,6 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     private boolean hasPendingAsyncFetch = false;
 
     protected final long currentNanoTime;
-    protected final boolean isSimulating;
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
@@ -80,22 +79,19 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     /// @param clusterInfo information about node disk usage and shard disk usage
     /// @param shardSizeInfo information about snapshot shard sizes
     /// @param currentNanoTime the nano time to use for all delay allocation calculation (typically `System#nanoTime()`)
-    /// @param isSimulating `true` if "transient" deciders should be ignored because we are simulating the final allocation
     ///
     RoutingAllocation(
         AllocationDeciders deciders,
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime,
-        boolean isSimulating
+        long currentNanoTime
     ) {
         this.deciders = deciders;
         this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
-        this.isSimulating = isSimulating;
         this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
@@ -347,9 +343,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
      * @return {@code true} if this allocation computation is trying to simulate the final allocation and therefore "transient" allocation
      *                      blockers should be ignored.
      */
-    public boolean isSimulating() {
-        return isSimulating;
-    }
+    public abstract boolean isSimulating();
 
     /**
      * @return {@code true} if this allocation computation is trying to reconcile towards a previously-computed allocation and therefore

@@ -31,6 +31,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
 
     private final RoutingChangesObserver routingChangesObserver;
     private final RoutingNodes routingNodes;
+    private final boolean isSimulating;
     private boolean isReconciling;
 
     /**
@@ -71,11 +72,12 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         boolean isSimulating,
         RoutingChangesObserver shardChangesObserver
     ) {
-        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, isSimulating);
+        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
         if (routingNodes == null || routingNodes.isReadOnly()) {
             throw new IllegalArgumentException("Must provide a mutable routing nodes instance");
         }
         this.routingNodes = routingNodes;
+        this.isSimulating = isSimulating;
         this.routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
             isSimulating
                 ? new RoutingChangesObserver[] {
@@ -169,6 +171,11 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     @Override
     public boolean isReconciling() {
         return isReconciling;
+    }
+
+    @Override
+    public boolean isSimulating() {
+        return isSimulating;
     }
 
     /**

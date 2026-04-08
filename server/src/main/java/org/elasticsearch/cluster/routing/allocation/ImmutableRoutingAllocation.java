@@ -36,7 +36,7 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
+        super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
     }
 
     @Override
@@ -63,6 +63,11 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
 
     @Override
     public boolean routingNodesChanged() {
+        return false;
+    }
+
+    @Override
+    public boolean isSimulating() {
         return false;
     }
 

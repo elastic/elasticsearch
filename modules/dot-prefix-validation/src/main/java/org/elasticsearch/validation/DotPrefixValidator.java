@@ -58,6 +58,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
      * Normally we would want to transition these to either system indices, or
      * to use an internal origin for the client. These are shorter-term
      * workarounds until that work can be completed.
+     * Note that system indices and data streams do not need to be included here, as they are automatically ignored by the validator.
      *
      * .elastic-connectors-* is used by enterprise search
      * .ml-* is used by ML
@@ -67,33 +68,33 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
     public static final Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(
-            // non-system indices definied in files in x-pack/plugin/core/template-resources/src/main/resources/ml:
+            // indices defined in files in x-pack/plugin/core/template-resources/src/main/resources/ml:
             "\\.ml-anomalies-.*",
             "\\.ml-annotations-\\d+",
             "\\.ml-notifications-.*",
             "\\.ml-state.*",
             "\\.ml-stats-.*",
-            // non-system Observability indices:
+            // Observability indices:
             "\\.slo-observability\\.sli-v\\d+.*",
             "\\.slo-observability\\.summary-v\\d+.*",
-            // non-system Security index:
+            // Security index:
             "\\.entities\\.v\\d+\\..*",
-            // non-system indices or data streams defined in files in x-pack/plugin/core/template-resources/src/main/resources/monitoring-*:
+            // indices or data streams defined in files in x-pack/plugin/core/template-resources/src/main/resources/monitoring-*:
             "\\.monitoring-es-8-.*",
             "\\.monitoring-logstash-8-.*",
             "\\.monitoring-kibana-8-.*",
             "\\.monitoring-beats-8-.*",
             "\\.monitoring-ent-search-8-.*",
-            // non-system data streams defined in files in x-pack/plugin/core/template-resources/src/main/resources/fleet-*:
+            // data streams defined in files in x-pack/plugin/core/template-resources/src/main/resources/fleet-*:
             "\\.fleet-fileds-fromhost-data-.*",
             "\\.fleet-fileds-fromhost-meta-.*",
             "\\.fleet-fileds-tohost-data-.*",
             "\\.fleet-fileds-tohost-meta-.*",
-            // non system data stream definied in x-pack/plugin/core/template-resources/src/main/resources/kibana-reporting@template.json:
+            // data stream definied in x-pack/plugin/core/template-resources/src/main/resources/kibana-reporting@template.json:
             "\\.kibana-reporting.*",
-            // non-system data stream defined in x-pack/plugin/core/template-resources/src/main/resources/slm-history.json:
+            // data stream defined in x-pack/plugin/core/template-resources/src/main/resources/slm-history.json:
             "\\.slm-history-7.*",
-            // non-system index defined in
+            // index defined in
             // x-pack/plugin/ent-search/src/main/java/org/elasticsearch/xpack/application/connector/ConnectorTemplateRegistry.java
             "\\.search-acl-filter-.*"
         ),

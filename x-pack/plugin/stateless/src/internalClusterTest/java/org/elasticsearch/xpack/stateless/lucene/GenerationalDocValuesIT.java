@@ -583,9 +583,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             void maybeBlock(String blobName) {
                 if (blobName.equals(bccContainingFirstGenFile)) {
                     var currentThreadName = Thread.currentThread().getName();
-                    if (currentThreadName.contains("stateless.merge][T#1")) {
+                    if (currentThreadName.contains("[" + ThreadPool.Names.MERGE + "][T#1")) {
                         blockRead(bccContainingFirstGenFileReadFirstMergeBlocked, blockBccContainingFirstGenFileReadByFirstMerge);
-                    } else if (currentThreadName.contains("stateless.merge][T#2")) {
+                    } else if (currentThreadName.contains("[" + ThreadPool.Names.MERGE + "][T#2")) {
                         blockRead(bccContainingFirstGenFileReadSecondMergeBlocked, blockBccContainingFirstGenFileReadBySecondMerge);
                     }
                 }

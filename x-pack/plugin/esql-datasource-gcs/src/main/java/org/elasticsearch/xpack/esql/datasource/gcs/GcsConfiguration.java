@@ -25,13 +25,13 @@ import java.util.Map;
  */
 public class GcsConfiguration extends DatasourceConfiguration {
 
-    private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(
-        new ConfigSetting("credentials", true),
-        new ConfigSetting("project_id", false),
-        new ConfigSetting("endpoint", false),
-        new ConfigSetting("token_uri", false),
-        new ConfigSetting("auth", false)
-    );
+    private static final ConfigSetting CREDENTIALS = new ConfigSetting("credentials", true);
+    private static final ConfigSetting PROJECT_ID = new ConfigSetting("project_id", false);
+    private static final ConfigSetting ENDPOINT = new ConfigSetting("endpoint", false);
+    private static final ConfigSetting TOKEN_URI = new ConfigSetting("token_uri", false);
+    private static final ConfigSetting AUTH = new ConfigSetting("auth", false);
+
+    private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(CREDENTIALS, PROJECT_ID, ENDPOINT, TOKEN_URI, AUTH);
 
     private GcsConfiguration(Map<String, Object> raw) {
         super(raw, SETTINGS);
@@ -39,7 +39,7 @@ public class GcsConfiguration extends DatasourceConfiguration {
 
     @Override
     protected String normalizeValue(String key, String value) {
-        if ("auth".equals(key)) {
+        if (AUTH.name().equals(key)) {
             return value.toLowerCase(Locale.ROOT);
         }
         return value;
@@ -75,32 +75,32 @@ public class GcsConfiguration extends DatasourceConfiguration {
         String auth
     ) {
         Map<String, Object> raw = new HashMap<>();
-        if (serviceAccountCredentials != null) raw.put("credentials", serviceAccountCredentials);
-        if (projectId != null) raw.put("project_id", projectId);
-        if (endpoint != null) raw.put("endpoint", endpoint);
-        if (tokenUri != null) raw.put("token_uri", tokenUri);
-        if (auth != null) raw.put("auth", auth);
+        if (serviceAccountCredentials != null) raw.put(CREDENTIALS.name(), serviceAccountCredentials);
+        if (projectId != null) raw.put(PROJECT_ID.name(), projectId);
+        if (endpoint != null) raw.put(ENDPOINT.name(), endpoint);
+        if (tokenUri != null) raw.put(TOKEN_URI.name(), tokenUri);
+        if (auth != null) raw.put(AUTH.name(), auth);
         return raw.isEmpty() ? null : fromMap(raw);
     }
 
     public String serviceAccountCredentials() {
-        return get("credentials");
+        return get(CREDENTIALS.name());
     }
 
     public String projectId() {
-        return get("project_id");
+        return get(PROJECT_ID.name());
     }
 
     public String endpoint() {
-        return get("endpoint");
+        return get(ENDPOINT.name());
     }
 
     public String tokenUri() {
-        return get("token_uri");
+        return get(TOKEN_URI.name());
     }
 
     public String auth() {
-        return get("auth");
+        return get(AUTH.name());
     }
 
     public boolean isAnonymous() {

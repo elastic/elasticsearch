@@ -25,13 +25,13 @@ import java.util.Map;
  */
 public class S3Configuration extends DatasourceConfiguration {
 
-    private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(
-        new ConfigSetting("access_key", true),
-        new ConfigSetting("secret_key", true),
-        new ConfigSetting("endpoint", false),
-        new ConfigSetting("region", false),
-        new ConfigSetting("auth", false)
-    );
+    private static final ConfigSetting ACCESS_KEY = new ConfigSetting("access_key", true);
+    private static final ConfigSetting SECRET_KEY = new ConfigSetting("secret_key", true);
+    private static final ConfigSetting ENDPOINT = new ConfigSetting("endpoint", false);
+    private static final ConfigSetting REGION = new ConfigSetting("region", false);
+    private static final ConfigSetting AUTH = new ConfigSetting("auth", false);
+
+    private static final Map<String, ConfigSetting> SETTINGS = ConfigSetting.mapOf(ACCESS_KEY, SECRET_KEY, ENDPOINT, REGION, AUTH);
 
     private S3Configuration(Map<String, Object> raw) {
         super(raw, SETTINGS);
@@ -39,7 +39,7 @@ public class S3Configuration extends DatasourceConfiguration {
 
     @Override
     protected String normalizeValue(String key, String value) {
-        if ("auth".equals(key)) {
+        if (AUTH.name().equals(key)) {
             return value.toLowerCase(Locale.ROOT);
         }
         return value;
@@ -67,32 +67,32 @@ public class S3Configuration extends DatasourceConfiguration {
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region, String auth) {
         Map<String, Object> raw = new HashMap<>();
-        if (accessKey != null) raw.put("access_key", accessKey);
-        if (secretKey != null) raw.put("secret_key", secretKey);
-        if (endpoint != null) raw.put("endpoint", endpoint);
-        if (region != null) raw.put("region", region);
-        if (auth != null) raw.put("auth", auth);
+        if (accessKey != null) raw.put(ACCESS_KEY.name(), accessKey);
+        if (secretKey != null) raw.put(SECRET_KEY.name(), secretKey);
+        if (endpoint != null) raw.put(ENDPOINT.name(), endpoint);
+        if (region != null) raw.put(REGION.name(), region);
+        if (auth != null) raw.put(AUTH.name(), auth);
         return raw.isEmpty() ? null : fromMap(raw);
     }
 
     public String accessKey() {
-        return get("access_key");
+        return get(ACCESS_KEY.name());
     }
 
     public String secretKey() {
-        return get("secret_key");
+        return get(SECRET_KEY.name());
     }
 
     public String endpoint() {
-        return get("endpoint");
+        return get(ENDPOINT.name());
     }
 
     public String region() {
-        return get("region");
+        return get(REGION.name());
     }
 
     public String auth() {
-        return get("auth");
+        return get(AUTH.name());
     }
 
     public boolean isAnonymous() {

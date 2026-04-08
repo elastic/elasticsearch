@@ -21,17 +21,19 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_RETURN_DOCUMENTS_REMOVED;
 
 public class ContextualAiRerankTaskSettings extends ContextualAiTaskSettings implements TopNProvider {
 
     public static final String NAME = "contextualai_rerank_task_settings";
+
+    protected static final String RETURN_DOCUMENTS_FIELD = "return_documents";
     protected static final String TOP_N_FIELD = "top_n";
     protected static final String INSTRUCTION_FIELD = "instruction";
 
-    public static final ContextualAiRerankTaskSettings EMPTY_SETTINGS = new ContextualAiRerankTaskSettings(null, null);
+    public static final ContextualAiRerankTaskSettings EMPTY_SETTINGS = new ContextualAiRerankTaskSettings(null, null, null);
 
     public static ContextualAiRerankTaskSettings fromMap(Map<String, Object> map) {
         var validationException = new ValidationException();
@@ -40,43 +42,56 @@ public class ContextualAiRerankTaskSettings extends ContextualAiTaskSettings imp
             return EMPTY_SETTINGS;
         }
 
+        var returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS_FIELD, validationException);
         var topN = extractOptionalPositiveInteger(map, TOP_N_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
         var instruction = extractOptionalString(map, INSTRUCTION_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new ContextualAiRerankTaskSettings(topN, instruction);
+        return new ContextualAiRerankTaskSettings(returnDocuments, topN, instruction);
     }
 
     public static ContextualAiRerankTaskSettings of(
         ContextualAiRerankTaskSettings originalSettings,
         ContextualAiRerankTaskSettings requestSettings
     ) {
-        var topN = requestSettings.getTopN() != null ? requestSettings.getTopN() : originalSettings.getTopN();
-        var instruction = requestSettings.getInstruction() != null ? requestSettings.getInstruction() : originalSettings.getInstruction();
+        var returnDocumentsToUse = requestSettings.getReturnDocuments() != null
+            ? requestSettings.getReturnDocuments()
+            : originalSettings.getReturnDocuments();
+        var topNToUse = requestSettings.getTopN() != null ? requestSettings.getTopN() : originalSettings.getTopN();
+        var instructionToUse = requestSettings.getInstruction() != null
+            ? requestSettings.getInstruction()
+            : originalSettings.getInstruction();
 
         // If none of the settings have changed, return the original settings to avoid unnecessary object creation
-        if (Objects.equals(topN, originalSettings.getTopN()) && Objects.equals(instruction, originalSettings.getInstruction())) {
+        if (Objects.equals(returnDocumentsToUse, originalSettings.getReturnDocuments())
+            && Objects.equals(topNToUse, originalSettings.getTopN())
+            && Objects.equals(instructionToUse, originalSettings.getInstruction())) {
             return originalSettings;
         }
 
-        return new ContextualAiRerankTaskSettings(topN, instruction);
+        return new ContextualAiRerankTaskSettings(returnDocumentsToUse, topNToUse, instructionToUse);
     }
 
+    private final Boolean returnDocuments;
     private final Integer topN;
     private final String instruction;
 
-    public ContextualAiRerankTaskSettings(@Nullable Integer topN, @Nullable String instruction) {
+    public ContextualAiRerankTaskSettings(@Nullable Boolean returnDocuments, @Nullable Integer topN, @Nullable String instruction) {
+        this.returnDocuments = returnDocuments;
         this.topN = topN;
         this.instruction = instruction;
     }
 
     public ContextualAiRerankTaskSettings(StreamInput in) throws IOException {
-        if (in.getTransportVersion().supports(ML_INFERENCE_CONTEXTUAL_AI_RETURN_DOCUMENTS_REMOVED) == false) {
-            in.readOptionalBoolean();
-        }
+        this.returnDocuments = in.readOptionalBoolean();
         this.topN = in.readOptionalVInt();
         this.instruction = in.readOptionalString();
+    }
+
+    @Nullable
+    public Boolean getReturnDocuments() {
+        return returnDocuments;
     }
 
     @Override
@@ -92,9 +107,7 @@ public class ContextualAiRerankTaskSettings extends ContextualAiTaskSettings imp
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(ML_INFERENCE_CONTEXTUAL_AI_RETURN_DOCUMENTS_REMOVED) == false) {
-            out.writeOptionalBoolean(null);
-        }
+        out.writeOptionalBoolean(returnDocuments);
         out.writeOptionalVInt(topN);
         out.writeOptionalString(instruction);
     }
@@ -107,6 +120,9 @@ public class ContextualAiRerankTaskSettings extends ContextualAiTaskSettings imp
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (returnDocuments != null) {
+            builder.field(RETURN_DOCUMENTS_FIELD, returnDocuments);
+        }
         if (topN != null) {
             builder.field(TOP_N_FIELD, topN);
         }
@@ -122,12 +138,14 @@ public class ContextualAiRerankTaskSettings extends ContextualAiTaskSettings imp
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         ContextualAiRerankTaskSettings that = (ContextualAiRerankTaskSettings) object;
-        return Objects.equals(topN, that.topN) && Objects.equals(instruction, that.instruction);
+        return Objects.equals(returnDocuments, that.returnDocuments)
+            && Objects.equals(topN, that.topN)
+            && Objects.equals(instruction, that.instruction);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(topN, instruction);
+        return Objects.hash(returnDocuments, topN, instruction);
     }
 
     @Override

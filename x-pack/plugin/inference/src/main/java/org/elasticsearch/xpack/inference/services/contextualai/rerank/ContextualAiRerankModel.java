@@ -22,8 +22,20 @@ import java.util.Map;
 
 public class ContextualAiRerankModel extends ContextualAiModel {
     public static ContextualAiRerankModel of(ContextualAiRerankModel model, Map<String, Object> taskSettingsMap) {
+        var originalSettings = model.getTaskSettings();
         var requestTaskSettings = ContextualAiRerankTaskSettings.fromMap(taskSettingsMap);
-        return new ContextualAiRerankModel(model, ContextualAiRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+
+        if (requestTaskSettings.isEmpty() || originalSettings.equals(requestTaskSettings)) {
+            return model;
+        }
+
+        var mergedTaskSettings = ContextualAiRerankTaskSettings.of(originalSettings, requestTaskSettings);
+
+        if (originalSettings.equals(mergedTaskSettings)) {
+            return model;
+        }
+
+        return new ContextualAiRerankModel(model, mergedTaskSettings);
     }
 
     public ContextualAiRerankModel(

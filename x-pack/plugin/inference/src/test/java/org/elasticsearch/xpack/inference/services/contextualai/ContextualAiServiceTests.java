@@ -76,7 +76,7 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
             new ContextualAiRerankServiceSettings(
                 new ContextualAiServiceSettings.CommonSettings(new URI(URL_VALUE), MODEL_ID_VALUE, new RateLimitSettings(1000))
             ),
-            new ContextualAiRerankTaskSettings(null, null),
+            new ContextualAiRerankTaskSettings(null, null, null),
             new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray()))
         );
         validateModelBuilding(model);

@@ -16,10 +16,6 @@ public final class ContextualAiUtils {
 
     public static final TransportVersion ML_INFERENCE_CONTEXTUAL_AI_ADDED = TransportVersion.fromName("contextual_ai_service");
 
-    public static final TransportVersion ML_INFERENCE_CONTEXTUAL_AI_RETURN_DOCUMENTS_REMOVED = TransportVersion.fromName(
-        "contextual_ai_return_documents_removed"
-    );
-
     /**
      * Whether the given transport version supports Contextual AI inference objects on the wire.
      */

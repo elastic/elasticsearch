@@ -48,11 +48,16 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
     private static final String INSTRUCTION_FIELD = "instruction";
 
     public void testCreateRequest_CustomUrl() throws IOException {
-        assertCreateHttpRequest(createRequest(URI.create(URL_VALUE), new ContextualAiRerankTaskSettings(null, null), null, null));
+        assertCreateHttpRequest(createRequest(URI.create(URL_VALUE), new ContextualAiRerankTaskSettings(null, null, null), null, null));
     }
 
     public void testCreateRequest_WithTopNAndInstruction() throws IOException {
-        var request = createRequest(URI.create(URL_VALUE), new ContextualAiRerankTaskSettings(null, null), TOP_N_VALUE, INSTRUCTION_VALUE);
+        var request = createRequest(
+            URI.create(URL_VALUE),
+            new ContextualAiRerankTaskSettings(null, null, null),
+            TOP_N_VALUE,
+            INSTRUCTION_VALUE
+        );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -74,7 +79,12 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
 
     public void testCreateRequest_TopNFallbackFromModelTaskSettings() throws IOException {
         int topNFromTaskSettings = 4;
-        var request = createRequest(URI.create(URL_VALUE), new ContextualAiRerankTaskSettings(topNFromTaskSettings, null), null, null);
+        var request = createRequest(
+            URI.create(URL_VALUE),
+            new ContextualAiRerankTaskSettings(null, topNFromTaskSettings, null),
+            null,
+            null
+        );
         assertThat(request.getTopN(), is(topNFromTaskSettings));
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
@@ -87,13 +97,13 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
     }
 
     public void testGetInferenceEntityId() {
-        var request = createRequest(URI.create(URL_VALUE), new ContextualAiRerankTaskSettings(null, null), null, null);
+        var request = createRequest(URI.create(URL_VALUE), new ContextualAiRerankTaskSettings(null, null, null), null, null);
         assertThat(request.getInferenceEntityId(), is(INFERENCE_ENTITY_ID_VALUE));
     }
 
     public void testGetURI() {
         var uri = URI.create(URL_VALUE);
-        var request = createRequest(uri, new ContextualAiRerankTaskSettings(null, null), null, null);
+        var request = createRequest(uri, new ContextualAiRerankTaskSettings(null, null, null), null, null);
         assertThat(request.getURI(), is(uri));
     }
 

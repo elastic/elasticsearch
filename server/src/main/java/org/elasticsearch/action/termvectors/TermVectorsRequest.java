@@ -527,7 +527,9 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
         out.writeBoolean(realtime);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
-        if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+        // This request is used outside of `TransportTermVectorsAction` and in that case the summary will be null.
+        // It will be set by TransportSingleShardAction when it matters.
+        if (splitShardCountSummary != null && out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary.writeTo(out);
         }
     }

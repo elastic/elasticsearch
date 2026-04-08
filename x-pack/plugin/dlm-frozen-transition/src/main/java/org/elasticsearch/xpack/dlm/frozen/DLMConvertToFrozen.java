@@ -366,10 +366,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         checkIfEligibleForConvertToFrozen();
 
         if (isSnapshotMounted(forceMergeIndex)) {
-            logger.debug(
-                "Snapshot [{}] is already mounted, skipping DLM mount searchable snapshot step",
-                snapshotName(forceMergeIndex)
-            );
+            logger.debug("Snapshot [{}] is already mounted, skipping DLM mount searchable snapshot step", snapshotName(forceMergeIndex));
             return;
         }
 
@@ -381,7 +378,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         // is not specifically set in the frozen tier, keeping this setting runs the risk that we will not have enough nodes to
         // allocate all the shards in the frozen tier and the user does not have any way of fixing this. For this reason, we ignore this
         // setting when moving to frozen.
-        String[] ignoredIndexSettings = new String[]{ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()};
+        String[] ignoredIndexSettings = new String[] { ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() };
 
         MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
             TimeValue.MAX_VALUE,
@@ -402,15 +399,11 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 .get();
             RestoreInfo restoreInfo = resp.getRestoreInfo();
             if (restoreInfo == null) {
-                throw new ElasticsearchException(
-                    "DLM failed to mount snapshot [{}] because the restore info was missing",
-                    snapshotName
-                );
+                throw new ElasticsearchException("DLM failed to mount snapshot [{}] because the restore info was missing", snapshotName);
             }
             if (restoreInfo.failedShards() > 0 || restoreInfo.successfulShards() == 0) {
                 throw new ElasticsearchException(
-                    "DLM failed to mount snapshot [{}] " +
-                        "because there were failed shards or no successful shards. Restore info: [{}]",
+                    "DLM failed to mount snapshot [{}] " + "because there were failed shards or no successful shards. Restore info: [{}]",
                     snapshotName,
                     restoreInfo
                 );

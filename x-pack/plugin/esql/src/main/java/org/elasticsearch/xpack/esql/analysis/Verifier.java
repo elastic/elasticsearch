@@ -128,7 +128,6 @@ public class Verifier {
         // Temporary check before we implement https://github.com/elastic/elasticsearch/issues/141995.
         // Partially-unmapped non-keyword field references are checked before the bail-out so that a query with both
         // an UnsupportedAttribute and a PUNK field produces both errors in one batch.
-        // TODO: test that shows that error message for PUNKs and using un-cast union types show up together
         if (unmappedResolution == UnmappedResolution.LOAD) {
             checkPartiallyUnmappedNonKeywordReferences(plan, failures, context);
         }
@@ -558,7 +557,8 @@ public class Verifier {
         };
 
         plan.forEachUp(p -> {
-            if (p instanceof EsRelation) {
+            // Fork will have a PUNK in the output even if it wasn't actually used in the query, that's fine.
+            if (p instanceof EsRelation || p instanceof Fork) {
                 return;
             }
 

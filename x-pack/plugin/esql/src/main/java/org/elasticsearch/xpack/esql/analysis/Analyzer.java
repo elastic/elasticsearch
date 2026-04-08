@@ -353,7 +353,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
 
             if (context.unmappedResolution() == UnmappedResolution.LOAD) {
-                loadPartiallyMappedFields(attributes, esIndex);
+                loadPartiallyUnmappedFields(attributes, esIndex);
             }
 
             return new EsRelation(
@@ -378,9 +378,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *       mechanism.</li>
          * </ul>
          */
-        private static void loadPartiallyMappedFields(List<Attribute> attributes, EsIndex esIndex) {
+        private static void loadPartiallyUnmappedFields(List<Attribute> attributes, EsIndex esIndex) {
             for (int i = 0; i < attributes.size(); i++) {
-                if (attributes.get(i) instanceof FieldAttribute fa && esIndex.isPartiallyUnmappedField(fa.fieldName().string())) {
+                if (attributes.get(i) instanceof FieldAttribute fa && isPartiallyUnmappedRegularField(fa, esIndex)) {
                     if (fa.dataType() == KEYWORD) {
                         attributes.set(i, ResolveRefs.insistKeyword(fa));
                     } else {
@@ -388,6 +388,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
             }
+        }
+
+        private static boolean isPartiallyUnmappedRegularField(FieldAttribute fa, EsIndex esIndex) {
+            // We ignore proper subclasses of FieldAttribute; these represent unsupported or special attributes.
+            return fa.getClass().equals(FieldAttribute.class) && esIndex.isPartiallyUnmappedField(fa.fieldName().string());
         }
 
         private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {

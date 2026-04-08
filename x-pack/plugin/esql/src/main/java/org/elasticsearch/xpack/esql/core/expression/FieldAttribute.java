@@ -29,7 +29,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Attribute for an ES field.
+ * Attribute for an ES index field.
  * This class offers:
  * - name - the name of the attribute, but not necessarily of the field.
  * - The raw EsField representing the field; for parent.child.grandchild this is just grandchild.

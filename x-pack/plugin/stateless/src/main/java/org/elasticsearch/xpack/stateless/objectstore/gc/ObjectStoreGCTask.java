@@ -28,6 +28,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
+/// A singleton persistent task that runs a recurring garbage-collection loop on the object store.
+/// On every cycle it runs two sub-jobs in parallel (if enabled): [StaleIndicesGCService], which deletes blob
+/// containers for index UUIDs that are no longer referenced in cluster metadata, and [StaleTranslogsGCService],
+/// which deletes translog files belonging to ephemeral node IDs that are no longer present in the cluster.
+///
+/// After each cycle completes the task reschedules itself after `GC_INTERVAL_SETTING` (default 8h).
+/// The task carries no per-run state and all deletions are idempotent.
 public class ObjectStoreGCTask extends AllocatedPersistentTask {
     public static final Setting<Boolean> STALE_INDICES_GC_ENABLED_SETTING = Setting.boolSetting(
         "stateless.object_store.gc.stale_indices.enabled",

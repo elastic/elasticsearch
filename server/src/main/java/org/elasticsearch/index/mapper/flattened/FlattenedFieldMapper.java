@@ -1514,7 +1514,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         if (preserveLeafArrays == PreserveLeafArrays.LOSSY) {
             arrayContext = null;
         } else {
-            arrayContext = new FlattenedFieldArrayContext(mappedFieldType.name(), builder.indexSettings.getIndexVersionCreated());
+            arrayContext = new FlattenedFieldArrayContext(mappedFieldType.name());
         }
 
         try {

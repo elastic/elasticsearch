@@ -67,9 +67,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
   method: testConcurrentAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/135777
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testMultipleInferencesTriggeringDownloadAndDeploy
-  issue: https://github.com/elastic/elasticsearch/issues/117208
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565

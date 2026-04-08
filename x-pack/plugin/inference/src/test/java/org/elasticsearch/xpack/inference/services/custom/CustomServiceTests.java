@@ -328,7 +328,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 QueryParameters.EMPTY,
                 "{\"input\":${input}}",
                 parser,
-                new RateLimitSettings(10_000)
+                new RateLimitSettings(10_000),
+                TaskType.TEXT_EMBEDDING
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())))
@@ -357,7 +358,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 parser,
                 new RateLimitSettings(10_000),
                 batchSize,
-                InputTypeTranslator.EMPTY_TRANSLATOR
+                InputTypeTranslator.EMPTY_TRANSLATOR,
+                TaskType.TEXT_EMBEDDING
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),
@@ -382,7 +384,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 QueryParameters.EMPTY,
                 "{\"input\":${input}}",
                 customResponseParser,
-                new RateLimitSettings(10_000)
+                new RateLimitSettings(10_000),
+                taskType
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),
@@ -1223,16 +1226,11 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 thrownException.getMessage(),
                 CoreMatchers.is(
                     org.elasticsearch.core.Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ID_VALUE,
-                        CustomService.NAME,
+                        "The [%s] service does not support task type [%s]",
                         CustomService.NAME,
                         TaskType.CHAT_COMPLETION
                     )
                 )
-
             );
         }
     }

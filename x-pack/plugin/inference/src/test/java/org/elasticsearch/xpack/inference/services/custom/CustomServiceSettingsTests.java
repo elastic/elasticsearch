@@ -43,9 +43,52 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.ML_INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE;
 import static org.hamcrest.Matchers.is;
 
 public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CustomServiceSettings> {
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+    private static final Integer TEST_DIMENSIONS = 1536;
+    private static final Integer INITIAL_TEST_DIMENSIONS = 3072;
+    private static final Integer TEST_MAX_INPUT_TOKENS = 512;
+    private static final Integer INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final String TEST_URL = "https://www.test.com";
+    private static final String INITIAL_TEST_URL = "https://www.initial-test.com";
+    private static final Map<String, String> TEST_HEADERS = Map.of("test_header_key", "test_header_value");
+    private static final Map<String, String> INITIAL_TEST_HEADERS = Map.of("initial_test_header_key", "initial_test_header_value");
+    private static final QueryParameters TEST_QUERY_PARAMETERS = new QueryParameters(
+        List.of(new QueryParameters.Parameter("test_parameter_key", "test_parameter_value"))
+    );
+    private static final QueryParameters INITIAL_TEST_QUERY_PARAMETERS = new QueryParameters(
+        List.of(new QueryParameters.Parameter("initial_test_parameter_key", "initial_test_parameter_value"))
+    );
+    private static final String TEST_REQUEST_CONTENT_STRING = "test-request-content-string";
+    private static final String INITIAL_TEST_REQUEST_CONTENT_STRING = "initial-test-request-content-string";
+    private static final CustomResponseParser TEST_RESPONSE_PARSER = new DenseEmbeddingResponseParser(
+        "$.data.embeddings[*].embedding",
+        CustomServiceEmbeddingType.FLOAT
+    );
+    private static final CustomResponseParser INITIAL_TEST_RESPONSE_PARSER = new NoopResponseParser();
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final Integer INITIAL_TEST_BATCH_SIZE = 5;
+    private static final Integer TEST_BATCH_SIZE = 10;
+    private static final InputTypeTranslator INITIAL_TEST_INPUT_TYPE_TRANSLATOR = InputTypeTranslator.EMPTY_TRANSLATOR;
+    private static final InputTypeTranslator TEST_INPUT_TYPE_TRANSLATOR = new InputTypeTranslator(
+        Map.of(
+            InputType.CLASSIFICATION,
+            "test_value",
+            InputType.CLUSTERING,
+            "test_value_2",
+            InputType.INGEST,
+            "test_value_3",
+            InputType.SEARCH,
+            "test_value_4"
+        ),
+        "default_value"
+    );
+
     public static CustomServiceSettings createRandom() {
         var inputUrl = randomAlphaOfLength(5);
         var taskType = randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION);
@@ -89,7 +132,113 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             queryParameters,
             requestContentString,
             responseJsonParser,
-            rateLimitSettings
+            rateLimitSettings,
+            taskType
+        );
+    }
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        HashMap<String, Object> settingsMap = createSettingsMap();
+
+        var settings = createInitialCustomServiceSettings().updateServiceSettings(settingsMap);
+
+        assertThat(
+            settings,
+            is(
+                new CustomServiceSettings(
+                    new CustomServiceSettings.TextEmbeddingSettings(TEST_SIMILARITY_MEASURE, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS),
+                    TEST_URL,
+                    TEST_HEADERS,
+                    TEST_QUERY_PARAMETERS,
+                    TEST_REQUEST_CONTENT_STRING,
+                    TEST_RESPONSE_PARSER,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
+                    TEST_BATCH_SIZE,
+                    TEST_INPUT_TYPE_TRANSLATOR,
+                    TaskType.TEXT_EMBEDDING
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var settings = createInitialCustomServiceSettings().updateServiceSettings(new HashMap<>());
+
+        assertThat(settings, is(createInitialCustomServiceSettings()));
+    }
+
+    private static CustomServiceSettings createInitialCustomServiceSettings() {
+        return new CustomServiceSettings(
+            new CustomServiceSettings.TextEmbeddingSettings(
+                INITIAL_TEST_SIMILARITY_MEASURE,
+                INITIAL_TEST_DIMENSIONS,
+                INITIAL_TEST_MAX_INPUT_TOKENS
+            ),
+            INITIAL_TEST_URL,
+            INITIAL_TEST_HEADERS,
+            INITIAL_TEST_QUERY_PARAMETERS,
+            INITIAL_TEST_REQUEST_CONTENT_STRING,
+            INITIAL_TEST_RESPONSE_PARSER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+            INITIAL_TEST_BATCH_SIZE,
+            INITIAL_TEST_INPUT_TYPE_TRANSLATOR,
+            TaskType.TEXT_EMBEDDING
+        );
+    }
+
+    private static HashMap<String, Object> createSettingsMap() {
+        return new HashMap<>(
+            Map.ofEntries(
+                Map.entry(ServiceFields.SIMILARITY, TEST_SIMILARITY_MEASURE.toString()),
+                Map.entry(ServiceFields.DIMENSIONS, TEST_DIMENSIONS),
+                Map.entry(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS),
+                Map.entry(ServiceFields.URL, TEST_URL),
+                Map.entry(CustomServiceSettings.HEADERS, TEST_HEADERS),
+                Map.entry(QueryParameters.QUERY_PARAMETERS, List.of(List.of("test_parameter_key", "test_parameter_value"))),
+                Map.entry(CustomServiceSettings.REQUEST, TEST_REQUEST_CONTENT_STRING),
+                Map.entry(
+                    CustomServiceSettings.RESPONSE,
+                    new HashMap<>(
+                        Map.of(
+                            CustomServiceSettings.JSON_PARSER,
+                            new HashMap<>(
+                                Map.of(DenseEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS, "$.data.embeddings[*].embedding")
+                            )
+                        )
+                    )
+                ),
+                Map.entry(
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+                ),
+                Map.entry(
+                    CustomServiceSettings.BATCH_SIZE,
+                    TEST_BATCH_SIZE
+
+                ),
+                Map.entry(
+                    InputTypeTranslator.INPUT_TYPE_TRANSLATOR,
+                    new HashMap<>(
+                        Map.of(
+                            InputTypeTranslator.TRANSLATION,
+                            new HashMap<>(
+                                Map.of(
+                                    "CLASSIFICATION",
+                                    "test_value",
+                                    "CLUSTERING",
+                                    "test_value_2",
+                                    "INGEST",
+                                    "test_value_3",
+                                    "SEARCH",
+                                    "test_value_4"
+                                )
+                            ),
+                            InputTypeTranslator.DEFAULT,
+                            "default_value"
+                        )
+                    )
+                )
+            )
         );
     }
 
@@ -150,7 +299,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     responseParser,
                     new RateLimitSettings(10_000),
                     11,
-                    InputTypeTranslator.EMPTY_TRANSLATOR
+                    InputTypeTranslator.EMPTY_TRANSLATOR,
+                    TaskType.TEXT_EMBEDDING
                 )
             )
         );
@@ -199,7 +349,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000)
+                    new RateLimitSettings(10_000),
+                    TaskType.TEXT_EMBEDDING
                 )
             )
         );
@@ -248,7 +399,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000)
+                    new RateLimitSettings(10_000),
+                    TaskType.TEXT_EMBEDDING
                 )
             )
         );
@@ -297,7 +449,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000)
+                    new RateLimitSettings(10_000),
+                    TaskType.TEXT_EMBEDDING
                 )
             )
         );
@@ -341,7 +494,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000)
+                    new RateLimitSettings(10_000),
+                    TaskType.COMPLETION
                 )
             )
         );
@@ -429,7 +583,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000)
+                    new RateLimitSettings(10_000),
+                    TaskType.TEXT_EMBEDDING
                 )
             )
         );
@@ -489,7 +644,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                     null,
                     requestContentString,
                     responseParser,
-                    new RateLimitSettings(10_000)
+                    new RateLimitSettings(10_000),
+                    TaskType.TEXT_EMBEDDING
                 )
             )
         );
@@ -782,7 +938,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             null,
             "string",
             new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
-            null
+            null,
+            TaskType.TEXT_EMBEDDING
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -809,7 +966,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "rate_limit": {
                     "requests_per_minute": 10000
                 },
-                "batch_size": 10
+                "batch_size": 10,
+                "task_type": "text_embedding"
             }
             """);
 
@@ -828,7 +986,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "$.result.reranked_results[*].index",
                 "$.result.reranked_results[*].document_text"
             ),
-            null
+            null,
+            TaskType.RERANK
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -856,7 +1015,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "rate_limit": {
                     "requests_per_minute": 10000
                 },
-                "batch_size": 10
+                "batch_size": 10,
+                "task_type": "rerank"
             }
             """);
 
@@ -873,7 +1033,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
             null,
             null,
-            new InputTypeTranslator(Map.of(InputType.SEARCH, "do_search", InputType.INGEST, "do_ingest"), "a_default")
+            new InputTypeTranslator(Map.of(InputType.SEARCH, "do_search", InputType.INGEST, "do_ingest"), "a_default"),
+            TaskType.TEXT_EMBEDDING
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -903,7 +1064,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "rate_limit": {
                     "requests_per_minute": 10000
                 },
-                "batch_size": 10
+                "batch_size": 10,
+                "task_type": "text_embedding"
             }
             """);
 
@@ -920,7 +1082,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT),
             null,
             11,
-            InputTypeTranslator.EMPTY_TRANSLATOR
+            InputTypeTranslator.EMPTY_TRANSLATOR,
+            TaskType.COMPLETION
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -947,7 +1110,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
                 "rate_limit": {
                     "requests_per_minute": 10000
                 },
-                "batch_size": 11
+                "batch_size": 11,
+                "task_type": "completion"
             }
             """);
 
@@ -971,6 +1135,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CustomServiceSettings mutateInstance(CustomServiceSettings instance) {
+        var taskType = instance.taskType();
         var textEmbeddingSettings = instance.getTextEmbeddingSettings();
         var url = instance.getUrl();
         var headers = instance.getHeaders();
@@ -980,7 +1145,7 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
         var rateLimitSettings = instance.rateLimitSettings();
         var batchSize = instance.getBatchSize();
         var inputTypeTranslator = instance.getInputTypeTranslator();
-        switch (randomInt(8)) {
+        switch (randomInt(9)) {
             case 0 -> textEmbeddingSettings = randomValueOtherThan(
                 textEmbeddingSettings,
                 CustomServiceSettingsTests::randomTextEmbeddingSettings
@@ -996,6 +1161,10 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             case 6 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             case 7 -> batchSize = randomValueOtherThan(batchSize, ESTestCase::randomInt);
             case 8 -> inputTypeTranslator = randomValueOtherThan(inputTypeTranslator, InputTypeTranslatorTests::createRandom);
+            case 9 -> taskType = randomValueOtherThan(
+                taskType,
+                () -> randomFrom(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.SPARSE_EMBEDDING, TaskType.COMPLETION, null)
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -1008,7 +1177,8 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
             responseJsonParser,
             rateLimitSettings,
             batchSize,
-            inputTypeTranslator
+            inputTypeTranslator,
+            taskType
         );
     }
 
@@ -1040,6 +1210,20 @@ public class CustomServiceSettingsTests extends AbstractBWCWireSerializationTest
 
     @Override
     protected CustomServiceSettings mutateInstanceForVersion(CustomServiceSettings instance, TransportVersion version) {
+        if (version.supports(ML_INFERENCE_CUSTOM_SERVICE_SETTINGS_TASK_TYPE) == false) {
+            return new CustomServiceSettings(
+                instance.getTextEmbeddingSettings(),
+                instance.getUrl(),
+                instance.getHeaders(),
+                instance.getQueryParameters(),
+                instance.getRequestContentString(),
+                instance.getResponseJsonParser(),
+                instance.rateLimitSettings(),
+                instance.getBatchSize(),
+                instance.getInputTypeTranslator(),
+                null
+            );
+        }
         return instance;
     }
 }

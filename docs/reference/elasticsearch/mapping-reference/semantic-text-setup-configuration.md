@@ -49,7 +49,7 @@ PUT my-index-000001
 
 The default {{infer}} endpoint varies by deployment type and version:
 
-- {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga` On {{ecloud}} 9.4+ and on {{serverless-short}}, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md).
+- {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga` In version 9.4 and on {{serverless-short}}, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md).
 
 - {applies_to}`stack: ga 9.3` In version 9.3, the `inference_id` parameter defaults to `.elser-2-elastic` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 

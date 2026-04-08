@@ -66,8 +66,8 @@ public class ViewUnionAll extends UnionAll {
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName() + "[" + namedSubqueries.keySet() + "]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(namedSubqueries.keySet()).append("]");
     }
 
     @Override

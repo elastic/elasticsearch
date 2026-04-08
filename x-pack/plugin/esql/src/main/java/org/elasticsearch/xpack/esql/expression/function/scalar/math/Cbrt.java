@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -30,6 +31,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLo
 
 public class Cbrt extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Cbrt", Cbrt::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Cbrt.class).unary(Cbrt::new).name("cbrt");
 
     @FunctionInfo(returnType = "double", description = """
         Returns the cube root of a number. The input can be any numeric value, the return value is always a double.

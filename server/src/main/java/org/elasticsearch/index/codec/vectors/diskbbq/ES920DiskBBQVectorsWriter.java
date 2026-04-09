@@ -514,9 +514,10 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput ivfMeta,
         FieldInfo field,
         int numCentroids,
-        long preconditionerOfffset,
+        long preconditionerOffset,
         long preconditionerLength,
-        int numberOfSlices
+        int numberOfSlices,
+        int maxSliceSize
     ) {
         // Do Nothing Extra
     }

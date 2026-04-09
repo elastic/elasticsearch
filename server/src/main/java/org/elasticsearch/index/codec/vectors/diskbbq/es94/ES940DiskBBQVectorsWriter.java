@@ -579,7 +579,8 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter {
         int numCentroids,
         long preconditionerOffset,
         long preconditionerLength,
-        int numberOfSlices
+        int numberOfSlices,
+        int maxSliceSize
     ) throws IOException {
         metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
         metaOutput.writeInt(quantEncoding.id());

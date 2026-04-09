@@ -312,10 +312,16 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             onHeapQuantizedVectors.reset(centroid, centroidClusters.getCentroid(c), size, ord -> cluster[clusterOrds[ord]]);
             byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
             postingsOutput.writeByte(encoding);
-            bulkWriter.writeVectors(onHeapQuantizedVectors, i -> {
-                // for vector i we write `bulk` size docs or the remaining docs
-                idsWriter.writeDocIds(d -> docDeltas[i + d], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
-            });
+            if (sliceField != null) {
+                // We are not writing the docIds as we expect dense vectors in one centroid
+                assert centroidSupplier.size() == 1;
+                bulkWriter.writeVectors(onHeapQuantizedVectors, null);
+            } else {
+                bulkWriter.writeVectors(onHeapQuantizedVectors, i -> {
+                    // for vector i we write `bulk` size docs or the remaining docs
+                    idsWriter.writeDocIds(d -> docDeltas[i + d], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
+                });
+            }
             lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
         }
 
@@ -594,7 +600,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         int numCentroids,
         long preconditionerOffset,
         long preconditionerLength,
-        int numberOfSlices
+        int numberOfSlices,
+        int maxSliceSize
     ) throws IOException {
         metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
         metaOutput.writeInt(quantEncoding.id());
@@ -602,7 +609,15 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         if (preconditionerLength > 0) {
             metaOutput.writeLong(preconditionerOffset);
         }
-        metaOutput.writeVInt(numberOfSlices);
+        if (sliceField == null) {
+            assert numberOfSlices == 0;
+            metaOutput.writeInt(-1);
+        } else {
+            metaOutput.writeVInt(numberOfSlices);
+            if (numberOfSlices > 0) {
+                metaOutput.writeVInt(maxSliceSize);
+            }
+        }
     }
 
     @Override
@@ -640,6 +655,17 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         CentroidOffsetAndLength centroidOffsetAndLength,
         IndexOutput centroidOutput
     ) throws IOException {
+        CentroidSlices centroidSlices = centroidSupplier.slices();
+        if (centroidSlices != null) {
+            int numSlices = centroidSlices.sliceNumVectors().length;
+            int maxSlice = centroidSlices.maxSliceSize();
+            int bits = DirectWriter.bitsRequired(maxSlice);
+            DirectWriter writer = DirectWriter.getInstance(centroidOutput, numSlices, bits);
+            for (int i = 0; i < centroidSlices.sliceNumVectors().length; i++) {
+                writer.add(centroidSlices.sliceNumVectors()[i]);
+            }
+            writer.finish();
+        }
         if (centroidSupplier.secondLevelClusters().centroidsSupplier().size() > 1) {
             final CentroidGroups centroidGroups = buildCentroidGroups(centroidSupplier.secondLevelClusters());
             {
@@ -964,6 +990,10 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
      */
     @Override
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
+        if (sliceField != null) {
+            // for sliced indexed, we don't cluster the data during flush so we can search our vectors by docId range
+            return buildFlatCentroidAssignments(fieldInfo, floatVectorValues);
+        }
         HierarchicalKMeans hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
         KMeansResult kMeansResult = calculateCentroids(hierarchicalKMeans, floatVectorValues);
         if (logger.isDebugEnabled()) {

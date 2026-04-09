@@ -67,6 +67,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
@@ -215,6 +216,9 @@ public class KnnSearcher {
 
         @Override
         public Query filter(int searchIndex) {
+            if (sliceIndex) {
+                return selectivityFilter;
+            }
             Query partitionFilter = SortedDocValuesField.newSlowExactQuery(PARTITION_ID_FIELD, getPartition(searchIndex));
             return combineFilters(partitionFilter, selectivityFilter);
         }
@@ -756,8 +760,8 @@ public class KnnSearcher {
         IndexSearcher searcher,
         Query filterQuery,
         SearchParameters searchParameters,
-        String pf,
-        BytesRef p
+        String sliceField,
+        BytesRef sliceId
     ) throws IOException {
         Query knnQuery;
         int overSampledTopK = searchParameters.topK();
@@ -768,17 +772,29 @@ public class KnnSearcher {
         int efSearch = Math.max(overSampledTopK, searchParameters.numCandidates());
         if (indexType == KnnIndexTester.IndexType.IVF) {
             float visitRatio = (float) (searchParameters.visitPercentage() / 100);
-            knnQuery = new IVFKnnFloatVectorQuery(
-                VECTOR_FIELD,
-                vector,
-                overSampledTopK,
-                efSearch,
-                filterQuery,
-                visitRatio,
-                doPrecondition,
-                pf,
-                p
-            );
+            if (sliceField != null && sliceId != null) {
+                knnQuery = new IVFKnnFloatSlicedVectorQuery(
+                    VECTOR_FIELD,
+                    vector,
+                    overSampledTopK,
+                    efSearch,
+                    filterQuery,
+                    visitRatio,
+                    doPrecondition,
+                    sliceField,
+                    sliceId
+                );
+            } else {
+                knnQuery = new IVFKnnFloatVectorQuery(
+                    VECTOR_FIELD,
+                    vector,
+                    overSampledTopK,
+                    efSearch,
+                    filterQuery,
+                    visitRatio,
+                    doPrecondition
+                );
+            }
         } else {
             knnQuery = new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,

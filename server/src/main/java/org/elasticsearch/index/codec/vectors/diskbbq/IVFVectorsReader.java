@@ -139,6 +139,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         float visitRatio
     ) throws IOException;
 
+    protected int getNumberOfVectors(E entry, FloatVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
+        throws IOException {
+        return values.size();
+    }
+
     protected static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,
@@ -312,15 +317,18 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             esAcceptDocs = null;
         }
 
+        final E entry = fields.get(fieldInfo.number);
         final FloatVectorValues values = getFloatVectorValues(field);
-        final int numVectors = values.size();
+        final IndexInput centroids = entry.centroidSlice(ivfCentroids);
+        //
+        final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
         final float approximateCost;
         if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
-            approximateCost = numVectors;
+            approximateCost = values.size();
         } else {
             approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
         }
-        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
+        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / values.size()));
         int k = knnCollector.k();
         int numCands = k;
         float visitRatio = dynamicVisitRatio;
@@ -331,7 +339,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             k = ivfSearchStrategy.getK();
         }
 
-        FieldEntry entry = fields.get(fieldInfo.number);
         if (visitRatio == dynamicVisitRatio) {
             visitRatio = Math.min(computeDynamicVisitRatio(numCands, k), computeSegmentSizeCap(numVectors));
         }
@@ -341,7 +348,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
-            entry.centroidSlice(ivfCentroids),
+            centroids,
             target,
             postListSlice,
             acceptDocs,
@@ -352,11 +359,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         Bits acceptDocsBits = acceptDocs.bits();
         PostingVisitor scorer = getPostingVisitor(
             fieldInfo,
-            numVectors,
+            values,
             postListSlice,
             target,
             acceptDocsBits,
-            entry.centroidSlice(ivfCentroids)
+            entry.centroidSlice(ivfCentroids),
+            esAcceptDocs
         );
         long expectedDocs = 0;
         long actualDocs = 0;
@@ -539,11 +547,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     public abstract PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
-        int numVectors,
+        FloatVectorValues values,
         IndexInput postingsLists,
         float[] target,
         Bits needsScoring,
-        IndexInput centroidSlice
+        IndexInput centroidSlice,
+        ESAcceptDocs acceptDocs
     ) throws IOException;
 
     public interface PostingVisitor {

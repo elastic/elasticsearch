@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import com.carrotsearch.hppc.IntHashSet;
 
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -33,7 +32,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -57,19 +55,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final Query filter;
     protected int vectorOpsCount;
     protected boolean doPrecondition;
-    private final String sliceField; // null no slice
-    private final BytesRef sliceId;
 
-    protected AbstractIVFKnnVectorQuery(
-        String field,
-        float visitRatio,
-        int k,
-        int numCands,
-        Query filter,
-        boolean doPrecondition,
-        String sliceField,
-        BytesRef sliceId
-    ) {
+    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -85,8 +72,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.filter = filter;
         this.numCands = numCands;
         this.doPrecondition = doPrecondition;
-        this.sliceField = sliceField;
-        this.sliceId = sliceId;
     }
 
     @Override
@@ -105,36 +90,25 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             && numCands == that.numCands
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
-            && Objects.equals(providedVisitRatio, that.providedVisitRatio)
-            && Objects.equals(sliceField, that.sliceField)
-            && Objects.equals(sliceId, that.sliceId);
+            && Objects.equals(providedVisitRatio, that.providedVisitRatio);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, filter, providedVisitRatio, sliceField, sliceId);
+        return Objects.hash(field, k, numCands, filter, providedVisitRatio);
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         vectorOpsCount = 0;
         IndexReader reader = indexSearcher.getIndexReader();
-        // Adding slice as a filter if it exist
+
         final Weight filterWeight;
         if (filter != null) {
-            BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
-                .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER);
-            if (sliceField != null) {
-                // add slice as a filter
-                booleanQueryBuilder.add(SortedDocValuesField.newSlowExactQuery(sliceField, sliceId), BooleanClause.Occur.FILTER);
-            }
-            Query rewritten = indexSearcher.rewrite(booleanQueryBuilder.build());
-            if (rewritten.getClass() == MatchNoDocsQuery.class) {
-                return rewritten;
-            }
-            filterWeight = indexSearcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
-        } else if (sliceField != null) {
-            Query rewritten = indexSearcher.rewrite(SortedDocValuesField.newSlowExactQuery(sliceField, sliceId));
+            BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
+                .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
+                .build();
+            Query rewritten = indexSearcher.rewrite(booleanQuery);
             if (rewritten.getClass() == MatchNoDocsQuery.class) {
                 return rewritten;
             }
@@ -201,27 +175,28 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final Bits liveDocs = reader.getLiveDocs();
         final int maxDoc = reader.maxDoc();
 
-        AcceptDocs acceptDocs;
-        int sliceOrd = -1;
-        if (sliceId != null) {
-            var sortedDocValues = ctx.reader().getSortedDocValues(sliceField);
-            if (sortedDocValues != null) {
-                int ord = sortedDocValues.lookupTerm(sliceId);
-                sliceOrd = ord >= 0 ? ord : -1;
-            }
-        }
         if (filterWeight == null) {
-            acceptDocs = liveDocs == null
-                ? new ESAcceptDocs.ESAcceptDocsAll(sliceOrd)
-                : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc, sliceOrd);
-        } else {
-            ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
-            if (supplier == null) {
-                return TopDocsCollector.EMPTY_TOPDOCS;
-            }
-            acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, maxDoc, sliceOrd);
+            return approximateSearch(
+                ctx,
+                liveDocs == null ? new ESAcceptDocs.ESAcceptDocsAll() : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc),
+                Integer.MAX_VALUE,
+                knnCollectorManager,
+                visitRatio
+            );
         }
-        return approximateSearch(ctx, acceptDocs, Integer.MAX_VALUE, knnCollectorManager, visitRatio);
+
+        ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
+        if (supplier == null) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
+
+        return approximateSearch(
+            ctx,
+            new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, maxDoc),
+            Integer.MAX_VALUE,
+            knnCollectorManager,
+            visitRatio
+        );
     }
 
     abstract void preconditionQuery(LeafReaderContext context) throws IOException;

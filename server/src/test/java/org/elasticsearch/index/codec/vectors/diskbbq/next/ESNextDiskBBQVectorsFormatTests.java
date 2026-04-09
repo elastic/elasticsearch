@@ -49,8 +49,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -529,7 +527,11 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         writer.addDocument(doc);
     }
 
-    public void testSlices() throws IOException {
+    public void testSlicesDense() throws IOException {
+        doTestSlices(true);
+    }
+
+    private void doTestSlices(boolean dense) throws IOException {
         // TODO: add test with filters
         String sliceField = "_slice";
         ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
@@ -562,7 +564,9 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 docsPerSlice[slice]++;
                 Document doc = new Document();
                 doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + slice)));
-                doc.add(new KnnFloatVectorField("vector", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                if (dense || random().nextInt(10) == 0) {
+                    doc.add(new KnnFloatVectorField("vector", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                }
                 doc.add(new StoredField(sliceField, new BytesRef("" + slice)));
                 w.addDocument(doc);
             }
@@ -586,13 +590,14 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                             continue;
                         }
                         ScorerSupplier scorerSupplier = weight.scorerSupplier(context);
-                        ESAcceptDocs acceptDocs;
-                        if (random().nextBoolean()) {
-                            acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(scorerSupplier, null, leafReader.maxDoc(), ord);
-                        } else {
-                            Bits bits = BitSet.of(scorerSupplier.get(DocIdSetIterator.NO_MORE_DOCS).iterator(), leafReader.maxDoc());
-                            acceptDocs = new ESAcceptDocs.BitsAcceptDocs(bits, leafReader.maxDoc(), ord);
+                        DocIdSetIterator iterator = scorerSupplier.get(DocIdSetIterator.NO_MORE_DOCS).iterator();
+                        int minDoc = iterator.nextDoc();
+                        int maxDoc = minDoc;
+                        while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                            maxDoc = iterator.docID();
                         }
+                        ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = new ESAcceptDocs.SliceAcceptDocs(minDoc, maxDoc);
+                        ESAcceptDocs acceptDocs = new ESAcceptDocs.ESAcceptDocsAll(ord, () -> sliceAcceptDocs);
                         // we might collect the same document twice because of soar assignments
                         KnnCollector collector = new TopKnnCollector(2 * docsPerSlice[slice], Integer.MAX_VALUE);
                         weight.scorer(context);

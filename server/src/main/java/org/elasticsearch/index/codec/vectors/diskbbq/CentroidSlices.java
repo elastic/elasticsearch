@@ -9,7 +9,19 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-public record CentroidSlices(int[] sliceOffsets, int[] sliceNumVectors) {
+public record CentroidSlices(int[] sliceOffsets, int[] sliceNumVectors, int maxSliceSize) {
+
+    public CentroidSlices(int[] sliceOffsets, int[] sliceNumVectors) {
+        this(sliceOffsets, sliceNumVectors, computeMaxSliceSize(sliceNumVectors));
+    }
+
+    private static int computeMaxSliceSize(int[] sliceNumVectors) {
+        int maxSliceSize = 0;
+        for (int sliceNumVector : sliceNumVectors) {
+            maxSliceSize += sliceNumVector;
+        }
+        return maxSliceSize;
+    }
 
     public static boolean assertSliceOffsets(int[] offsets, int numCentroids) {
         int count = offsets[0];

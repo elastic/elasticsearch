@@ -18,7 +18,6 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
@@ -50,22 +49,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio,
         boolean doPrecondition
     ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition, null, null);
-        this.query = query;
-    }
-
-    public IVFKnnFloatVectorQuery(
-        String field,
-        float[] query,
-        int k,
-        int numCands,
-        Query filter,
-        float visitRatio,
-        boolean doPrecondition,
-        String sliceField,
-        BytesRef sliceId
-    ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition, sliceField, sliceId);
+        super(field, visitRatio, k, numCands, filter, doPrecondition);
         this.query = query;
     }
 

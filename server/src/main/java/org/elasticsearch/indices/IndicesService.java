@@ -1675,7 +1675,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false) {
+            if (settings.isRequestCacheEnabled() == false) {
                 return false;
             } else if (context.size() != 0) {
                 // If no request cache query parameter and shard request cache
@@ -1944,7 +1944,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexService service = indexService(shardId.getIndex());
         if (service != null) {
             IndexShard shard = service.getShardOrNull(shardId.id());
-            final boolean clearedAtLeastOne = service.clearCaches(queryCache, fieldDataCache, fields);
+            final boolean clearedAtLeastOne = service.clearCaches(queryCache, fieldDataCache, requestCache, fields);
             if ((requestCache || (clearedAtLeastOne == false && fields.length == 0)) && shard != null) {
                 indicesRequestCache.clear(new IndexShardCacheEntity(shard));
             }

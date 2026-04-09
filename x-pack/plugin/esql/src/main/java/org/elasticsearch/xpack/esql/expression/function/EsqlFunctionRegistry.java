@@ -8,15 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -30,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctO
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Deriv;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
@@ -37,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
@@ -241,7 +237,6 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.L1Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.lang.reflect.Constructor;
@@ -256,10 +251,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -312,9 +305,6 @@ public class EsqlFunctionRegistry {
             DATA_TYPE_CASTING_PRIORITY.put(typePriorityList.get(i), i);
         }
     }
-
-    // Translation table for error messaging in the following function
-    private static final String[] NUM_NAMES = { "zero", "one", "two", "three", "four", "five", "six" };
 
     // list of functions grouped by type of functions (aggregate, statistics, math etc) and ordered alphabetically inside each group
     // a single function will have one entry for itself with its name associated to its instance and, also, one entry for each alias
@@ -376,242 +366,237 @@ public class EsqlFunctionRegistry {
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
             // grouping functions
-            new FunctionDefinition[] {
-                def(Bucket.class, Bucket::new, "bucket", "bin"),
-                def(Categorize.class, Categorize::new, "categorize"),
-                defTS(TBucket.class, TBucket::new, "tbucket"),
-                def(TimeSeriesWithout.class, TimeSeriesWithout::new, "without") },
+            new FunctionDefinition[] { Bucket.DEFINITION, Categorize.DEFINITION, TBucket.DEFINITION, TimeSeriesWithout.DEFINITION },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
             new FunctionDefinition[] {
-                def(Avg.class, uni(Avg::new), "avg"),
-                def(Clamp.class, tri(Clamp::new), "clamp"),
-                def(Count.class, uni(Count::new), "count"),
-                def(CountDistinct.class, bi(CountDistinct::new), "count_distinct"),
-                def(Max.class, uni(Max::new), "max"),
-                def(Median.class, uni(Median::new), "median"),
-                def(MedianAbsoluteDeviation.class, uni(MedianAbsoluteDeviation::new), "median_absolute_deviation"),
-                def(Min.class, uni(Min::new), "min"),
-                def(Percentile.class, bi(Percentile::new), "percentile"),
-                def(Sample.class, bi(Sample::new), "sample"),
-                def(StdDev.class, uni(StdDev::new), "std_dev"),
-                def(Variance.class, uni(Variance::new), "variance", "std_var"),
-                def(Sum.class, uni(Sum::new), "sum"),
-                def(Top.class, quad(Top::new), "top"),
-                def(Values.class, uni(Values::new), "values"),
-                def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
-                def(Present.class, uni(Present::new), "present"),
-                def(Absent.class, uni(Absent::new), "absent"),
-                def(First.class, bi(First::new), "first"),
-                def(Last.class, bi(Last::new), "last"), },
+                Avg.DEFINITION,
+                Clamp.DEFINITION,
+                Count.DEFINITION,
+                CountDistinct.DEFINITION,
+                Max.DEFINITION,
+                Median.DEFINITION,
+                MedianAbsoluteDeviation.DEFINITION,
+                Min.DEFINITION,
+                Percentile.DEFINITION,
+                Sample.DEFINITION,
+                StdDev.DEFINITION,
+                Variance.DEFINITION,
+                Sum.DEFINITION,
+                Top.DEFINITION,
+                Values.DEFINITION,
+                WeightedAvg.DEFINITION,
+                Present.DEFINITION,
+                Absent.DEFINITION,
+                First.DEFINITION,
+                Last.DEFINITION,
+                Earliest.DEFINITION,
+                Latest.DEFINITION, },
             // math
             new FunctionDefinition[] {
                 Abs.DEFINITION,
-                def(Acos.class, Acos::new, "acos"),
-                def(Asin.class, Asin::new, "asin"),
-                def(Atan.class, Atan::new, "atan"),
-                def(Atan2.class, Atan2::new, "atan2"),
-                def(Cbrt.class, Cbrt::new, "cbrt"),
-                def(Ceil.class, Ceil::new, "ceil"),
-                def(Cos.class, Cos::new, "cos"),
-                def(Cosh.class, Cosh::new, "cosh"),
-                def(Acosh.class, Acosh::new, "acosh"),
-                def(Asinh.class, Asinh::new, "asinh"),
-                def(Atanh.class, Atanh::new, "atanh"),
-                def(E.class, E::new, "e"),
-                def(Exp.class, Exp::new, "exp"),
-                def(Floor.class, Floor::new, "floor"),
-                def(Greatest.class, Greatest::new, "greatest"),
-                def(CopySign.class, bi(CopySign::new), "copy_sign"),
-                def(Hypot.class, Hypot::new, "hypot"),
-                def(Log.class, Log::new, "log"),
-                def(Log10.class, Log10::new, "log10"),
-                def(Least.class, Least::new, "least"),
-                def(ClampMax.class, ClampMax::new, "clamp_max"),
-                def(ClampMin.class, ClampMin::new, "clamp_min"),
-                def(Pi.class, Pi::new, "pi"),
-                def(Pow.class, Pow::new, "pow"),
+                Acos.DEFINITION,
+                Asin.DEFINITION,
+                Atan.DEFINITION,
+                Atan2.DEFINITION,
+                Cbrt.DEFINITION,
+                Ceil.DEFINITION,
+                Cos.DEFINITION,
+                Cosh.DEFINITION,
+                Acosh.DEFINITION,
+                Asinh.DEFINITION,
+                Atanh.DEFINITION,
+                E.DEFINITION,
+                Exp.DEFINITION,
+                Floor.DEFINITION,
+                Greatest.DEFINITION,
+                CopySign.DEFINITION,
+                Hypot.DEFINITION,
+                Log.DEFINITION,
+                Log10.DEFINITION,
+                Least.DEFINITION,
+                ClampMax.DEFINITION,
+                ClampMin.DEFINITION,
+                Pi.DEFINITION,
+                Pow.DEFINITION,
                 Round.DEFINITION,
-                def(RoundTo.class, RoundTo::new, "round_to"),
-                def(Scalb.class, Scalb::new, "scalb"),
-                def(Signum.class, Signum::new, "signum"),
-                def(Sin.class, Sin::new, "sin"),
-                def(Sinh.class, Sinh::new, "sinh"),
-                def(Sqrt.class, Sqrt::new, "sqrt"),
-                def(Tan.class, Tan::new, "tan"),
-                def(Tanh.class, Tanh::new, "tanh"),
-                def(Tau.class, Tau::new, "tau") },
+                RoundTo.DEFINITION,
+                Scalb.DEFINITION,
+                Signum.DEFINITION,
+                Sin.DEFINITION,
+                Sinh.DEFINITION,
+                Sqrt.DEFINITION,
+                Tan.DEFINITION,
+                Tanh.DEFINITION,
+                Tau.DEFINITION },
             // string
             new FunctionDefinition[] {
-                def(BitLength.class, BitLength::new, "bit_length"),
-                def(ByteLength.class, ByteLength::new, "byte_length"),
-                def(Chicken.class, Chicken::new, "chicken", Chicken.CHICKEN_EMOJI),
-                def(Concat.class, Concat::new, "concat"),
-                def(Contains.class, Contains::new, "contains"),
-                def(EndsWith.class, EndsWith::new, "ends_with"),
-                def(Hash.class, Hash::new, "hash"),
-                def(JsonExtract.class, JsonExtract::new, "json_extract"),
-                def(LTrim.class, LTrim::new, "ltrim"),
-                def(Left.class, Left::new, "left"),
-                def(Length.class, Length::new, "length"),
-                def(Locate.class, Locate::new, "locate"),
-                def(Md5.class, Md5::new, "md5"),
-                def(RTrim.class, RTrim::new, "rtrim"),
-                def(Repeat.class, Repeat::new, "repeat"),
-                def(Replace.class, Replace::new, "replace"),
+                BitLength.DEFINITION,
+                ByteLength.DEFINITION,
+                Chicken.DEFINITION,
+                Concat.DEFINITION,
+                Contains.DEFINITION,
+                EndsWith.DEFINITION,
+                Hash.DEFINITION,
+                JsonExtract.DEFINITION,
+                LTrim.DEFINITION,
+                Left.DEFINITION,
+                Length.DEFINITION,
+                Locate.DEFINITION,
+                Md5.DEFINITION,
+                RTrim.DEFINITION,
+                Repeat.DEFINITION,
+                Replace.DEFINITION,
                 Reverse.DEFINITION,
-                def(Right.class, Right::new, "right"),
-                def(Sha1.class, Sha1::new, "sha1"),
-                def(Sha256.class, Sha256::new, "sha256"),
-                def(Space.class, Space::new, "space"),
-                def(StartsWith.class, StartsWith::new, "starts_with"),
+                Right.DEFINITION,
+                Sha1.DEFINITION,
+                Sha256.DEFINITION,
+                Space.DEFINITION,
+                StartsWith.DEFINITION,
                 Substring.DEFINITION,
-                def(ToLower.class, ToLower::new, "to_lower"),
-                def(ToUpper.class, ToUpper::new, "to_upper"),
-                def(Trim.class, Trim::new, "trim"),
-                def(UrlEncode.class, UrlEncode::new, "url_encode"),
-                def(UrlEncodeComponent.class, UrlEncodeComponent::new, "url_encode_component"),
-                def(UrlDecode.class, UrlDecode::new, "url_decode"),
-                def(Chunk.class, bi(Chunk::new), "chunk") },
+                ToLower.DEFINITION,
+                ToUpper.DEFINITION,
+                Trim.DEFINITION,
+                UrlEncode.DEFINITION,
+                UrlEncodeComponent.DEFINITION,
+                UrlDecode.DEFINITION,
+                Chunk.DEFINITION },
             // date
             new FunctionDefinition[] {
-                def(DateDiff.class, tric(DateDiff::new), "date_diff"),
-                def(DateExtract.class, DateExtract::new, "date_extract"),
-                def(DateFormat.class, DateFormat::new, "date_format"),
-                def(DateParse.class, DateParse::new, "date_parse"),
-                def(DateTrunc.class, DateTrunc::new, "date_trunc"),
-                def(DayName.class, DayName::new, "day_name"),
-                def(MonthName.class, MonthName::new, "month_name"),
-                def(Now.class, Now::new, "now"),
-                defTS(TRange.class, TRange::new, "trange") },
+                DateDiff.DEFINITION,
+                DateExtract.DEFINITION,
+                DateFormat.DEFINITION,
+                DateParse.DEFINITION,
+                DateTrunc.DEFINITION,
+                DayName.DEFINITION,
+                MonthName.DEFINITION,
+                Now.DEFINITION,
+                TRange.DEFINITION },
             // spatial
             new FunctionDefinition[] {
-                def(SpatialCentroid.class, uni(SpatialCentroid::new), "st_centroid_agg"),
-                def(SpatialContains.class, SpatialContains::new, "st_contains"),
-                def(SpatialExtent.class, uni(SpatialExtent::new), "st_extent_agg"),
-                def(SpatialDisjoint.class, SpatialDisjoint::new, "st_disjoint"),
-                def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
-                def(SpatialWithin.class, SpatialWithin::new, "st_within"),
-                def(StDistance.class, StDistance::new, "st_distance"),
-                def(StEnvelope.class, StEnvelope::new, "st_envelope"),
-                def(StBuffer.class, StBuffer::new, "st_buffer"),
-                def(StSimplify.class, StSimplify::new, "st_simplify"),
-                def(StSimplifyPreserveTopology.class, StSimplifyPreserveTopology::new, "st_simplifypreservetopology"),
-                def(StGeohash.class, StGeohash::new, "st_geohash"),
-                def(StGeotile.class, StGeotile::new, "st_geotile"),
-                def(StGeohex.class, StGeohex::new, "st_geohex"),
-                def(StNPoints.class, StNPoints::new, "st_npoints"),
-                def(StGeometryType.class, StGeometryType::new, "st_geometrytype"),
-                def(StDimension.class, StDimension::new, "st_dimension"),
-                def(StIsEmpty.class, StIsEmpty::new, "st_isempty"),
-                def(StXMax.class, StXMax::new, "st_xmax"),
-                def(StXMin.class, StXMin::new, "st_xmin"),
-                def(StYMax.class, StYMax::new, "st_ymax"),
-                def(StYMin.class, StYMin::new, "st_ymin"),
-                def(StX.class, StX::new, "st_x"),
-                def(StY.class, StY::new, "st_y") },
+                SpatialCentroid.DEFINITION,
+                SpatialContains.DEFINITION,
+                SpatialExtent.DEFINITION,
+                SpatialDisjoint.DEFINITION,
+                SpatialIntersects.DEFINITION,
+                SpatialWithin.DEFINITION,
+                StDistance.DEFINITION,
+                StEnvelope.DEFINITION,
+                StBuffer.DEFINITION,
+                StSimplify.DEFINITION,
+                StSimplifyPreserveTopology.DEFINITION,
+                StGeohash.DEFINITION,
+                StGeotile.DEFINITION,
+                StGeohex.DEFINITION,
+                StNPoints.DEFINITION,
+                StGeometryType.DEFINITION,
+                StDimension.DEFINITION,
+                StIsEmpty.DEFINITION,
+                StXMax.DEFINITION,
+                StXMin.DEFINITION,
+                StYMax.DEFINITION,
+                StYMin.DEFINITION,
+                StX.DEFINITION,
+                StY.DEFINITION },
             // conditional
-            new FunctionDefinition[] { def(Case.class, Case::new, "case") },
+            new FunctionDefinition[] { Case.DEFINITION },
             // null
-            new FunctionDefinition[] { def(Coalesce.class, Coalesce::new, "coalesce"), },
+            new FunctionDefinition[] { Coalesce.DEFINITION, },
             // IP
-            new FunctionDefinition[] {
-                def(CIDRMatch.class, CIDRMatch::new, "cidr_match"),
-                IpPrefix.DEFINITION,
-                def(NetworkDirection.class, NetworkDirection::new, "network_direction", "netdir") },
+            new FunctionDefinition[] { CIDRMatch.DEFINITION, IpPrefix.DEFINITION, NetworkDirection.DEFINITION },
             // conversion functions
             new FunctionDefinition[] {
-                def(FromBase64.class, FromBase64::new, "from_base64"),
-                def(ToAggregateMetricDouble.class, ToAggregateMetricDouble::new, "to_aggregate_metric_double", "to_aggregatemetricdouble"),
-                def(ToBase64.class, ToBase64::new, "to_base64"),
-                def(ToBoolean.class, ToBoolean::new, "to_boolean", "to_bool"),
-                def(ToCartesianPoint.class, ToCartesianPoint::new, "to_cartesianpoint"),
-                def(ToCartesianShape.class, ToCartesianShape::new, "to_cartesianshape"),
-                def(ToDatePeriod.class, ToDatePeriod::new, "to_dateperiod"),
-                def(ToDatetime.class, ToDatetime::new, "to_datetime", "to_dt"),
-                def(ToDateNanos.class, ToDateNanos::new, "to_date_nanos", "to_datenanos"),
-                def(ToDegrees.class, ToDegrees::new, "to_degrees"),
-                def(ToDenseVector.class, ToDenseVector::new, "to_dense_vector"),
-                def(ToDouble.class, ToDouble::new, "to_double", "to_dbl"),
-                def(ToExponentialHistogram.class, ToExponentialHistogram::new, "to_exponential_histogram"),
-                def(ToGeohash.class, ToGeohash::new, "to_geohash"),
-                def(ToGeotile.class, ToGeotile::new, "to_geotile"),
-                def(ToGeohex.class, ToGeohex::new, "to_geohex"),
-                def(ToGeoPoint.class, ToGeoPoint::new, "to_geopoint"),
-                def(ToGeoShape.class, ToGeoShape::new, "to_geoshape"),
-                def(ToIp.class, ToIp::new, "to_ip"),
-                def(ToIntegerSurrogate.class, ToIntegerSurrogate::new, "to_integer", "to_int"),
-                def(ToLongSurrogate.class, ToLongSurrogate::new, "to_long"),
-                def(ToRadians.class, ToRadians::new, "to_radians"),
-                def(ToString.class, ToString::new, "to_string", "to_str"),
-                def(ToTDigest.class, ToTDigest::new, "to_tdigest"),
-                def(ToTimeDuration.class, ToTimeDuration::new, "to_timeduration"),
-                def(ToUnsignedLong.class, ToUnsignedLong::new, "to_unsigned_long", "to_ulong", "to_ul"),
-                def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },
+                FromBase64.DEFINITION,
+                ToAggregateMetricDouble.DEFINITION,
+                ToBase64.DEFINITION,
+                ToBoolean.DEFINITION,
+                ToCartesianPoint.DEFINITION,
+                ToCartesianShape.DEFINITION,
+                ToDatePeriod.DEFINITION,
+                ToDatetime.DEFINITION,
+                ToDateNanos.DEFINITION,
+                ToDegrees.DEFINITION,
+                ToDenseVector.DEFINITION,
+                ToDouble.DEFINITION,
+                ToExponentialHistogram.DEFINITION,
+                ToGeohash.DEFINITION,
+                ToGeotile.DEFINITION,
+                ToGeohex.DEFINITION,
+                ToGeoPoint.DEFINITION,
+                ToGeoShape.DEFINITION,
+                ToIp.DEFINITION,
+                ToIntegerSurrogate.DEFINITION,
+                ToLongSurrogate.DEFINITION,
+                ToRadians.DEFINITION,
+                ToString.DEFINITION,
+                ToTDigest.DEFINITION,
+                ToTimeDuration.DEFINITION,
+                ToUnsignedLong.DEFINITION,
+                ToVersion.DEFINITION, },
             // multivalue functions
             new FunctionDefinition[] {
-                def(MvAppend.class, MvAppend::new, "mv_append"),
-                def(MvAvg.class, MvAvg::new, "mv_avg"),
-                def(MvConcat.class, MvConcat::new, "mv_concat"),
-                def(MvContains.class, MvContains::new, "mv_contains"),
-                def(MvCount.class, MvCount::new, "mv_count"),
-                def(MvDedupe.class, MvDedupe::new, "mv_dedupe"),
-                def(MvDifference.class, MvDifference::new, "mv_difference"),
-                def(MvFirst.class, MvFirst::new, "mv_first"),
-                def(MvIntersection.class, MvIntersection::new, "mv_intersection"),
-                def(MvLast.class, MvLast::new, "mv_last"),
-                def(MvMax.class, MvMax::new, "mv_max"),
-                def(MvMedian.class, MvMedian::new, "mv_median"),
-                def(MvMedianAbsoluteDeviation.class, MvMedianAbsoluteDeviation::new, "mv_median_absolute_deviation"),
-                def(MvMin.class, MvMin::new, "mv_min"),
-                def(MvIntersects.class, MvIntersects::new, "mv_intersects"),
-                def(MvPercentile.class, MvPercentile::new, "mv_percentile"),
-                def(MvPSeriesWeightedSum.class, MvPSeriesWeightedSum::new, "mv_pseries_weighted_sum"),
-                def(MvSort.class, MvSort::new, "mv_sort"),
-                def(MvSlice.class, MvSlice::new, "mv_slice"),
-                def(MvUnion.class, MvUnion::new, "mv_union"),
-                def(MvZip.class, MvZip::new, "mv_zip"),
-                def(MvSum.class, MvSum::new, "mv_sum"),
-                def(Split.class, Split::new, "split") },
+                MvAppend.DEFINITION,
+                MvAvg.DEFINITION,
+                MvConcat.DEFINITION,
+                MvContains.DEFINITION,
+                MvCount.DEFINITION,
+                MvDedupe.DEFINITION,
+                MvDifference.DEFINITION,
+                MvFirst.DEFINITION,
+                MvIntersection.DEFINITION,
+                MvLast.DEFINITION,
+                MvMax.DEFINITION,
+                MvMedian.DEFINITION,
+                MvMedianAbsoluteDeviation.DEFINITION,
+                MvMin.DEFINITION,
+                MvIntersects.DEFINITION,
+                MvPercentile.DEFINITION,
+                MvPSeriesWeightedSum.DEFINITION,
+                MvSort.DEFINITION,
+                MvSlice.DEFINITION,
+                MvUnion.DEFINITION,
+                MvZip.DEFINITION,
+                MvSum.DEFINITION,
+                Split.DEFINITION },
             // search functions
             new FunctionDefinition[] {
-                def(Decay.class, quad(Decay::new), "decay"),
-                def(Kql.class, bic(Kql::new), "kql"),
-                def(Knn.class, tri(Knn::new), "knn"),
-                def(Match.class, tri(Match::new), "match"),
-                def(QueryString.class, bic(QueryString::new), "qstr"),
-                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase"),
-                def(Score.class, uni(Score::new), "score"),
-                def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") },
+                Decay.DEFINITION,
+                Kql.DEFINITION,
+                Knn.DEFINITION,
+                Match.DEFINITION,
+                QueryString.DEFINITION,
+                MatchPhrase.DEFINITION,
+                Score.DEFINITION,
+                TopSnippets.DEFINITION },
             // time-series functions
             new FunctionDefinition[] {
-                defTS3(Rate.class, Rate::new, "rate"),
-                defTS3(Irate.class, Irate::new, "irate"),
-                defTS3(Idelta.class, Idelta::new, "idelta"),
-                defTS3(Delta.class, Delta::new, "delta"),
-                defTS3(Increase.class, Increase::new, "increase"),
-                defTS3(Deriv.class, Deriv::new, "deriv"),
-                def(MaxOverTime.class, bi(MaxOverTime::new), "max_over_time"),
-                def(MinOverTime.class, bi(MinOverTime::new), "min_over_time"),
-                def(SumOverTime.class, bi(SumOverTime::new), "sum_over_time"),
-                def(StddevOverTime.class, bi(StddevOverTime::new), "stddev_over_time"),
-                def(VarianceOverTime.class, bi(VarianceOverTime::new), "variance_over_time", "stdvar_over_time"),
-                def(CountOverTime.class, bi(CountOverTime::new), "count_over_time"),
-                def(CountDistinctOverTime.class, bi(CountDistinctOverTime::new), "count_distinct_over_time"),
-                def(PresentOverTime.class, bi(PresentOverTime::new), "present_over_time"),
-                def(AbsentOverTime.class, bi(AbsentOverTime::new), "absent_over_time"),
-                def(AvgOverTime.class, bi(AvgOverTime::new), "avg_over_time"),
-                defTS3(LastOverTime.class, LastOverTime::new, "last_over_time"),
-                defTS3(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
-                def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
+                Rate.DEFINITION,
+                Irate.DEFINITION,
+                Idelta.DEFINITION,
+                Delta.DEFINITION,
+                Increase.DEFINITION,
+                Deriv.DEFINITION,
+                MaxOverTime.DEFINITION,
+                MinOverTime.DEFINITION,
+                SumOverTime.DEFINITION,
+                StddevOverTime.DEFINITION,
+                VarianceOverTime.DEFINITION,
+                CountOverTime.DEFINITION,
+                CountDistinctOverTime.DEFINITION,
+                PresentOverTime.DEFINITION,
+                AbsentOverTime.DEFINITION,
+                AvgOverTime.DEFINITION,
+                LastOverTime.DEFINITION,
+                FirstOverTime.DEFINITION,
+                PercentileOverTime.DEFINITION,
                 // dense vector functions
-                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding"),
-                def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
-                def(DotProduct.class, DotProduct::new, "v_dot_product"),
-                def(L1Norm.class, L1Norm::new, "v_l1_norm"),
-                def(L2Norm.class, L2Norm::new, "v_l2_norm"),
-                def(Hamming.class, Hamming::new, "v_hamming") } };
+                TextEmbedding.DEFINITION,
+                CosineSimilarity.DEFINITION,
+                DotProduct.DEFINITION,
+                L1Norm.DEFINITION,
+                L2Norm.DEFINITION,
+                Hamming.DEFINITION } };
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
@@ -619,11 +604,11 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
-                def(Delay.class, Delay::new, "delay"),
+                Delay.DEFINITION,
                 // dense vector functions
-                def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange"),
-                def(Sparkline.class, Sparkline::new, 0, "sparkline") } };
+                Magnitude.DEFINITION,
+                ToDateRange.DEFINITION,
+                Sparkline.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -1038,10 +1023,6 @@ public class EsqlFunctionRegistry {
         names.put(ToInteger.class, "TO_INTEGER");
     }
 
-    protected interface FunctionBuilder {
-        Function build(Source source, List<Expression> children, Configuration cfg);
-    }
-
     /**
      * Add capabilities for registered functions to the set of capabilities.
      */
@@ -1071,526 +1052,4 @@ public class EsqlFunctionRegistry {
         }
     }
 
-    /**
-     * Main method to register a function.
-     *
-     * @param names Must always have at least one entry which is the method's primary name
-     */
-    @SuppressWarnings("overloads")
-    protected static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder, String... names) {
-        Check.isTrue(names.length > 0, "At least one name must be provided for the function");
-        String primaryName = names[0];
-        List<String> aliases = Arrays.asList(names).subList(1, names.length);
-        FunctionDefinition.Builder realBuilder = (uf, cfg, extras) -> {
-            if (CollectionUtils.isEmpty(extras) == false) {
-                throw new ParsingException(
-                    uf.source(),
-                    "Unused parameters {} detected when building [{}]",
-                    Arrays.toString(extras),
-                    primaryName
-                );
-            }
-            try {
-                return builder.build(uf.source(), uf.children(), cfg);
-            } catch (QlIllegalArgumentException e) {
-                throw new ParsingException(e, uf.source(), "error building [{}]: {}", primaryName, e.getMessage());
-            }
-        };
-        return new FunctionDefinition(primaryName, unmodifiableList(aliases), function, realBuilder);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a no-argument function.
-     */
-    public static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        java.util.function.Function<Source, T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            if (false == children.isEmpty()) {
-                throw new QlIllegalArgumentException("expects no arguments");
-            }
-            return ctorRef.apply(source);
-        };
-        return def(function, builder, names);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a unary function.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    public static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        BiFunction<Source, Expression, T> ctorRef,
-        String... names
-    ) {
-        return unary(function, ctorRef, names);
-    }
-
-    public static <T extends Function> FunctionDefinition unary(
-        Class<T> function,
-        BiFunction<Source, Expression, T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsUniFunction(children.size());
-            return ctorRef.apply(source, children.get(0));
-        };
-        return def(function, builder, names);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for multi-arg/n-ary function.
-     */
-    @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(Class<T> function, NaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> { return ctorRef.build(source, children); };
-        return def(function, builder, names);
-    }
-
-    protected interface NaryBuilder<T> {
-        T build(Source source, List<Expression> children);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a binary function.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    public static <T extends Function> FunctionDefinition def(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
-        return binary(function, ctorRef, names);
-    }
-
-    public static <T extends Function> FunctionDefinition binary(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
-            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
-                throw new QlIllegalArgumentException(
-                    Strings.format("function %s expects one or two arguments but it received %d", Arrays.toString(names), children.size())
-                );
-            } else if (isBinaryOptionalParamFunction == false && children.size() != 2) {
-                throw new QlIllegalArgumentException(
-                    Strings.format("function %s expects exactly two arguments, it received %d", Arrays.toString(names), children.size())
-                );
-            }
-            return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null);
-        };
-        return def(function, builder, names);
-    }
-
-    public interface BinaryBuilder<T> {
-        T build(Source source, Expression left, Expression right);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a ternary function.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    public static <T extends Function> FunctionDefinition def(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
-        return ternary(function, ctorRef, names);
-    }
-
-    public static <T extends Function> FunctionDefinition ternary(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalTriFunction(function, children.size());
-            return ctorRef.build(
-                source,
-                children.get(0),
-                children.size() > 1 ? children.get(1) : null,
-                children.size() == 3 ? children.get(2) : null
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    public interface TernaryBuilder<T> {
-        T build(Source source, Expression one, Expression two, Expression three);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a quaternary function.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(Class<T> function, QuaternaryBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            if (OptionalArgument.class.isAssignableFrom(function)) {
-                if (children.size() > 4 || children.size() < 3) {
-                    throw new QlIllegalArgumentException("expects three or four arguments");
-                }
-            } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
-                if (children.size() > 4 || children.size() < 2) {
-                    throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
-                }
-            } else if (children.size() != 4) {
-                throw new QlIllegalArgumentException("expects exactly four arguments");
-            }
-            return ctorRef.build(
-                source,
-                children.get(0),
-                children.get(1),
-                children.size() > 2 ? children.get(2) : null,
-                children.size() > 3 ? children.get(3) : null
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface QuaternaryBuilder<T> {
-        T build(Source source, Expression one, Expression two, Expression three, Expression four);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a quinary function.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        QuinaryBuilder<T> ctorRef,
-        int numOptionalParams,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            final int NUM_TOTAL_PARAMS = 5;
-            boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);
-            if (hasOptionalParams && (children.size() > NUM_TOTAL_PARAMS || children.size() < NUM_TOTAL_PARAMS - numOptionalParams)) {
-                throw new QlIllegalArgumentException(
-                    "expects between "
-                        + NUM_NAMES[NUM_TOTAL_PARAMS - numOptionalParams]
-                        + " and "
-                        + NUM_NAMES[NUM_TOTAL_PARAMS]
-                        + " arguments"
-                );
-            } else if (hasOptionalParams == false && children.size() != NUM_TOTAL_PARAMS) {
-                throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
-            }
-            return ctorRef.build(
-                source,
-                children.size() > 0 ? children.get(0) : null,
-                children.size() > 1 ? children.get(1) : null,
-                children.size() > 2 ? children.get(2) : null,
-                children.size() > 3 ? children.get(3) : null,
-                children.size() > 4 ? children.get(4) : null
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface QuinaryBuilder<T> {
-        T build(Source source, Expression one, Expression two, Expression three, Expression four, Expression five);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for functions with a mandatory argument followed by a varidic list.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(Class<T> function, UnaryVariadicBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
-            if (hasMinimumOne && children.size() < 1) {
-                throw new QlIllegalArgumentException("expects at least one argument");
-            } else if (hasMinimumOne == false && children.size() < 2) {
-                throw new QlIllegalArgumentException("expects at least two arguments");
-            }
-            return ctorRef.build(source, children.get(0), children.subList(1, children.size()));
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface UnaryVariadicBuilder<T> {
-        T build(Source source, Expression exp, List<Expression> variadic);
-    }
-
-    protected interface BinaryVariadicWithOptionsBuilder<T> {
-        T build(Source source, Expression exp, List<Expression> variadic, Expression options);
-    };
-
-    protected static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        BinaryVariadicWithOptionsBuilder<T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
-            if (hasMinimumOne && children.size() < 1) {
-                throw new QlIllegalArgumentException("expects at least one argument");
-            } else if (hasMinimumOne == false && children.size() < 2) {
-                throw new QlIllegalArgumentException("expects at least two arguments");
-            }
-            Expression options = children.getLast();
-            if (options instanceof MapExpression) {
-                return ctorRef.build(source, children.get(0), children.subList(1, children.size() - 1), options);
-            }
-
-            return ctorRef.build(source, children.get(0), children.subList(1, children.size()), null);
-        };
-        return def(function, builder, names);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a no-argument function that is configuration aware.
-     */
-    @SuppressWarnings("overloads")
-    protected static <T extends Function> FunctionDefinition def(Class<T> function, ConfigurationAwareBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            if (false == children.isEmpty()) {
-                throw new QlIllegalArgumentException("expects no arguments");
-            }
-            return ctorRef.build(source, cfg);
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface ConfigurationAwareBuilder<T> {
-        T build(Source source, Configuration configuration);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a one-argument function that is configuration aware.
-     */
-    @SuppressWarnings("overloads")
-    public static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        UnaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            if (children.size() != 1) {
-                throw new QlIllegalArgumentException("expects exactly one argument");
-            }
-            Expression ex = children.get(0);
-            return ctorRef.build(source, ex, cfg);
-        };
-        return def(function, builder, names);
-    }
-
-    public interface UnaryConfigurationAwareBuilder<T> {
-        T build(Source source, Expression exp, Configuration configuration);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a binary function that is configuration aware.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        BinaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalBiFunction(function, children.size());
-            return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null, cfg);
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface BinaryConfigurationAwareBuilder<T> {
-        T build(Source source, Expression left, Expression right, Configuration configuration);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a ternary function that is configuration aware.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        TernaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalTriFunction(function, children.size());
-            return ctorRef.build(
-                source,
-                children.get(0),
-                children.size() >= 2 ? children.get(1) : null,
-                children.size() == 3 ? children.get(2) : null,
-                cfg
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface TernaryConfigurationAwareBuilder<T> {
-        T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
-    }
-
-    /**
-     * Build a {@linkplain FunctionDefinition} for a quaternary function that is configuration aware.
-     */
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(
-        Class<T> function,
-        QuaternaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalQuadFunction(function, children.size());
-            return ctorRef.build(
-                source,
-                children.get(0),
-                children.get(1),
-                children.size() > 2 ? children.get(2) : null,
-                children.size() > 3 ? children.get(3) : null,
-                cfg
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    protected interface QuaternaryConfigurationAwareBuilder<T> {
-        T build(Source source, Expression one, Expression two, Expression three, Expression four, Configuration configuration);
-    }
-
-    protected static <T extends Function> FunctionDefinition defTS(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
-        checkIsTimestampAware(function);
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsUniFunction(children.size());
-            return ctorRef.build(source, children.getFirst(), UnresolvedTimestamp.withSource(source));
-        };
-        return def(function, builder, names);
-    }
-
-    protected static <T extends Function> FunctionDefinition defTS(
-        Class<T> function,
-        BinaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        checkIsTimestampAware(function);
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsUniFunction(children.size());
-            return ctorRef.build(source, children.getFirst(), UnresolvedTimestamp.withSource(source), cfg);
-        };
-        return def(function, builder, names);
-    }
-
-    protected static <T extends Function> FunctionDefinition defTS(
-        Class<T> function,
-        TernaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        checkIsTimestampAware(function);
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalBiFunction(function, children.size());
-            return ctorRef.build(
-                source,
-                children.get(0),
-                children.size() == 2 ? children.get(1) : null,
-                UnresolvedTimestamp.withSource(source),
-                cfg
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    protected static <T extends Function> FunctionDefinition defTS3(Class<T> function, TernaryBuilder<T> ctorRef, String... names) {
-        checkIsTimestampAware(function);
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalBiFunction(function, children.size());
-            return ctorRef.build(
-                source,
-                children.get(0),
-                children.size() == 2 ? children.get(1) : null,
-                UnresolvedTimestamp.withSource(source)
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    protected static <T extends Function> FunctionDefinition defTS(
-        Class<T> function,
-        QuaternaryConfigurationAwareBuilder<T> ctorRef,
-        String... names
-    ) {
-        checkIsTimestampAware(function);
-        FunctionBuilder builder = (source, children, cfg) -> {
-            checkIsOptionalTriFunction(function, children.size());
-            return ctorRef.build(
-                source,
-                children.get(0),
-                children.size() > 1 ? children.get(1) : null,
-                children.size() > 2 ? children.get(2) : null,
-                UnresolvedTimestamp.withSource(source),
-                cfg
-            );
-        };
-        return def(function, builder, names);
-    }
-
-    //
-    // Utility functions to help disambiguate the method handle passed in.
-    // They work by providing additional method information to help the compiler know which method to pick.
-    //
-    private static <T extends Function> BiFunction<Source, Expression, T> uni(BiFunction<Source, Expression, T> function) {
-        return function;
-    }
-
-    private static <T extends Function> UnaryConfigurationAwareBuilder<T> unic(UnaryConfigurationAwareBuilder<T> function) {
-        return function;
-    }
-
-    private static <T extends Function> BinaryBuilder<T> bi(BinaryBuilder<T> function) {
-        return function;
-    }
-
-    private static <T extends Function> BinaryConfigurationAwareBuilder<T> bic(BinaryConfigurationAwareBuilder<T> function) {
-        return function;
-    }
-
-    private static <T extends Function> TernaryBuilder<T> tri(TernaryBuilder<T> function) {
-        return function;
-    }
-
-    private static <T extends Function> TernaryConfigurationAwareBuilder<T> tric(TernaryConfigurationAwareBuilder<T> function) {
-        return function;
-    }
-
-    private static <T extends Function> QuaternaryBuilder<T> quad(QuaternaryBuilder<T> function) {
-        return function;
-    }
-
-    private static void checkIsTimestampAware(Class<? extends Function> function) {
-        if (TimestampAware.class.isAssignableFrom(function) == false) {
-            throw new IllegalArgumentException("function class [" + function.getSimpleName() + "] is not TimestampAware");
-        }
-    }
-
-    private static void checkIsUniFunction(int childrenSize) {
-        if (childrenSize != 1) {
-            throw new QlIllegalArgumentException("expects exactly one argument");
-        }
-    }
-
-    private static void checkIsOptionalBiFunction(Class<? extends Function> function, int childrenSize) {
-        boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
-        if (isBinaryOptionalParamFunction && (childrenSize > 2 || childrenSize < 1)) {
-            throw new QlIllegalArgumentException("expects one or two arguments");
-        } else if (isBinaryOptionalParamFunction == false && childrenSize != 2) {
-            throw new QlIllegalArgumentException("expects exactly two arguments");
-        }
-    }
-
-    private static void checkIsOptionalTriFunction(Class<? extends Function> function, int childrenSize) {
-        boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
-        boolean hasMinimumOne = TwoOptionalArguments.class.isAssignableFrom(function);
-        if (hasMinimumOne && (childrenSize > 3 || childrenSize == 0)) {
-            throw new QlIllegalArgumentException("expects one, two or three arguments");
-        } else if (hasMinimumTwo && (childrenSize > 3 || childrenSize < 2)) {
-            throw new QlIllegalArgumentException("expects two or three arguments");
-        } else if (hasMinimumOne == false && hasMinimumTwo == false && childrenSize != 3) {
-            throw new QlIllegalArgumentException("expects exactly three arguments");
-        }
-    }
-
-    private static void checkIsOptionalQuadFunction(Class<? extends Function> function, int childrenSize) {
-        if (OptionalArgument.class.isAssignableFrom(function)) {
-            if (childrenSize > 4 || childrenSize < 3) {
-                throw new QlIllegalArgumentException("expects three or four arguments");
-            }
-        } else if (TwoOptionalArguments.class.isAssignableFrom(function)) {
-            if (childrenSize > 4 || childrenSize < 2) {
-                throw new QlIllegalArgumentException("expects minimum two, maximum four arguments");
-            }
-        } else if (childrenSize != 4) {
-            throw new QlIllegalArgumentException("expects exactly four arguments");
-        }
-    }
 }

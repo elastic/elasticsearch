@@ -1,0 +1,89 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.gradle.internal.release;
+
+import org.junit.Test;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertThrows;
+
+public class ExternalChangelogSourceTests {
+
+    @Test
+    public void testParseSourceRepoFromYaml() {
+        String yaml = """
+            pr: 3008
+            summary: "Harden pytorch_inference with TorchScript model graph validation"
+            area: Machine Learning
+            type: enhancement
+            issues:
+              - 2890
+            source_repo: elastic/ml-cpp
+            """;
+
+        ChangelogEntry entry = ChangelogEntry.parse(yaml);
+        assertThat(entry.getSourceRepo(), equalTo("elastic/ml-cpp"));
+        assertThat(entry.getRepoUrl(), equalTo("https://github.com/elastic/ml-cpp"));
+        assertThat(entry.getPr(), equalTo(3008));
+        assertThat(entry.getSummary(), equalTo("Harden pytorch_inference with TorchScript model graph validation"));
+    }
+
+    @Test
+    public void testDefaultRepoUrlWhenSourceRepoAbsent() {
+        String yaml = """
+            pr: 145000
+            summary: "Some ES change"
+            area: Search
+            type: enhancement
+            """;
+
+        ChangelogEntry entry = ChangelogEntry.parse(yaml);
+        assertThat(entry.getSourceRepo(), nullValue());
+        assertThat(entry.getRepoUrl(), equalTo("https://github.com/elastic/elasticsearch"));
+    }
+
+    @Test
+    public void testNormalizeBranchStripsPrefixes() throws Exception {
+        var method = BundleChangelogsTask.class.getDeclaredMethod("normalizeBranchForExternalFetch", String.class);
+        method.setAccessible(true);
+
+        assertThat(method.invoke(null, "main"), equalTo("main"));
+        assertThat(method.invoke(null, "9.3"), equalTo("9.3"));
+        assertThat(method.invoke(null, "upstream/main"), equalTo("main"));
+        assertThat(method.invoke(null, "origin/9.3"), equalTo("9.3"));
+    }
+
+    @Test
+    public void testNormalizeBranchRejectsSha() throws Exception {
+        var method = BundleChangelogsTask.class.getDeclaredMethod("normalizeBranchForExternalFetch", String.class);
+        method.setAccessible(true);
+
+        var exception = assertThrows(
+            java.lang.reflect.InvocationTargetException.class,
+            () -> method.invoke(null, "abc1234def5678")
+        );
+        assertThat(exception.getCause().getClass(), equalTo(IllegalArgumentException.class));
+    }
+
+    @Test
+    public void testExternalChangelogSourceSerialization() {
+        var source = new BundleChangelogsTask.ExternalChangelogSource(
+            "https://github.com/elastic/ml-cpp.git",
+            "elastic/ml-cpp",
+            "docs/changelog"
+        );
+
+        assertThat(source.repoUrl(), equalTo("https://github.com/elastic/ml-cpp.git"));
+        assertThat(source.sourceRepo(), equalTo("elastic/ml-cpp"));
+        assertThat(source.changelogPath(), equalTo("docs/changelog"));
+    }
+}

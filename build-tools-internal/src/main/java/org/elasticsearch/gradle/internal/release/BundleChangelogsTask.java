@@ -35,8 +35,6 @@ import org.gradle.process.ExecOperations;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -243,63 +241,68 @@ public class BundleChangelogsTask extends DefaultTask {
 
     /**
      * Fetch changelog entries from an external repository for the given branch.
-     * Adds the repo as a temporary git remote, fetches the branch, reads each YAML
-     * file via {@code git show}, and sets {@code sourceRepo} on the parsed entries.
+     * Fetches directly from the repo URL into FETCH_HEAD (no persistent remote),
+     * reads each YAML file via {@code git show}, and sets {@code sourceRepo} on
+     * the parsed entries.
      */
     private List<ChangelogEntry> fetchExternalChangelogs(ExternalChangelogSource source, String branchRef) {
-        String remoteName = "external-" + source.sourceRepo().replace("/", "-");
+        String normalizedBranch = normalizeBranchForExternalFetch(branchRef);
 
         try {
-            gitWrapper.runCommand("git", "remote", "add", remoteName, source.repoUrl());
+            gitWrapper.runCommand("git", "fetch", "--depth=1", source.repoUrl(), normalizedBranch);
         } catch (Exception e) {
-            LOGGER.info("Remote {} may already exist, updating URL", remoteName);
-            gitWrapper.runCommand("git", "remote", "set-url", remoteName, source.repoUrl());
-        }
-
-        try {
-            gitWrapper.runCommand("git", "fetch", "--depth=1", remoteName, branchRef);
-        } catch (Exception e) {
-            LOGGER.warn("Failed to fetch branch {} from {}: {}", branchRef, source.sourceRepo(), e.getMessage());
+            LOGGER.warn("Failed to fetch branch {} from {}: {}", normalizedBranch, source.sourceRepo(), e.getMessage());
             return List.of();
         }
 
-        String ref = remoteName + "/" + branchRef;
         String treePath = source.changelogPath();
 
         List<String> files;
         try {
-            files = gitWrapper.listFiles(ref, treePath).filter(f -> f.endsWith(".yaml")).toList();
+            files = gitWrapper.listFiles("FETCH_HEAD", treePath).filter(f -> f.endsWith(".yaml")).toList();
         } catch (Exception e) {
-            LOGGER.warn("No changelog directory found at {} in {}:{}", treePath, source.sourceRepo(), branchRef);
+            LOGGER.warn("No changelog directory found at {} in {}:{}", treePath, source.sourceRepo(), normalizedBranch);
             return List.of();
         }
 
         if (files.isEmpty()) {
-            LOGGER.info("No external changelog entries found in {}:{}", source.sourceRepo(), branchRef);
+            LOGGER.info("No external changelog entries found in {}:{}", source.sourceRepo(), normalizedBranch);
             return List.of();
         }
 
-        LOGGER.info("Found {} changelog file(s) in {}:{}", files.size(), source.sourceRepo(), branchRef);
+        LOGGER.info("Found {} changelog file(s) in {}:{}", files.size(), source.sourceRepo(), normalizedBranch);
 
         List<ChangelogEntry> entries = new ArrayList<>();
         for (String filePath : files) {
             try {
-                String content = gitWrapper.runCommand("git", "show", ref + ":" + filePath);
-                Path tempFile = Files.createTempFile("external-changelog-", ".yaml");
-                try {
-                    Files.writeString(tempFile, content);
-                    ChangelogEntry entry = ChangelogEntry.parse(tempFile.toFile());
-                    entry.setSourceRepo(source.sourceRepo());
-                    entries.add(entry);
-                } finally {
-                    Files.deleteIfExists(tempFile);
-                }
+                String content = gitWrapper.runCommand("git", "show", "FETCH_HEAD:" + filePath);
+                ChangelogEntry entry = ChangelogEntry.parse(content);
+                entry.setSourceRepo(source.sourceRepo());
+                entries.add(entry);
             } catch (Exception e) {
                 LOGGER.warn("Failed to parse external changelog {}: {}", filePath, e.getMessage());
             }
         }
 
         return entries;
+    }
+
+    /**
+     * Normalizes a branch reference for use with external repos. Strips any
+     * {@code upstream/} or remote prefix (which is ES-repo-specific) and rejects
+     * raw commit SHAs since they are meaningless for external repositories.
+     */
+    private static String normalizeBranchForExternalFetch(String branchRef) {
+        if (branchRef.matches("^[0-9a-f]{7,40}$")) {
+            throw new IllegalArgumentException(
+                "Cannot use a commit SHA (" + branchRef + ") for external changelog sources. Use a branch name instead."
+            );
+        }
+        int slashIndex = branchRef.indexOf('/');
+        if (slashIndex >= 0) {
+            return branchRef.substring(slashIndex + 1);
+        }
+        return branchRef;
     }
 
     public void setExternalSources(List<ExternalChangelogSource> sources) {

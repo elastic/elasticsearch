@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.release;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
@@ -59,6 +60,19 @@ public class ChangelogEntry {
             return yamlMapper.readValue(file, ChangelogEntry.class);
         } catch (IOException e) {
             LOGGER.error("Failed to parse changelog from " + file.getAbsolutePath(), e);
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Create a new instance by parsing YAML content from a string.
+     * @param yamlContent the YAML string to parse
+     * @return a new instance
+     */
+    public static ChangelogEntry parse(String yamlContent) {
+        try {
+            return yamlMapper.readValue(yamlContent, ChangelogEntry.class);
+        } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
@@ -136,10 +150,12 @@ public class ChangelogEntry {
         this.entryOverride = entryOverride;
     }
 
+    @JsonProperty("source_repo")
     public String getSourceRepo() {
         return sourceRepo;
     }
 
+    @JsonProperty("source_repo")
     public void setSourceRepo(String sourceRepo) {
         this.sourceRepo = sourceRepo;
     }

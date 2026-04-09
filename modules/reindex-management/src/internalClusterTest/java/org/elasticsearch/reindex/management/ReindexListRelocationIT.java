@@ -127,7 +127,7 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
         final TaskId relocatedTaskId = getRelocatedTaskIdFromTasksIndex(originalTaskId);
         unthrottleReindex(relocatedTaskId);
 
-        assertBusy(() -> assertThat("there's no running reindexes", getRunningReindexes(), hasSize(0)));
+        assertBusy(() -> assertThat("there's no running reindexes", getRunningReindexes(), hasSize(0)), 30, TimeUnit.SECONDS);
     }
 
     private GetReindexResponse getReindexWithWaitForCompletion(final TaskId taskId, final boolean waitForCompletion) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
@@ -27,6 +28,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
@@ -337,6 +339,145 @@ public class ZstdDecompressHelperTests extends ESTestCase {
         assertEquals(original.length, result);
         assertArrayEquals(original, BytesRef.deepCopyOf(bytes).bytes);
         assertEquals(compressed.length, plainIn.getFilePointer());
+    }
+
+    // --- BytesRef reuse and segment sizing ---
+
+    // Reuses the same BytesRef across two decompress calls where the second block is smaller
+    // than the first. This exercises ArrayUtil.growNoCopy returning an oversized array, which
+    // means MemorySegment.ofArray(bytes.bytes) produces a segment larger than originalLength.
+    // Without the explicit asSlice(0, originalLength) in decompressToHeap, the destination
+    // segment size would not match destSize, potentially confusing the native decompression.
+    public void testBytesRefReuseWithShrinkingBlockSize() throws Exception {
+        byte[] largeOriginal = randomByteArrayOfLength(randomIntBetween(4096, 8192));
+        byte[] largeCompressed = compressRaw(largeOriginal);
+
+        byte[] smallOriginal = randomByteArrayOfLength(randomIntBetween(32, 256));
+        byte[] smallCompressed = compressRaw(smallOriginal);
+
+        BytesRef bytes = new BytesRef();
+
+        IndexInput in1 = new ByteArrayIndexInput("large", largeCompressed);
+        int result1 = ZstdDecompressHelper.decompress(
+            in1,
+            largeCompressed.length,
+            largeOriginal.length,
+            0,
+            largeOriginal.length,
+            bytes,
+            nativeAccess,
+            zstd,
+            new byte[4096]
+        );
+        assertEquals(largeOriginal.length, result1);
+        assertArrayEquals(largeOriginal, BytesRef.deepCopyOf(bytes).bytes);
+
+        // bytes.bytes is now at least largeOriginal.length; reuse it for a smaller block
+        assertTrue(bytes.bytes.length >= largeOriginal.length);
+
+        IndexInput in2 = new ByteArrayIndexInput("small", smallCompressed);
+        int result2 = ZstdDecompressHelper.decompress(
+            in2,
+            smallCompressed.length,
+            smallOriginal.length,
+            0,
+            smallOriginal.length,
+            bytes,
+            nativeAccess,
+            zstd,
+            new byte[4096]
+        );
+        assertEquals(smallOriginal.length, result2);
+        assertSubRange(smallOriginal, 0, smallOriginal.length, bytes);
+    }
+
+    // Same as above but with a sub-range request on the second (smaller) block, verifying
+    // that offset/length are applied correctly when the backing array is oversized.
+    public void testBytesRefReuseWithShrinkingBlockSizeAndSubRange() throws Exception {
+        byte[] largeOriginal = randomByteArrayOfLength(randomIntBetween(4096, 8192));
+        byte[] largeCompressed = compressRaw(largeOriginal);
+
+        byte[] smallOriginal = randomByteArrayOfLength(randomIntBetween(100, 512));
+        byte[] smallCompressed = compressRaw(smallOriginal);
+        int offset = randomIntBetween(0, smallOriginal.length / 2);
+        int length = randomIntBetween(1, smallOriginal.length - offset);
+
+        BytesRef bytes = new BytesRef();
+
+        IndexInput in1 = new ByteArrayIndexInput("large", largeCompressed);
+        ZstdDecompressHelper.decompress(
+            in1,
+            largeCompressed.length,
+            largeOriginal.length,
+            0,
+            largeOriginal.length,
+            bytes,
+            nativeAccess,
+            zstd,
+            new byte[4096]
+        );
+
+        assertTrue(bytes.bytes.length >= largeOriginal.length);
+
+        IndexInput in2 = new ByteArrayIndexInput("small", smallCompressed);
+        ZstdDecompressHelper.decompress(
+            in2,
+            smallCompressed.length,
+            smallOriginal.length,
+            offset,
+            length,
+            bytes,
+            nativeAccess,
+            zstd,
+            new byte[4096]
+        );
+        assertSubRange(smallOriginal, offset, length, bytes);
+    }
+
+    // Exercises the copyAndDecompress fallback with a plain DataInput (not IndexInput), matching
+    // the exact code path from the CI failure where Lucene90CompressingStoredFieldsReader passes
+    // a ByteBuffersDataInput. Also reuses the BytesRef with shrinking block sizes.
+    public void testBytesRefReuseWithPlainDataInput() throws Exception {
+        byte[] largeOriginal = randomByteArrayOfLength(randomIntBetween(4096, 8192));
+        byte[] largeCompressed = compressRaw(largeOriginal);
+
+        byte[] smallOriginal = randomByteArrayOfLength(randomIntBetween(32, 256));
+        byte[] smallCompressed = compressRaw(smallOriginal);
+
+        BytesRef bytes = new BytesRef();
+
+        // ByteBuffersDataInput is a DataInput, not an IndexInput — neither MSAI nor DAI match
+        var in1 = new ByteBuffersDataInput(List.of(ByteBuffer.wrap(largeCompressed)));
+        int result1 = ZstdDecompressHelper.decompress(
+            in1,
+            largeCompressed.length,
+            largeOriginal.length,
+            0,
+            largeOriginal.length,
+            bytes,
+            nativeAccess,
+            zstd,
+            new byte[4096]
+        );
+        assertEquals(largeOriginal.length, result1);
+        assertArrayEquals(largeOriginal, BytesRef.deepCopyOf(bytes).bytes);
+
+        assertTrue(bytes.bytes.length >= largeOriginal.length);
+
+        var in2 = new ByteBuffersDataInput(List.of(ByteBuffer.wrap(smallCompressed)));
+        int result2 = ZstdDecompressHelper.decompress(
+            in2,
+            smallCompressed.length,
+            smallOriginal.length,
+            0,
+            smallOriginal.length,
+            bytes,
+            nativeAccess,
+            zstd,
+            new byte[4096]
+        );
+        assertEquals(smallOriginal.length, result2);
+        assertSubRange(smallOriginal, 0, smallOriginal.length, bytes);
     }
 
     // --- helpers ---

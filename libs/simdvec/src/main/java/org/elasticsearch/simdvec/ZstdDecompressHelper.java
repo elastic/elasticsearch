@@ -100,7 +100,8 @@ public final class ZstdDecompressHelper {
         byte[] copyBuffer
     ) throws IOException {
         try (CloseableByteBuffer dest = nativeAccess.newConfinedBuffer(originalLength)) {
-            MemorySegment destSegment = MemorySegment.ofBuffer(dest.buffer());
+            // OLD MemorySegment destSegment = MemorySegment.ofBuffer(dest.buffer());
+            MemorySegment destSegment = MemorySegment.ofBuffer(dest.buffer()).asSlice(0, originalLength);
             int decompressedLen = decompressFromBestSource(
                 in,
                 compressedLength,
@@ -206,7 +207,8 @@ public final class ZstdDecompressHelper {
                 srcBuf.put(copyBuffer, 0, numBytes);
             }
             srcBuf.flip();
-            MemorySegment srcSegment = MemorySegment.ofBuffer(srcBuf);
+            // OLD MemorySegment srcSegment = MemorySegment.ofBuffer(srcBuf);
+            MemorySegment srcSegment = MemorySegment.ofBuffer(srcBuf).asSlice(0, compressedLength);
             return invokeDecompress(zstd, destSegment, destSize, srcSegment, compressedLength);
         }
     }

@@ -18,7 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.reindex.TaskRelocatedException;
+import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;

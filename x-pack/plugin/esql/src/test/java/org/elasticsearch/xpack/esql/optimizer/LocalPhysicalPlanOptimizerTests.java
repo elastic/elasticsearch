@@ -926,7 +926,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     /**
      * Expects
-     * <pre>{@code
+     * {@snippet lang="text":
      * LimitExec[1000[INTEGER],12]
      * \_AggregateExec[[language_code{r}#8],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#8],FINAL,[l
      * anguage_code{r}#8, $$c$count{r}#33, $$c$seen{r}#34],12]
@@ -939,7 +939,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *             \_EvalExec[[null[INTEGER] AS languages#22]]
      *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags
      *               [[QueryBuilderAndTags[query=null, tags=[]]]]
-     * }</pre>
+     * }
      */
     public void testMissingFieldsPurgesTheJoinLocallyThroughCommands() {
         var stats = EsqlTestUtils.statsForMissingField("languages");

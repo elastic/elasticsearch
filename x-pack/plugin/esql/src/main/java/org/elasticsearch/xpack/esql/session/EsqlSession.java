@@ -1378,8 +1378,9 @@ public class EsqlSession {
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                     executionInfo.queryProfile().incFieldCapsCalls();
-                    indexResolver.resolveMainFlatWorldIndicesVersioned(
+                    indexResolver.resolveMainFlatIndicesVersioned(
                         indexPattern.indexPattern(),
+                        optionalPattern,
                         projectRouting,
                         result.fieldNames,
                         requestFilter,

@@ -1102,7 +1102,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // With seq_no_disabled=false, the provider must NOT set index.disable_sequence_numbers
         DataStreamIndexSettingsProvider providerWithSeqNoEnabled = new DataStreamIndexSettingsProvider(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            Settings.builder().put(DataStreamIndexSettingsProvider.SEQ_NO_DISABLED.getKey(), false).build()
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED.getKey(), false).build()
         );
         Settings.Builder additionalSettings = builder();
         providerWithSeqNoEnabled.provideAdditionalSettings(
@@ -1121,7 +1121,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // With seq_no_disabled=true (default), the provider must set index.disable_sequence_numbers=true
         DataStreamIndexSettingsProvider providerWithSeqNoDisabled = new DataStreamIndexSettingsProvider(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            Settings.builder().put(DataStreamIndexSettingsProvider.SEQ_NO_DISABLED.getKey(), true).build()
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED.getKey(), true).build()
         );
         additionalSettings = builder();
         providerWithSeqNoDisabled.provideAdditionalSettings(
@@ -1164,7 +1164,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // With synthetic_id_enabled=false, the provider must set index.mapping.synthetic_id=false
         DataStreamIndexSettingsProvider providerWithSyntheticIdDisabled = new DataStreamIndexSettingsProvider(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            Settings.builder().put(DataStreamIndexSettingsProvider.SYNTHETIC_ID_ENABLED.getKey(), false).build()
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID.getKey(), false).build()
         );
         Settings.Builder additionalSettings = builder();
         providerWithSyntheticIdDisabled.provideAdditionalSettings(
@@ -1183,7 +1183,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // With synthetic_id_enabled=true (default), the provider must set index.mapping.synthetic_id=true
         DataStreamIndexSettingsProvider providerWithSyntheticIdEnabled = new DataStreamIndexSettingsProvider(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            Settings.builder().put(DataStreamIndexSettingsProvider.SYNTHETIC_ID_ENABLED.getKey(), true).build()
+            Settings.builder().put(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID.getKey(), true).build()
         );
         additionalSettings = builder();
         providerWithSyntheticIdEnabled.provideAdditionalSettings(

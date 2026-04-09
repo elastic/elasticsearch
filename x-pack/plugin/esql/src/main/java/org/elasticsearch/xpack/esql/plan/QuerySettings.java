@@ -29,16 +29,12 @@ import java.util.stream.Stream;
 
 public class QuerySettings {
 
-    @Param(
-        name = "project_routing",
-        type = { "keyword" },
-        description = """
-            Limits the scope of a [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md) to \
-            specific projects before query execution, based on a \
-            [Lucene query expression](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) \
-            evaluated against project tags. Excluded projects are not queried, which can reduce cost and latency. \
-            """
-    )
+    @Param(name = "project_routing", type = { "keyword" }, description = """
+        Limits the scope of a [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md) to \
+        specific projects before query execution, based on a \
+        [Lucene query expression](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) \
+        evaluated against project tags. Excluded projects are not queried, which can reduce cost and latency. \
+        """)
     @Example(file = "from", tag = "project-routing", description = "Route a query to a specific project by alias:")
     public static final QuerySettingDef<String> PROJECT_ROUTING = new QuerySettingDef<>(
         "project_routing",

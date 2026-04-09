@@ -4185,5 +4185,15 @@ from employees
 ;
 
     max(c):l   |    min(c):l   |    min(s):d   |    avg(s):d
-null           |null           |null           |null           
+null           |null           |null           |null
+;
+
+statsWithExpressionOnMultivaluedGroupKeyFromRow
+ROW x=1, y=[1,2,3] | STATS y + 1 BY y | SORT y
+;
+
+y + 1:integer | y:integer
+2             | 1
+3             | 2
+4             | 3
 ;

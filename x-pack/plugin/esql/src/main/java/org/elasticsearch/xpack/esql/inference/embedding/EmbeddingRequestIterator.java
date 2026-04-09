@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceString;
@@ -29,7 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Embedding request iterator for typed (DataType/DataFormat) inputs.
+ * Embedding request iterator for typed (DataType) inputs.
  * <p>
  * Produces {@link EmbeddingAction.Request} items with typed content via {@link InferenceStringGroup}
  * </p>
@@ -37,13 +36,11 @@ import java.util.Map;
 class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
     private final DataType dataType;
-    private final DataFormat dataFormat;
     private final TimeValue timeout;
 
-    EmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, DataType dataType, DataFormat dataFormat, TimeValue timeout) {
+    EmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, DataType dataType, TimeValue timeout) {
         super(inferenceId, TaskType.EMBEDDING, textBlock);
         this.dataType = dataType;
-        this.dataFormat = dataFormat;
         this.timeout = timeout;
     }
 
@@ -52,9 +49,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         if (text == null) {
             return new BulkInferenceRequestItem(null, pvcs);
         }
-        InferenceString inferenceString = dataFormat != null
-            ? new InferenceString(dataType, dataFormat, text)
-            : new InferenceString(dataType, text);
+        InferenceString inferenceString = new InferenceString(dataType, text);
         EmbeddingRequest embeddingRequest = new EmbeddingRequest(
             List.of(new InferenceStringGroup(inferenceString)),
             InputType.UNSPECIFIED,
@@ -66,18 +61,13 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     /**
      * Factory for creating {@link EmbeddingRequestIterator} instances.
      */
-    record Factory(
-        String inferenceId,
-        TaskType taskType,
-        ExpressionEvaluator textEvaluator,
-        DataType dataType,
-        DataFormat dataFormat,
-        TimeValue timeout
-    ) implements BulkInferenceRequestItemIterator.Factory {
+    record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator, DataType dataType, TimeValue timeout)
+        implements
+            BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new EmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage), dataType, dataFormat, timeout);
+            return new EmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage), dataType, timeout);
         }
 
         @Override

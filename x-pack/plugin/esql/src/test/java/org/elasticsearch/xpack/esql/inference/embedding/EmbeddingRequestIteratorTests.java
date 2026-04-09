@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.inference.embedding;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
@@ -24,11 +23,11 @@ import static org.hamcrest.Matchers.nullValue;
 public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
     public void testIterateSmallInput() throws Exception {
-        assertIterateRequests(between(1, 100), DataType.TEXT, DataFormat.TEXT);
+        assertIterateRequests(between(1, 100), DataType.TEXT);
     }
 
     public void testIterateLargeInput() throws Exception {
-        assertIterateRequests(between(1_000, 10_000), DataType.TEXT, DataFormat.TEXT);
+        assertIterateRequests(between(1_000, 10_000), DataType.TEXT);
     }
 
     public void testIterateEmptyInput() throws Exception {
@@ -40,7 +39,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                DataFormat.TEXT,
                 InferenceAction.Request.DEFAULT_TIMEOUT
             )
         ) {
@@ -61,7 +59,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                DataFormat.TEXT,
                 InferenceAction.Request.DEFAULT_TIMEOUT
             )
         ) {
@@ -119,7 +116,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    DataFormat.TEXT,
                     InferenceAction.Request.DEFAULT_TIMEOUT
                 )
             ) {
@@ -166,7 +162,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    DataFormat.TEXT,
                     InferenceAction.Request.DEFAULT_TIMEOUT
                 )
             ) {
@@ -205,7 +200,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    DataFormat.TEXT,
                     InferenceAction.Request.DEFAULT_TIMEOUT
                 )
             ) {
@@ -247,7 +241,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    DataFormat.TEXT,
                     InferenceAction.Request.DEFAULT_TIMEOUT
                 )
             ) {
@@ -292,7 +285,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 DataType.TEXT,
-                DataFormat.TEXT,
                 InferenceAction.Request.DEFAULT_TIMEOUT
             )
         ) {
@@ -302,8 +294,37 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
-    public void testIterateWithImageAndBase64() throws Exception {
-        assertIterateRequests(between(1, 100), DataType.IMAGE, DataFormat.BASE64);
+    public void testIterateWithImageType() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final String dataUri = "data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ==";
+
+        try (BytesRefBlock.Builder blockBuilder = blockFactory().newBytesRefBlockBuilder(1)) {
+            blockBuilder.appendBytesRef(new BytesRef(dataUri));
+            BytesRefBlock inputBlock = blockBuilder.build();
+
+            try (
+                EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
+                    inferenceId,
+                    inputBlock,
+                    DataType.IMAGE,
+                    InferenceAction.Request.DEFAULT_TIMEOUT
+                )
+            ) {
+                assertTrue(requestIterator.hasNext());
+                BulkInferenceRequestItem requestItem = requestIterator.next();
+
+                assertThat(requestItem.inferenceRequest(), instanceOf(EmbeddingAction.Request.class));
+                EmbeddingAction.Request embeddingRequest = (EmbeddingAction.Request) requestItem.inferenceRequest();
+                assertThat(embeddingRequest.getInferenceEntityId(), equalTo(inferenceId));
+                assertThat(embeddingRequest.getTaskType(), equalTo(TaskType.EMBEDDING));
+
+                var inferenceString = embeddingRequest.getEmbeddingRequest().inputs().getFirst().value();
+                assertThat(inferenceString.dataType(), equalTo(DataType.IMAGE));
+                assertThat(inferenceString.value(), equalTo(dataUri));
+            }
+        }
+
+        allBreakersEmpty();
     }
 
     public void testIterateWithMultiValuedFields() throws Exception {
@@ -331,7 +352,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    DataFormat.TEXT,
                     InferenceAction.Request.DEFAULT_TIMEOUT
                 )
             ) {
@@ -364,7 +384,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
 
         try (BytesRefBlock.Builder blockBuilder = blockFactory().newBytesRefBlockBuilder(1)) {
-            blockBuilder.appendBytesRef(new BytesRef("image data"));
+            blockBuilder.appendBytesRef(new BytesRef("data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ=="));
             BytesRefBlock inputBlock = blockBuilder.build();
 
             try (
@@ -372,7 +392,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.IMAGE,
-                    DataFormat.BASE64,
                     InferenceAction.Request.DEFAULT_TIMEOUT
                 )
             ) {
@@ -388,8 +407,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 assertThat(inputs.size(), equalTo(1));
                 var inferenceString = inputs.getFirst().value();
                 assertThat(inferenceString.dataType(), equalTo(DataType.IMAGE));
-                assertThat(inferenceString.dataFormat(), equalTo(DataFormat.BASE64));
-                assertThat(inferenceString.value(), equalTo("image data"));
+                assertThat(inferenceString.value(), equalTo("data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ=="));
             }
         }
 
@@ -408,7 +426,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                     inferenceId,
                     inputBlock,
                     DataType.TEXT,
-                    null,
                     InferenceAction.Request.DEFAULT_TIMEOUT
                 )
             ) {
@@ -426,7 +443,7 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
-    private void assertIterateRequests(int size, DataType dataType, DataFormat dataFormat) throws Exception {
+    private void assertIterateRequests(int size, DataType dataType) throws Exception {
         final String inferenceId = randomIdentifier();
         final BytesRefBlock inputBlock = randomInputBlock(size);
 
@@ -435,7 +452,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
                 inferenceId,
                 inputBlock,
                 dataType,
-                dataFormat,
                 InferenceAction.Request.DEFAULT_TIMEOUT
             )
         ) {
@@ -452,7 +468,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
 
                 var inferenceString = embeddingRequest.getEmbeddingRequest().inputs().getFirst().value();
                 assertThat(inferenceString.dataType(), equalTo(dataType));
-                assertThat(inferenceString.dataFormat(), equalTo(dataFormat));
 
                 scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(iterationCount), scratch);
                 assertThat(inferenceString.value(), equalTo(scratch.utf8ToString()));

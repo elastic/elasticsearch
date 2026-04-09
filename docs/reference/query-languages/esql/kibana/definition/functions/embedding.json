@@ -27,7 +27,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='type', values=[], description='Content type of the input (e.g. \"text\", \"image\").', type=[keyword]}, {name='format', values=[], description='Format of the input content (e.g. \"text\", \"base64\").', type=[keyword]}, {name='timeout', values=[], description='Timeout for the inference request (e.g. \"30s\", \"1m\").', type=[keyword]}",
+          "mapParams" : "{name='type', values=[], description='Content type of the input (e.g. \"text\", \"image\").', type=[keyword]}, {name='timeout', values=[], description='Timeout for the inference request (e.g. \"30s\", \"1m\").', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Options for the input value."
         }
@@ -38,7 +38,7 @@
   ],
   "examples" : [
     "FROM dense_vector_text METADATA _score\n| EVAL query_embedding = EMBEDDING(\"be excellent to each other\", \"test_embedding_inference\")\n| WHERE KNN(text_embedding_field, query_embedding)\n| SORT _score DESC\n| LIMIT 10",
-    "ROW b64_input=\"This is an image\"\n| EVAL embedding = EMBEDDING(\"data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ==\", \"test_embedding_inference\", {\"type\": \"image\", \"format\": \"base64\"})"
+    "ROW b64_input=\"This is an image\"\n| EVAL embedding = EMBEDDING(\"data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ==\", \"test_embedding_inference\", {\"type\": \"image\"})"
   ],
   "preview" : false,
   "snapshot_only" : true

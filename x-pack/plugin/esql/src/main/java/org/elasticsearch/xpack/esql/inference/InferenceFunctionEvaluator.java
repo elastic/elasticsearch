@@ -219,7 +219,6 @@ public class InferenceFunctionEvaluator {
                         inferenceId(inferenceFunction, foldContext),
                         expressionEvaluatorFactory(embedding.inputText(), foldContext),
                         embedding.inputDataType(),
-                        embedding.inputDataFormat(),
                         embedding.inputTimeout()
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(

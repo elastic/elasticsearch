@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.inference.embedding;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.AbstractDenseEmbeddingOperatorTestCase;
@@ -27,7 +30,6 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             DataType.TEXT,
-            DataFormat.TEXT,
             InferenceAction.Request.DEFAULT_TIMEOUT
         );
     }
@@ -43,12 +45,24 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             DataType.IMAGE,
-            DataFormat.BASE64,
             InferenceAction.Request.DEFAULT_TIMEOUT
         );
 
         var runner = new TestDriverRunner().builder(driverContext());
-        runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
+        runner.input(imageInput(runner.context().blockFactory(), between(1, 10)));
         runner.run(factory);
+    }
+
+    private Page imageInput(org.elasticsearch.compute.data.BlockFactory blockFactory, int size) {
+        Block[] blocks = new Block[inputsCount];
+        for (int b = 0; b < inputsCount; b++) {
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(size)) {
+                for (int i = 0; i < size; i++) {
+                    builder.appendBytesRef(new BytesRef("data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ=="));
+                }
+                blocks[b] = builder.build();
+            }
+        }
+        return new Page(blocks);
     }
 }

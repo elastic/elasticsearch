@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
@@ -53,16 +52,8 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Embedding.class).ternary(Embedding::new).name("embedding");
 
     private static final String OPTION_TYPE = "type";
-    private static final String OPTION_FORMAT = "format";
     private static final String OPTION_TIMEOUT = "timeout";
-    private static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(
-        OPTION_TYPE,
-        DataType.KEYWORD,
-        OPTION_FORMAT,
-        DataType.KEYWORD,
-        OPTION_TIMEOUT,
-        DataType.KEYWORD
-    );
+    private static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(OPTION_TYPE, DataType.KEYWORD, OPTION_TIMEOUT, DataType.KEYWORD);
 
     private final Expression inferenceId;
     private final Expression inputValue;
@@ -84,9 +75,9 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
                 tag = "embedding-knn"
             ),
             @Example(
-                description = "Generate embeddings using an inference endpoint, specifying the data type and format:",
+                description = "Generate embeddings using an inference endpoint, specifying the data type:",
                 file = "embedding",
-                tag = "embedding-base64"
+                tag = "embedding-image"
             ) }
     )
     public Embedding(
@@ -117,11 +108,6 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
                     name = "type",
                     type = { "keyword" },
                     description = "Content type of the input (e.g. \"text\", \"image\")."
-                ),
-                @MapParam.MapParamEntry(
-                    name = "format",
-                    type = { "keyword" },
-                    description = "Format of the input content (e.g. \"text\", \"base64\")."
                 ),
                 @MapParam.MapParamEntry(
                     name = "timeout",
@@ -161,11 +147,6 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     public org.elasticsearch.inference.DataType inputDataType() {
         String value = optionStringValue(OPTION_TYPE);
         return value == null ? org.elasticsearch.inference.DataType.TEXT : org.elasticsearch.inference.DataType.fromString(value);
-    }
-
-    public DataFormat inputDataFormat() {
-        String value = optionStringValue(OPTION_FORMAT);
-        return value == null ? DataFormat.TEXT : DataFormat.fromString(value);
     }
 
     public TimeValue inputTimeout() {
@@ -214,7 +195,6 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
             TypeResolution optionsResolution = Options.resolve(inputOptions, source(), THIRD, ALLOWED_OPTIONS, optionsMap -> {
                 try {
                     inputDataType();
-                    inputDataFormat();
                     inputTimeout();
                 } catch (IllegalArgumentException e) {
                     throw new InvalidArgumentException("Invalid options for EMBEDDING: " + e.getMessage());

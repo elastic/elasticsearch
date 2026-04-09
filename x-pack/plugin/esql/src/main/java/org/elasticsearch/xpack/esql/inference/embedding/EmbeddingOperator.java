@@ -12,7 +12,6 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
@@ -38,13 +37,12 @@ public class EmbeddingOperator extends InferenceOperator {
         String inferenceId,
         ExpressionEvaluator inputEvaluator,
         DataType dataType,
-        DataFormat dataFormat,
         TimeValue timeout
     ) {
         super(
             driverContext,
             inferenceService,
-            new EmbeddingRequestIterator.Factory(inferenceId, TaskType.EMBEDDING, inputEvaluator, dataType, dataFormat, timeout),
+            new EmbeddingRequestIterator.Factory(inferenceId, TaskType.EMBEDDING, inputEvaluator, dataType, timeout),
             new EmbeddingOutputBuilder(driverContext.blockFactory())
         );
     }
@@ -71,7 +69,6 @@ public class EmbeddingOperator extends InferenceOperator {
         String inferenceId,
         ExpressionEvaluator.Factory textEvaluatorFactory,
         DataType dataType,
-        DataFormat dataFormat,
         TimeValue timeout
     ) implements OperatorFactory {
 
@@ -88,7 +85,6 @@ public class EmbeddingOperator extends InferenceOperator {
                 inferenceId,
                 textEvaluatorFactory.get(driverContext),
                 dataType,
-                dataFormat,
                 timeout
             );
         }

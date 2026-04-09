@@ -12,11 +12,11 @@ FROM dense_vector_text METADATA _score
 | LIMIT 10
 ```
 
-Generate embeddings using an inference endpoint, specifying the data type and format:
+Generate embeddings using an inference endpoint, specifying the data type:
 
 ```esql
 ROW b64_input="This is an image"
-| EVAL embedding = EMBEDDING("data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ==", "test_embedding_inference", {"type": "image", "format": "base64"})
+| EVAL embedding = EMBEDDING("data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ==", "test_embedding_inference", {"type": "image"})
 ```
 
 

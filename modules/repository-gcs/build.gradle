@@ -299,6 +299,7 @@ def gcsAdcTest = tasks.register("gcsAdcTest", Test) {
   setTestClassesDirs(sourceSets.test.output.classesDirs)
   setClasspath(sourceSets.test.runtimeClasspath)
   include '**/GoogleCloudStorageAdcTests.class'
+  environment.remove('GOOGLE_APPLICATION_CREDENTIALS')
 }
 
 tasks.named('check') {

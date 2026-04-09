@@ -58,12 +58,6 @@ public class GoogleCloudStorageAdcTests extends ESTestCase {
      * naturally fall through to the metadata server. This test documents and protects that path.
      */
     public void testApplicationDefaultCredentialsFallbackToComputeEngine() throws IOException {
-        assumeFalse(
-            "Test requires GOOGLE_APPLICATION_CREDENTIALS to be unset so DefaultCredentialsProvider"
-                + " reaches the well-known file check (File.isFile) rather than attempting to read the env-var path",
-            System.getenv("GOOGLE_APPLICATION_CREDENTIALS") != null
-        );
-
         final AtomicBoolean metadataServerContacted = new AtomicBoolean(false);
 
         // Mock HTTP transport that simulates the GCP metadata server.

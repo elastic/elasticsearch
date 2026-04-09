@@ -2,7 +2,7 @@
 
 ## Examples
 
-Generate embeddings using the 'test_dense_inference' inference endpoint, using defaults:
+Generate embeddings using the 'test_dense_inference' inference endpoint, using the default type and format (text):
 
 ```esql
 FROM dense_vector_text METADATA _score
@@ -15,8 +15,8 @@ FROM dense_vector_text METADATA _score
 Generate embeddings using an inference endpoint, specifying the data type and format:
 
 ```esql
-ROW b64_input="Who is Victor Hugo?"
-| EVAL embedding = EMBEDDING("V2hvIGlzIFZpY3RvciBIdWdvPw==", "test_embedding_inference", {"type": "image", "format": "base64"})
+ROW b64_input="This is an image"
+| EVAL embedding = EMBEDDING("data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ==", "test_embedding_inference", {"type": "image", "format": "base64"})
 ```
 
 

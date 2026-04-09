@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -228,6 +229,193 @@ public class PropagateNullableTests extends ESTestCase {
 
         Expression expectedOrLeft = greaterThanOf(nullOf(INTEGER), ONE);
         Expression expectedOr = new Or(EMPTY, expectedOrLeft, gt_b);
+        assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
+    }
+
+    // COALESCE(a, b) AND a IS NULL => COALESCE(b) AND a IS NULL
+    // Direct arg 'a' is removed from COALESCE; 'b' has no reference to 'a' so transformDown leaves it unchanged.
+    public void testCoalesceDirectArgNullified() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Expression coalesce = new Coalesce(EMPTY, fa, List.of(fb));
+        And and = new And(EMPTY, coalesce, isNull);
+
+        Expression optimized = propagateNullable(and);
+
+        Expression expectedCoalesce = new Coalesce(EMPTY, fb, List.of());
+        assertEquals(new And(EMPTY, expectedCoalesce, isNull), optimized);
+    }
+
+    // COALESCE(a, b + a) AND a IS NULL => COALESCE(b + null) AND a IS NULL
+    // Direct arg 'a' is removed; the nested 'a' inside 'b + a' is also substituted by transformDown.
+    public void testCoalesceDirectArgNullifiedAndNestedSubstituted() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Expression addExpr = new Add(EMPTY, fb, fa, TEST_CFG);
+        Expression coalesce = new Coalesce(EMPTY, fa, List.of(addExpr));
+        And and = new And(EMPTY, coalesce, isNull);
+
+        Expression optimized = propagateNullable(and);
+
+        Expression expectedAdd = new Add(EMPTY, fb, nullOf(INTEGER), TEST_CFG);
+        Expression expectedCoalesce = new Coalesce(EMPTY, expectedAdd, List.of());
+        assertEquals(new And(EMPTY, expectedCoalesce, isNull), optimized);
+    }
+
+    // COALESCE(a) AND a IS NULL => COALESCE(null) AND a IS NULL
+    // When all direct args match the null field and are removed, the Coalesce branch is skipped
+    // (no surviving children), so transformDown on the original COALESCE(a) substitutes a -> null.
+    public void testCoalesceAllArgsRemovedFallsBackToTransformDown() {
+        FieldAttribute fa = getFieldAttribute();
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Expression coalesce = new Coalesce(EMPTY, fa, List.of());
+        And and = new And(EMPTY, coalesce, isNull);
+
+        Expression optimized = propagateNullable(and);
+
+        Expression expectedCoalesce = new Coalesce(EMPTY, nullOf(INTEGER), List.of());
+        assertEquals(new And(EMPTY, expectedCoalesce, isNull), optimized);
+    }
+
+    // (a IS NOT NULL OR (b > 1 AND a > 5)) AND a IS NULL
+    // => OR(false, AND(b > 1, null > 5)) AND a IS NULL
+    // The nested 'a > 5' inside the AND branch is also nullified via transformDown.
+    public void testIsNullInOrWithNestedAndBranch() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Expression innerAnd = new And(EMPTY, greaterThanOf(fb, ONE), greaterThanOf(fa, ONE));
+        Or or = new Or(EMPTY, new IsNotNull(EMPTY, fa), innerAnd);
+        And and = new And(EMPTY, or, isNull);
+
+        Expression optimized = propagateNullable(and);
+
+        Expression expectedInnerAnd = new And(EMPTY, greaterThanOf(fb, ONE), greaterThanOf(nullOf(INTEGER), ONE));
+        Expression expectedOr = new Or(EMPTY, new Literal(EMPTY, Boolean.FALSE, DataType.BOOLEAN), expectedInnerAnd);
+        assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
+    }
+
+    // (b IS NOT NULL OR c > 1) AND a IS NULL => unchanged
+    // Neither 'b' nor 'c' is 'a', so anyMatch returns false and the OR is not nullified.
+    public void testIsNullDoesNotModifyUnrelatedOrBranch() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        FieldAttribute fc = getFieldAttribute("c");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Or or = new Or(EMPTY, new IsNotNull(EMPTY, fb), greaterThanOf(fc, ONE));
+        And and = new And(EMPTY, or, isNull);
+
+        assertEquals(and, propagateNullable(and));
+    }
+
+    // a IS NULL AND b IS NULL AND (a > 1 OR b > 2)
+    // => a IS NULL AND b IS NULL AND (null > 1 OR null > 2)
+    // Both null constraints sequentially substitute their field in the shared OR expression.
+    public void testMultipleIsNullConstraintsNullifyOr() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        IsNull isNullA = new IsNull(EMPTY, fa);
+        IsNull isNullB = new IsNull(EMPTY, fb);
+
+        Or or = new Or(EMPTY, greaterThanOf(fa, ONE), greaterThanOf(fb, TWO));
+        And and = new And(EMPTY, isNullA, new And(EMPTY, isNullB, or));
+
+        Expression optimized = propagateNullable(and);
+
+        Literal nullInt = nullOf(INTEGER);
+        Expression expectedOr = new Or(EMPTY, greaterThanOf(nullInt, ONE), greaterThanOf(nullInt, TWO));
+        assertEquals(List.of(isNullA, isNullB, expectedOr), Predicates.splitAnd(optimized));
+    }
+
+    // --- nonNullify tests (symmetric: field is IS NOT NULL) ---
+
+    // (a IS NULL OR b > 1) AND a IS NOT NULL => OR(false, b > 1) AND a IS NOT NULL
+    // BooleanSimplification (next pass) will fold OR(false, b > 1) -> b > 1
+    public void testIsNotNullPreservesOrDisjunctionBranch() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        IsNotNull isNotNull = new IsNotNull(EMPTY, fa);
+
+        Expression gt = greaterThanOf(fb, ONE);
+        Or or = new Or(EMPTY, new IsNull(EMPTY, fa), gt);
+        And and = new And(EMPTY, or, isNotNull);
+
+        Expression optimized = propagateNullable(and);
+
+        Literal falseLiteral = new Literal(EMPTY, Boolean.FALSE, BOOLEAN);
+        Expression expectedOr = new Or(EMPTY, falseLiteral, gt);
+        assertEquals(new And(EMPTY, expectedOr, isNotNull), optimized);
+    }
+
+    // (a IS NOT NULL OR b > 1) AND a IS NOT NULL => OR(true, b > 1) AND a IS NOT NULL
+    // BooleanSimplification (next pass) will fold OR(true, b > 1) -> true, then a IS NOT NULL
+    public void testIsNotNullPreservesIsNotNullBranchInOr() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        IsNotNull isNotNull = new IsNotNull(EMPTY, fa);
+
+        Expression gt = greaterThanOf(fb, ONE);
+        Or or = new Or(EMPTY, new IsNotNull(EMPTY, fa), gt);
+        And and = new And(EMPTY, or, isNotNull);
+
+        Expression optimized = propagateNullable(and);
+
+        Literal trueLiteral = new Literal(EMPTY, Boolean.TRUE, BOOLEAN);
+        Expression expectedOr = new Or(EMPTY, trueLiteral, gt);
+        assertEquals(new And(EMPTY, expectedOr, isNotNull), optimized);
+    }
+
+    // a > 1 AND a IS NOT NULL => unchanged
+    // nonNullify does NOT substitute the field value itself; we only know it is non-null.
+    public void testIsNotNullDoesNotSubstituteFieldReference() {
+        FieldAttribute fa = getFieldAttribute();
+        IsNotNull isNotNull = new IsNotNull(EMPTY, fa);
+
+        And and = new And(EMPTY, greaterThanOf(fa, ONE), isNotNull);
+
+        assertEquals(and, propagateNullable(and));
+    }
+
+    // (b IS NULL OR c > 1) AND a IS NOT NULL => unchanged
+    // Neither 'b' nor 'c' is 'a', so the OR is not touched.
+    public void testIsNotNullDoesNotModifyUnrelatedOrBranch() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        FieldAttribute fc = getFieldAttribute("c");
+        IsNotNull isNotNull = new IsNotNull(EMPTY, fa);
+
+        Or or = new Or(EMPTY, new IsNull(EMPTY, fb), greaterThanOf(fc, ONE));
+        And and = new And(EMPTY, or, isNotNull);
+
+        assertEquals(and, propagateNullable(and));
+    }
+
+    // (a IS NOT NULL OR b > 1 OR c > 2) AND a IS NULL
+    // => OR(false, OR(b > 1, c > 2)) AND a IS NULL
+    // All three OR branches are preserved; IS_NOT_NULL(a) becomes false, the rest unchanged.
+    public void testIsNullInOrWithThreeBranches() {
+        FieldAttribute fa = getFieldAttribute();
+        FieldAttribute fb = getFieldAttribute("b");
+        FieldAttribute fc = getFieldAttribute("c");
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Expression gt_b = greaterThanOf(fb, ONE);
+        Expression gt_c = greaterThanOf(fc, TWO);
+        Or innerOr = new Or(EMPTY, gt_b, gt_c);
+        Or or = new Or(EMPTY, new IsNotNull(EMPTY, fa), innerOr);
+        And and = new And(EMPTY, or, isNull);
+
+        Expression optimized = propagateNullable(and);
+
+        Literal falseLiteral = new Literal(EMPTY, Boolean.FALSE, DataType.BOOLEAN);
+        Expression expectedOr = new Or(EMPTY, falseLiteral, innerOr);
         assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
     }
 }

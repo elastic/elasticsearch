@@ -861,3 +861,186 @@ emp_no:integer|gender:keyword
 10014         |null
 10015         |null
 ;
+
+isNullWithIsNullInsideOr
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NULL OR emp_no > 10000) AND gender IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+isNullWithOrSalaryFilter
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10016         |null
+10017         |null
+10018         |null
+10019         |null
+;
+
+isNullWithOrLanguageFilter
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR languages > 3) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10010         |null
+10011         |null
+10012         |null
+10014         |null
+10015         |null
+;
+
+isNullWithOrDisjunctionSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE gender IS NOT NULL OR emp_no > 10015
+| WHERE gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10016         |null
+10017         |null
+10018         |null
+10019         |null
+;
+
+isNullWithOrDisjunctionStatsByLanguage
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR languages > 3) AND gender IS NULL
+| STATS c = COUNT(*) BY languages
+| SORT languages
+;
+
+c:long|languages:integer
+1     |4
+4     |5
+;
+
+isNullWithOrThreeBranches
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no > 10017 OR salary > 60000) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10016         |null
+10018         |null
+10019         |null
+;
+
+isNullWithOrEvalAlias
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| EVAL g = gender
+| WHERE (g IS NOT NULL OR emp_no > 10015) AND g IS NULL
+| SORT emp_no
+| KEEP emp_no, g
+;
+
+emp_no:integer|g:keyword
+10016         |null
+10017         |null
+10018         |null
+10019         |null
+;
+
+isNullWithOrCompoundAndRangeEvalSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| EVAL nullable = gender
+| KEEP emp_no, nullable
+| WHERE nullable IS NOT NULL OR (emp_no > 10010 AND emp_no <= 10016)
+| WHERE nullable IS NULL
+| SORT emp_no
+;
+
+emp_no:integer|nullable:keyword
+10011         |null
+10012         |null
+10013         |null
+10014         |null
+10015         |null
+10016         |null
+;
+
+isNotNullWithOrDisjunctionSurvivingBranch
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NULL OR emp_no <= 10009) AND gender IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10001         |M
+10002         |F
+10003         |M
+10004         |M
+10005         |M
+10006         |F
+10007         |F
+10008         |M
+10009         |F
+;
+
+isNotNullWithIsNotNullInsideOr
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no <= 10009) AND gender IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
+isNotNullWithOrDisjunctionSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE gender IS NULL OR emp_no <= 10009
+| WHERE gender IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10001         |M
+10002         |F
+10003         |M
+10004         |M
+10005         |M
+10006         |F
+10007         |F
+10008         |M
+10009         |F
+;

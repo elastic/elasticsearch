@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
@@ -63,13 +62,19 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         String tokenUri,
         String auth
     ) {
-        Map<String, Object> raw = new HashMap<>();
-        if (serviceAccountCredentials != null) raw.put(CREDENTIALS.name(), serviceAccountCredentials);
-        if (projectId != null) raw.put(PROJECT_ID.name(), projectId);
-        if (endpoint != null) raw.put(ENDPOINT.name(), endpoint);
-        if (tokenUri != null) raw.put(TOKEN_URI.name(), tokenUri);
-        if (auth != null) raw.put(AUTH.name(), auth);
-        return raw.isEmpty() ? null : fromMap(raw);
+        var raw = buildRawMap(
+            CREDENTIALS,
+            serviceAccountCredentials,
+            PROJECT_ID,
+            projectId,
+            ENDPOINT,
+            endpoint,
+            TOKEN_URI,
+            tokenUri,
+            AUTH,
+            auth
+        );
+        return raw != null ? fromMap(raw) : null;
     }
 
     public String serviceAccountCredentials() {

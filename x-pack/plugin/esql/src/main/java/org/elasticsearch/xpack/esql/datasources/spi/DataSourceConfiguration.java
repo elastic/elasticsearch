@@ -38,13 +38,9 @@ public abstract class DataSourceConfiguration {
      */
     protected DataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
         this.fieldDefs = fieldDefs;
+        DataSourceValidator.rejectUnknownFields(raw, fieldDefs.keySet());
         Map<String, Object> parsed = new HashMap<>();
         for (var entry : raw.entrySet()) {
-            if (fieldDefs.containsKey(entry.getKey()) == false) {
-                throw new IllegalArgumentException(
-                    "unknown datasource setting [" + entry.getKey() + "]; known settings: " + fieldDefs.keySet()
-                );
-            }
             if (entry.getValue() != null) {
                 Object value = entry.getValue();
                 DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
@@ -60,6 +56,28 @@ public abstract class DataSourceConfiguration {
 
     /** Cross-field validation. Called after construction. */
     protected abstract void validate();
+
+    /**
+     * Builds a raw settings map from alternating field/value pairs, skipping nulls.
+     * Returns null if all values are null. Used by {@code fromFields()} factory methods.
+     */
+    protected static Map<String, Object> buildRawMap(Object... fieldValuePairs) {
+        if (fieldValuePairs.length % 2 != 0) {
+            throw new IllegalArgumentException("fieldValuePairs must have even length");
+        }
+        Map<String, Object> raw = new HashMap<>();
+        for (int i = 0; i < fieldValuePairs.length; i += 2) {
+            if (fieldValuePairs[i] instanceof DataSourceConfigDefinition == false) {
+                throw new IllegalArgumentException("expected DataSourceConfigDefinition at index " + i);
+            }
+            DataSourceConfigDefinition field = (DataSourceConfigDefinition) fieldValuePairs[i];
+            Object value = fieldValuePairs[i + 1];
+            if (value != null) {
+                raw.put(field.name(), value);
+            }
+        }
+        return raw.isEmpty() ? null : raw;
+    }
 
     /** Returns true if any field marked as secret has a value set. Null values are already excluded. */
     protected boolean hasAnySecretValue() {

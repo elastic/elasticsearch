@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Validates datasource and dataset settings at CRUD time.
@@ -44,4 +47,80 @@ public interface DataSourceValidator {
         String resource,
         Map<String, Object> datasetSettings
     );
+
+    // --- Validation utilities for use by all validator implementations ---
+
+    /**
+     * Rejects any keys in the settings map that are not in the known fields set.
+     *
+     * @param settings the settings map to check
+     * @param knownFields the set of valid field names
+     */
+    static void rejectUnknownFields(Map<String, ?> settings, Set<String> knownFields) {
+        for (String key : settings.keySet()) {
+            if (knownFields.contains(key) == false) {
+                throw new IllegalArgumentException("unknown setting [" + key + "]; known settings: " + knownFields);
+            }
+        }
+    }
+
+    /**
+     * Validates that a setting value matches one of the values in the given enum.
+     * If present and valid, the original value is stored as-is (no case normalization).
+     * Case normalization for datasource settings is handled by
+     * {@link DataSourceConfigDefinition#caseInsensitive()} in the configuration layer.
+     *
+     * @param settings the raw settings map
+     * @param result the validated result map to add to
+     * @param field the setting field name
+     * @param values the valid enum values (for error messages)
+     * @param parser parses the string value into the enum (should throw on invalid)
+     */
+    static <E extends Enum<E>> void validateEnum(
+        Map<String, Object> settings,
+        Map<String, Object> result,
+        String field,
+        E[] values,
+        Function<String, ?> parser
+    ) {
+        Object value = settings.get(field);
+        if (value != null) {
+            Object parsed;
+            try {
+                parsed = parser.apply(value.toString());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("[" + field + "] must be one of " + Arrays.toString(values) + ", got [" + value + "]");
+            }
+            if (parsed == null) {
+                throw new IllegalArgumentException("[" + field + "] must be one of " + Arrays.toString(values) + ", got [" + value + "]");
+            }
+            result.put(field, value);
+        }
+    }
+
+    /**
+     * Validates that a setting value is an integer within the given range.
+     * If present and valid, the parsed integer is added to the result map.
+     *
+     * @param settings the raw settings map
+     * @param result the validated result map to add to
+     * @param field the setting field name
+     * @param min minimum allowed value (inclusive)
+     * @param max maximum allowed value (inclusive)
+     */
+    static void validateInt(Map<String, Object> settings, Map<String, Object> result, String field, int min, int max) {
+        Object value = settings.get(field);
+        if (value != null) {
+            int parsed;
+            try {
+                parsed = Integer.parseInt(value.toString());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("[" + field + "] must be a number, got [" + value + "]");
+            }
+            if (parsed < min || parsed > max) {
+                throw new IllegalArgumentException("[" + field + "] must be between " + min + " and " + max + ", got [" + parsed + "]");
+            }
+            result.put(field, parsed);
+        }
+    }
 }

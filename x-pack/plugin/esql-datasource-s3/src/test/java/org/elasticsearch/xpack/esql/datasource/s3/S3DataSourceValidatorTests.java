@@ -85,6 +85,22 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         assertEquals("hive", result.get("partition_detection"));
     }
 
+    public void testValidateDatasetPartitionDetectionInvalid() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "banana"))
+        );
+    }
+
+    public void testValidateDatasetPartitionDetectionAllValues() {
+        for (String strategy : new String[] { "auto", "hive", "template", "none", "AUTO", "HIVE", "TEMPLATE", "NONE" }) {
+            assertEquals(
+                strategy,
+                validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", strategy)).get("partition_detection")
+            );
+        }
+    }
+
     public void testValidateDatasetRequiresResource() {
         expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
     }
@@ -107,11 +123,37 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("format", "parquet")));
     }
 
+    public void testValidateDatasetErrorModeAllValues() {
+        for (String mode : new String[] { "fail_fast", "skip_row", "null_field", "FAIL_FAST", "SKIP_ROW", "NULL_FIELD" }) {
+            assertEquals(mode, validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", mode)).get("error_mode"));
+        }
+    }
+
+    public void testValidateDatasetErrorModeInvalid() {
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "banana")));
+    }
+
+    public void testValidateDatasetErrorModeEmpty() {
+        expectThrows(IllegalArgumentException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "")));
+    }
+
+    public void testValidateDatasetPartitionDetectionEmpty() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", ""))
+        );
+    }
+
     public void testValidateDatasetSchemaSampleSize() {
         assertEquals(50, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50)).get("schema_sample_size"));
         expectThrows(
             IllegalArgumentException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0))
+        );
+        // upper bound: SCHEMA_SAMPLE_SIZE_MAX = 1000
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001))
         );
     }
 

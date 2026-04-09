@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
@@ -53,13 +52,8 @@ public class S3Configuration extends FileDataSourceConfiguration {
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region, String auth) {
-        Map<String, Object> raw = new HashMap<>();
-        if (accessKey != null) raw.put(ACCESS_KEY.name(), accessKey);
-        if (secretKey != null) raw.put(SECRET_KEY.name(), secretKey);
-        if (endpoint != null) raw.put(ENDPOINT.name(), endpoint);
-        if (region != null) raw.put(REGION.name(), region);
-        if (auth != null) raw.put(AUTH.name(), auth);
-        return raw.isEmpty() ? null : fromMap(raw);
+        var raw = buildRawMap(ACCESS_KEY, accessKey, SECRET_KEY, secretKey, ENDPOINT, endpoint, REGION, region, AUTH, auth);
+        return raw != null ? fromMap(raw) : null;
     }
 
     public String accessKey() {

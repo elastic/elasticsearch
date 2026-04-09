@@ -7,10 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.LinkedHashMap;
+import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
+
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator.rejectUnknownFields;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator.validateEnum;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator.validateInt;
 
 /**
  * {@link DataSourceValidator} for file-based external sources (S3, GCS, Azure).
@@ -20,6 +26,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
     private static final String PARTITION_DETECTION = "partition_detection";
     private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    private static final int SCHEMA_SAMPLE_SIZE_MAX = 1000;
     private static final String ERROR_MODE = "error_mode";
     private static final Set<String> DATASET_FIELDS = Set.of(PARTITION_DETECTION, SCHEMA_SAMPLE_SIZE, ERROR_MODE);
 
@@ -57,6 +64,21 @@ public class FileDataSourceValidator implements DataSourceValidator {
         String resource,
         Map<String, Object> datasetSettings
     ) {
+        validateResource(resource);
+
+        if (datasetSettings == null) {
+            datasetSettings = Map.of();
+        }
+        rejectUnknownFields(datasetSettings, DATASET_FIELDS);
+
+        Map<String, Object> result = new HashMap<>();
+        validateEnum(datasetSettings, result, PARTITION_DETECTION, PartitionConfig.Strategy.values(), PartitionConfig.Strategy::parse);
+        validateEnum(datasetSettings, result, ERROR_MODE, ErrorPolicy.Mode.values(), ErrorPolicy.Mode::parse);
+        validateInt(datasetSettings, result, SCHEMA_SAMPLE_SIZE, 1, SCHEMA_SAMPLE_SIZE_MAX);
+        return result;
+    }
+
+    private void validateResource(String resource) {
         if (resource == null || resource.isBlank()) {
             throw new IllegalArgumentException("[resource] is required");
         }
@@ -70,41 +92,6 @@ public class FileDataSourceValidator implements DataSourceValidator {
         if (schemeMatch == false) {
             throw new IllegalArgumentException("[resource] must start with one of " + validSchemes + " but was [" + resource + "]");
         }
-
-        if (datasetSettings == null) {
-            datasetSettings = Map.of();
-        }
-        for (String key : datasetSettings.keySet()) {
-            if (DATASET_FIELDS.contains(key) == false) {
-                throw new IllegalArgumentException("unknown dataset setting [" + key + "]; known settings: " + DATASET_FIELDS);
-            }
-        }
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        copyIfPresent(datasetSettings, result, PARTITION_DETECTION);
-        copyIfPresent(datasetSettings, result, ERROR_MODE);
-
-        Object sampleSize = datasetSettings.get(SCHEMA_SAMPLE_SIZE);
-        if (sampleSize != null) {
-            int value;
-            try {
-                value = Integer.parseInt(sampleSize.toString());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("[schema_sample_size] must be a number, got [" + sampleSize + "]");
-            }
-            if (value < 1) {
-                throw new IllegalArgumentException("[schema_sample_size] must be at least 1, got [" + value + "]");
-            }
-            result.put(SCHEMA_SAMPLE_SIZE, value);
-        }
-
-        return result;
     }
 
-    private static void copyIfPresent(Map<String, Object> source, Map<String, Object> dest, String key) {
-        Object value = source.get(key);
-        if (value != null) {
-            dest.put(key, value);
-        }
-    }
 }

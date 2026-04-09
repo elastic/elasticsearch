@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
@@ -65,14 +64,21 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
         String endpoint,
         String auth
     ) {
-        Map<String, Object> raw = new HashMap<>();
-        if (connectionString != null) raw.put(CONNECTION_STRING.name(), connectionString);
-        if (account != null) raw.put(ACCOUNT.name(), account);
-        if (key != null) raw.put(KEY.name(), key);
-        if (sasToken != null) raw.put(SAS_TOKEN.name(), sasToken);
-        if (endpoint != null) raw.put(ENDPOINT.name(), endpoint);
-        if (auth != null) raw.put(AUTH.name(), auth);
-        return raw.isEmpty() ? null : fromMap(raw);
+        var raw = buildRawMap(
+            CONNECTION_STRING,
+            connectionString,
+            ACCOUNT,
+            account,
+            KEY,
+            key,
+            SAS_TOKEN,
+            sasToken,
+            ENDPOINT,
+            endpoint,
+            AUTH,
+            auth
+        );
+        return raw != null ? fromMap(raw) : null;
     }
 
     public String connectionString() {

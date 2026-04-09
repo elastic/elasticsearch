@@ -32,6 +32,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -62,6 +64,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -120,6 +123,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
      */
     private final AtomicReference<ScrollConsumableHitsResponse> currentScrollResponse = new AtomicReference<>();
+    /**
+     * Set to {@code true} at the start of {@link #finishHim(Exception, List, List, boolean)} so {@link #prepareBulkRequest} can still
+     * release unconsumed hits when {@link #currentScrollResponse} is temporarily {@code null} after prepare's CAS (before the ref is
+     * restored when {@code maxDocs} leaves a partial batch).
+     */
+    private final AtomicBoolean requestFinishing = new AtomicBoolean(false);
     /**
      * Keeps track of the total number of bulk operations performed
      * from a single scroll response. It is possible that
@@ -345,20 +354,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         return bulkRequest;
     }
 
-    private static void releaseHits(List<? extends PaginatedHitSource.Hit> hits) {
-        for (PaginatedHitSource.Hit hit : hits) {
-            hit.release();
-        }
-    }
-
-    private boolean tryReleaseCurrentResponse(ScrollConsumableHitsResponse expected) {
-        if (currentScrollResponse.compareAndSet(expected, null)) {
-            expected.releaseRemainingHits();
-            return true;
-        }
-        return false;
-    }
-
     protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
         // If we're using point-in-time search, then return a ClientPitPaginatedHitSource
         if (searchRequest.source() != null && searchRequest.source().pointInTimeBuilder() != null) {
@@ -498,6 +493,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
         if (currentScrollResponse.compareAndSet(asyncResponse, null) == false) {
             return;
         }
+        if (requestFinishing.get()) {
+            asyncResponse.releaseRemainingHits();
+            return;
+        }
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             asyncResponse.releaseRemainingHits();
@@ -527,30 +526,39 @@ public abstract class AbstractAsyncBulkByScrollAction<
             currentScrollResponse.set(asyncResponse);
         }
 
-        final BulkRequest request;
-        try {
-            request = buildBulk(hits);
-        } catch (Exception e) {
+        if (requestFinishing.get()) {
             releaseHits(hits);
-            throw e;
-        }
-        if (request.requests().isEmpty()) {
-            /*
-             * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
-             */
-            releaseHits(hits);
-            notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
+            asyncResponse.releaseRemainingHits();
             return;
         }
-        request.timeout(mainRequest.getTimeout());
-        request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        sendBulkRequest(request, hits, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+
+        final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
+        boolean releaseBatchHitsHandedOff = false;
+        try {
+            final BulkRequest request = buildBulk(hits);
+            if (request.requests().isEmpty()) {
+                /*
+                 * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
+                 */
+                notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
+                return;
+            }
+            request.timeout(mainRequest.getTimeout());
+            request.waitForActiveShards(mainRequest.getWaitForActiveShards());
+            sendBulkRequest(request, releaseBatchHits, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+            releaseBatchHitsHandedOff = true;
+        } finally {
+            if (releaseBatchHitsHandedOff == false) {
+                releaseBatchHits.close();
+            }
+        }
     }
 
     /**
-     * Send a bulk request, handling retries. Releases {@code batchHits} on both success and failure so they are never leaked.
+     * Send a bulk request, handling retries. Releases {@code releaseBatchHits} on cancellation, terminal finish, and before the bulk
+     * listener completes (success or failure) so hits are never leaked.
      */
-    void sendBulkRequest(BulkRequest request, List<? extends PaginatedHitSource.Hit> batchHits, Runnable onSuccess) {
+    void sendBulkRequest(BulkRequest request, Releasable releaseBatchHits, Runnable onSuccess) {
         final int requestSize = request.requests().size();
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -562,24 +570,18 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
-            releaseHits(batchHits);
+            releaseBatchHits.close();
             finishHim(null);
             return;
         }
-        bulkRetry.withBackoff(bulkClient::bulk, request, new ActionListener<BulkResponse>() {
-            @Override
-            public void onResponse(BulkResponse response) {
-                logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
-                releaseHits(batchHits);
-                onBulkResponse(response, onSuccess);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                releaseHits(batchHits);
-                finishHim(e);
-            }
-        });
+        if (requestFinishing.get()) {
+            releaseBatchHits.close();
+            return;
+        }
+        bulkRetry.withBackoff(bulkClient::bulk, request, ActionListener.releaseBefore(releaseBatchHits, ActionListener.wrap(response -> {
+            logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
+            onBulkResponse(response, onSuccess);
+        }, this::finishHim)));
     }
 
     /**
@@ -727,16 +729,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
     }
 
-    private void recordFailure(Failure failure, List<Failure> failures) {
-        if (failure.getStatus() == CONFLICT) {
-            worker.countVersionConflict();
-            if (false == mainRequest.isAbortOnVersionConflict()) {
-                return;
-            }
-        }
-        failures.add(failure);
-    }
-
     /**
      * Start terminating a request that finished non-catastrophically by refreshing the modified indices and then proceeding to
      * {@link #finishHim(Exception, List, List, boolean)}.
@@ -786,6 +778,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         boolean timedOut
     ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
+        requestFinishing.set(true);
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
         // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.
@@ -839,6 +832,30 @@ public abstract class AbstractAsyncBulkByScrollAction<
         if (paginatedHitSource instanceof PitPaginatedHitSource pit) {
             pit.setSearchAfterValues(searchAfterValues);
         }
+    }
+
+    private static void releaseHits(List<? extends PaginatedHitSource.Hit> hits) {
+        for (PaginatedHitSource.Hit hit : hits) {
+            hit.release();
+        }
+    }
+
+    private boolean tryReleaseCurrentResponse(ScrollConsumableHitsResponse expected) {
+        if (currentScrollResponse.compareAndSet(expected, null)) {
+            expected.releaseRemainingHits();
+            return true;
+        }
+        return false;
+    }
+
+    private void recordFailure(Failure failure, List<Failure> failures) {
+        if (failure.getStatus() == CONFLICT) {
+            worker.countVersionConflict();
+            if (false == mainRequest.isAbortOnVersionConflict()) {
+                return;
+            }
+        }
+        failures.add(failure);
     }
 
     /**

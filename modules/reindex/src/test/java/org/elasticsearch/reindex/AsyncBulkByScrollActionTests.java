@@ -54,6 +54,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -85,6 +86,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -95,9 +97,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -193,6 +197,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private static final BytesArray TEST_PIT_ID = new BytesArray("test-pit-id".getBytes(StandardCharsets.UTF_8));
+
+    /** No-op batch release for tests that call {@link AbstractAsyncBulkByScrollAction#sendBulkRequest} with no hit refs. */
+    private static final Releasable NO_OP_RELEASE_BATCH_HITS = () -> {};
 
     /**
      * Randomly configures the search request for PIT or scroll. Returns true if PIT is used.
@@ -897,14 +904,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             request.add(new IndexRequest("index").id("id" + i));
         }
         if (failWithRejection) {
-            action.sendBulkRequest(request, emptyList(), Assert::fail);
+            action.sendBulkRequest(request, NO_OP_RELEASE_BATCH_HITS, Assert::fail);
             BulkByScrollResponse response = listener.get();
             assertThat(response.getBulkFailures(), hasSize(1));
             assertEquals(response.getBulkFailures().get(0).getStatus(), RestStatus.TOO_MANY_REQUESTS);
             assertThat(response.getSearchFailures(), empty());
             assertNull(response.getReasonCancelled());
         } else {
-            assertExactlyOnce(onSuccess -> action.sendBulkRequest(request, emptyList(), onSuccess));
+            assertExactlyOnce(onSuccess -> action.sendBulkRequest(request, NO_OP_RELEASE_BATCH_HITS, onSuccess));
         }
     }
 
@@ -978,7 +985,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testCancelBeforeSendBulkRequest() throws Exception {
-        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(new BulkRequest(), emptyList(), Assert::fail));
+        cancelTaskCase(
+            (DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(new BulkRequest(), NO_OP_RELEASE_BATCH_HITS, Assert::fail)
+        );
     }
 
     public void testCancelBeforeOnBulkResponse() throws Exception {
@@ -1121,6 +1130,89 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         assertThat(response.consumeRemainingHits().isEmpty(), equalTo(true));
+    }
+
+    /**
+     * Exercises the window where {@link AbstractAsyncBulkByScrollAction#prepareBulkRequest} has CAS'd
+     * {@link AbstractAsyncBulkByScrollAction#currentScrollResponse} to {@code null} but has not yet restored the ref after
+     * {@code maxDocs} consumed a partial batch. A subclass blocks inside {@code consumeHits} until {@code finishHim} runs so
+     * {@code finishHim}'s {@code getAndSet} sees {@code null} and does not release unconsumed hits; the {@code requestFinishing}
+     * checks in {@code prepareBulkRequest} / {@code sendBulkRequest} must release the batch slice and remaining hits when prepare
+     * continues.
+     */
+    public void testPartialScrollRequestFinishing() throws Exception {
+        configurePitOrScroll(false);
+        testRequest.setMaxDocs(1);
+        CountingHit h0 = new CountingHit("0");
+        CountingHit h1 = new CountingHit("1");
+        CountingHit h2 = new CountingHit("2");
+        for (CountingHit h : List.of(h0, h1, h2)) {
+            h.setSource(new BytesArray("{}"), XContentType.JSON);
+        }
+        PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+            false,
+            false,
+            emptyList(),
+            3,
+            List.of(h0, h1, h2),
+            scrollId(),
+            null
+        );
+        CountDownLatch firstConsumeReturnedFromSuper = new CountDownLatch(1);
+        CountDownLatch resumePrepareAfterFinishHim = new CountDownLatch(1);
+        AtomicInteger sendBulkInvocations = new AtomicInteger();
+        AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse consumable = new ScrollConsumableHitsResponseGate(
+            new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return scrollResponse;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {}
+            },
+            firstConsumeReturnedFromSuper,
+            resumePrepareAfterFinishHim
+        );
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
+            @Override
+            protected AbstractAsyncBulkByScrollAction.RequestWrapper<?> buildRequest(Hit doc) {
+                return AbstractAsyncBulkByScrollAction.wrap(new IndexRequest().index("test").id(doc.getId()));
+            }
+
+            @Override
+            void sendBulkRequest(BulkRequest request, Releasable releaseBatchHits, Runnable onSuccess) {
+                sendBulkInvocations.incrementAndGet();
+                super.sendBulkRequest(request, releaseBatchHits, onSuccess);
+            }
+        };
+        action.setScroll(scrollId());
+
+        Field refField = AbstractAsyncBulkByScrollAction.class.getDeclaredField("currentScrollResponse");
+        refField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        AtomicReference<AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse> currentScrollResponse = (AtomicReference<
+            AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse>) refField.get(action);
+        currentScrollResponse.set(consumable);
+
+        Future<?> prepareFuture = threadPool.generic().submit(() -> action.prepareBulkRequest(System.nanoTime(), consumable));
+        assertTrue(firstConsumeReturnedFromSuper.await(30, TimeUnit.SECONDS));
+        try {
+            action.finishHim(null);
+            assertThat(listener.get(), notNullValue());
+            assertThat(h0.releases.get(), equalTo(0));
+            assertThat(h1.releases.get(), equalTo(0));
+            assertThat(h2.releases.get(), equalTo(0));
+        } finally {
+            resumePrepareAfterFinishHim.countDown();
+        }
+        prepareFuture.get(30, TimeUnit.SECONDS);
+        assertThat(h0.releases.get(), equalTo(1));
+        assertThat(h1.releases.get(), equalTo(1));
+        assertThat(h2.releases.get(), equalTo(1));
+        // Terminal path must release hits without submitting bulk; without requestFinishing prepare reaches sendBulkRequest.
+        assertThat(sendBulkInvocations.get(), equalTo(0));
     }
 
     public void testScrollConsumableHitsResponseErrorHandling() {
@@ -2040,6 +2132,52 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             ),
             randomBoolean() ? null : Version.CURRENT
         );
+    }
+
+    /**
+     * Blocks in {@code consumeHits} after {@code super} returns (first batch taken) until the test finishes {@code finishHim},
+     * so {@link AbstractAsyncBulkByScrollAction#currentScrollResponse} stays {@code null} across {@code finishHim}'s
+     * {@code getAndSet} when {@code maxDocs} leaves a partial scroll batch.
+     */
+    private static final class ScrollConsumableHitsResponseGate extends AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse {
+        private final CountDownLatch firstConsumeReturnedFromSuper;
+        private final CountDownLatch resumePrepareAfterFinishHim;
+
+        ScrollConsumableHitsResponseGate(
+            PaginatedHitSource.AsyncResponse asyncResponse,
+            CountDownLatch firstConsumeReturnedFromSuper,
+            CountDownLatch resumePrepareAfterFinishHim
+        ) {
+            super(asyncResponse);
+            this.firstConsumeReturnedFromSuper = firstConsumeReturnedFromSuper;
+            this.resumePrepareAfterFinishHim = resumePrepareAfterFinishHim;
+        }
+
+        @Override
+        List<? extends PaginatedHitSource.Hit> consumeHits(int numberOfHits) {
+            List<? extends PaginatedHitSource.Hit> chunk = super.consumeHits(numberOfHits);
+            firstConsumeReturnedFromSuper.countDown();
+            try {
+                assertTrue(resumePrepareAfterFinishHim.await(30, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+            return chunk;
+        }
+    }
+
+    private static final class CountingHit extends PaginatedHitSource.BasicHit {
+        private final AtomicInteger releases = new AtomicInteger();
+
+        CountingHit(String id) {
+            super("idx", id, -1);
+        }
+
+        @Override
+        public void release() {
+            releases.incrementAndGet();
+        }
     }
 
     private static BulkByScrollTask.Status randomStatus() {

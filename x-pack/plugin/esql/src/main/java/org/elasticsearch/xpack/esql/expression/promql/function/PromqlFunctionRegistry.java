@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -142,6 +143,7 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.VECTOR,
         PromqlBuiltinFunctionDefinitions.SCALAR,
         Pi.PROMQL_DEFINITION,
+        PromqlBuiltinFunctionDefinitions.YEAR,
         PromqlBuiltinFunctionDefinitions.TIME, };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
@@ -155,7 +157,7 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    public record PromqlContext(Expression timestamp, Expression window, Expression step) {}
+    public record PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {}
 
     // PromQL function names not yet implemented
     // https://github.com/elastic/metrics-program/issues/39
@@ -182,12 +184,10 @@ public class PromqlFunctionRegistry {
         "day_of_month",
         "day_of_week",
         "day_of_year",
-        "days_in_month",
         "hour",
         "minute",
         "month",
         "timestamp",
-        "year",
 
         // Label manipulation functions
         "label_join",

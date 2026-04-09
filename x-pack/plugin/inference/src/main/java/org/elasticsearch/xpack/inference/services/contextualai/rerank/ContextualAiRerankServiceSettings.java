@@ -11,19 +11,15 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 
 public class ContextualAiRerankServiceSettings extends ContextualAiServiceSettings {
 
     public static final String NAME = "contextualai_rerank_service_settings";
-
-    private static final URI DEFAULT_RERANK_URI = ServiceUtils.createUri("https://api.contextual.ai/v1/rerank");
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1000);
 
@@ -33,7 +29,6 @@ public class ContextualAiRerankServiceSettings extends ContextualAiServiceSettin
         var commonSettings = ContextualAiServiceSettings.fromMap(
             serviceSettingsMap,
             context,
-            DEFAULT_RERANK_URI,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException
         );

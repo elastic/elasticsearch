@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
 
 /**
@@ -188,6 +187,11 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
         // Rerank accepts any input type
     }
 
+    /**
+     * Approximate maximum input size in words for Contextual AI rerank models; see {@link #rerankerWindowSize(String)}.
+     */
+    static final int DEFAULT_RERANKER_WINDOW_SIZE_WORDS = 5500;
+
     @Override
     public int rerankerWindowSize(String modelId) {
         // Contextual AI rerank models have an 8000 token limit per document
@@ -195,7 +199,7 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
         // Using 1 token = 0.75 words as a rough estimate, we get 6000 words
         // allowing for some headroom, we set the window size below 6000 words
         // https://github.com/elastic/elasticsearch/pull/134933#discussion_r2368608515
-        return 5500;
+        return DEFAULT_RERANKER_WINDOW_SIZE_WORDS;
     }
 
     @Override
@@ -224,19 +228,6 @@ public class ContextualAiService extends SenderService<ContextualAiModel> implem
                     )
                         .setLabel("Model ID")
                         .setRequired(true)
-                        .setSensitive(false)
-                        .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
-
-                configurationMap.put(
-                    URL,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The URL endpoint to use for Contextual AI requests."
-                    )
-                        .setLabel("URL")
-                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)

@@ -16,17 +16,25 @@ import org.elasticsearch.xpack.inference.services.contextualai.action.Contextual
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
 public abstract class ContextualAiModel extends RateLimitGroupingModel {
+    private final URI uri;
 
-    protected ContextualAiModel(ModelConfigurations configurations, ModelSecrets secrets) {
+    protected ContextualAiModel(ModelConfigurations configurations, ModelSecrets secrets, URI uri) {
         super(configurations, secrets);
+        this.uri = Objects.requireNonNull(uri);
     }
 
-    protected ContextualAiModel(ContextualAiModel model, TaskSettings taskSettings) {
+    protected ContextualAiModel(ContextualAiModel model, TaskSettings taskSettings, URI uri) {
         super(model, taskSettings);
+        this.uri = Objects.requireNonNull(uri);
+    }
+
+    public URI uri() {
+        return uri;
     }
 
     @Override

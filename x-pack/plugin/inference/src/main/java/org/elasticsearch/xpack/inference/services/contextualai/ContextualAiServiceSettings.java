@@ -16,18 +16,14 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.ML_INFERENCE_CONTEXTUAL_AI_ADDED;
 
@@ -36,13 +32,11 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
     protected static CommonSettings fromMap(
         Map<String, Object> serviceSettingsMap,
         ConfigurationParseContext context,
-        URI defaultUri,
         RateLimitSettings defaultRateLimit,
         ValidationException validationException
     ) {
         int initialValidationErrorCount = validationException.validationErrors().size();
 
-        var uri = Objects.requireNonNullElse(extractOptionalUri(serviceSettingsMap, URL, validationException), defaultUri);
         var modelId = extractRequiredString(
             serviceSettingsMap,
             ServiceFields.MODEL_ID,
@@ -60,7 +54,7 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
         if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
         }
-        return new CommonSettings(uri, modelId, rateLimitSettings);
+        return new CommonSettings(modelId, rateLimitSettings);
     }
 
     protected ContextualAiServiceSettings(CommonSettings commonSettings) {
@@ -75,24 +69,22 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
             ContextualAiService.NAME,
             ConfigurationParseContext.REQUEST
         );
-        return new CommonSettings(this.commonSettings.uri(), this.commonSettings.modelId(), rateLimitSettings);
+        return new CommonSettings(this.commonSettings.modelId(), rateLimitSettings);
     }
 
     /**
      * Encapsulates the common settings for Contextual AI services, including the URI, model ID, and rate limit settings.
-     * @param uri the URI to use when making requests to the Contextual AI service.
      * @param modelId the model ID to use when making requests to the Contextual AI service.
      * @param rateLimitSettings the rate limit settings for the Contextual AI service.
      */
-    public record CommonSettings(URI uri, String modelId, RateLimitSettings rateLimitSettings) {
+    public record CommonSettings(String modelId, RateLimitSettings rateLimitSettings) {
         public CommonSettings {
-            Objects.requireNonNull(uri);
             Objects.requireNonNull(modelId);
             Objects.requireNonNull(rateLimitSettings);
         }
 
         public CommonSettings(StreamInput in) throws IOException {
-            this(ServiceUtils.createUri(in.readString()), in.readString(), new RateLimitSettings(in));
+            this(in.readString(), new RateLimitSettings(in));
         }
     }
 
@@ -107,10 +99,6 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
         return commonSettings.rateLimitSettings();
     }
 
-    public URI uri() {
-        return commonSettings.uri();
-    }
-
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
@@ -123,7 +111,6 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(commonSettings.uri().toString());
         out.writeString(commonSettings.modelId());
         commonSettings.rateLimitSettings().writeTo(out);
     }
@@ -138,7 +125,6 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(URL, commonSettings.uri().toString());
         builder.field(MODEL_ID, commonSettings.modelId());
         commonSettings.rateLimitSettings().toXContent(builder, params);
         return builder;

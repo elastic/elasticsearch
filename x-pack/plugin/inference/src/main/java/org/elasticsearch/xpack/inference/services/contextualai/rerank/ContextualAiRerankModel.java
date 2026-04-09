@@ -13,14 +13,18 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiModel;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService;
 import org.elasticsearch.xpack.inference.services.contextualai.action.ContextualAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.net.URI;
 import java.util.Map;
 
 public class ContextualAiRerankModel extends ContextualAiModel {
+    private static final URI DEFAULT_RERANK_URI = ServiceUtils.createUri("https://api.contextual.ai/v1/rerank");
+
     public static ContextualAiRerankModel of(ContextualAiRerankModel model, Map<String, Object> taskSettingsMap) {
         var originalSettings = model.getTaskSettings();
         var requestTaskSettings = ContextualAiRerankTaskSettings.fromMap(taskSettingsMap);
@@ -65,12 +69,38 @@ public class ContextualAiRerankModel extends ContextualAiModel {
         );
     }
 
+    /**
+     * This constructor must be used only for testing.
+     * @param inferenceEntityId the inference entity id for this model
+     * @param serviceSettings the service settings for this model
+     * @param taskSettings the task settings for this model
+     * @param secretSettings the secret settings for this model, can be null
+     * @param uri the URI to use for this model's requests, must not be null
+     */
+    ContextualAiRerankModel(
+        String inferenceEntityId,
+        ContextualAiRerankServiceSettings serviceSettings,
+        ContextualAiRerankTaskSettings taskSettings,
+        @Nullable DefaultSecretSettings secretSettings,
+        URI uri
+    ) {
+        this(
+            new ModelConfigurations(inferenceEntityId, TaskType.RERANK, ContextualAiService.NAME, serviceSettings, taskSettings),
+            new ModelSecrets(secretSettings),
+            uri
+        );
+    }
+
     public ContextualAiRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets);
+        this(modelConfigurations, modelSecrets, DEFAULT_RERANK_URI);
+    }
+
+    public ContextualAiRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets, URI uri) {
+        super(modelConfigurations, modelSecrets, uri);
     }
 
     private ContextualAiRerankModel(ContextualAiRerankModel model, ContextualAiRerankTaskSettings taskSettings) {
-        super(model, taskSettings);
+        super(model, taskSettings, DEFAULT_RERANK_URI);
     }
 
     @Override

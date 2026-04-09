@@ -41,21 +41,9 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GoogleCloudStorageAdcTests extends ESTestCase {
 
     /**
-     * Verifies that when no explicit credentials are configured and no credential files are found
-     * (either because they genuinely don't exist, or because {@code File.isFile()} returns
-     * {@code false} due to entitlement enforcement), the GCS service correctly falls back to
-     * obtaining credentials from the GCP metadata server via Application Default Credentials.
-     *
-     * <p>This test exercises the code path that was broken when {@code NotEntitledException}
-     * stopped extending {@code AccessControlException}: {@code DefaultCredentialsProvider}
-     * explicitly catches {@code AccessControlException} when checking credential file paths,
-     * silently skipping to the metadata server fallback. When {@code File.isFile()} threw a
-     * {@code NotEntitledException} that no longer extended {@code AccessControlException}, the
-     * exception propagated instead of being swallowed, preventing credential discovery entirely.
-     *
-     * <p>The fix — returning {@code false} from {@code File.isFile()} when access is denied —
-     * causes {@code DefaultCredentialsProvider} to treat the credential file as absent and
-     * naturally fall through to the metadata server. This test documents and protects that path.
+     * Verifies that when no explicit credentials are configured and no credential files are found,
+     * the GCS service correctly falls back to obtaining credentials from the GCP metadata server
+     * via Application Default Credentials.
      */
     public void testApplicationDefaultCredentialsFallbackToComputeEngine() throws IOException {
         final AtomicBoolean metadataServerContacted = new AtomicBoolean(false);

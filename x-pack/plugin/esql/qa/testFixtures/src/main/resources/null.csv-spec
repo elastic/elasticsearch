@@ -880,14 +880,14 @@ required_capability: fix_propagate_nullable_or_disjunction
 FROM employees
 | WHERE (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
 | SORT emp_no
-| KEEP emp_no, gender
+| KEEP emp_no, gender, salary
 ;
 
-emp_no:integer|gender:keyword
-10016         |null
-10017         |null
-10018         |null
-10019         |null
+emp_no:integer|gender:keyword|salary:integer
+10016         |null          |61358
+10017         |null          |58715
+10018         |null          |56760
+10019         |null          |73717
 ;
 
 isNullWithOrLanguageFilter
@@ -896,15 +896,15 @@ required_capability: fix_propagate_nullable_or_disjunction
 FROM employees
 | WHERE (gender IS NOT NULL OR languages > 3) AND gender IS NULL
 | SORT emp_no
-| KEEP emp_no, gender
+| KEEP emp_no, gender, languages
 ;
 
-emp_no:integer|gender:keyword
-10010         |null
-10011         |null
-10012         |null
-10014         |null
-10015         |null
+emp_no:integer|gender:keyword|languages:integer
+10010         |null          |4
+10011         |null          |5
+10012         |null          |5
+10014         |null          |5
+10015         |null          |5
 ;
 
 isNullWithOrDisjunctionSeparateWhereClauses
@@ -926,16 +926,21 @@ emp_no:integer|gender:keyword
 
 isNullWithOrDisjunctionStatsByLanguage
 required_capability: fix_propagate_nullable_or_disjunction
+required_capability: inline_stats
 
 FROM employees
 | WHERE (gender IS NOT NULL OR languages > 3) AND gender IS NULL
-| STATS c = COUNT(*) BY languages
-| SORT languages
+| INLINE STATS c = COUNT(*) BY languages
+| SORT emp_no
+| KEEP emp_no, gender, languages, c
 ;
 
-c:long|languages:integer
-1     |4
-4     |5
+emp_no:integer|gender:keyword|languages:integer|c:long
+10010         |null          |4                |1
+10011         |null          |5                |4
+10012         |null          |5                |4
+10014         |null          |5                |4
+10015         |null          |5                |4
 ;
 
 isNullWithOrThreeBranches
@@ -944,13 +949,13 @@ required_capability: fix_propagate_nullable_or_disjunction
 FROM employees
 | WHERE (gender IS NOT NULL OR emp_no > 10017 OR salary > 60000) AND gender IS NULL
 | SORT emp_no
-| KEEP emp_no, gender
+| KEEP emp_no, gender, salary
 ;
 
-emp_no:integer|gender:keyword
-10016         |null
-10018         |null
-10019         |null
+emp_no:integer|gender:keyword|salary:integer
+10016         |null          |61358
+10018         |null          |56760
+10019         |null          |73717
 ;
 
 isNullWithOrEvalAlias
@@ -975,19 +980,58 @@ required_capability: fix_propagate_nullable_or_disjunction
 
 FROM employees
 | EVAL nullable = gender
-| KEEP emp_no, nullable
+| KEEP emp_no, nullable, gender
 | WHERE nullable IS NOT NULL OR (emp_no > 10010 AND emp_no <= 10016)
 | WHERE nullable IS NULL
 | SORT emp_no
 ;
 
-emp_no:integer|nullable:keyword
-10011         |null
-10012         |null
-10013         |null
-10014         |null
-10015         |null
-10016         |null
+emp_no:integer|nullable:keyword|gender:keyword
+10011         |null            |null
+10012         |null            |null
+10013         |null            |null
+10014         |null            |null
+10015         |null            |null
+10016         |null            |null
+;
+
+isNullWithOrDisjunctionMvEvalNull
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE emp_no >= 10009 AND emp_no <= 10015
+| EVAL sc = salary_change + 1
+| WHERE (sc IS NOT NULL OR emp_no > 10011) AND sc IS NULL
+| SORT emp_no
+| KEEP emp_no, salary_change, sc
+;
+warningRegex:Line \d+:\d+: evaluation of \[salary_change \+ 1\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer|salary_change:double|sc:double
+10013         |null                |null
+10014         |[-1.89, 9.07]       |null
+10015         |[12.4, 14.25]       |null
+;
+
+isNullWithOrDisjunctionMvEvalNullSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE emp_no >= 10009 AND emp_no <= 10015
+| EVAL sc = salary_change + 1
+| WHERE sc IS NOT NULL OR emp_no > 10011
+| WHERE sc IS NULL
+| SORT emp_no
+| KEEP emp_no, salary_change, sc
+;
+warningRegex:Line \d+:\d+: evaluation of \[salary_change \+ 1\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer|salary_change:double|sc:double
+10013         |null                |null
+10014         |[-1.89, 9.07]       |null
+10015         |[12.4, 14.25]       |null
 ;
 
 isNotNullWithOrDisjunctionSurvivingBranch

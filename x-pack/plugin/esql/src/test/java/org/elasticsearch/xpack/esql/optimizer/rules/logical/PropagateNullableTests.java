@@ -183,16 +183,16 @@ public class PropagateNullableTests extends ESTestCase {
     public void testIsNullPreservesOrDisjunctionBranch() {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
-        IsNull isNull = new IsNull(EMPTY, fa);
+        var isNull = new IsNull(EMPTY, fa);
 
         Expression gt = greaterThanOf(fb, ONE);
-        Or or = new Or(EMPTY, new IsNotNull(EMPTY, fa), gt);
-        And and = new And(EMPTY, or, isNull);
+        var or = new Or(EMPTY, new IsNotNull(EMPTY, fa), gt);
+        var and = new And(EMPTY, or, isNull);
 
         Expression optimized = propagateNullable(and);
 
-        Literal falseLiteral = new Literal(EMPTY, Boolean.FALSE, BOOLEAN);
-        Expression expectedOr = new Or(EMPTY, falseLiteral, gt);
+        var falseLiteral = new Literal(EMPTY, Boolean.FALSE, BOOLEAN);
+        var expectedOr = new Or(EMPTY, falseLiteral, gt);
         assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
     }
 
@@ -201,16 +201,16 @@ public class PropagateNullableTests extends ESTestCase {
     public void testIsNullPreservesIsNullBranchInOr() {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
-        IsNull isNull = new IsNull(EMPTY, fa);
+        var isNull = new IsNull(EMPTY, fa);
 
         Expression gt = greaterThanOf(fb, ONE);
-        Or or = new Or(EMPTY, new IsNull(EMPTY, fa), gt);
-        And and = new And(EMPTY, or, isNull);
+        var or = new Or(EMPTY, new IsNull(EMPTY, fa), gt);
+        var and = new And(EMPTY, or, isNull);
 
         Expression optimized = propagateNullable(and);
 
-        Literal trueLiteral = new Literal(EMPTY, Boolean.TRUE, BOOLEAN);
-        Expression expectedOr = new Or(EMPTY, trueLiteral, gt);
+        var trueLiteral = new Literal(EMPTY, Boolean.TRUE, BOOLEAN);
+        var expectedOr = new Or(EMPTY, trueLiteral, gt);
         assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
     }
 
@@ -219,16 +219,16 @@ public class PropagateNullableTests extends ESTestCase {
     public void testIsNullNullifiesFieldReferenceInOr() {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
-        IsNull isNull = new IsNull(EMPTY, fa);
+        var isNull = new IsNull(EMPTY, fa);
 
         Expression gt_b = greaterThanOf(fb, ONE);
-        Or or = new Or(EMPTY, greaterThanOf(fa, ONE), gt_b);
-        And and = new And(EMPTY, or, isNull);
+        var or = new Or(EMPTY, greaterThanOf(fa, ONE), gt_b);
+        var and = new And(EMPTY, or, isNull);
 
         Expression optimized = propagateNullable(and);
 
         Expression expectedOrLeft = greaterThanOf(nullOf(INTEGER), ONE);
-        Expression expectedOr = new Or(EMPTY, expectedOrLeft, gt_b);
+        var expectedOr = new Or(EMPTY, expectedOrLeft, gt_b);
         assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
     }
 
@@ -237,14 +237,14 @@ public class PropagateNullableTests extends ESTestCase {
     public void testCoalesceDirectArgNullified() {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
-        IsNull isNull = new IsNull(EMPTY, fa);
+        var isNull = new IsNull(EMPTY, fa);
 
-        Expression coalesce = new Coalesce(EMPTY, fa, List.of(fb));
-        And and = new And(EMPTY, coalesce, isNull);
+        var coalesce = new Coalesce(EMPTY, fa, List.of(fb));
+        var and = new And(EMPTY, coalesce, isNull);
 
         Expression optimized = propagateNullable(and);
 
-        Expression expectedCoalesce = new Coalesce(EMPTY, fb, List.of());
+        var expectedCoalesce = new Coalesce(EMPTY, fb, List.of());
         assertEquals(new And(EMPTY, expectedCoalesce, isNull), optimized);
     }
 
@@ -253,16 +253,16 @@ public class PropagateNullableTests extends ESTestCase {
     public void testCoalesceDirectArgNullifiedAndNestedSubstituted() {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
-        IsNull isNull = new IsNull(EMPTY, fa);
+        var isNull = new IsNull(EMPTY, fa);
 
-        Expression addExpr = new Add(EMPTY, fb, fa, TEST_CFG);
-        Expression coalesce = new Coalesce(EMPTY, fa, List.of(addExpr));
-        And and = new And(EMPTY, coalesce, isNull);
+        var addExpr = new Add(EMPTY, fb, fa, TEST_CFG);
+        var coalesce = new Coalesce(EMPTY, fa, List.of(addExpr));
+        var and = new And(EMPTY, coalesce, isNull);
 
         Expression optimized = propagateNullable(and);
 
-        Expression expectedAdd = new Add(EMPTY, fb, nullOf(INTEGER), TEST_CFG);
-        Expression expectedCoalesce = new Coalesce(EMPTY, expectedAdd, List.of());
+        var expectedAdd = new Add(EMPTY, fb, nullOf(INTEGER), TEST_CFG);
+        var expectedCoalesce = new Coalesce(EMPTY, expectedAdd, List.of());
         assertEquals(new And(EMPTY, expectedCoalesce, isNull), optimized);
     }
 
@@ -271,14 +271,14 @@ public class PropagateNullableTests extends ESTestCase {
     // (no surviving children), so transformDown on the original COALESCE(a) substitutes a -> null.
     public void testCoalesceAllArgsRemovedFallsBackToTransformDown() {
         FieldAttribute fa = getFieldAttribute();
-        IsNull isNull = new IsNull(EMPTY, fa);
+        var isNull = new IsNull(EMPTY, fa);
 
-        Expression coalesce = new Coalesce(EMPTY, fa, List.of());
-        And and = new And(EMPTY, coalesce, isNull);
+        var coalesce = new Coalesce(EMPTY, fa, List.of());
+        var and = new And(EMPTY, coalesce, isNull);
 
         Expression optimized = propagateNullable(and);
 
-        Expression expectedCoalesce = new Coalesce(EMPTY, nullOf(INTEGER), List.of());
+        var expectedCoalesce = new Coalesce(EMPTY, nullOf(INTEGER), List.of());
         assertEquals(new And(EMPTY, expectedCoalesce, isNull), optimized);
     }
 
@@ -288,16 +288,16 @@ public class PropagateNullableTests extends ESTestCase {
     public void testIsNullInOrWithNestedAndBranch() {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
-        IsNull isNull = new IsNull(EMPTY, fa);
+        var isNull = new IsNull(EMPTY, fa);
 
-        Expression innerAnd = new And(EMPTY, greaterThanOf(fb, ONE), greaterThanOf(fa, ONE));
-        Or or = new Or(EMPTY, new IsNotNull(EMPTY, fa), innerAnd);
-        And and = new And(EMPTY, or, isNull);
+        var innerAnd = new And(EMPTY, greaterThanOf(fb, ONE), greaterThanOf(fa, ONE));
+        var or = new Or(EMPTY, new IsNotNull(EMPTY, fa), innerAnd);
+        var and = new And(EMPTY, or, isNull);
 
         Expression optimized = propagateNullable(and);
 
-        Expression expectedInnerAnd = new And(EMPTY, greaterThanOf(fb, ONE), greaterThanOf(nullOf(INTEGER), ONE));
-        Expression expectedOr = new Or(EMPTY, new Literal(EMPTY, Boolean.FALSE, DataType.BOOLEAN), expectedInnerAnd);
+        var expectedInnerAnd = new And(EMPTY, greaterThanOf(fb, ONE), greaterThanOf(nullOf(INTEGER), ONE));
+        var expectedOr = new Or(EMPTY, new Literal(EMPTY, Boolean.FALSE, DataType.BOOLEAN), expectedInnerAnd);
         assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
     }
 
@@ -307,10 +307,10 @@ public class PropagateNullableTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
         FieldAttribute fc = getFieldAttribute("c");
-        IsNull isNull = new IsNull(EMPTY, fa);
+        var isNull = new IsNull(EMPTY, fa);
 
-        Or or = new Or(EMPTY, new IsNotNull(EMPTY, fb), greaterThanOf(fc, ONE));
-        And and = new And(EMPTY, or, isNull);
+        var or = new Or(EMPTY, new IsNotNull(EMPTY, fb), greaterThanOf(fc, ONE));
+        var and = new And(EMPTY, or, isNull);
 
         assertEquals(and, propagateNullable(and));
     }
@@ -321,16 +321,16 @@ public class PropagateNullableTests extends ESTestCase {
     public void testMultipleIsNullConstraintsNullifyOr() {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
-        IsNull isNullA = new IsNull(EMPTY, fa);
-        IsNull isNullB = new IsNull(EMPTY, fb);
+        var isNullA = new IsNull(EMPTY, fa);
+        var isNullB = new IsNull(EMPTY, fb);
 
-        Or or = new Or(EMPTY, greaterThanOf(fa, ONE), greaterThanOf(fb, TWO));
-        And and = new And(EMPTY, isNullA, new And(EMPTY, isNullB, or));
+        var or = new Or(EMPTY, greaterThanOf(fa, ONE), greaterThanOf(fb, TWO));
+        var and = new And(EMPTY, isNullA, new And(EMPTY, isNullB, or));
 
         Expression optimized = propagateNullable(and);
 
         Literal nullInt = nullOf(INTEGER);
-        Expression expectedOr = new Or(EMPTY, greaterThanOf(nullInt, ONE), greaterThanOf(nullInt, TWO));
+        var expectedOr = new Or(EMPTY, greaterThanOf(nullInt, ONE), greaterThanOf(nullInt, TWO));
         assertEquals(List.of(isNullA, isNullB, expectedOr), Predicates.splitAnd(optimized));
     }
 
@@ -341,16 +341,16 @@ public class PropagateNullableTests extends ESTestCase {
     public void testIsNotNullPreservesOrDisjunctionBranch() {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
-        IsNotNull isNotNull = new IsNotNull(EMPTY, fa);
+        var isNotNull = new IsNotNull(EMPTY, fa);
 
         Expression gt = greaterThanOf(fb, ONE);
-        Or or = new Or(EMPTY, new IsNull(EMPTY, fa), gt);
-        And and = new And(EMPTY, or, isNotNull);
+        var or = new Or(EMPTY, new IsNull(EMPTY, fa), gt);
+        var and = new And(EMPTY, or, isNotNull);
 
         Expression optimized = propagateNullable(and);
 
-        Literal falseLiteral = new Literal(EMPTY, Boolean.FALSE, BOOLEAN);
-        Expression expectedOr = new Or(EMPTY, falseLiteral, gt);
+        var falseLiteral = new Literal(EMPTY, Boolean.FALSE, BOOLEAN);
+        var expectedOr = new Or(EMPTY, falseLiteral, gt);
         assertEquals(new And(EMPTY, expectedOr, isNotNull), optimized);
     }
 
@@ -359,16 +359,16 @@ public class PropagateNullableTests extends ESTestCase {
     public void testIsNotNullPreservesIsNotNullBranchInOr() {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
-        IsNotNull isNotNull = new IsNotNull(EMPTY, fa);
+        var isNotNull = new IsNotNull(EMPTY, fa);
 
         Expression gt = greaterThanOf(fb, ONE);
-        Or or = new Or(EMPTY, new IsNotNull(EMPTY, fa), gt);
-        And and = new And(EMPTY, or, isNotNull);
+        var or = new Or(EMPTY, new IsNotNull(EMPTY, fa), gt);
+        var and = new And(EMPTY, or, isNotNull);
 
         Expression optimized = propagateNullable(and);
 
-        Literal trueLiteral = new Literal(EMPTY, Boolean.TRUE, BOOLEAN);
-        Expression expectedOr = new Or(EMPTY, trueLiteral, gt);
+        var trueLiteral = new Literal(EMPTY, Boolean.TRUE, BOOLEAN);
+        var expectedOr = new Or(EMPTY, trueLiteral, gt);
         assertEquals(new And(EMPTY, expectedOr, isNotNull), optimized);
     }
 
@@ -376,9 +376,9 @@ public class PropagateNullableTests extends ESTestCase {
     // nonNullify does NOT substitute the field value itself; we only know it is non-null.
     public void testIsNotNullDoesNotSubstituteFieldReference() {
         FieldAttribute fa = getFieldAttribute();
-        IsNotNull isNotNull = new IsNotNull(EMPTY, fa);
+        var isNotNull = new IsNotNull(EMPTY, fa);
 
-        And and = new And(EMPTY, greaterThanOf(fa, ONE), isNotNull);
+        var and = new And(EMPTY, greaterThanOf(fa, ONE), isNotNull);
 
         assertEquals(and, propagateNullable(and));
     }
@@ -389,10 +389,10 @@ public class PropagateNullableTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
         FieldAttribute fc = getFieldAttribute("c");
-        IsNotNull isNotNull = new IsNotNull(EMPTY, fa);
+        var isNotNull = new IsNotNull(EMPTY, fa);
 
-        Or or = new Or(EMPTY, new IsNull(EMPTY, fb), greaterThanOf(fc, ONE));
-        And and = new And(EMPTY, or, isNotNull);
+        var or = new Or(EMPTY, new IsNull(EMPTY, fb), greaterThanOf(fc, ONE));
+        var and = new And(EMPTY, or, isNotNull);
 
         assertEquals(and, propagateNullable(and));
     }
@@ -404,18 +404,18 @@ public class PropagateNullableTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         FieldAttribute fb = getFieldAttribute("b");
         FieldAttribute fc = getFieldAttribute("c");
-        IsNull isNull = new IsNull(EMPTY, fa);
+        var isNull = new IsNull(EMPTY, fa);
 
         Expression gt_b = greaterThanOf(fb, ONE);
         Expression gt_c = greaterThanOf(fc, TWO);
-        Or innerOr = new Or(EMPTY, gt_b, gt_c);
-        Or or = new Or(EMPTY, new IsNotNull(EMPTY, fa), innerOr);
-        And and = new And(EMPTY, or, isNull);
+        var innerOr = new Or(EMPTY, gt_b, gt_c);
+        var or = new Or(EMPTY, new IsNotNull(EMPTY, fa), innerOr);
+        var and = new And(EMPTY, or, isNull);
 
         Expression optimized = propagateNullable(and);
 
-        Literal falseLiteral = new Literal(EMPTY, Boolean.FALSE, DataType.BOOLEAN);
-        Expression expectedOr = new Or(EMPTY, falseLiteral, innerOr);
+        var falseLiteral = new Literal(EMPTY, Boolean.FALSE, DataType.BOOLEAN);
+        var expectedOr = new Or(EMPTY, falseLiteral, innerOr);
         assertEquals(new And(EMPTY, expectedOr, isNull), optimized);
     }
 }

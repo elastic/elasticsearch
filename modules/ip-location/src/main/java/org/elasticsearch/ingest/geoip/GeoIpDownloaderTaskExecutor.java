@@ -262,6 +262,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         return tasks.get(projectId);
     }
 
+    /// TODO (ES-14525): no need to include project id in the task id, we should just use the same name for all tasks
     public static String getTaskId(ProjectId projectId, boolean supportsMultipleProjects) {
         return supportsMultipleProjects ? projectId + "/" + GEOIP_DOWNLOADER : GEOIP_DOWNLOADER;
     }

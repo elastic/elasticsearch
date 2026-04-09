@@ -44,7 +44,7 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
 
     private IpLocationService ipLocationService;
     private IngestService ingestService;
-    private final Map<ProjectId, Boolean> downloadRequestedByProject = new ConcurrentHashMap<>();
+    private final Set<ProjectId> downloadRequestedByProject = ConcurrentHashMap.newKeySet();
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters params) {
@@ -102,31 +102,31 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
                 continue;
             }
 
-            boolean previouslyRequested = downloadRequestedByProject.getOrDefault(projectId, false);
+            boolean previouslyRequested = downloadRequestedByProject.contains(projectId);
             boolean nowNeeded = hasAtLeastOneGeoipProcessor(projectMetadata);
 
             if (nowNeeded && previouslyRequested == false) {
-                downloadRequestedByProject.put(projectId, true);
+                downloadRequestedByProject.add(projectId);
                 ipLocationService.requestDownloads(projectId.id());
             } else if (nowNeeded == false && previouslyRequested) {
-                downloadRequestedByProject.put(projectId, false);
+                downloadRequestedByProject.remove(projectId);
                 ipLocationService.cancelDownloadRequest(projectId.id());
             }
         }
 
         // Cancel downloads for projects that have been removed from cluster state
-        var iterator = downloadRequestedByProject.entrySet().iterator();
+        var iterator = downloadRequestedByProject.iterator();
         while (iterator.hasNext()) {
-            var entry = iterator.next();
-            if (entry.getValue() && currentProjects.containsKey(entry.getKey()) == false) {
-                ipLocationService.cancelDownloadRequest(entry.getKey().id());
+            var projectId = iterator.next();
+            if (currentProjects.containsKey(projectId) == false) {
+                ipLocationService.cancelDownloadRequest(projectId.id());
                 iterator.remove();
             }
         }
     }
 
     boolean isDownloadRequestedForProject(ProjectId projectId) {
-        return downloadRequestedByProject.getOrDefault(projectId, false);
+        return downloadRequestedByProject.contains(projectId);
     }
 
     static boolean hasAtLeastOneGeoipProcessor(ProjectMetadata projectMetadata) {

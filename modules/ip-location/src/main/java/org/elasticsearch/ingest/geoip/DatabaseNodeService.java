@@ -112,7 +112,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider, IpLocation
     private final ProjectResolver projectResolver;
 
     private final ConcurrentMap<ProjectId, ConcurrentMap<String, DatabaseReaderLazyLoader>> databases = new ConcurrentHashMap<>();
-    private final ConcurrentMap<ProjectId, Boolean> downloadRequested = new ConcurrentHashMap<>();
+    private final Set<ProjectId> downloadRequested = ConcurrentHashMap.newKeySet();
     private final List<DatabaseAvailabilityListener> listeners = new CopyOnWriteArrayList<>();
     private volatile Consumer<ProjectId> onDemandDownloadTrigger = pid -> {};
 
@@ -285,7 +285,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider, IpLocation
             return;
         }
 
-        if (downloadRequested.values().stream().noneMatch(Boolean::booleanValue)) {
+        if (downloadRequested.isEmpty()) {
             logger.trace("Not checking databases because no consumer has requested downloads on this node");
             return;
         }
@@ -676,8 +676,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider, IpLocation
     @Override
     public void requestDownloads(String projectIdStr) {
         ProjectId pid = ProjectId.fromId(projectIdStr);
-        Boolean prev = downloadRequested.put(pid, true);
-        if (prev == null || prev == false) {
+        if (downloadRequested.add(pid)) {
             onDemandDownloadTrigger.accept(pid);
             checkDatabases(clusterService.state());
         }
@@ -685,11 +684,11 @@ public final class DatabaseNodeService implements IpDatabaseProvider, IpLocation
 
     @Override
     public void cancelDownloadRequest(String projectIdStr) {
-        downloadRequested.put(ProjectId.fromId(projectIdStr), false);
+        downloadRequested.remove(ProjectId.fromId(projectIdStr));
     }
 
     boolean isDownloadRequested(ProjectId projectId) {
-        return downloadRequested.getOrDefault(projectId, false);
+        return downloadRequested.contains(projectId);
     }
 
     @Nullable

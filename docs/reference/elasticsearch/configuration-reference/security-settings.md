@@ -769,6 +769,18 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 `username_pattern`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The regular expression pattern used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The first match group is the used as the username. Defaults to `CN=(.*?)(?:,|$)`.
 
+    This setting is ignored if either `username_rdn_oid` or `username_rdn_name` is set.
+
+`username_rdn_oid`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The relative distinguished name (RDN) attribute OID used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The value of the most specific RDN matching this attribute OID is used as the username.
+
+    This setting takes precedent over `username_pattern`. You cannot use this setting and `username_rdn_name` at the same time.
+
+`username_rdn_name`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The relative distinguished name (RDN) attribute name used to extract the username from the certificate DN. The username is used for auditing and logging. The username can also be used with the [role mapping API](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/mapping-users-groups-to-roles.md) and [authorization delegation](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authorization-delegation.md). The value of the most specific RDN matching this attribute name is used as the username.
+
+    This setting takes precedent over `username_pattern`. You cannot use this setting and `username_rdn_oid` at the same time.
+
 `certificate_authorities`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) List of paths to the PEM certificate files that should be used to authenticate a user’s certificate as trusted. Defaults to the trusted certificates configured for SSL. This setting cannot be used with `truststore.path`.
 

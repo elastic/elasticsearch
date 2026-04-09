@@ -227,6 +227,12 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 if (parameters.getPush().getOrElse(false)) {
                     spec.args("--push");
+                } else if (!isCrossPlatform) {
+                    // For single-platform builds, add --load to ensure the image is loaded into
+                    // the local Docker daemon as a regular image, not a manifest list.
+                    // This prevents issues with newer Docker versions (23.0+) that may create
+                    // manifest lists even for single-platform builds when BuildKit is enabled.
+                    spec.args("--load");
                 }
             });
 

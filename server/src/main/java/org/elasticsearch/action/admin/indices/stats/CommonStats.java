@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 public class CommonStats implements Writeable, ToXContentFragment {
 
@@ -158,7 +159,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         IndicesQueryCache indicesQueryCache,
         IndexShard indexShard,
         CommonStatsFlags flags,
-        long precomputedSharedRam
+        Supplier<Long> precomputedSharedRam
     ) {
         // Filter shard level flags
         CommonStatsFlags filteredFlags = flags.clone();

@@ -77,7 +77,7 @@
         "description": "Specify the node or shard the operation should be performed on (default: random) .Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\"."
       },
       "routing": {
-        "type": "string",
+        "type": "list",
         "description": "Specific routing value. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\"."
       },
       "realtime": {

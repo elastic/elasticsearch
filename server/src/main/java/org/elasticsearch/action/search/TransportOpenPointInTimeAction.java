@@ -94,7 +94,13 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             ShardOpenReaderRequest::new,
             new ShardOpenReaderRequestHandler()
         );
-        TransportActionProxy.registerProxyAction(transportService, OPEN_SHARD_READER_CONTEXT_NAME, false, ShardOpenReaderResponse::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            OPEN_SHARD_READER_CONTEXT_NAME,
+            false,
+            ShardOpenReaderResponse::new,
+            namedWriteableRegistry
+        );
     }
 
     @Override

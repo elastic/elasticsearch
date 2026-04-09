@@ -785,27 +785,34 @@ public class BasicBlockTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             int positionCount = randomIntBetween(1, 16 * 1024);
             BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 20)));
+            BytesRef originalValue = BytesRef.deepCopyOf(value);
             BytesRefBlock block = blockFactory.newConstantBytesRefBlockWith(value, positionCount);
+            // modify the value after creating the constant block
+            for (int b = 0; b < value.length; b++) {
+                if (randomBoolean()) {
+                    value.bytes[b] = randomByte();
+                }
+            }
             assertThat(block.getPositionCount(), is(positionCount));
 
             BytesRef bytes = new BytesRef();
             bytes = block.getBytesRef(0, bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             bytes = block.getBytesRef(positionCount - 1, bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             bytes = block.getBytesRef(randomPosition(positionCount), bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             assertSingleValueDenseBlock(block);
             if (positionCount > 2) {
                 assertLookup(
                     block,
                     positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(value), List.of(value), List.of(value, value))
+                    List.of(List.of(originalValue), List.of(originalValue), List.of(originalValue, originalValue))
                 );
                 assertLookup(
                     block,
                     positions(blockFactory, 1, 2),
-                    List.of(List.of(value), List.of(value)),
+                    List.of(List.of(originalValue), List.of(originalValue)),
                     b -> assertThat(b.asVector(), instanceOf(ConstantBytesRefVector.class))
                 );
             }

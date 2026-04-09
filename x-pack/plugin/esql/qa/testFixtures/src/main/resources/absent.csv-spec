@@ -127,3 +127,15 @@ is_absent:integer
 1
 // end::absent-as-integer-result[]
 ;
+
+fixAbsentOnStatsWithFalseFilter
+required_capability: fix_present_and_absent_on_stats_with_false_filter
+
+ROW a = 3
+| STATS x = ABSENT(a) WHERE FALSE
+| KEEP x
+;
+
+x:boolean
+true
+;

@@ -316,6 +316,7 @@ emp_no:integer | language_code:integer
 
 nonUniqueRightKeyFromRow
 required_capability: join_lookup_v12
+required_capability: conditional_block_loader_for_text_fields
 
 ROW language_code = 2
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code

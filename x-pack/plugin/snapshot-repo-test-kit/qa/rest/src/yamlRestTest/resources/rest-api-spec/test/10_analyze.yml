@@ -79,14 +79,19 @@ setup:
   - is_true: delete_elapsed
   - gte: { listing_elapsed_nanos: 0}
   - gte: { delete_elapsed_nanos:  0}
-  - match: { summary.write.count: 10}
+
+  # We rarely perform a copy instead of a proper write and copies are not counted here so we cannot expect to see ≥10.
+  # In theory every blob could be copied, halving the total to 5 (although that would be extraordinarily unlikely)
+  # This is a bug, fixed by #140086 from 9.4 onwards, but in earlier branches we just weaken the test:
+  - gte: { summary.write.count: 5 }
+  - gte: { summary.read.count: 5 }
+
   - gte: { summary.write.total_size_bytes: 0}
   - is_true: summary.write.total_size
   - gte: { summary.write.total_throttled_nanos: 0}
   - is_true: summary.write.total_throttled
   - gte: { summary.write.total_elapsed_nanos: 0}
   - is_true: summary.write.total_elapsed
-  - gte: { summary.read.count: 10}
   - gte: { summary.read.total_size_bytes: 0}
   - is_true: summary.read.total_size
   - gte: { summary.read.total_wait_nanos: 0}

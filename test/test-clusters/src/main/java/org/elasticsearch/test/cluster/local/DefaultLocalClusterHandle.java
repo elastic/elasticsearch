@@ -118,8 +118,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getHttpAddresses() {
-        start();
-        return execute(() -> nodes.parallelStream().map(Node::getHttpAddress).collect(Collectors.joining(",")));
+        if (started.get()) {
+            return execute(() -> nodes.parallelStream().map(Node::getHttpAddress).collect(Collectors.joining(",")));
+        } else {
+            throw new IllegalStateException("Elasticsearch cluster [" + name + "] has not been started.");
+        }
     }
 
     @Override
@@ -129,8 +132,12 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getTransportEndpoints() {
-        start();
-        return execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining(",")));
+        if (started.get()) {
+            return execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining(",")));
+        } else {
+            throw new IllegalStateException("Elasticsearch cluster [" + name + "] has not been started.");
+        }
+
     }
 
     @Override
@@ -153,8 +160,11 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
 
     @Override
     public String getRemoteClusterServerEndpoints() {
-        start();
-        return execute(() -> nodes.parallelStream().map(Node::getRemoteClusterServerEndpoint).collect(Collectors.joining(",")));
+        if (started.get()) {
+            return execute(() -> nodes.parallelStream().map(Node::getRemoteClusterServerEndpoint).collect(Collectors.joining(",")));
+        } else {
+            throw new IllegalStateException("Elasticsearch cluster [" + name + "] has not been started.");
+        }
     }
 
     @Override

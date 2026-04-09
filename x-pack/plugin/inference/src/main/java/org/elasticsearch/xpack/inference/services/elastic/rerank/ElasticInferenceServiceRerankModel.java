@@ -29,6 +29,7 @@ import java.util.Map;
 
 public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceExecutableActionModel {
 
+    public static final String RERANK_PATH = "/api/v1/rerank/text/text-similarity";
     private final URI uri;
 
     public ElasticInferenceServiceRerankModel(
@@ -87,7 +88,7 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceE
     private URI createUri() throws ElasticsearchStatusException {
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/rerank/text/text-similarity");
+            return getBaseURIBuilder().setPath(RERANK_PATH).build();
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["

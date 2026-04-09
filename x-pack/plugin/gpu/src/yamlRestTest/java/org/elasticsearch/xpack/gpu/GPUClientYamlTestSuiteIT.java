@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.gpu;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.BeforeClass;
@@ -18,7 +20,7 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @BeforeClass
     public static void setup() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        assumeTrue("cuvs not supported", GPUSupport.isSupported());
     }
 
     @ClassRule
@@ -30,9 +32,12 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")
+            .setting("vectors.indexing.use_gpu", "true")
             // Needed to get access to raw vectors from Lucene scorers
             .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server")
-            .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server");
+            .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.hnsw=org.elasticsearch.server")
+            .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server")
+            .feature(FeatureFlag.GPU_FORMAT);
 
         var libraryPath = System.getenv("LD_LIBRARY_PATH");
         if (libraryPath != null) {

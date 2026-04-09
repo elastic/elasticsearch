@@ -49,10 +49,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -360,22 +358,12 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
                 PlannerSettings.VALUES_LOADING_JUMBO_SIZE.getDefault(Settings.EMPTY),
                 fieldInfos,
-                List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
+                List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), (paths) -> {
                     throw new IllegalStateException("can't load source here");
                 }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
                 0
             );
-            CancellableTask parentTask = new EsqlQueryTask(
-                1,
-                "test",
-                "test",
-                "test",
-                null,
-                Map.of(),
-                Map.of(),
-                new AsyncExecutionId("test", TaskId.EMPTY_TASK_ID),
-                TEST_REQUEST_TIMEOUT
-            );
+            CancellableTask parentTask = new CancellableTask(1, "test", "test", "test", null, Map.of());
             final String finalNodeWithShard = nodeWithShard;
             boolean expressionJoin = EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() ? randomBoolean() : false;
             List<MatchConfig> matchFields = new ArrayList<>();

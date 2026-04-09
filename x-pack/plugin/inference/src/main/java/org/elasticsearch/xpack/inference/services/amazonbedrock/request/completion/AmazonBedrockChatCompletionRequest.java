@@ -14,13 +14,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseListener;
 
-import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.Flow;
 
@@ -48,11 +46,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     protected void executeRequest(AmazonBedrockBaseClient client) {
         var converseRequest = getConverseRequest();
 
-        try {
-            SocketAccess.doPrivileged(() -> client.converse(converseRequest, listener));
-        } catch (IOException e) {
-            listener.onFailure(new RuntimeException(e));
-        }
+        client.converse(converseRequest, listener);
     }
 
     @Override

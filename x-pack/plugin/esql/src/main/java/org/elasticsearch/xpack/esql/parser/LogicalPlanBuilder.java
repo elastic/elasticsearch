@@ -1029,16 +1029,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private Completion applyCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {
-        MapExpression optionsExpresion = visitCommandNamedParameters(ctx);
+        MapExpression optionsExpression = ctx == null ? null : visitCommandNamedParameters(ctx);
 
-        if (optionsExpresion == null || optionsExpresion.containsKey(Completion.INFERENCE_ID_OPTION_NAME) == false) {
+        if (optionsExpression == null || optionsExpression.containsKey(Completion.INFERENCE_ID_OPTION_NAME) == false) {
             // Having a mandatory named parameter for inference_id is an antipattern, but it will be optional in the future when we have a
             // default LLM. It is better to keep inference_id as a named parameter and relax the syntax when it will become optional than
             // completely change the syntax in the future.
-            throw new ParsingException(source(ctx), "Missing mandatory option [{}] in COMPLETION", Completion.INFERENCE_ID_OPTION_NAME);
+            throw new ParsingException(
+                completion.source(),
+                "Missing mandatory option [{}] in COMPLETION",
+                Completion.INFERENCE_ID_OPTION_NAME
+            );
         }
 
-        Map<String, Expression> optionsMap = visitCommandNamedParameters(ctx).keyFoldedMap();
+        Map<String, Expression> optionsMap = optionsExpression.keyFoldedMap();
 
         Expression inferenceId = optionsMap.remove(Completion.INFERENCE_ID_OPTION_NAME);
         if (inferenceId != null) {

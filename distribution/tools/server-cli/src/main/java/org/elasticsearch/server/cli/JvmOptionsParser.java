@@ -142,7 +142,10 @@ public final class JvmOptionsParser {
         }
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
-        final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo());
+        final SystemMemoryInfo memoryInfo = new OverheadSystemMemoryInfo(
+            substitutedJvmOptions,
+            new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo())
+        );
         substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(args.nodeSettings(), memoryInfo, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions, args.nodeSettings());
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);

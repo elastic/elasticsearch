@@ -29,7 +29,7 @@
     },
     "params": {
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",
@@ -51,7 +51,7 @@
         "default": true
       },
       "mode": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "standard",
           "time_series",

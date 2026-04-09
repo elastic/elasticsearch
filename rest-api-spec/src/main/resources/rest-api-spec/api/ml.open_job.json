@@ -30,6 +30,13 @@
         }
       ]
     },
+    "params": {
+      "timeout": {
+        "default": "30m",
+        "type": "time",
+        "description": "Controls the time to wait until a job has opened."
+      }
+    },
     "body": {
       "description": "Query parameters can be specified in the body",
       "required": false

@@ -6,6 +6,10 @@
     },
     "stability": "stable",
     "visibility": "public",
+    "deprecated": {
+      "version": "9.1.0",
+      "description": "Forcing any buffered data to be processed is deprecated, in a future major version a datafeed will be required."
+    },
     "headers": {
       "accept": [
         "application/json"

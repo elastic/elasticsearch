@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Strings;
@@ -85,11 +84,7 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final SamlServiceProviderDocument doc = SamlServiceProviderTestUtils.randomDocument();
         final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, RefreshPolicy.NONE);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            TransportVersion.current()
-        );
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final PutSamlServiceProviderRequest read = copyWriteable(
             request,
             new NamedWriteableRegistry(List.of()),

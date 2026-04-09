@@ -208,7 +208,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     private List<ValuesSourceReaderOperator.ShardContext> initShardContexts() {
         return INDICES.keySet()
             .stream()
-            .map(index -> new ValuesSourceReaderOperator.ShardContext(reader(index), () -> SourceLoader.FROM_STORED_SOURCE, 0.2))
+            .map(index -> new ValuesSourceReaderOperator.ShardContext(reader(index), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2))
             .toList();
     }
 
@@ -288,8 +288,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
     private void initMapping(String indexKey) throws IOException {
         TestIndexMappingConfig indexMappingConfig = INDICES.get(indexKey);
-        mapperServices.put(indexKey, new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperServices.put(indexKey, new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "key", "integer"); // unique key per-index to use for looking up test values to compare to
             fieldExamples(b, "indexKey", "keyword");  // index name (can be used to choose index-specific test values)
             fieldExamples(b, "int", "integer");
@@ -1280,8 +1279,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
     public void testWithNulls() throws IOException {
         String indexKey = "index1";
-        mapperServices.put(indexKey, new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperServices.put(indexKey, new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "i", "integer");
             fieldExamples(b, "j", "long");
             fieldExamples(b, "d", "double");
@@ -1325,7 +1323,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             LuceneOperator.NO_LIMIT,
             false // no scoring
         );
-        var vsShardContext = new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE, 0.2);
+        var vsShardContext = new ValuesSourceReaderOperator.ShardContext(
+            reader(indexKey),
+            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+            0.2
+        );
         try (
             Driver driver = TestDriverFactory.create(
                 driverContext,
@@ -1455,7 +1457,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         ValuesSourceReaderOperator.Factory factory = new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
             cases.stream().map(c -> c.info).toList(),
-            List.of(new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader(indexKey), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)),
             0
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
@@ -1484,7 +1486,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             for (int s = 0; s < shardCount; s++) {
                 contexts.add(new LuceneSourceOperatorTests.MockShardContext(readers[s], s));
                 readerShardContexts.add(
-                    new ValuesSourceReaderOperator.ShardContext(readers[s], () -> SourceLoader.FROM_STORED_SOURCE, 0.2)
+                    new ValuesSourceReaderOperator.ShardContext(readers[s], (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
                 );
             }
             var luceneFactory = new LuceneSourceOperator.Factory(

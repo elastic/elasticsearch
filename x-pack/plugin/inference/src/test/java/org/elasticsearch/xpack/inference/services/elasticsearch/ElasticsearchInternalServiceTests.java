@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfig
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
@@ -125,6 +127,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -834,7 +837,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                     TaskType.TEXT_EMBEDDING,
                     ElasticsearchInternalService.NAME,
                     elandServiceSettings,
-                    null
+                    // Using the old default because we're parsing a stored config
+                    ChunkingSettingsBuilder.OLD_DEFAULT_SETTINGS
                 ),
                 parsedModel
             );
@@ -873,7 +877,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                     TaskType.TEXT_EMBEDDING,
                     ElasticsearchInternalService.NAME,
                     e5ServiceSettings,
-                    null
+                    // Using the old default because we're parsing a stored config
+                    ChunkingSettingsBuilder.OLD_DEFAULT_SETTINGS
                 ),
                 parsedModel
             );
@@ -1500,6 +1505,23 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         assertTrue("Listener not called with results", gotResults.get());
     }
 
+    public void testChunkInfer_noInputs() throws IOException {
+        var model = new MultilingualE5SmallModel(
+            "foo",
+            TaskType.TEXT_EMBEDDING,
+            "e5",
+            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null),
+            null
+        );
+        try (var service = createService(mock(Client.class))) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(model, null, List.of(), Map.of(), InputType.SEARCH, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var results = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+            assertThat(results, empty());
+        }
+    }
+
     public void testParsePersistedConfig_Rerank() {
         // with task settings
         {
@@ -1622,7 +1644,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                 taskType,
                 ElasticsearchInternalService.NAME,
                 serviceSettings,
-                null
+                ChunkingSettingsBuilder.DEFAULT_SETTINGS
             );
         } else if (taskType == TaskType.SPARSE_EMBEDDING) {
             expectedModel = new CustomElandModel(
@@ -1630,7 +1652,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                 taskType,
                 ElasticsearchInternalService.NAME,
                 new CustomElandInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 4, "custom-model", null, null)),
-                (ChunkingSettings) null
+                ChunkingSettingsBuilder.DEFAULT_SETTINGS
             );
         }
         return expectedModel;
@@ -2203,6 +2225,17 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         ArgumentCaptor<InferModelAction.Request> requestCaptor = ArgumentCaptor.forClass(InferModelAction.Request.class);
         verify(client).execute(same(InferModelAction.INSTANCE), requestCaptor.capture(), any(ActionListener.class));
         assertEquals(providedTimeout, requestCaptor.getValue().getInferenceTimeout());
+    }
+
+    public void testUpdateServiceSettings_ThrowsExceptionWhenNumThreadsIsUpdated() {
+        var existingSettings = new ElasticsearchInternalServiceSettings(1, 4, "test-model", null, null);
+
+        Map<String, Object> serviceSettingsWithNumThreads = Map.of(ElasticsearchInternalServiceSettings.NUM_THREADS, 8);
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> existingSettings.updateServiceSettings(serviceSettingsWithNumThreads)
+        );
+        assertThat(exception.getMessage(), containsString("[num_threads] cannot be updated"));
     }
 
     private ElasticsearchInternalService createService(Client client) {

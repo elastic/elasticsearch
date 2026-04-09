@@ -48,7 +48,7 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
 
   public static CountDistinctDoubleGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, int precision) {
-    return new CountDistinctDoubleGroupingAggregatorFunction(channels, CountDistinctDoubleAggregator.initGrouping(driverContext.bigArrays(), precision), driverContext, precision);
+    return new CountDistinctDoubleGroupingAggregatorFunction(channels, CountDistinctDoubleAggregator.initGrouping(driverContext, precision), driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

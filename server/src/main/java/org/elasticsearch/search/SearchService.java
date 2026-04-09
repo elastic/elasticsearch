@@ -19,7 +19,6 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -158,6 +157,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -222,9 +222,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
-    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = Setting.boolSetting(
+
+    public static final boolean DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = true;
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING = Setting.boolSetting(
         "search.default_allow_partial_results",
-        true,
+        DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -389,7 +391,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.bigArrays = bigArrays;
         this.fetchPhase = fetchPhase;
-        circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.tracer = tracer;
@@ -412,9 +414,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         minimumDocsPerSlice = MINIMUM_DOCS_PER_SLICE.get(settings);
 
-        defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
+        defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING.get(settings);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, this::setDefaultAllowPartialSearchResults);
+            .addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING, this::setDefaultAllowPartialSearchResults);
 
         maxOpenScrollContext = MAX_OPEN_SCROLL_CONTEXT.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_SCROLL_CONTEXT, this::setMaxOpenScrollContext);
@@ -602,12 +604,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ThreadPool threadPool,
         Lifecycle lifecycle
     ) {
-        final boolean header;
-        if (version.supports(TransportVersions.V_8_18_0) && threadPool.getThreadContext() != null) {
-            header = getErrorTraceHeader(threadPool);
-        } else {
-            header = true;
-        }
+        final boolean header = threadPool.getThreadContext() == null || getErrorTraceHeader(threadPool);
         return listener.delegateResponse((l, e) -> {
             org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
                 "[%s]%s: failed to execute search request for task [%d]",
@@ -695,7 +692,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final boolean canCache = IndicesService.canCache(request, context);
         context.getSearchExecutionContext().freezeContext();
         if (canCache) {
-            indicesService.loadIntoContext(request, context);
+            CancellableTask task = context.getTask();
+            Consumer<Runnable> cancellationRegistrar = null;
+            if (task != null) {
+                cancellationRegistrar = cancellationCallback -> { task.addListener(cancellationCallback::run); };
+            }
+            indicesService.loadIntoContext(request, context, cancellationRegistrar);
         } else {
             QueryPhase.execute(context);
         }
@@ -1372,6 +1374,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         checkCancelled(task);
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType);
         resultsType.addResultsObject(context);
+
+        // Release the memory used for query construction once the search context is closed.
+        context.addReleasable(context.getSearchExecutionContext()::releaseQueryConstructionMemory);
+
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
@@ -1404,6 +1410,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
             DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.NONE);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
+            searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
             return searchContext;
         }
     }
@@ -1435,13 +1442,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 resultsType,
                 enableQueryPhaseParallelCollection,
                 minimumDocsPerSlice,
-                memoryAccountingBufferSize
+                memoryAccountingBufferSize,
+                circuitBreaker
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
             SearchExecutionContext context = new SearchExecutionContext(searchContext.getSearchExecutionContext());
+
             Rewriteable.rewrite(request.getRewriteable(), context, true);
+            assert context.getQueryConstructionMemoryUsed() == 0
+                : "rewrite phase should not build queries; found " + context.getQueryConstructionMemoryUsed() + " bytes tracked";
+
             assert searchContext.getSearchExecutionContext().isCacheable();
             success = true;
         } finally {
@@ -2131,6 +2143,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Rewriteable.rewriteAndFetch(
             request.getRewriteable(),
             indicesService.getDataRewriteContext(request::nowInMillis),
+            threadPool.executor(Names.SEARCH),
             request.readerId() == null
                 ? listener.delegateFailureAndWrap((l, r) -> shard.ensureShardSearchActive(b -> l.onResponse(request)))
                 : listener.safeMap(r -> request)
@@ -2148,7 +2161,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips
     ) {
-        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, ccsMinimizeRoundTrips, false);
+        return getRewriteContext(
+            nowInMillis,
+            minTransportVersion,
+            clusterAlias,
+            resolvedIndices,
+            pit,
+            ccsMinimizeRoundTrips,
+            false,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+        );
     }
 
     /**
@@ -2161,7 +2183,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean allowPartialSearchResults
     ) {
         return indicesService.getRewriteContext(
             nowInMillis,
@@ -2170,7 +2193,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             resolvedIndices,
             pit,
             ccsMinimizeRoundTrips,
-            isExplain
+            isExplain,
+            allowPartialSearchResults
         );
     }
 
@@ -2210,4 +2234,5 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         };
     }
+
 }

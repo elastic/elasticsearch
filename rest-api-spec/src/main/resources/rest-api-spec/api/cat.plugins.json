@@ -40,7 +40,14 @@
       },
       "h": {
         "type": "list",
-        "description": "Comma-separated list of column names to display"
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "id",
+          "name",
+          "component",
+          "version",
+          "description"
+        ]
       },
       "help": {
         "type": "boolean",

@@ -187,6 +187,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -525,9 +526,13 @@ public class IndicesService extends AbstractLifecycleComponent
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
                 // get the shared ram for this shard id (or zero if there's nothing in the map)
-                long sharedRam = shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L);
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags, sharedRam);
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(
+                        indicesService,
+                        indexShard,
+                        flags,
+                        () -> shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L)
+                    );
                     if (indexShardStats == null) {
                         continue;
                     }
@@ -548,7 +553,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndicesService indicesService,
         final IndexShard indexShard,
         final CommonStatsFlags flags,
-        final long precomputedSharedRam
+        final Supplier<Long> precomputedSharedRam
     ) {
         if (indexShard.routingEntry() == null) {
             return null;
@@ -925,8 +930,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public synchronized void verifyIndexMetadata(IndexMetadata metadata, IndexMetadata metadataUpdate) throws IOException {
         final List<Closeable> closeables = new ArrayList<>();
         try {
-            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
             closeables.add(indicesFieldDataCache);
             IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
             closeables.add(indicesQueryCache);
@@ -1669,13 +1673,27 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Loads the cache result, computing it if needed by executing the query phase and otherwise deserializing the cached
-     * value into the {@link SearchContext#queryResult() context's query result}. The combination of load + compute allows
-     * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
-     * the same cache.
-     */
+    * Equivalent to {@link #loadIntoContext(ShardSearchRequest, SearchContext, Consumer)} with
+    * {@code cancellationRegistrar == null}.
+    */
     public void loadIntoContext(ShardSearchRequest request, SearchContext context) throws Exception {
-        assert canCache(request, context);
+        loadIntoContext(request, context, null);
+    }
+
+    /**
+    * Loads the cache result, computing it if needed by executing the query phase and otherwise deserializing the cached
+    * value into the {@link SearchContext#queryResult() context's query result}. The combination of load + compute allows
+    * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
+    * the same cache.
+    *
+    * @param request the shard search request
+    * @param context the search context to populate
+    * @param cancellationRegistrar registers cancellation handling for the underlying work; may be {@code null}
+    * @throws Exception if loading, computing, or deserialization fails
+    */
+    public void loadIntoContext(ShardSearchRequest request, SearchContext context, Consumer<Runnable> cancellationRegistrar)
+        throws Exception {
+        assert IndicesService.canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
@@ -1689,7 +1707,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 QueryPhase.execute(context);
                 context.queryResult().writeToNoId(out);
                 loadedFromCache[0] = false;
-            }
+            },
+            cancellationRegistrar
         );
 
         if (loadedFromCache[0]) {
@@ -1732,6 +1751,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param reader a reader for this shard. Used to invalidate the cache when there are changes.
      * @param cacheKey key for the thing being cached within this shard
      * @param loader loads the data into the cache if needed
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called when the operation should be cancelled
      * @return the contents of the cache or the result of calling the loader
      */
     private BytesReference cacheShardLevelResult(
@@ -1739,7 +1759,8 @@ public class IndicesService extends AbstractLifecycleComponent
         MappingLookup.CacheKey mappingCacheKey,
         DirectoryReader reader,
         BytesReference cacheKey,
-        CheckedConsumer<StreamOutput, IOException> loader
+        CheckedConsumer<StreamOutput, IOException> loader,
+        Consumer<Runnable> cancellationRegistrar
     ) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         CheckedSupplier<BytesReference, IOException> supplier = () -> {
@@ -1758,7 +1779,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey, cancellationRegistrar);
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
@@ -1856,7 +1877,8 @@ public class IndicesService extends AbstractLifecycleComponent
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
         final Boolean ccsMinimizeRoundTrips,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean allowPartialSearchResults
     ) {
         return new QueryRewriteContext(
             parserConfig,
@@ -1868,7 +1890,8 @@ public class IndicesService extends AbstractLifecycleComponent
             pit,
             queryRewriteInterceptor,
             ccsMinimizeRoundTrips,
-            isExplain
+            isExplain,
+            allowPartialSearchResults
         );
     }
 
@@ -1894,7 +1917,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexService service = indexService(shardId.getIndex());
         if (service != null) {
             IndexShard shard = service.getShardOrNull(shardId.id());
-            final boolean clearedAtLeastOne = service.clearCaches(queryCache, fieldDataCache, fields);
+            final boolean clearedAtLeastOne = service.clearCaches(queryCache, fieldDataCache, requestCache, fields);
             if ((requestCache || (clearedAtLeastOne == false && fields.length == 0)) && shard != null) {
                 indicesRequestCache.clear(new IndexShardCacheEntity(shard));
             }

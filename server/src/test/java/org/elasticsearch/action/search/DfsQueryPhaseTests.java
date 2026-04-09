@@ -337,6 +337,83 @@ public class DfsQueryPhaseTests extends ESTestCase {
         };
     }
 
+    public void testMergeKnnResultsAllShardsTimedOut() throws IOException {
+        AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
+        AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
+        results.set(
+            0,
+            newSearchResult(0, new ShardSearchContextId("", 1), new SearchShardTarget("node1", new ShardId("test", "na", 0), null))
+        );
+        results.set(
+            1,
+            newSearchResult(1, new ShardSearchContextId("", 2), new SearchShardTarget("node2", new ShardId("test", "na", 0), null))
+        );
+        results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
+        results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
+        results.get(0).knnResults(List.of());
+        results.get(0).searchTimedOut(true);
+        results.get(1).knnResults(List.of());
+        results.get(1).searchTimedOut(true);
+
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                QuerySearchRequest request,
+                SearchTask task,
+                ActionListener<QuerySearchResult> listener
+            ) {
+                QuerySearchResult queryResult = new QuerySearchResult(
+                    request.contextId(),
+                    new SearchShardTarget(request.contextId().getId() == 1 ? "node1" : "node2", new ShardId("test", "na", 0), null),
+                    null
+                );
+                try {
+                    queryResult.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), 0.0F),
+                        new DocValueFormat[0]
+                    );
+                    queryResult.size(0);
+                    listener.onResponse(queryResult);
+                } finally {
+                    queryResult.decRef();
+                }
+            }
+        };
+        SearchPhaseController searchPhaseController = searchPhaseController();
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
+        mockSearchPhaseContext.searchTransport = searchTransportService;
+        mockSearchPhaseContext.getRequest()
+            .source(
+                new SearchSourceBuilder().knnSearch(
+                    List.of(new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f }, 10, 100, 10f, null, null))
+                )
+            );
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                results.length(),
+                exc -> {}
+            )
+        ) {
+            DfsQueryPhase phase = makeDfsPhase(results, consumer, mockSearchPhaseContext, responseRef);
+            phase.run();
+            mockSearchPhaseContext.assertNoFailure();
+            assertNotNull(responseRef.get());
+            assertNotNull(responseRef.get().get(0));
+            assertTrue(responseRef.get().get(0).queryResult().searchTimedOut());
+            assertNotNull(responseRef.get().get(1));
+            assertTrue(responseRef.get().get(1).queryResult().searchTimedOut());
+            assertEquals(0, mockSearchPhaseContext.failures.size());
+            assertEquals(2, mockSearchPhaseContext.numSuccess.get());
+            mockSearchPhaseContext.results.close();
+        }
+    }
+
     public void testRewriteShardSearchRequestWithRank() {
         List<DfsKnnResults> dkrs = List.of(
             new DfsKnnResults(null, new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1), new ScoreDoc(7, 0.1f, 2) }),

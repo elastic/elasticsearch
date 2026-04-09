@@ -563,7 +563,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             if (s3BlobStore.serverSideEncryption()) {
                 putRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
             }
-            if (failIfAlreadyExists) {
+            if (failIfAlreadyExists && s3BlobStore.supportsConditionalWrites(purpose)) {
                 putRequestBuilder.ifNoneMatch("*");
             }
             S3BlobStore.configureRequestForMetrics(putRequestBuilder, blobStore, Operation.PUT_OBJECT, purpose);
@@ -642,7 +642,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 .uploadId(uploadId)
                 .multipartUpload(b -> b.parts(parts));
 
-            if (failIfAlreadyExists) {
+            if (failIfAlreadyExists && s3BlobStore.supportsConditionalWrites(purpose)) {
                 completeMultipartUploadRequestBuilder.ifNoneMatch("*");
             }
 

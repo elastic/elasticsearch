@@ -243,8 +243,7 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
     }
 
     protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         if (randomBoolean()) {
             request.profile(true);

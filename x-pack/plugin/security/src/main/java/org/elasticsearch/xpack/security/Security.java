@@ -436,7 +436,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivilegedAction;
 import java.security.Provider;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -460,7 +459,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.security.AccessController.doPrivileged;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -729,9 +727,9 @@ public class Security extends Plugin
      */
     public static Path resolveSecuredConfigFile(Environment env, String file) {
         Path config = env.configDir().resolve(file);
-        if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(config)) == false) {
+        if (Files.exists(config) == false) {
             Path legacyConfig = env.configDir().resolve("x-pack").resolve(file);
-            if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(legacyConfig))) {
+            if (Files.exists(legacyConfig)) {
                 DeprecationLogger.getLogger(XPackPlugin.class)
                     .warn(
                         DeprecationCategory.OTHER,
@@ -1605,6 +1603,7 @@ public class Security extends Plugin
         settingsList.add(TokenService.TOKEN_EXPIRATION);
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
+        settingsList.add(ProfileService.MAX_SIZE_SETTING);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
         settingsList.add(ApiKeyService.STORED_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
@@ -2504,7 +2503,7 @@ public class Security extends Plugin
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
         loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
         loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
-        // TODO add bulkPutRoleRequestBuilderFactory loading here when available
+        loadSingletonExtensionAndSetOnce(loader, bulkPutRoleRequestBuilderFactory, BulkPutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, updateApiKeyRequestTranslator, UpdateApiKeyRequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, bulkUpdateApiKeyRequestTranslator, BulkUpdateApiKeyRequestTranslator.class);

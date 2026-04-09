@@ -4111,13 +4111,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionMissingOptions() {
-        expectError("FROM foo* | COMPLETION targetField = prompt", "line 1:44: Missing mandatory option [inference_id] in COMPLETION");
+        expectError("FROM foo* | COMPLETION targetField = prompt", "line 1:13: Missing mandatory option [inference_id] in COMPLETION");
     }
 
     public void testCompletionEmptyOptions() {
         expectError(
             "FROM foo* | COMPLETION targetField = prompt WITH { }",
-            "line 1:45: Missing mandatory option [inference_id] in COMPLETION"
+            "line 1:13: Missing mandatory option [inference_id] in COMPLETION"
         );
     }
 
@@ -5111,6 +5111,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(paramAsPattern("f1", "f1*"), paramAsPattern("f2", "f2*"), paramAsPattern("f3", "f3*")),
                 error
             );
+        }
+    }
+
+    public void testNullDoubleParamsValue() {
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        String error = "Query parameter [??f1] is null";
+        List<String> commandWithDoubleParams = List.of(
+            "eval x = ??f1",
+            "stats x = count(??f1)",
+            "sort ??f1",
+            "keep ??f1",
+            "drop ??f1",
+            "mv_expand ??f1"
+        );
+        for (String command : commandWithDoubleParams) {
+            expectError("from test | " + command, List.of(paramAsConstant("f1", null)), error);
         }
     }
 

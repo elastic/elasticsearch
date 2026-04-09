@@ -654,7 +654,13 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
             }
         );
-        TransportActionProxy.registerProxyAction(transportService, NODE_SEARCH_ACTION_NAME, true, NodeQueryResponse::new);
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            NODE_SEARCH_ACTION_NAME,
+            true,
+            NodeQueryResponse::new,
+            namedWriteableRegistry
+        );
     }
 
     private static void releaseLocalContext(
@@ -862,7 +868,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     out.close();
                 }
             }
-            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(out.moveToBytesReference()));
+            ActionListener.respondAndRelease(
+                channelListener,
+                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
+            );
         }
 
         // Writes the "successful" response (see NodeQueryResponse for the corresponding read logic)
@@ -986,7 +995,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     out.close();
                 }
             }
-            ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(out.moveToBytesReference()));
+            ActionListener.respondAndRelease(
+                channelListener,
+                new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
+            );
         }
 
         private void maybeFreeContext(

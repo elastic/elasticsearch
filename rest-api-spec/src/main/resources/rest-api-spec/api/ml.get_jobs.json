@@ -20,8 +20,8 @@
           ],
           "parts": {
             "job_id": {
-              "type": "string",
-              "description": "The ID of the jobs to fetch"
+              "type": "list",
+              "description": "Comma-separated list of identifiers for the anomaly detection job. It can be a job identifier, a group name, or a wildcard expression. If you do not specify one of these options, the API returns information for all anomaly detection jobs."
             }
           }
         },

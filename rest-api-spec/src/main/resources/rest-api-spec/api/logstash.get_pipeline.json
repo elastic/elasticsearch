@@ -26,8 +26,8 @@
           ],
           "parts": {
             "id": {
-              "type": "string",
-              "description": "A comma-separated list of Pipeline IDs"
+              "type": "list",
+              "description": "A comma-separated list of pipeline identifiers."
             }
           }
         }

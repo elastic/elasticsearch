@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -24,6 +23,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -62,18 +64,20 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -451,7 +455,7 @@ public class JobManager {
                 ));
             }
         } else {
-            logger.debug("[{}] No process update required for job update: {}", jobUpdate::getJobId, jobUpdate::toString);
+            logger.debug(() -> format("[%s] No process update required for job update: %s", jobUpdate.getJobId(), jobUpdate.toString()));
             auditJobUpdatedIfNotInternal(request);
         }
 
@@ -615,46 +619,120 @@ public class JobManager {
     }
 
     public void updateProcessOnCalendarChanged(List<String> calendarJobIds, ActionListener<Boolean> updateListener) {
+        // Respond immediately to prevent API timeouts
+        updateListener.onResponse(Boolean.TRUE);
+
         ClusterState clusterState = clusterService.state();
         Set<String> openJobIds = openJobIds(clusterState);
+
+        logger.debug("Updating process for calendar change: {} calendar job IDs, {} open jobs", calendarJobIds.size(), openJobIds.size());
+
         if (openJobIds.isEmpty()) {
-            updateListener.onResponse(Boolean.TRUE);
             return;
         }
 
-        boolean appliesToAllJobs = calendarJobIds.stream().anyMatch(Metadata.ALL::equals);
-        if (appliesToAllJobs) {
-            submitJobEventUpdate(openJobIds, updateListener);
-            return;
-        }
-
-        // calendarJobIds may be a group or job
-        jobConfigProvider.expandGroupIds(
-            calendarJobIds,
-            updateListener.delegateFailureAndWrap(
-                (delegate, expandedIds) -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                    // Merge the expanded group members with the request Ids.
-                    // Ids that aren't jobs will be filtered by isJobOpen()
-                    expandedIds.addAll(calendarJobIds);
-                    openJobIds.retainAll(expandedIds);
-                    submitJobEventUpdate(openJobIds, delegate);
-                })
-            )
-        );
+        // Continue with background processing
+        processCalendarUpdatesAsync(calendarJobIds, openJobIds);
     }
 
-    private void submitJobEventUpdate(Collection<String> jobIds, ActionListener<Boolean> updateListener) {
-        for (String jobId : jobIds) {
-            updateJobProcessNotifier.submitJobUpdate(
-                UpdateParams.scheduledEventsUpdate(jobId),
-                ActionListener.wrap(
-                    isUpdated -> auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)),
-                    e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)
-                )
-            );
+    private void processCalendarUpdatesAsync(List<String> calendarJobIds, Set<String> openJobIds) {
+        boolean appliesToAllJobs = calendarJobIds.stream().anyMatch(Metadata.ALL::equals);
+        if (appliesToAllJobs) {
+            logger.debug("Calendar change applies to all jobs - starting background update for {} jobs", openJobIds.size());
+            submitJobCalendarEventUpdateAsync(openJobIds);
+            return;
+        }
+        // calendarJobIds may be a group or job
+        // Process group expansion asynchronously
+        jobConfigProvider.expandGroupIds(calendarJobIds, ActionListener.wrap(expandedIds -> {
+            expandedIds.addAll(calendarJobIds);
+            openJobIds.retainAll(expandedIds);
+            logger.debug("Calendar change expanded to {} jobs - starting background update", openJobIds.size());
+            submitJobCalendarEventUpdateAsync(openJobIds);
+        }, e -> logger.error("Failed to expand calendar job groups for background update", e)));
+    }
+
+    private void submitJobCalendarEventUpdateAsync(Set<String> jobIds) {
+        if (jobIds.isEmpty()) {
+            return;
         }
 
-        updateListener.onResponse(Boolean.TRUE);
+        logger.debug("Starting background calendar event updates for [{}] jobs", jobIds.size());
+        AtomicInteger succeeded = new AtomicInteger();
+        AtomicInteger failed = new AtomicInteger();
+        AtomicInteger skipped = new AtomicInteger();
+        long startTime = System.currentTimeMillis();
+
+        ActionListener<Boolean> backgroundListener = ActionListener.wrap(success -> {
+            long duration = System.currentTimeMillis() - startTime;
+            logger.debug(
+                "Background calendar updates completed in [{}ms]: {} succeeded, {} failed, {} skipped",
+                duration,
+                succeeded.get(),
+                failed.get(),
+                skipped.get()
+            );
+        }, failure -> {
+            long duration = System.currentTimeMillis() - startTime;
+            logger.error(
+                "Background calendar updates failed after [{}ms]: {} succeeded, {} failed, {} skipped",
+                duration,
+                succeeded.get(),
+                failed.get(),
+                skipped.get(),
+                failure
+            );
+        });
+
+        // Execute on utility thread pool to avoid blocking transport threads
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            submitJobCalendarEventUpdateSync(jobIds, backgroundListener, succeeded, failed, skipped);
+        });
+    }
+
+    private void submitJobCalendarEventUpdateSync(
+        Set<String> jobIds,
+        ActionListener<Boolean> updateListener,
+        AtomicInteger succeeded,
+        AtomicInteger failed,
+        AtomicInteger skipped
+    ) {
+        // Use RefCountingListener to track all parallel updates and complete the listener when all updates are completed.
+        try (var refs = new RefCountingListener(updateListener.delegateFailureAndWrap((l, v) -> { l.onResponse(true); }))) {
+            // Instead of calling `updateJobProcessNotifier.submitJobUpdate()`, directly call `UpdateProcessAction`
+            // to bypass the queue and avoid the scalability issues. Since calendar and filter updates fetch the latest state from the
+            // index and can run on any node, they don't need ordering guarantees.
+            for (String jobId : jobIds) {
+                UpdateProcessAction.Request request = new UpdateProcessAction.Request(jobId, null, null, null, null, true);
+
+                executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request, refs.acquire().delegateResponse((l, e) -> {
+                    if (isExpectedFailure(e)) {
+                        skipped.incrementAndGet();
+                        logger.debug("[{}] Calendar update skipped: {}", jobId, e.getMessage());
+                    } else {
+                        failed.incrementAndGet();
+                        logger.warn("[{}] Calendar update failed", jobId, e);
+                    }
+                    l.onResponse(null);  // Don't fail the whole operation
+                }).map(response -> {
+                    succeeded.incrementAndGet();
+                    auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS));
+                    return null;
+                }));
+            }
+        }
+    }
+
+    private boolean isExpectedFailure(Exception e) {
+        // Job deleted, closed, etc. - not real errors
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (cause instanceof ResourceNotFoundException) {
+            return true;
+        }
+        // Check for the specific error message format from TransportJobTaskAction
+        // Message format: "Cannot perform requested action because job [jobId] is not open"
+        String message = e.getMessage();
+        return message != null && message.contains("Cannot perform requested action because job [") && message.contains("] is not open");
     }
 
     public void revertSnapshot(

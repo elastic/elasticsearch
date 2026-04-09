@@ -16,12 +16,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.config.MainInstrumentationProvider;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
 import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.PluginDescriptor;
@@ -75,7 +78,15 @@ public class TestEntitlementBootstrap {
 
     private static void loadAgent(PolicyManager policyManager, PathLookup pathLookup) {
         logger.debug("Loading entitlement agent");
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
+        PolicyCheckerImpl policyChecker = createPolicyChecker(Set.of(), policyManager, pathLookup);
+        InstrumentationRegistryImpl instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker);
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
+            pathLookup,
+            Set.of(),
+            policyChecker,
+            instrumentationRegistry
+        );
+        new MainInstrumentationProvider().init(instrumentationRegistry);
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 
@@ -132,6 +143,14 @@ public class TestEntitlementBootstrap {
             classPathEntries,
             testOnlyClassPath
         );
+    }
+
+    private static PolicyCheckerImpl createPolicyChecker(
+        Set<Package> suppressFailureLogPackages,
+        PolicyManager policyManager,
+        PathLookup pathLookup
+    ) {
+        return new PolicyCheckerImpl(suppressFailureLogPackages, EntitlementBootstrap.ENTITLEMENTS_MODULE, policyManager, pathLookup);
     }
 
     private static Map<String, Policy> parsePluginsPolicies(List<TestPluginData> pluginsData) {

@@ -29,4 +29,9 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
     public String getWriteableName(TransportVersion transportVersion) {
         return "PotentiallyUnmappedKeywordEsField";
     }
+
+    @Override
+    public String getNodeStringName() {
+        return "PotentiallyUnmappedKeywordEsField";
+    }
 }

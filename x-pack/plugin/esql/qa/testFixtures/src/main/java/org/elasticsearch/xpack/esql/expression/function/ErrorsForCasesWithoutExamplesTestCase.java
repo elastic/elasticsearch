@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCountErrorTests;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -49,7 +48,7 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
      * A matcher for the invalid type error message.
      * <p>
      *     If you are implementing this for a function that should process all types
-     *     then have a look how {@link MvCountErrorTests} does it. It's nice to throw
+     *     then have a look how {@code MvCountErrorTests} does it. It's nice to throw
      *     an error explaining this. But while someone is implementing a new type
      *     they will want to turn that off temporarily. And we say that in the note too.
      * </p>

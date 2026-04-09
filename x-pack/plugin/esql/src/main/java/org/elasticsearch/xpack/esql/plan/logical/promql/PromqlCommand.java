@@ -241,8 +241,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        StringBuilder sb = new StringBuilder();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
         sb.append(nodeName());
         sb.append(" start=[").append(start);
         sb.append("] end=[").append(end);
@@ -251,7 +250,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         sb.append("] promql=[<>\n");
         sb.append(promqlPlan.toString());
         sb.append("\n<>]]");
-        return sb.toString();
     }
 
     @Override

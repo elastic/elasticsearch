@@ -83,8 +83,8 @@ public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic 
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName() + "[]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[]");
     }
 
     public LogicalPlan plan() {

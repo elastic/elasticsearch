@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import com.unboundid.util.NotNull;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.license.License;
@@ -135,7 +133,7 @@ public abstract class DocsV3Support {
     }
 
     public static void renderNegatedOperator(
-        @NotNull Constructor<?> ctor,
+        Constructor<?> ctor,
         String name,
         Function<String, String> description,
         Class<?> testClass,

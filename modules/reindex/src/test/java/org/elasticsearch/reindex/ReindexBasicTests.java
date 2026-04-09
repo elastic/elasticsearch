@@ -9,8 +9,8 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;

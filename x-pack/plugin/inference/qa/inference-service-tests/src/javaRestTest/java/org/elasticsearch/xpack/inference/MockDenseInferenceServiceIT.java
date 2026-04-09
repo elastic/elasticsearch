@@ -87,7 +87,8 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         var inference = embedding(
             inferenceEntityId,
             List.of(
-                new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(randomByteArrayOfLength(5)),
+                new InferenceString(DataType.IMAGE, "data:image/jpeg;base64,"
+                    + Base64.getEncoder().encodeToString(randomByteArrayOfLength(5))),
                 new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
                 new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
             )

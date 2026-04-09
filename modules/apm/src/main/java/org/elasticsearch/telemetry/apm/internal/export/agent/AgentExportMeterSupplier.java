@@ -32,7 +32,7 @@ import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportH
 public final class AgentExportMeterSupplier implements MeterSupplier {
     private final long agentFlushWaitTime;
     private final LongConsumer sleepFn;
-    private volatile boolean acquired;
+    private volatile boolean meterRetrieved;
 
     public AgentExportMeterSupplier(Settings settings) {
         this(agentFlushWaitTimeMs(settings), AgentExportHelpers::sleepForAgentExport);
@@ -46,13 +46,13 @@ public final class AgentExportMeterSupplier implements MeterSupplier {
 
     @Override
     public Meter get() {
-        acquired = true;
+        meterRetrieved = true;
         return GlobalOpenTelemetry.get().getMeter("elasticsearch");
     }
 
     @Override
     public void attemptFlushMetrics() {
-        if (acquired) {
+        if (meterRetrieved) {
             sleepFn.accept(agentFlushWaitTime);
         }
     }

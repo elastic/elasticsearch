@@ -34,21 +34,28 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -105,6 +112,8 @@ public class HollowShardsService extends AbstractLifecycleComponent {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final ObjectStoreService objectStoreService;
+    private final StatelessCommitService commitService;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final ThreadPool threadPool;
     private final HollowShardsMetrics metrics;
@@ -113,6 +122,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     private final boolean featureEnabled;
     private final TimeValue ingestionDataStreamNonWriteTtl;
     private final TimeValue ingestionTtl;
+    private final Executor bccHeaderReadExecutor;
 
     private record HollowShardInfo(SubscribableListener<Void> listener, AtomicBoolean unhollowing) {};
 
@@ -122,18 +132,24 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,
+        ObjectStoreService objectStoreService,
+        StatelessCommitService commitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
         ThreadPool threadPool,
-        HollowShardsMetrics metrics
+        HollowShardsMetrics metrics,
+        Executor bccHeaderReadExecutor
     ) {
         this(
             settings,
             clusterService,
             indicesService,
+            objectStoreService,
+            commitService,
             indexShardCacheWarmer,
             threadPool,
             metrics,
-            clusterService.threadPool()::relativeTimeInMillis
+            clusterService.threadPool()::relativeTimeInMillis,
+            bccHeaderReadExecutor
         );
     }
 
@@ -141,14 +157,19 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         Settings settings,
         ClusterService clusterService,
         IndicesService indicesService,
+        ObjectStoreService objectStoreService,
+        StatelessCommitService commitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
         ThreadPool threadPool,
         HollowShardsMetrics metrics,
-        LongSupplier relativeTimeSupplierInMillis
+        LongSupplier relativeTimeSupplierInMillis,
+        Executor bccHeaderReadExecutor
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
+        this.objectStoreService = objectStoreService;
+        this.commitService = commitService;
         this.relativeTimeSupplierInMillis = relativeTimeSupplierInMillis;
         this.metrics = metrics;
         this.threadPool = threadPool;
@@ -156,6 +177,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
             && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
         this.ingestionDataStreamNonWriteTtl = HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.get(settings);
         this.ingestionTtl = HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.get(settings);
+        this.bccHeaderReadExecutor = bccHeaderReadExecutor;
         if (featureEnabled) {
             logger.info("Hollow index shards enabled with TTL {} and DS non-write TTL {}", ingestionTtl, ingestionDataStreamNonWriteTtl);
         } else {
@@ -339,7 +361,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         if (hollowShardInfo != null && hollowShardInfo.unhollowing.compareAndSet(false, true)) {
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
-                protected void doRun() throws Exception {
+                protected void doRun() {
                     long startTime = relativeTimeSupplierInMillis.getAsLong();
                     final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
                     final var indexShard = indexService.getShard(shardId.id());
@@ -358,28 +380,96 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     // Similar to the stateless recovery process without activating primary context
                     // (since we the shard is already in the primary mode and has checkpoint information)
                     logger.debug(() -> shardId + " unhollowing shard (reason: ingestion)");
-                    // Pre-warm the cache for the new index engine
-                    indexShardCacheWarmer.preWarmIndexShardCache(indexShard, SharedBlobCacheWarmingService.Type.UNHOLLOWING);
-                    indexShard.resetEngine(engine -> {
-                        assert assertIndexEngineLastCommitHollow(shardId, engine, true);
-                        assert engine.getEngineConfig().getEngineResetLock().isWriteLockedByCurrentThread() : shardId;
-                        engine.refresh("unhollowing"); // warms up reader managers
-                        engine.skipTranslogRecovery(); // allows new flushes
-                    });
 
-                    logger.debug(() -> "Flushing shard [" + shardId + "] to produce a blob with a local translog node id");
-                    indexShard.withEngine(engine -> {
-                        assert engine instanceof IndexEngine : shardId + ": expected IndexEngine but was " + engine.getClass();
-                        engine.flush(true, true, ActionListener.wrap(flushResult -> {
-                            assert flushResult.skippedDueToCollision() == false : "Flush was skipped";
-                            removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
-                            logger.info("{} unhollowed shard with gen {}", shardId, flushResult.generation());
-                            metrics.unhollowSuccessCounter().increment();
-                            metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
-                            assert assertIndexEngineLastCommitHollow(shardId, engine, false);
-                        }, e -> failedUnhollowing(shardId, e)));
-                        return null;
-                    });
+                    final Store store = indexShard.store();
+                    store.incRef();
+                    try {
+                        final var blobStore = objectStoreService.getProjectBlobStore(indexShard.shardId());
+                        final var shardBasePath = objectStoreService.shardBasePath(indexShard.shardId());
+                        IndexBlobStoreCacheDirectory blobStoreCacheDirectory = IndexDirectory.unwrapDirectory(store.directory())
+                            .getBlobStoreCacheDirectory();
+
+                        final ActionListener<ObjectStoreService.IndexingShardState> resetListener = ActionListener.wrap(state -> {
+                            var batchedCompoundCommit = state.latestCommit();
+                            StatelessCompoundCommit last = batchedCompoundCommit.lastCompoundCommit();
+
+                            Map<String, BlobFileRanges> blobFileRanges = new HashMap<>(state.blobFileRanges());
+
+                            // If after hollowing the recovery failed, the hollow shard will stay in the source node where operations
+                            // holding commit references (e.g. snapshots) could be ongoing. In this case, we need to ensure that the
+                            // blob file ranges used by those operations are kept in the blob cache metadata.
+                            // Those blob file ranges will be without replicated headers/footers, but those should
+                            // be rare and few files only.
+                            addRangesOfNonReferencedFiles(blobFileRanges, last, shardId);
+
+                            logger.debug(
+                                "Updating BlobStoreCacheDirectory metadata before index reset (blobFileRange: {})",
+                                blobFileRanges
+                            );
+                            blobStoreCacheDirectory.updateMetadata(blobFileRanges, last.getAllFilesSizeInBytes());
+
+                            // Pre-warm the cache for the new index engine
+                            indexShardCacheWarmer.preWarmIndexShardCacheForUnhollowing(store, indexShard, state);
+
+                            indexShard.resetEngine(engine -> {
+                                assert assertIndexEngineLastCommitHollow(shardId, engine, true);
+                                assert engine.getEngineConfig().getEngineResetLock().isWriteLockedByCurrentThread() : shardId;
+                                engine.refresh("unhollowing"); // warms up reader managers
+                                engine.skipTranslogRecovery(); // allows new flushes
+                            });
+
+                            logger.debug(() -> "Flushing shard [" + shardId + "] to produce a blob with a local translog node id");
+                            indexShard.withEngine(engine -> {
+                                assert engine instanceof IndexEngine : shardId + ": expected IndexEngine but was " + engine.getClass();
+                                engine.flush(true, true, ActionListener.wrap(flushResult -> {
+                                    assert flushResult.skippedDueToCollision() == false : "Flush was skipped";
+                                    removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
+                                    logger.info("{} unhollowed shard with gen {}", shardId, flushResult.generation());
+                                    metrics.unhollowSuccessCounter().increment();
+                                    metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
+                                    assert assertIndexEngineLastCommitHollow(shardId, engine, false);
+                                }, e -> failedUnhollowing(shardId, e)));
+                                return null;
+                            });
+                        }, e -> failedUnhollowing(indexShard.shardId(), e));
+
+                        var listener = new SubscribableListener<ObjectStoreService.IndexingShardState>();
+                        listener.addListener(
+                            ActionListener.releaseAfter(resetListener, store::decRef),
+                            threadPool.generic(),
+                            threadPool.getThreadContext()
+                        );
+
+                        BatchedCompoundCommit latestBcc = commitService.getLatestUploadedBcc(shardId);
+                        final BlobFile latestBccBlob = latestBcc.toBlobFile();
+                        Set<BlobFile> otherBlobs = commitService.getTrackedUploadedBlobFilesUpTo(
+                            shardId,
+                            latestBcc.primaryTermAndGeneration().generation()
+                        );
+                        otherBlobs.remove(latestBccBlob);
+
+                        var blobsInfo = new StatelessCommitService.SourceBlobsInfo(
+                            latestBccBlob,
+                            latestBcc.calculateBccBlobLength(),
+                            otherBlobs
+                        );
+
+                        ObjectStoreService.readIndexingShardState(
+                            blobStoreCacheDirectory,
+                            BlobCacheIndexInput.WARMING,
+                            blobStore.blobContainer(shardBasePath),
+                            indexShard.getOperationPrimaryTerm(),
+                            threadPool,
+                            commitService.useReplicatedRanges(),
+                            bccHeaderReadExecutor,
+                            false,
+                            blobsInfo,
+                            listener
+                        );
+                    } catch (Exception e) {
+                        store.decRef();
+                        failedUnhollowing(indexShard.shardId(), e);
+                    }
                 }
 
                 @Override
@@ -408,6 +498,17 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                 }
             });
         }
+    }
+
+    private void addRangesOfNonReferencedFiles(Map<String, BlobFileRanges> blobFileRanges, StatelessCompoundCommit last, ShardId shardId) {
+
+        Set<String> referencedFiles = last.commitFiles().keySet();
+
+        commitService.getBlobLocations(shardId)
+            .entrySet()
+            .stream()
+            .filter(entry -> referencedFiles.contains(entry.getKey()) == false)
+            .forEach(entry -> blobFileRanges.put(entry.getKey(), new BlobFileRanges(entry.getValue())));
     }
 
     private static boolean assertIndexEngineLastCommitHollow(ShardId shardId, Engine engine, boolean expectLastCommitHollow) {

@@ -26,7 +26,7 @@ import java.util.Comparator;
 /**
  * Order commit files in an optimized order for indexing shard recoveries
  */
-public class IndexingShardRecoveryComparator implements Comparator<String> {
+public class IndexingShardWarmingComparator implements Comparator<String> {
 
     @Override
     public int compare(String fileName1, String fileName2) {

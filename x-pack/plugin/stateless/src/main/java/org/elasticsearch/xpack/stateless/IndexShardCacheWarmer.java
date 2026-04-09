@@ -21,6 +21,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
@@ -32,9 +34,11 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
@@ -123,16 +127,11 @@ public class IndexShardCacheWarmer {
             try {
                 final var blobStore = objectStoreService.getProjectBlobStore(indexShard.shardId());
                 final var shardBasePath = objectStoreService.shardBasePath(indexShard.shardId());
-                var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
                 // Recovery hasn't even started yet, so we need to set the blob container here in a copied prewarming instance. This
                 // instance will also be copied when reading the last BCC and other referenced blobs, so it is OK to use it for warming
                 // purpose once the last BCC is known.
-                var prewarmingDirectory = indexDirectory.getBlobStoreCacheDirectory().createNewBlobStoreCacheDirectoryForWarming();
-                prewarmingDirectory.setBlobContainer(
-                    primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm)))
-                );
-                // During unhollowing, we want to read referenced blobs with replicated ranges as well
-                boolean readSingleBlobIfHollow = warmingType != SharedBlobCacheWarmingService.Type.UNHOLLOWING;
+                var prewarmingDirectory = createNewBlobStoreCacheDirectoryForWarming(store, blobStore, shardBasePath);
+                assert (warmingType != Type.UNHOLLOWING);
                 ObjectStoreService.readIndexingShardState(
                     prewarmingDirectory,
                     BlobCacheIndexInput.WARMING,
@@ -141,30 +140,10 @@ public class IndexShardCacheWarmer {
                     threadPool,
                     useReplicatedRanges,
                     bccHeaderReadExecutor,
-                    readSingleBlobIfHollow,
+                    true,
                     sourceBlobsInfo,
                     ActionListener.releaseAfter(ActionListener.wrap(state -> {
-                        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-
-                        var batchedCompoundCommit = state.latestCommit();
-                        if (batchedCompoundCommit != null) {
-                            StatelessCompoundCommit last = batchedCompoundCommit.lastCompoundCommit();
-                            // We do not want to update the internal directory metadata this early as this gets dispatched
-                            // into the GENERIC thread pool and, it can make the directory to go backwards if the recovery
-                            // makes progress before this task gets executed, for that reason we reuse the copied directory
-                            // instance that will be used _only_ during pre-warming.
-                            prewarmingDirectory.updateMetadata(state.blobFileRanges(), last.getAllFilesSizeInBytes());
-                            if (last.hollow() == false || readSingleBlobIfHollow == false) {
-                                warmingService.warmCacheForShardRecovery(
-                                    warmingType,
-                                    indexShard,
-                                    last,
-                                    prewarmingDirectory,
-                                    null,
-                                    preWarmForIdLookup
-                                );
-                            }
-                        }
+                        updateMetadataAndWarmCache(indexShard, warmingType, state, prewarmingDirectory, true, preWarmForIdLookup);
                     }, e -> logException(indexShard.shardId(), e)), store::decRef)
                 );
                 success = true;
@@ -174,6 +153,59 @@ public class IndexShardCacheWarmer {
                 if (success == false) {
                     store.decRef();
                 }
+            }
+        }
+    }
+
+    public void preWarmIndexShardCacheForUnhollowing(Store store, IndexShard indexShard, ObjectStoreService.IndexingShardState state) {
+        try {
+            final var blobStore = objectStoreService.getProjectBlobStore(indexShard.shardId());
+            final var shardBasePath = objectStoreService.shardBasePath(indexShard.shardId());
+            var prewarmingDirectory = createNewBlobStoreCacheDirectoryForWarming(store, blobStore, shardBasePath);
+            updateMetadataAndWarmCache(indexShard, Type.UNHOLLOWING, state, prewarmingDirectory, false, false);
+        } catch (Exception e) {
+            logException(indexShard.shardId(), e);
+        }
+    }
+
+    private static IndexBlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming(
+        Store store,
+        BlobStore blobStore,
+        BlobPath shardBasePath
+    ) {
+        var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
+        var prewarmingDirectory = indexDirectory.getBlobStoreCacheDirectory().createNewBlobStoreCacheDirectoryForWarming();
+        prewarmingDirectory.setBlobContainer(primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm))));
+        return prewarmingDirectory;
+    }
+
+    private void updateMetadataAndWarmCache(
+        IndexShard indexShard,
+        SharedBlobCacheWarmingService.Type warmingType,
+        ObjectStoreService.IndexingShardState state,
+        IndexBlobStoreCacheDirectory prewarmingDirectory,
+        boolean readSingleBlobIfHollow,
+        boolean preWarmForIdLookup
+    ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+
+        var batchedCompoundCommit = state.latestCommit();
+        if (batchedCompoundCommit != null) {
+            StatelessCompoundCommit last = batchedCompoundCommit.lastCompoundCommit();
+            // We do not want to update the internal directory metadata this early as this gets dispatched
+            // into the GENERIC thread pool and, it can make the directory to go backwards if the recovery
+            // makes progress before this task gets executed, for that reason we reuse the copied directory
+            // instance that will be used _only_ during pre-warming.
+            prewarmingDirectory.updateMetadata(state.blobFileRanges(), last.getAllFilesSizeInBytes());
+            if (last.hollow() == false || readSingleBlobIfHollow == false) {
+                warmingService.warmCacheForShardRecoveryOrUnhollowing(
+                    warmingType,
+                    indexShard,
+                    last,
+                    prewarmingDirectory,
+                    null,
+                    preWarmForIdLookup
+                );
             }
         }
     }

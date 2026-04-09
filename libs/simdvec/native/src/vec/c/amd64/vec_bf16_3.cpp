@@ -55,12 +55,11 @@ static inline f32_t dotDbf16Qbf16_inner_avx512(const bf16_t* d, const bf16_t* q,
 
     __m512 total = tree_reduce<batches, __m512, _mm512_add_ps>(sums);
 
-    // another complete register at the end
-    if (elementCount - i > elements) {
+    // Non-batched tail
+    for (; i + elements <= elementCount; i += elements) {
         total = _mm512_dpbf16_ps(total,
             (__m512bh)_mm512_loadu_epi16(d + i),
             (__m512bh)_mm512_loadu_epi16(q + i));
-        i += elements;
     }
 
     // Masked tail: handle remaining bytes that don't fill a full 512-bit register.
@@ -150,9 +149,9 @@ EXPORT f32_t vec_sqrDbf16Qf32_3(const bf16_t* a, const f32_t* b, const int32_t e
 
 /*
  * Squared distance of 2 bf16 vectors using dpbf16, via the identity:
- *   ||a - b||² = a·a - 2·a·b + b·b
+ * |a - b|^2 = a*a - 2*a*b + b*b
  * Each term is a dot product computed natively with dpbf16, avoiding
- * the costly bf16→f32 conversion that makes the generic path ALU-bound.
+ * the costly bf16 -> f32 conversion that makes the generic path ALU-bound.
  */
 static inline f32_t sqrDbf16Qbf16_inner_avx512(const bf16_t* a, const bf16_t* b, int32_t elementCount) {
     constexpr int batches = 4;
@@ -201,7 +200,7 @@ static inline f32_t sqrDbf16Qbf16_inner_avx512(const bf16_t* a, const bf16_t* b,
         total_cross = _mm512_mask_dpbf16_ps(total_cross, dpMask, a_rem, b_rem);
     }
 
-    // ||a - b||² = (a·a + b·b) - 2·(a·b)
+    // |a - b|^2 = a*a - 2*a*b + b*b
     f32_t result = _mm512_reduce_add_ps(total_self) - 2.0f * _mm512_reduce_add_ps(total_cross);
 
     // Scalar tail for odd remaining element

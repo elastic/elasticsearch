@@ -441,10 +441,17 @@ public class OperatorTests extends MapperServiceTestCase {
             for (int p = 0; p < result.getPositionCount(); p++) {
                 actual.put(groups.getLong(p), counts.getLong(p));
             }
-            assertMap(
-                actual,
-                matchesMap().entry(0L, (long) firstGroupDocs).entry(100L, (long) secondGroupDocs).entry(10000L, (long) thirdGroupDocs)
-            );
+            var matcher = matchesMap();
+            if (firstGroupDocs > 0) {
+                matcher = matcher.entry(0L, (long) firstGroupDocs);
+            }
+            if (secondGroupDocs > 0) {
+                matcher = matcher.entry(100L, (long) secondGroupDocs);
+            }
+            if (thirdGroupDocs > 0) {
+                matcher = matcher.entry(10000L, (long) thirdGroupDocs);
+            }
+            assertMap(actual, matcher);
         };
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {

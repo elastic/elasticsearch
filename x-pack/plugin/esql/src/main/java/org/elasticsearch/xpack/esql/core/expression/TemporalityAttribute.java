@@ -38,7 +38,7 @@ public final class TemporalityAttribute extends TypedAttribute {
         this(source, null);
     }
 
-    TemporalityAttribute(Source source, @Nullable NameId id) {
+    private TemporalityAttribute(Source source, @Nullable NameId id) {
         super(source, NAME, DataType.KEYWORD, Nullability.TRUE, id, true);
     }
 

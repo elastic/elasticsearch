@@ -101,7 +101,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
                 "Should log shard moving",
                 ShardChangesObserver.class.getCanonicalName(),
                 Level.DEBUG,
-                "[" + indexName + "][0][P] is relocating (move) from [node-1] to [node-2]"
+                "[" + indexName + "][0][P] is relocating (move(no)) from [node-1] to [node-2]"
             ),
             new MockLog.SeenEventExpectation(
                 "Should log shard starting",

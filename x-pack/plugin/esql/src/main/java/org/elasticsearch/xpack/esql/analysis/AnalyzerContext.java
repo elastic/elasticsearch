@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.cat.CatDataResolution;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -34,6 +35,7 @@ public class AnalyzerContext {
     private final EnrichResolution enrichResolution;
     private final InferenceResolution inferenceResolution;
     private final ExternalSourceResolution externalSourceResolution;
+    private final CatDataResolution catDataResolution;
     private final TransportVersion minimumVersion;
     private final ProjectMetadata projectMetadata;
     private Boolean hasRemoteIndices;
@@ -80,6 +82,36 @@ public class AnalyzerContext {
         UnmappedResolution unmappedResolution,
         @Nullable TimestampBounds timestampBounds
     ) {
+        this(
+            configuration,
+            functionRegistry,
+            projectMetadata,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            externalSourceResolution,
+            minimumVersion,
+            unmappedResolution,
+            timestampBounds,
+            CatDataResolution.EMPTY
+        );
+    }
+
+    public AnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        ProjectMetadata projectMetadata,
+        Map<IndexPattern, IndexResolution> indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        ExternalSourceResolution externalSourceResolution,
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds,
+        CatDataResolution catDataResolution
+    ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.projectMetadata = projectMetadata;
@@ -88,6 +120,7 @@ public class AnalyzerContext {
         this.enrichResolution = enrichResolution;
         this.inferenceResolution = inferenceResolution;
         this.externalSourceResolution = externalSourceResolution;
+        this.catDataResolution = catDataResolution;
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
         this.timestampBounds = timestampBounds;
@@ -148,6 +181,10 @@ public class AnalyzerContext {
 
     public ExternalSourceResolution externalSourceResolution() {
         return externalSourceResolution;
+    }
+
+    public CatDataResolution catDataResolution() {
+        return catDataResolution;
     }
 
     public TransportVersion minimumVersion() {
@@ -227,7 +264,8 @@ public class AnalyzerContext {
             result.externalSourceResolution(),
             result.minimumTransportVersion(),
             unmappedResolution,
-            timestampBounds
+            timestampBounds,
+            result.catDataResolution()
         );
     }
 }

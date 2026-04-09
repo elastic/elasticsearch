@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedCatRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -36,9 +37,10 @@ public class PreAnalyzer {
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
-        List<String> icebergPaths
+        List<String> icebergPaths,
+        List<String> catEndpoints
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false, false, List.of());
+        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false, false, List.of(), List.of());
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -80,6 +82,10 @@ public class PreAnalyzer {
                 icebergPaths.add(path);
             }
         });
+
+        // Collect CAT endpoint names from UnresolvedCatRelation nodes
+        List<String> catEndpoints = new ArrayList<>();
+        plan.forEachUp(UnresolvedCatRelation.class, p -> catEndpoints.add(p.endpoint()));
 
         /*
          * Enable aggregate_metric_double and dense_vector when we see certain functions
@@ -130,7 +136,8 @@ public class PreAnalyzer {
             useAggregateMetricDoubleWhenNotSupported.get(),
             useDenseVectorWhenNotSupported.get(),
             hasTimeSeriesAggregation.get(),
-            icebergPaths
+            icebergPaths,
+            catEndpoints
         );
     }
 }

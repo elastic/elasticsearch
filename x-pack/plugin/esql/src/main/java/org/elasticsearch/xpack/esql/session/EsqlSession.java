@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
@@ -55,6 +56,8 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.cat.CatDataResolution;
+import org.elasticsearch.xpack.esql.cat.CatDataResolver;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -162,6 +165,7 @@ public class EsqlSession {
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
     private final ExternalSourceResolver externalSourceResolver;
+    private final CatDataResolver catDataResolver;
 
     private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
@@ -213,6 +217,7 @@ public class EsqlSession {
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
         this.externalSourceResolver = externalSourceResolver;
+        this.catDataResolver = new CatDataResolver(services.client(), services.projectResolver());
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
@@ -937,6 +942,7 @@ public class EsqlSession {
                 return r;
             })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(parsed, preAnalysis, r, l))
+            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeCatSources(preAnalysis, r, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
                 executionInfo.queryProfile().enrichResolutionMarker().start();
@@ -1031,6 +1037,27 @@ public class EsqlSession {
             filterHints.isEmpty() ? null : filterHints,
             listener.map(result::withExternalSourceResolution)
         );
+    }
+
+    /**
+     * Fetch data for any CAT endpoints referenced by the query. Runs as part of the pre-analysis
+     * chain so that the data is available when the Analyzer resolves UnresolvedCatRelation nodes.
+     */
+    private void preAnalyzeCatSources(
+        PreAnalyzer.PreAnalysis preAnalysis,
+        PreAnalysisResult result,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        if (preAnalysis.catEndpoints().isEmpty()) {
+            listener.onResponse(result);
+            return;
+        }
+        // CAT transport responses arrive on the management thread; fork back to search before continuing the analysis chain.
+        var searchListener = new ThreadedActionListener<>(
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
+            listener.map(result::withCatDataResolution)
+        );
+        catDataResolver.resolve(preAnalysis.catEndpoints(), searchListener);
     }
 
     /**
@@ -1623,7 +1650,8 @@ public class EsqlSession {
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
-        TransportVersion minimumTransportVersion
+        TransportVersion minimumTransportVersion,
+        CatDataResolution catDataResolution
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
@@ -1635,7 +1663,8 @@ public class EsqlSession {
                 null,
                 InferenceResolution.EMPTY,
                 ExternalSourceResolution.EMPTY,
-                TransportVersion.current()
+                TransportVersion.current(),
+                CatDataResolution.EMPTY
             );
         }
 
@@ -1658,7 +1687,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                catDataResolution
             );
         }
 
@@ -1671,7 +1701,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                catDataResolution
             );
         }
 
@@ -1684,7 +1715,22 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                catDataResolution
+            );
+        }
+
+        PreAnalysisResult withCatDataResolution(CatDataResolution catDataResolution) {
+            return new PreAnalysisResult(
+                fieldNames,
+                wildcardJoinIndices,
+                indexResolution,
+                lookupIndices,
+                enrichResolution,
+                inferenceResolution,
+                externalSourceResolution,
+                minimumTransportVersion,
+                catDataResolution
             );
         }
 
@@ -1703,7 +1749,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                catDataResolution
             );
         }
     }

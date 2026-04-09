@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -126,6 +127,23 @@ public class RewriteSumFieldPlusConstantTests extends AbstractLogicalPlanOptimiz
         assertThat(mul2.right().semanticEquals(svCountAlias.toAttribute()), equalTo(true));
         assertThat(mul2.left().fold(FoldContext.small()), equalTo(3));
         assertThat(sub2.right().semanticEquals(svSumAlias.toAttribute()), equalTo(true));
+    }
+
+    public void testDuplicateAliasNotRewritten() {
+        var plan = plan("""
+            from test
+            | stats s = sum(emp_no + 1), s = sum(emp_no + 2)
+            | limit 10
+            """, new TestSubstitutionOnlyOptimizer());
+
+        // RemoveStatsOverride drops the first s, leaving one SUM — below the 2-match threshold.
+        // The rule must not fire, so no MvSingleValueOrNull should appear in the plan.
+        boolean hasMvSingleValueOrNull = plan.anyMatch(
+            node -> node instanceof Eval e
+                && e.fields().stream().anyMatch(f -> f instanceof Alias a && a.child() instanceof MvSingleValueOrNull)
+        );
+        assertFalse("Duplicate alias should not be rewritten by RewriteSumFieldPlusConstant", hasMvSingleValueOrNull);
+        assertWarnings("Line 2:9: Field 's' shadowed by field at line 2:30");
     }
 
     public void testSingleSumNotRewritten() {

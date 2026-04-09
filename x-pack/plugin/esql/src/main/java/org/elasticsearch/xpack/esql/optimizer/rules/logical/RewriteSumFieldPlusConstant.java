@@ -123,7 +123,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
                 final Expression de = m.dataExpr();
                 final Sum fs = m.sum();
                 SvPair pair = fieldToSvPair.computeIfAbsent(m.key(), k -> {
-                    var sv = new MvSingleValueOrNull(de.source(), de);
+                    var sv = new MvSingleValueOrNull(fs.field().source(), de);
                     var svSumName = TemporaryNameGenerator.temporaryName(sv, fs, counter[0]++);
                     var svSumExpr = new Sum(
                         source,

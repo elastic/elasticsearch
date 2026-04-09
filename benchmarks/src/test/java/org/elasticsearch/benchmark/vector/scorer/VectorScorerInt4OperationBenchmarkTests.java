@@ -12,9 +12,9 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
 
@@ -49,11 +49,7 @@ public class VectorScorerInt4OperationBenchmarkTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] sizes = VectorScorerInt4OperationBenchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
-            return () -> Arrays.stream(sizes).map(Integer::parseInt).map(s -> new Object[] { s }).iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+        String[] sizes = Utils.possibleValues(VectorScorerInt4OperationBenchmark.class, "size").toArray(new String[0]);
+        return () -> Arrays.stream(sizes).map(Integer::parseInt).map(s -> new Object[] { s }).iterator();
     }
 }

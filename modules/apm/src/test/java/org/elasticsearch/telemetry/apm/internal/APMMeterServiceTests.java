@@ -54,8 +54,7 @@ public class APMMeterServiceTests extends ESTestCase {
     }
 
     /**
-     * The public attemptFlushMetrics() is gated on enabled — callers should not pay the flush cost when metrics
-     * are off. doStop() is intentionally unconditional (see testDoStopDelegatesUnconditionallyWhenMetricsDisabled).
+     * The public attemptFlushMetrics() is gated on enabled — callers should not pay the flush cost when metrics are off.
      */
     public void testAttemptFlushMetricsIsNoopWhenDisabled() {
         List<String> calls = new ArrayList<>();
@@ -119,10 +118,11 @@ public class APMMeterServiceTests extends ESTestCase {
     }
 
     /**
-     * A node could have had metrics enabled, accumulated data, then had metrics disabled via a settings change, and then shut down.
-     * This test checks that  the flush drains whatever's buffered before close.
+     * When metrics are disabled at shutdown, the flush must be skipped entirely — a user who disabled metrics
+     * may have done so specifically to prevent data from being exported (e.g. bad pipeline, sensitive data).
+     * close() must still be called to release resources.
      */
-    public void testDoStopDelegatesUnconditionallyWhenMetricsDisabled() {
+    public void testDoStopSkipsFlushWhenMetricsDisabled() {
         List<String> calls = new ArrayList<>();
         MeterSupplier trackingSupplier = new MeterSupplier() {
             @Override
@@ -147,7 +147,7 @@ public class APMMeterServiceTests extends ESTestCase {
         service.start();
         service.stop();
 
-        assertThat(calls, contains("attemptFlushMetrics", "close"));
+        assertThat(calls, contains("close"));
     }
 
 }

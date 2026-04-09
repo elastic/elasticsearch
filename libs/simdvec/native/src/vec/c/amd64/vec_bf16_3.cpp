@@ -221,9 +221,20 @@ EXPORT f32_t vec_sqrDbf16Qbf16_3(const bf16_t* a, const bf16_t* b, const int32_t
 /*
  * AVX-512 bulk operation for bf16 data with f32 query.
  * Converts bf16 data to f32, then applies vector_op (fmadd for dot, sub+fmadd for sqr).
- * Processes N vectors in parallel per dimension step, loading the f32 query
+ * Processes `batches` vectors in parallel per dimension step, loading the f32 query
  * once per step and reusing it across all vectors in the batch.
  * Uses masked loads for the dimension tail instead of scalar fallback.
+ *
+ * L1D cache set aliasing and the `batches` parameter:
+ * When vectors are stored contiguously (sequential access), they are separated by
+ * exactly `dims * sizeof(bf16_t)` bytes. For power-of-2 dims (e.g. 1024 -> stride 2048),
+ * all vectors in a batch map to the same L1D cache sets at any given dimension offset.
+ * With batches=4, four simultaneous load streams fight for the same cache sets, causing
+ * evictions and stalls -- despite having fewer total loads than the single-pair baseline.
+ * This effect is absent for non-power-of-2 dims (e.g. 768 -> stride 1536) and for
+ * random-offset access (bulk_offsets) where vectors are scattered across memory.
+ * Sequential callers should use batches=1 to avoid this; offset-based callers can
+ * safely use batches=4 since random offsets break the aliasing pattern.
  */
 template <
     const bf16_t*(*mapper)(const bf16_t*, const int32_t, const int32_t*, const int32_t),
@@ -300,7 +311,7 @@ static inline void bf16Qf32_bulk_avx512(
 }
 
 EXPORT void vec_dotDbf16Qf32_bulk_3(const bf16_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    bf16Qf32_bulk_avx512<sequential_mapper, _mm512_fmadd_ps, vec_dotDbf16Qf32_3>(
+    bf16Qf32_bulk_avx512<sequential_mapper, _mm512_fmadd_ps, vec_dotDbf16Qf32_3, 1>(
         a, b, dims, dims, NULL, count, results);
 }
 
@@ -309,6 +320,7 @@ EXPORT void vec_dotDbf16Qf32_bulk_3(const bf16_t* a, const f32_t* b, const int32
 /*
  * Bulk dot product for bf16×bf16 using dpbf16.
  * Loads query once per dimension step, applies to all vectors in the batch.
+ * See bf16Qf32_bulk_avx512 for L1D cache set aliasing considerations on `batches`.
  */
 template <
     const bf16_t*(*mapper)(const bf16_t*, const int32_t, const int32_t*, const int32_t),
@@ -389,6 +401,7 @@ static inline void dotDbf16Qbf16_bulk_avx512(
  * Bulk squared distance for bf16×bf16 using dpbf16 via ||a-b||² = a·a - 2·a·b + b·b.
  * Loads query once per dimension step. Computes q·q once (shared across all vectors
  * in the batch), then per vector accumulates a·a and a·q.
+ * See bf16Qf32_bulk_avx512 for L1D cache set aliasing considerations on `batches`.
  */
 template <
     const bf16_t*(*mapper)(const bf16_t*, const int32_t, const int32_t*, const int32_t),
@@ -482,16 +495,16 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
 }
 
 EXPORT void vec_dotDbf16Qbf16_bulk_3(const bf16_t* a, const bf16_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dotDbf16Qbf16_bulk_avx512<sequential_mapper>(a, b, dims, dims, NULL, count, results);
+    dotDbf16Qbf16_bulk_avx512<sequential_mapper, 1>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqrDbf16Qf32_bulk_3(const bf16_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    bf16Qf32_bulk_avx512<sequential_mapper, sqrf32_vector, vec_sqrDbf16Qf32_3>(
+    bf16Qf32_bulk_avx512<sequential_mapper, sqrf32_vector, vec_sqrDbf16Qf32_3, 1>(
         a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqrDbf16Qbf16_bulk_3(const bf16_t* a, const bf16_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqrDbf16Qbf16_bulk_avx512<sequential_mapper>(a, b, dims, dims, NULL, count, results);
+    sqrDbf16Qbf16_bulk_avx512<sequential_mapper, 1>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_dotDbf16Qf32_bulk_offsets_3(

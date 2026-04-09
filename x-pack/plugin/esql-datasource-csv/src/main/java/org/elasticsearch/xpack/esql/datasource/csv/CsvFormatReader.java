@@ -118,15 +118,15 @@ import java.util.regex.Pattern;
  * </table>
  *
  * <h2>Examples</h2>
- * <pre>{@code
+ * {@snippet lang="esql" :
  *   EXTERNAL "s3://bucket/data.tsv" WITH {"delimiter": "\t", "error_mode": "skip_row", "max_errors": 100}
- * }</pre>
- * <pre>{@code
+ * }
+ * {@snippet lang="esql" :
  *   EXTERNAL "s3://bucket/employees.csv" WITH {"multi_value_syntax": "brackets"}
- * }</pre>
- * <pre>{@code
+ * }
+ * {@snippet lang="esql" :
  *   EXTERNAL "s3://bucket/data.csv" WITH {"multi_value_syntax": "brackets", "error_mode": "skip_row"}
- * }</pre>
+ * }
  *
  * <p>Works with any {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}
  * (HTTP, S3, local filesystem).

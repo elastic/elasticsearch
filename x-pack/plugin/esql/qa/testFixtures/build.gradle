@@ -2,15 +2,21 @@ apply plugin: 'elasticsearch.java'
 apply plugin: org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 
 dependencies {
-  implementation project(':x-pack:plugin:esql:compute')
-  implementation project(':x-pack:plugin:esql')
+  api project(':x-pack:plugin:esql:compute')
+  api project(xpackModule('esql:compute:test'))
+  api project(':x-pack:plugin:esql')
+  implementation project(xpackModule('mapper-version'))
+  implementation project(':libs:exponential-histogram')
+  implementation 'net.nextencia:rrdiagram:0.9.4'
+  implementation 'org.webjars.npm:fontsource__roboto-mono:4.5.7'
   compileOnly project(path: xpackModule('core'))
   implementation project(":libs:x-content")
   implementation project(':client:rest')
   implementation project(':libs:logging')
-  implementation project(':test:framework')
+  api project(':test:framework')
   api(testArtifact(project(xpackModule('esql-core'))))
   implementation project(':server')
+  implementation project(xpackModule('kql'))
   implementation "net.sf.supercsv:super-csv:${versions.supercsv}"
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"

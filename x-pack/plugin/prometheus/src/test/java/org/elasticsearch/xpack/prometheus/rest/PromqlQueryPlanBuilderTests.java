@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
@@ -25,12 +24,14 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
 
     public void testBuildStatementPlanStructure() {
         EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement("up", "*", "2025-01-01T00:00:00Z", "2025-01-01T01:00:00Z", "15s");
-        assertThat(statement.plan(), instanceOf(OrderBy.class));
-        Eval eval = (Eval) ((OrderBy) statement.plan()).child();
+        // Top-level plan is Eval (no OrderBy — timestamps are chronologically ordered by construction)
+        assertThat(statement.plan(), instanceOf(Eval.class));
+        Eval eval = (Eval) statement.plan();
         assertThat(eval.fields().size(), equalTo(1));
         assertThat(eval.fields().get(0).name(), equalTo("step"));
         assertThat(eval.child(), instanceOf(PromqlCommand.class));
         PromqlCommand promqlCommand = (PromqlCommand) eval.child();
+        assertThat(promqlCommand.isCollapsed(), equalTo(true));
         assertThat(promqlCommand.valueColumnName(), equalTo("value"));
         assertThat(promqlCommand.isRangeQuery(), equalTo(true));
         assertThat(promqlCommand.child(), instanceOf(UnresolvedRelation.class));
@@ -49,9 +50,10 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
             "2025-01-01T01:00:00Z",
             "15s"
         );
-        assertThat(statement.plan(), instanceOf(OrderBy.class));
-        Eval eval = (Eval) ((OrderBy) statement.plan()).child();
+        assertThat(statement.plan(), instanceOf(Eval.class));
+        Eval eval = (Eval) statement.plan();
         PromqlCommand promqlCommand = (PromqlCommand) eval.child();
+        assertThat(promqlCommand.isCollapsed(), equalTo(true));
         assertThat(promqlCommand.valueColumnName(), equalTo("value"));
         assertThat(((UnresolvedRelation) promqlCommand.child()).indexPattern().indexPattern(), equalTo("metrics-*"));
         assertThat(promqlCommand.hasTimeRange(), equalTo(true));
@@ -67,8 +69,8 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
             "2025-01-01T01:00:00Z",
             "15s"
         );
-        assertThat(statement.plan(), instanceOf(OrderBy.class));
-        Eval eval = (Eval) ((OrderBy) statement.plan()).child();
+        assertThat(statement.plan(), instanceOf(Eval.class));
+        Eval eval = (Eval) statement.plan();
         assertThat(eval.fields().size(), equalTo(1));
         assertThat(eval.fields().get(0).name(), equalTo("step"));
         assertThat(eval.child(), instanceOf(PromqlCommand.class));
@@ -76,10 +78,11 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
 
     public void testBuildStatementWithNumericStep() {
         EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60");
-        assertThat(statement.plan(), instanceOf(OrderBy.class));
-        Eval eval = (Eval) ((OrderBy) statement.plan()).child();
+        assertThat(statement.plan(), instanceOf(Eval.class));
+        Eval eval = (Eval) statement.plan();
         assertThat(eval.child(), instanceOf(PromqlCommand.class));
         PromqlCommand promqlCommand = (PromqlCommand) eval.child();
+        assertThat(promqlCommand.isCollapsed(), equalTo(true));
         assertThat(((UnresolvedRelation) promqlCommand.child()).indexPattern().indexPattern(), equalTo("*"));
         assertThat(promqlCommand.hasTimeRange(), equalTo(true));
         assertThat(promqlCommand.step().value(), equalTo(Duration.ofSeconds(60)));

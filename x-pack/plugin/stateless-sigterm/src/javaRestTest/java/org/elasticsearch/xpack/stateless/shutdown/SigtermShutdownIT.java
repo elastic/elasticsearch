@@ -41,6 +41,7 @@ public class SigtermShutdownIT extends ESRestTestCase {
         .user("admin-user", "x-pack-test-password")
         .setting("xpack.watcher.enabled", "false")
         .setting("stateless.sigterm.timeout", SIGTERM_TIMEOUT.getStringRep())
+        .setting("stateless.sigterm.poll_interval", "1s")
         .build();
 
     @Override

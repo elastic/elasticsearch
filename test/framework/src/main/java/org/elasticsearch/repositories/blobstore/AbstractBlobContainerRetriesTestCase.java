@@ -626,6 +626,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             this.requestTimeout = requestTimeout;
             return this;
         }
+
         public TestBlobContainerBuilder disableChunkedEncoding(@Nullable Boolean disableChunkedEncoding) {
             this.disableChunkedEncoding = disableChunkedEncoding;
             return this;
@@ -660,7 +661,8 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 maxConnections,
                 bufferSize,
                 maxBulkDeletes,
-                blobContainerPath);
+                blobContainerPath
+            );
         }
     }
 

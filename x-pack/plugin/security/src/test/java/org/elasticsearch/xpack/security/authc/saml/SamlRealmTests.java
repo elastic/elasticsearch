@@ -61,7 +61,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.PrivateKey;
-import java.security.PrivilegedActionException;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -116,7 +115,7 @@ public class SamlRealmTests extends SamlTestCase {
     private ThreadContext threadContext;
 
     @Before
-    public void setupEnv() throws PrivilegedActionException {
+    public void setupEnv() throws Exception {
         SamlUtils.initialize(logger);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         env = TestEnvironment.newEnvironment(globalSettings);

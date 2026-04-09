@@ -124,13 +124,15 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
-    public String toString() {
-        return name() + "{" + label() + (synthetic() ? "$" : "") + "}" + "#" + id();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(name()).append("{").append(label()).append(synthetic() ? "$" : "").append("}").append("#").append(id());
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return toString();
+    public final String toString() {
+        StringBuilder sb = new StringBuilder();
+        nodeString(sb, NodeStringFormat.LIMITED);
+        return sb.toString();
     }
 
     protected abstract String label();

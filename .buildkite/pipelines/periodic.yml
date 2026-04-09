@@ -1,3 +1,4 @@
+# This file is auto-generated. See .buildkite/pipelines/periodic.template.yml
 steps:
   - group: bwc
     steps:
@@ -778,8 +779,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 8.19.14 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.14#bwcTest
+      - label: 8.19.15 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.15#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -788,7 +789,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.19.14
+          BWC_VERSION: 8.19.15
         retry:
           automatic:
             - exit_status: "-1"
@@ -881,7 +882,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - adoptopenjdk17
-            BWC_VERSION: ["8.19.14"]
+            BWC_VERSION: ["8.19.15"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -948,7 +949,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - adoptopenjdk17
-            BWC_VERSION: ["8.19.14"]
+            BWC_VERSION: ["8.19.15"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -1011,7 +1012,7 @@ steps:
               - openjdk21
               - openjdk22
               - openjdk25
-            BWC_VERSION: ["8.19.14"]
+            BWC_VERSION: ["8.19.15"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

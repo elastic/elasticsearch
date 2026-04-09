@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -45,7 +46,10 @@ public class ReplaceComparisonWithConstantFromMinMax extends ParameterizedRule<L
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext ctx) {
-        return plan.transformExpressionsDown(EsqlBinaryComparison.class, comp -> foldComparison(comp, ctx.searchStats()));
+        return plan.transformDown(
+            Filter.class,
+            filter -> filter.transformExpressionsOnly(EsqlBinaryComparison.class, comp -> foldComparison(comp, ctx.searchStats()))
+        );
     }
 
     @SuppressWarnings({ "rawtypes" })

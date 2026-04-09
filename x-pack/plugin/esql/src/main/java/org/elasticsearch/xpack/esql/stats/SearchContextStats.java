@@ -315,8 +315,8 @@ public class SearchContextStats implements SearchStats {
     private static Object nullableMin(final Object a, final Object b) {
         if (a == null) return b;
         if (b == null) return a;
-        if (a instanceof Comparable && b instanceof Comparable) {
-            return ((Comparable) a).compareTo(b) <= 0 ? a : b;
+        if (a instanceof Comparable compA && b instanceof Comparable compB) {
+            return compA.compareTo(compB) <= 0 ? compA : compB;
         }
         return a;
     }
@@ -325,8 +325,8 @@ public class SearchContextStats implements SearchStats {
     private static Object nullableMax(final Object a, final Object b) {
         if (a == null) return b;
         if (b == null) return a;
-        if (a instanceof Comparable && b instanceof Comparable) {
-            return ((Comparable) a).compareTo(b) >= 0 ? a : b;
+        if (a instanceof Comparable compA && b instanceof Comparable compB) {
+            return compA.compareTo(compB) >= 0 ? compA : compB;
         }
         return a;
     }

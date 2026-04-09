@@ -35,6 +35,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -53,8 +54,8 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
 
     static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "dlm.frozen_cleanup.poll_interval",
-        TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(1),
+        TimeValue.timeValueHours(1),
         Setting.Property.NodeScope
     );
     private static final Logger logger = getLogger(DLMFrozenCleanupService.class);
@@ -109,7 +110,7 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
                 schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(
                     EsExecutors.daemonThreadFactory(clusterService.getSettings(), "dlm-frozen-cleanup-scheduler")
                 );
-                schedulerThreadExecutor.scheduleAtFixedRate(
+                schedulerThreadExecutor.scheduleWithFixedDelay(
                     this::checkForOrphanedResources,
                     initialDelayMillis,
                     pollInterval.millis(),
@@ -179,27 +180,25 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
                 .map(Index::getUUID)
                 .collect(Collectors.toSet());
 
-            for (IndexMetadata indexMetadata : projectMetadata.indices().values()) {
+            List<Index> indicesToDelete = projectMetadata.indices()
+                .values()
+                .stream()
+                .filter(imd -> imd.getIndex().getName().startsWith(DLMConvertToFrozen.CLONE_INDEX_PREFIX))
+                .filter(im -> im.getResizeSourceIndex() != null)
+                .filter(im -> projectIndexUUIDs.contains(im.getResizeSourceIndex().getUUID()) == false)
+                .map(IndexMetadata::getIndex)
+                .toList();
+
+            for (Index index : indicesToDelete) {
                 if (Thread.currentThread().isInterrupted() || closing.get()) {
                     return;
                 }
-
-                String indexName = indexMetadata.getIndex().getName();
-                if (indexName.startsWith(DLMConvertToFrozen.CLONE_INDEX_PREFIX) == false) {
-                    continue;
-                }
-
-                Index sourceIndex = indexMetadata.getResizeSourceIndex();
-                if (sourceIndex == null) {
-                    logger.debug("Clone index [{}] has no resize source, skipping", indexName);
-                    continue;
-                }
-
-                String sourceUUID = sourceIndex.getUUID();
-                if (!projectIndexUUIDs.contains(sourceUUID)) {
-                    logger.info("Source index with UUID [{}] for clone [{}] no longer exists, deleting clone", sourceUUID, indexName);
-                    deleteIndex(indexName, projectMetadata.id());
-                }
+                logger.info(
+                    "Source index [{}] for DLM-created clone [{}] no longer exists, deleting clone",
+                    index.getUUID(),
+                    index.getName()
+                );
+                deleteIndex(index.getName(), projectMetadata.id());
             }
         }
     }
@@ -252,7 +251,7 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
         try {
             AcknowledgedResponse resp = client.projectClient(projectId).admin().indices().delete(deleteIndexRequest).get();
             if (resp.isAcknowledged()) {
-                logger.debug("DLM cleanup successfully deleted index [{}]", indexToDelete);
+                logger.info("DLM cleanup successfully deleted index [{}]", indexToDelete);
             } else {
                 logger.warn("DLM cleanup failed to acknowledge deletion of index [{}]", indexToDelete);
             }
@@ -273,7 +272,7 @@ class DLMFrozenCleanupService implements ClusterStateListener, Closeable {
             @Override
             public void onResponse(AcknowledgedResponse resp) {
                 if (resp.isAcknowledged()) {
-                    logger.debug("DLM cleanup successfully deleted snapshot [{}] from repository [{}]", snapshotName, repository);
+                    logger.info("DLM cleanup successfully deleted snapshot [{}] from repository [{}]", snapshotName, repository);
                 } else {
                     logger.warn(
                         "DLM cleanup failed to acknowledge deletion of snapshot [{}] from repository [{}]",

@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -192,7 +191,7 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
         for (int i = 0; i < client.capturedDeleteIndexRequests.size(); i++) {
             DeleteIndexRequest request = client.capturedDeleteIndexRequests.get(i);
             ProjectId projectId = client.capturedDeleteIndexProjectIds.get(i);
-            assertThat(request.indicesOptions(), equalTo(IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED));
+            assertThat(request.indicesOptions(), equalTo(DLMConvertToFrozen.IGNORE_MISSING_OPTIONS));
             if (projectId.equals(projectId1)) {
                 assertThat(request.indices(), arrayContaining(cloneName1));
             } else {

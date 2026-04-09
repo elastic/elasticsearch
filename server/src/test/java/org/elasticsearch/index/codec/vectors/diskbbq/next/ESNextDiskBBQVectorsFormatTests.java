@@ -531,6 +531,10 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         doTestSlices(true);
     }
 
+    public void testSlicesSparse() throws IOException {
+        doTestSlices(false);
+    }
+
     private void doTestSlices(boolean dense) throws IOException {
         // TODO: add test with filters
         String sliceField = "_slice";

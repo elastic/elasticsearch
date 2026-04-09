@@ -320,8 +320,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         final E entry = fields.get(fieldInfo.number);
         final FloatVectorValues values = getFloatVectorValues(field);
         final IndexInput centroids = entry.centroidSlice(ivfCentroids);
-        //
         final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
+        if (numVectors == 0) {
+            return; // nothing more to do if there are no vectors in this segment / slice
+        }
         final float approximateCost;
         if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
             approximateCost = values.size();

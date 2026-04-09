@@ -720,6 +720,22 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 minDoc = sliceAcceptDocs.minDoc();
                 maxDoc = sliceAcceptDocs.maxDoc();
             }
+            KnnVectorValues.DocIndexIterator iterator = values.iterator();
+            int minOrd;
+            int maxOrd;
+            int currentMinDoc = iterator.advance(minDoc);
+            if (currentMinDoc > maxDoc) {
+                minOrd = maxOrd = 0;
+            } else {
+                minOrd = iterator.index();
+                if (maxDoc == iterator.advance(maxDoc)) {
+                    maxOrd = iterator.index();
+                } else if (iterator.docID() == DocIdSetIterator.NO_MORE_DOCS) {
+                    maxOrd = values.size() - 1;
+                } else {
+                    maxOrd = iterator.index() - 1;
+                }
+            }
             return new SlicedMemorySegmentPostingsVisitor(
                 queryQuantizer,
                 quantEncoding,

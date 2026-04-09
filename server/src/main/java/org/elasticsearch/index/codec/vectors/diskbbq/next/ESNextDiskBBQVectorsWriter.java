@@ -16,12 +16,12 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -866,67 +866,63 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             assert slicedFieldInfo != null;
             assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
             SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
-            int doc = floatVectorValues.ordToDoc(0);
+            int numSlices = values.getValueCount();
+            KnnVectorValues.DocIndexIterator iterator = new Iterator(floatVectorValues);
+            iterator.advance(0);
+            values.nextDoc();
             // slice field must be dense populated, but we might have documents without a vector.
-            while (values.nextDoc() != doc && values.docID() != DocIdSetIterator.NO_MORE_DOCS) {
-            }
-            assert values.docID() == doc : "sliceField must be present on every vector doc";
-            int vectorOrdStart = 0;
-            int vectorOrdCount = 1;
-            int ord = values.ordValue();
+            int[] sliceOffsets = new int[numSlices];
+            int[] sliceLengths = new int[numSlices];
             List<KMeansResult> kmeansResults = new ArrayList<>();
-            IntArrayList sliceOffsets = new IntArrayList();
-            IntArrayList sliceLengths = new IntArrayList();
-            for (int ford = 1; ford < floatVectorValues.size(); ford++) {
-                doc = floatVectorValues.ordToDoc(ford);
-                // slice field must be dense populated, but we might have documents without a vector.
-                while (values.nextDoc() != doc && values.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+            for (int i = 0; i < numSlices; i++) {
+                int sliceDocStart = values.docID();
+                if (sliceDocStart == KnnVectorValues.DocIndexIterator.NO_MORE_DOCS) {
+                    sliceLengths[i] = 0;
+                    assert i > 0;
+                    sliceOffsets[i] = sliceOffsets[i - 1];
+                    continue;
                 }
-                assert values.docID() == doc : "sliceField must be present on every vector doc";
-                int newOrd = values.ordValue();
-                assert newOrd >= ord : "sliceField must be primary index sort";
-                if (newOrd != ord) {
-                    final int vectorOrdOffset = vectorOrdStart;
+                assert sliceDocStart <= values.docID();
+                while (values.docID() != sliceDocStart) {
+                    values.nextDoc();
+                }
+                while (values.docID() != DocIdSetIterator.NO_MORE_DOCS && values.ordValue() == i) {
+                    values.nextDoc();
+                }
+                int sliceDocEnd = values.docID();
+                int vectorDocStar = iterator.advance(sliceDocStart);
+                KMeansResult kMeansResult;
+                if (vectorDocStar >= sliceDocEnd) {
+                    kMeansResult = KMeansResult.EMPTY;
+                    sliceLengths[i] = 0;
+                } else {
+                    int vectorOrdStar = iterator.index();
+                    int docEnd = iterator.advance(sliceDocEnd);
+                    int vectorOrdEnd = docEnd == KnnVectorValues.DocIndexIterator.NO_MORE_DOCS
+                        ? floatVectorValues.size()
+                        : iterator.index();
                     ClusteringFloatVectorValuesSlice slice = new ClusteringFloatVectorValuesSlice(
                         floatVectorValues,
-                        i -> vectorOrdOffset + i,
-                        vectorOrdCount
+                        j -> vectorOrdStar + j,
+                        vectorOrdEnd - vectorOrdStar
                     );
-                    KMeansResult kMeansResult = calculateCentroids(hierarchicalKMeans, slice);
+                    kMeansResult = calculateCentroids(hierarchicalKMeans, slice);
                     kmeansResults.add(kMeansResult);
-                    vectorOrdStart = vectorOrdStart + vectorOrdCount;
-                    if (sliceOffsets.isEmpty()) {
-                        sliceOffsets.add(kMeansResult.centroids().length);
-                    } else {
-                        sliceOffsets.add(sliceOffsets.get(sliceOffsets.size() - 1) + kMeansResult.centroids().length);
-                    }
-                    sliceLengths.add(vectorOrdCount);
-                    ord = newOrd;
-                    vectorOrdCount = 0;
+                    sliceLengths[i] = vectorOrdEnd - vectorOrdStar;
+
                 }
-                vectorOrdCount++;
-            }
-            if (vectorOrdCount > 0) {
-                final int vectorOrdOffset = vectorOrdStart;
-                ClusteringFloatVectorValuesSlice slice = new ClusteringFloatVectorValuesSlice(
-                    floatVectorValues,
-                    i -> vectorOrdOffset + i,
-                    vectorOrdCount
-                );
-                KMeansResult kMeansResult = calculateCentroids(hierarchicalKMeans, slice);
-                kmeansResults.add(kMeansResult);
-                if (sliceOffsets.isEmpty()) {
-                    sliceOffsets.add(kMeansResult.centroids().length);
+                if (i == 0) {
+                    sliceOffsets[i] = kMeansResult.centroids().length;
                 } else {
-                    sliceOffsets.add(sliceOffsets.get(sliceOffsets.size() - 1) + kMeansResult.centroids().length);
+                    sliceOffsets[i] = sliceOffsets[i - 1] + kMeansResult.centroids().length;
                 }
-                sliceLengths.add(vectorOrdCount);
             }
+
             KMeansResult merged = KMeansResult.merge(kmeansResults);
             if (logger.isDebugEnabled()) {
                 logger.debug("final centroid count: {}", merged.centroids().length);
             }
-            CentroidSlices centroidSlices = new CentroidSlices(sliceOffsets.toArray(), sliceLengths.toArray());
+            CentroidSlices centroidSlices = new CentroidSlices(sliceOffsets, sliceLengths);
             return new CentroidAssignments(
                 floatVectorValues.dimension(),
                 merged.centroids(),
@@ -934,6 +930,53 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 merged.soarAssignments(),
                 centroidSlices
             );
+        }
+    }
+
+    private static class Iterator extends KnnVectorValues.DocIndexIterator {
+
+        private final FloatVectorValues floatVectorValues;
+        private int index = -1;
+
+        private Iterator(FloatVectorValues floatVectorValues) {
+            this.floatVectorValues = floatVectorValues;
+        }
+
+        @Override
+        public int index() {
+            return index;
+        }
+
+        @Override
+        public int docID() {
+            if (index == NO_MORE_DOCS) {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+            return floatVectorValues.ordToDoc(index);
+        }
+
+        @Override
+        public int nextDoc() {
+            if (index == NO_MORE_DOCS || index == floatVectorValues.size() - 1) {
+                index = NO_MORE_DOCS;
+            } else {
+                index++;
+            }
+            return docID();
+        }
+
+        @Override
+        public int advance(int target) {
+            assert target >= docID();
+            while (target > docID()) {
+                nextDoc();
+            }
+            return docID();
+        }
+
+        @Override
+        public long cost() {
+            return 0;
         }
     }
 

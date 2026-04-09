@@ -253,7 +253,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 ReentrantReadWriteLock replacePrimaryLock = new ReentrantReadWriteLock();
                 ReentrantReadWriteLock.WriteLock replacePrimaryWriteLock = replacePrimaryLock.writeLock();
                 ShardFollowTask params = randomShardFollowTaskParams();
-                ShardFollowNodeTask shardFollowTask = new CustomShardFollowNodeTask(params, threadPool, followerGroup, leaderGroup) {
+                ShardFollowNodeTask shardFollowTask = new TestShardFollowNodeTask(params, threadPool, followerGroup, leaderGroup) {
                     @Override
                     protected Runnable bulkShardOperationsTask(
                         String followerHistoryUUID,
@@ -262,7 +262,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         Consumer<BulkShardOperationsResponse> handler,
                         Consumer<Exception> errorHandler
                     ) {
-                        Runnable inner = super.bulkShardOperationsTask(
+                        Runnable delegate = super.bulkShardOperationsTask(
                             followerHistoryUUID,
                             operations,
                             maxSeqNoOfUpdates,
@@ -272,9 +272,13 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         return () -> {
                             boolean acquired = false;
                             try {
+                                // Read lock to prevent bulk operations from racing with replacing primary shard
                                 acquired = replacePrimaryLock.readLock().tryLock(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-                                assertTrue(acquired);
-                                inner.run();
+                                assertTrue(
+                                    "Failed to grab bulkShardOperationsTask read lock within timeout " + SAFE_AWAIT_TIMEOUT,
+                                    acquired
+                                );
+                                delegate.run();
                             } catch (AssertionError e) {
                                 errorHandler.accept(new RuntimeException(e));
                             } catch (InterruptedException e) {
@@ -614,7 +618,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
     private ShardFollowNodeTask createShardFollowTask(ReplicationGroup leaderGroup, ReplicationGroup followerGroup) {
         ShardFollowTask params = randomShardFollowTaskParams();
-        return new CustomShardFollowNodeTask(params, threadPool, followerGroup, leaderGroup);
+        return new TestShardFollowNodeTask(params, threadPool, followerGroup, leaderGroup);
     }
 
     private void assertConsistentHistoryBetweenLeaderAndFollower(
@@ -752,7 +756,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         return params;
     }
 
-    private class CustomShardFollowNodeTask extends ShardFollowNodeTask {
+    private class TestShardFollowNodeTask extends ShardFollowNodeTask {
         private final ShardFollowTask params;
         private final ThreadPool threadPool;
         private final Set<Long> fetchOperations;
@@ -761,7 +765,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         private final String recordedLeaderIndexHistoryUUID;
         private final AtomicBoolean stopped;
 
-        public CustomShardFollowNodeTask(
+        private TestShardFollowNodeTask(
             ShardFollowTask params,
             ThreadPool threadPool,
             ReplicationGroup followerGroup,

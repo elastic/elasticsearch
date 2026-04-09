@@ -165,6 +165,10 @@ public class BlobFileRanges {
         return blobFileRanges;
     }
 
+    public boolean hasReplicatedRanges() {
+        return replicatedRanges.isEmpty() == false;
+    }
+
     private static boolean assertNoOverlappingReplicatedRanges(TreeMap<Long, ReplicatedByteRange> ranges) {
         ReplicatedByteRange previous = null;
         for (var range : ranges.entrySet()) {

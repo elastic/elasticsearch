@@ -802,7 +802,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             // no-op the warming on shard recovery so we do not introduce noise in the testing
             return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings) {
                 @Override
-                public void warmCacheForShardRecovery(
+                public void warmCacheForShardRecoveryOrUnhollowing(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,

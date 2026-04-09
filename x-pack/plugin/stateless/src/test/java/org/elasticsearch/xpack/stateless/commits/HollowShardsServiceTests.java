@@ -40,9 +40,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.List;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -275,10 +277,13 @@ public class HollowShardsServiceTests extends ESTestCase {
                     settings,
                     clusterService,
                     mock(IndicesService.class),
+                    mock(ObjectStoreService.class),
+                    mock(StatelessCommitService.class),
                     mock(IndexShardCacheWarmer.class),
                     mock(ThreadPool.class),
                     HollowShardsMetrics.NOOP,
-                    relativeTimeSupplierInMillis
+                    relativeTimeSupplierInMillis,
+                    mock(Executor.class)
                 ),
                 indexShard
             );

@@ -1081,7 +1081,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             }
             return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings) {
                 @Override
-                protected void warmCacheRecovery(
+                protected void warmCache(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
@@ -1094,7 +1094,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     // the number of written regions in cache after the shard is started we are sure no other regions are likely to be
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCacheRecovery(type, indexShard, commit, directory, endOffsetsToWarm, false, subscribableListener);
+                    super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, false, subscribableListener);
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

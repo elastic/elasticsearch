@@ -959,7 +959,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         boolean useReplicatedRanges,
         Executor bccHeaderReadExecutor,
         boolean readSingleBlobIfHollow,
-        @Nullable StatelessCommitService.SourceBlobsInfo passedBlobsUponRelocation,
+        @Nullable StatelessCommitService.SourceBlobsInfo blobsInfo,
         ActionListener<IndexingShardState> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
@@ -1012,6 +1012,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     });
                 } else {
                     Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
+
                     readReferencedCompoundCommitsUsingCache(
                         latestBcc.lastCompoundCommit().commitFiles(),
                         latestBcc,
@@ -1034,19 +1035,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             }
         );
 
-        if (passedBlobsUponRelocation != null) {
+        if (blobsInfo != null) {
             // Short-circuit during relocation to avoid unnecessary LISTing when we get passed the blobs info from source.
             SubscribableListener.<Tuple<BatchedCompoundCommit, Set<BlobFile>>>newForked(l -> ActionListener.completeWith(l, () -> {
                 BatchedCompoundCommit latestBcc = ObjectStoreService.readLatestBccUsingCache(
                     directory,
                     context,
-                    passedBlobsUponRelocation.latestBlobFile().termAndGeneration(),
-                    new BlobMetadata(
-                        passedBlobsUponRelocation.latestBlobFile().blobName(),
-                        passedBlobsUponRelocation.latestBlobFileLength()
-                    )
+                    blobsInfo.latestBlobFile().termAndGeneration(),
+                    new BlobMetadata(blobsInfo.latestBlobFile().blobName(), blobsInfo.latestBlobFileLength())
                 );
-                return new Tuple<>(latestBcc, passedBlobsUponRelocation.otherBlobs());
+                return new Tuple<>(latestBcc, blobsInfo.otherBlobs());
             })).addListener(blobsListener);
         } else {
             SubscribableListener

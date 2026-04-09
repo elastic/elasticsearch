@@ -365,7 +365,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
             return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings) {
                 @Override
-                public void warmCacheForShardRecovery(
+                public void warmCacheForShardRecoveryOrUnhollowing(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,

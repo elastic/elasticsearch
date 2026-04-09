@@ -15,8 +15,6 @@ import io.opentelemetry.api.metrics.Meter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
-import java.util.function.LongConsumer;
-
 import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.agentFlushWaitTimeMs;
 
 /**
@@ -27,17 +25,15 @@ import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportH
  * @see org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier
  */
 public final class AgentExportMeterSupplier implements MeterSupplier {
-    private final long agentFlushWaitTime;
-    private final LongConsumer sleepFn;
+    private final Runnable flushFn;
 
     public AgentExportMeterSupplier(Settings settings) {
-        this(agentFlushWaitTimeMs(settings), AgentExportHelpers::sleepForAgentExport);
+        this(() -> AgentExportHelpers.sleepForAgentExport(agentFlushWaitTimeMs(settings)));
     }
 
-    // package-private for testing: allows injecting a no-op or recording sleep function
-    AgentExportMeterSupplier(long agentFlushWaitTime, LongConsumer sleepFn) {
-        this.agentFlushWaitTime = agentFlushWaitTime;
-        this.sleepFn = sleepFn;
+    // package-private for testing: allows injecting a recording or no-op flush
+    AgentExportMeterSupplier(Runnable flushFn) {
+        this.flushFn = flushFn;
     }
 
     @Override
@@ -47,6 +43,6 @@ public final class AgentExportMeterSupplier implements MeterSupplier {
 
     @Override
     public void attemptFlushMetrics() {
-        sleepFn.accept(agentFlushWaitTime);
+        flushFn.run();
     }
 }

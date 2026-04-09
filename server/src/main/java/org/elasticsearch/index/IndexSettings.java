@@ -991,15 +991,11 @@ public final class IndexSettings {
         );
     }
 
-    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
-
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
         SeqNoFieldMapper.SeqNoIndexOptions.class,
         settings -> {
             IndexVersion indexVersionCreated = SETTING_INDEX_VERSION_CREATED.get(settings);
-            if ((DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
-                || indexVersionCreated.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT))
-                && settings.getAsBoolean("index.disable_sequence_numbers", false)) {
+            if (settings.getAsBoolean("index.disable_sequence_numbers", false)) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             }
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
@@ -1437,8 +1433,7 @@ public final class IndexSettings {
                 );
             }
         }
-        disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && DISABLE_SEQUENCE_NUMBERS.get(settings);
-
+        disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold

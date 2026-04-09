@@ -1050,6 +1050,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_NO_ROWS_COUNT_0,
 
         /**
+         * Support binary operators for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_BINARY_OPERATORS,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -1211,6 +1216,12 @@ public class EsqlCapabilities {
          * Prune no-fields in subquery project.
          */
         SUBQUERY_IN_FROM_COMMAND_PRUNE_NO_FIELDS,
+
+        /**
+         * Fix for union types when fields have conflicting types between subqueries.
+         * https://github.com/elastic/elasticsearch/issues/142499
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
          * Support for views in cluster state (and REST API).
@@ -2283,11 +2294,6 @@ public class EsqlCapabilities {
          * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
          */
         TS_INFO_COMMAND,
-
-        /**
-         * FORK with no implicit LIMIT
-         */
-        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
 
         /**
          * Dense_vector SUM aggregation function

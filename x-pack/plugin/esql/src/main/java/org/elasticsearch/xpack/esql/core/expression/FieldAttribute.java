@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -29,18 +28,25 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Attribute for an ES field.
+ * Treat this as final - avoid creating new subclasses. This is used extensively throughout the codebase, making new subclasses risky.
+ * Consider using a new {@link EsField} subclass if needed.
+ * <p>
+ * Attribute for an ES field. May actually stand for a field with the same name across different indices (a union), e.g. when
+ * index pattern were used in the query: {@code FROM logs-* | KEEP field}.
+ * <p>
  * This class offers:
- * - name - the name of the attribute, but not necessarily of the field.
- * - The raw EsField representing the field; for parent.child.grandchild this is just grandchild.
- * - parentName - the full path to the immediate parent of the field, e.g. parent.child (without .grandchild)
- *
+ * <ul>
+ *  <li> name - the name of the attribute, but not necessarily of the field.
+ *  <li> The raw EsField representing the field; for parent.child.grandchild this is just grandchild.
+ *  <li> parentName - the full path to the immediate parent of the field, e.g. parent.child (without .grandchild)
+ * </ul>
+ * <p>
  * To adequately represent e.g. union types, the name of the attribute can be altered because we may have multiple synthetic field
  * attributes that really belong to the same underlying field. For instance, if a multi-typed field is used both as {@code field::string}
  * and {@code field::ip}, we'll generate 2 field attributes called {@code $$field$converted_to$keyword} and {@code $$field$converted_to$ip}
  * which still refer to the same underlying index field.
  */
-public class FieldAttribute extends TypedAttribute {
+public sealed class FieldAttribute extends TypedAttribute permits TemporalityAttribute, TimeSeriesMetadataAttribute, UnsupportedAttribute {
 
     /**
      * A field name, as found in the mapping. Includes the whole path from the root of the document.

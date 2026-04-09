@@ -34,9 +34,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680
-- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
-  method: testSearchWhileRelocating
-  issue: https://github.com/elastic/elasticsearch/issues/128500
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
@@ -94,9 +91,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
-- class: org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointServiceNodeTests
-  method: testGetCheckpointStats
-  issue: https://github.com/elastic/elasticsearch/issues/141112
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:boolean.convertFromIntAndLong}
   issue: https://github.com/elastic/elasticsearch/issues/141375
@@ -169,9 +163,6 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteBlobWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/144025
-- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
-  method: testGetReindexFollowsRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/144364
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
@@ -193,27 +184,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReorderLimitProjectAndOrderByGoldenTests
   method: testLimitByAndProjectNotSwapped
   issue: https://github.com/elastic/elasticsearch/issues/144978
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidBigDecimalFromFloatWithoutCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145036
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidDoubleWithoutCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145046
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidFloatWithCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145047
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidIntegerWithoutCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145048
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidDoubleWithCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145050
 - class: org.elasticsearch.xpack.security.authc.ApiKeyIntegTests
   method: testDynamicDeletionInterval
   issue: https://github.com/elastic/elasticsearch/issues/145022
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidByteWithoutCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145143
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testLookupMissingField
   issue: https://github.com/elastic/elasticsearch/issues/144697
@@ -229,83 +202,32 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/118733
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidShortWithoutCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145241
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testNoInfiniteRecursiveGetObjectCalls
-  issue: https://github.com/elastic/elasticsearch/issues/145269
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerStatsTests
   method: testRetriesAndOperationsAreTrackedSeparately
   issue: https://github.com/elastic/elasticsearch/issues/145281
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidShortWithCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145288
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:external-basic.scoreFunction}
   issue: https://github.com/elastic/elasticsearch/issues/145352
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:external-basic.topSnippetsFunction}
   issue: https://github.com/elastic/elasticsearch/issues/145353
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingInvalidBigInteger
-  issue: https://github.com/elastic/elasticsearch/issues/145355
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingBooleanValuesFromUnsignedLong
-  issue: https://github.com/elastic/elasticsearch/issues/145358
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidBigDecimalFromDoubleWithoutCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145372
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testKnnVectors
   issue: https://github.com/elastic/elasticsearch/issues/145377
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testDatafeedTimingStats_DatafeedRecreated
   issue: https://github.com/elastic/elasticsearch/issues/138348
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidLongWithCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145435
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats.sumWithOverflowRow}
-  issue: https://github.com/elastic/elasticsearch/issues/145437
 - class: org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests
   method: testOverflowInGroupingProducesNullAndWarning
   issue: https://github.com/elastic/elasticsearch/issues/145438
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testScalarOnDates_DateNanos
-  issue: https://github.com/elastic/elasticsearch/issues/145485
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testMultiValueFieldWithMultiValueLeniencyEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/145486
 - class: org.elasticsearch.xpack.esql.action.AsyncEsqlQueryActionIT
   method: testCancelOnExpiry
   issue: https://github.com/elastic/elasticsearch/issues/145502
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/145519
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcFetchSizeIT
-  method: testPivotPaging
-  issue: https://github.com/elastic/elasticsearch/issues/145523
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidByteWithCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145564
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidBigDecimalFromByteWithoutCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145572
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testResultSetNotInitialized
-  issue: https://github.com/elastic/elasticsearch/issues/145573
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   issue: https://github.com/elastic/elasticsearch/issues/145461
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidLongWithoutCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145580
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcFetchSizeIT
-  method: testScrollWithDatetimeAndTimezoneParam
-  issue: https://github.com/elastic/elasticsearch/issues/145592
-- class: org.elasticsearch.xpack.esql.plan.logical.CommandLicenseTests
-  method: testLicenseCheck
-  issue: https://github.com/elastic/elasticsearch/issues/145600
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLimitByIT
   method: testTopNByKeyEncoderTooMuchMemory
   issue: https://github.com/elastic/elasticsearch/issues/145627
@@ -321,29 +243,66 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testScalarOnDates
-  issue: https://github.com/elastic/elasticsearch/issues/145667
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
   method: testApplicationDefaultCredentialsFallbackToComputeEngine
   issue: https://github.com/elastic/elasticsearch/issues/145689
-- class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcPreparedStatementIT
-  issue: https://github.com/elastic/elasticsearch/issues/145448
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testAverageWriteLoadMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/145855
+- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
+  method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
+  issue: https://github.com/elastic/elasticsearch/issues/145877
+- class: org.elasticsearch.xpack.esql.spatial.SpatialCentroidAggregationIT
+  method: testStCentroidAggregationWithShapes
+  issue: https://github.com/elastic/elasticsearch/issues/145883
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsSkipUnavailableIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145884
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_UNORDERD doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/145886
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/145887
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv SORTED_ASCENDING doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/145888
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/145889
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145900
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145901
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
+  issue: https://github.com/elastic/elasticsearch/issues/145904
+- class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
+  method: testFromStatsProjectAgg
+  issue: https://github.com/elastic/elasticsearch/issues/145927
+- class: org.elasticsearch.xpack.security.failurestore.FailureStoreSecurityRestIT
+  method: testWatcher
+  issue: https://github.com/elastic/elasticsearch/issues/145928
+- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
+  method: testGetWaitForCompletionDuringRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/145931
+- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
+  method: testGetReindexFollowsRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/144364
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145900
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcWarningsIT
+  method: testSingleDeprecationWarning
+  issue: https://github.com/elastic/elasticsearch/issues/145933
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidBigDecimalFromBooleanWithoutCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145702
-- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
-  method: testGettingValidIntegerWithCasting
-  issue: https://github.com/elastic/elasticsearch/issues/145735
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionServiceTests
-  method: testCheckForFrozenIndicesReturnsEarlyWhenCapacityExhausted
-  issue: https://github.com/elastic/elasticsearch/issues/145778
-- class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcFetchSizeIT
-  method: testPivotPagingWithLimit
-  issue: https://github.com/elastic/elasticsearch/issues/145792
-- class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ForkGoldenTests
-  method: testHybridSearch
-  issue: https://github.com/elastic/elasticsearch/issues/145800
+  method: testGettingValidNumbersWithCastingFromUnsignedLong
+  issue: https://github.com/elastic/elasticsearch/issues/145934
+- class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
+  method: testDatafeedWithCcsRemoteUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/145948
 
 # Examples:
 #

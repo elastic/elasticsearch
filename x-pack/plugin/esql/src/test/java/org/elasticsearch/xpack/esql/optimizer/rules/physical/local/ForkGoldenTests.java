@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
+
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionToFieldLoadGoldenTests.SEARCH_STATS;
 
 public class ForkGoldenTests extends GoldenTestCase {
     // TODO: Add NODE_REDUCE and NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION stages
@@ -30,13 +34,14 @@ public class ForkGoldenTests extends GoldenTestCase {
     }
 
     public void testHybridSearch() {
+        // we set an explicit transport version to `ESQL_SUM_LONG_OVERFLOW_FIX` transport version to plan SUM(_score) consistently.
         runGoldenTest("""
             FROM books METADATA _id, _index, _score
             | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
                    ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
             | FUSE
             | SORT _score DESC
-            """, STAGES);
+            """, STAGES, SEARCH_STATS, TransportVersionUtils.randomVersionSupporting(Sum.ESQL_SUM_LONG_OVERFLOW_FIX));
     }
 
     public void testWithTopResultsAndStats() {

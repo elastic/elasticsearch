@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -65,7 +66,7 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
         if (elementType == ElementType.NULL) {
             return ConstantEvaluators.CONSTANT_NULL_FACTORY;
         }
-        return new Factory(fieldEval);
+        return new Factory(source(), fieldEval);
     }
 
     @Override
@@ -91,8 +92,19 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
     static class Evaluator extends AbstractEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
 
-        Evaluator(DriverContext driverContext, ExpressionEvaluator field) {
+        private final Source source;
+        private Warnings warnings;
+
+        Evaluator(DriverContext driverContext, ExpressionEvaluator field, Source source) {
             super(driverContext, field);
+            this.source = source;
+        }
+
+        private Warnings warnings() {
+            if (warnings == null) {
+                warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            }
+            return warnings;
         }
 
         @Override
@@ -120,7 +132,11 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
                 BooleanVector.FixedBuilder maskBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(block.getPositionCount())
             ) {
                 for (int p = 0; p < block.getPositionCount(); p++) {
-                    maskBuilder.appendBoolean(block.getValueCount(p) == 1);
+                    int valueCount = block.getValueCount(p);
+                    if (valueCount > 1) {
+                        warnings().registerException(IllegalArgumentException.class, "single-value function encountered multi-value");
+                    }
+                    maskBuilder.appendBoolean(valueCount == 1);
                 }
                 try (BooleanVector mask = maskBuilder.build()) {
                     return block.keepMask(mask);
@@ -130,15 +146,17 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
     }
 
     static class Factory implements ExpressionEvaluator.Factory {
+        private final Source source;
         private final ExpressionEvaluator.Factory field;
 
-        Factory(ExpressionEvaluator.Factory field) {
+        Factory(Source source, ExpressionEvaluator.Factory field) {
+            this.source = source;
             this.field = field;
         }
 
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new Evaluator(context, field.get(context));
+            return new Evaluator(context, field.get(context), source);
         }
 
         @Override

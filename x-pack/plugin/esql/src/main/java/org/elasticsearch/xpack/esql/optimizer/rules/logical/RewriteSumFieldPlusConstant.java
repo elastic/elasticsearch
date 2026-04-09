@@ -123,7 +123,7 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
                 final Expression de = m.dataExpr();
                 final Sum fs = m.sum();
                 SvPair pair = fieldToSvPair.computeIfAbsent(m.key(), k -> {
-                    var sv = new MvSingleValueOrNull(source, de);
+                    var sv = new MvSingleValueOrNull(de.source(), de);
                     var svSumName = TemporaryNameGenerator.temporaryName(sv, fs, counter[0]++);
                     var svSumExpr = new Sum(
                         source,
@@ -144,12 +144,15 @@ public class RewriteSumFieldPlusConstant extends OptimizerRules.ParameterizedOpt
 
                 var countMulConst = new Mul(source, m.constant(), pair.count());
                 Expression evalExpr;
-                if (m.isSubtraction()) {
-                    var sub = new Sub(source, pair.sum(), countMulConst, context.configuration());
-                    evalExpr = m.fieldIsLeft() ? sub : sub.swapLeftAndRight();
+                if (m.isSubtraction() && m.fieldIsLeft()) {
+                    // SUM(field - c) → SUM(sv) - c * COUNT(sv)
+                    evalExpr = new Sub(source, pair.sum(), countMulConst, context.configuration());
+                } else if (m.isSubtraction()) {
+                    // SUM(c - field) → c * COUNT(sv) - SUM(sv)
+                    evalExpr = new Sub(source, countMulConst, pair.sum(), context.configuration());
                 } else {
+                    // SUM(field + c) or SUM(c + field) → SUM(sv) + c * COUNT(sv)
                     evalExpr = new Add(source, pair.sum(), countMulConst, context.configuration());
-                    // original field order doesn't matter since addition commutative
                 }
                 newEvals.add(m.alias().replaceChild(evalExpr));
             } else {

@@ -40,8 +40,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
@@ -102,13 +102,10 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     private static final DesiredNode DATA_DESIRED_NODE = newDesiredNode("node-data", DiscoveryNodeRole.DATA_ROLE);
 
     private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
-    private final AllocationDeciders allocationDeciders = new AllocationDeciders(
-        Arrays.asList(
-            DataTierAllocationDecider.INSTANCE,
-            new SameShardAllocationDecider(clusterSettings),
-            new ReplicaAfterPrimaryActiveAllocationDecider()
-        )
-    );
+    private final AllocationDecider[] allocationDeciders = new AllocationDecider[] {
+        DataTierAllocationDecider.INSTANCE,
+        new SameShardAllocationDecider(clusterSettings),
+        new ReplicaAfterPrimaryActiveAllocationDecider() };
 
     private final ShardRouting shard = ShardRouting.newUnassigned(
         new ShardId("myindex", "myindex", 0),
@@ -972,7 +969,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         Decision.Type decisionType,
         String explanationMessage
     ) {
-        final var allocation = new RoutingAllocation(allocationDeciders, null, state, null, null, 0);
+        final var allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
 
         final var routingNode = RoutingNodesHelper.routingNode(node.getId(), node, shard);

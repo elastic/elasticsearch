@@ -42,6 +42,8 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 @TestLogging(value = "org.elasticsearch.cluster.routing.allocation.ShardChangesObserver:TRACE", reason = "verifies debug level logging")
 public class ShardChangesObserverTests extends ESAllocationTestCase {
@@ -215,6 +217,15 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThat(initializedMetricValue.attributes().get("es_shard_primary"), equalTo(primary));
         assertThat(initializedMetricValue.attributes().get("es_shard_reason"), equalTo(reason.name()));
 
+        final List<Measurement> initializingCounterMetrics = recorder.getMeasurements(
+            InstrumentType.LONG_COUNTER,
+            ShardChangesObserver.SHARD_INITIALIZING_METRIC
+        );
+        assertThat(initializingCounterMetrics, hasSize(1));
+        assertThat(initializingCounterMetrics.getFirst().getLong(), is(1L));
+        assertThat(initializingCounterMetrics.getFirst().attributes().get("es_shard_primary"), equalTo(primary));
+        assertThat(initializingCounterMetrics.getFirst().attributes().get("es_shard_reason"), equalTo(reason.name()));
+
         final List<Measurement> startedMetrics = recorder.getMeasurements(
             InstrumentType.LONG_HISTOGRAM,
             ShardChangesObserver.UNASSIGNED_TO_STARTED_METRIC
@@ -224,5 +235,37 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThat(startedMetricValue.getLong(), equalTo(Math.max(0, startedTimeMillis - unassignedAtMillis)));
         assertThat(startedMetricValue.attributes().get("es_shard_primary"), equalTo(primary));
         assertThat(startedMetricValue.attributes().get("es_shard_reason"), equalTo(reason.name()));
+    }
+
+    public void testRelocationStartedMetric() {
+        final var meterRegistry = new RecordingMeterRegistry();
+        final var observer = new ShardChangesObserver(meterRegistry, System::currentTimeMillis);
+        final var recorder = meterRegistry.getRecorder();
+
+        final var shardId = new ShardId("test-index", "_na_", 0);
+        final var startedShard = shardRoutingBuilder(shardId, "node-1", true, ShardRoutingState.STARTED).build();
+        final var targetShard = shardRoutingBuilder(shardId, "node-2", true, ShardRoutingState.INITIALIZING).build();
+
+        assertThat(recorder.getMeasurements(InstrumentType.LONG_COUNTER, ShardChangesObserver.RELOCATION_STARTED_METRIC), hasSize(0));
+
+        // known reason
+        final var reason = randomFrom(ShardChangesObserver.RELOCATION_ATTRIBUTES.keySet());
+        observer.relocationStarted(startedShard, targetShard, reason);
+        List<Measurement> measurements = recorder.getMeasurements(
+            InstrumentType.LONG_COUNTER,
+            ShardChangesObserver.RELOCATION_STARTED_METRIC
+        );
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.getFirst().getLong(), is(1L));
+        assertThat(measurements.getFirst().attributes().get("es_relocation_reason"), equalTo(reason));
+        assertThat(measurements.getFirst().attributes(), sameInstance(ShardChangesObserver.RELOCATION_ATTRIBUTES.get(reason)));
+
+        // unknown reason: falls back to dynamic Map.of
+        final var unknownReason = randomIdentifier("unknown-");
+        observer.relocationStarted(startedShard, targetShard, unknownReason);
+        measurements = recorder.getMeasurements(InstrumentType.LONG_COUNTER, ShardChangesObserver.RELOCATION_STARTED_METRIC);
+        assertThat(measurements, hasSize(2));
+        assertThat(measurements.get(1).getLong(), is(1L));
+        assertThat(measurements.get(1).attributes().get("es_relocation_reason"), equalTo(unknownReason));
     }
 }

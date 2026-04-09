@@ -31,9 +31,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * so heavy dependencies (S3 client, HTTP client, etc.) are only loaded when
  * an EXTERNAL query actually targets that backend.
  *
- * <p>All providers are automatically wrapped with retry logic for transient
- * storage failures (503, 429, connection resets, timeouts) unless the scheme
- * is "file" (local filesystem).
+ * <p>All providers are automatically wrapped with concurrency limiting and retry
+ * logic for transient storage failures (503, 429, connection resets, timeouts)
+ * unless the scheme is "file" (local filesystem). Wrap order:
+ * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}
+ *
+ * <p>Concurrency limiters and adaptive backoff state are shared per-scheme across
+ * all providers (including per-query config providers), because cloud API rate limits
+ * are per account/IP, not per client instance.
  *
  * <p>Registration methods are intended for single-threaded initialization only
  * (called from the {@link DataSourceModule} constructor).
@@ -45,12 +50,18 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, StorageProviderFactory> factories = new ConcurrentHashMap<>();
     private final Map<String, StorageProvider> providers = new ConcurrentHashMap<>();
     private final List<StorageProvider> createdProviders = new ArrayList<>();
-    private static final RetryPolicy RETRY_POLICY = RetryPolicy.DEFAULT;
+
+    private final Map<String, ConcurrencyLimiter> limiters = new ConcurrentHashMap<>();
+    private final Map<String, AdaptiveBackoff> backoffs = new ConcurrentHashMap<>();
 
     private final Settings settings;
+    private volatile int maxConcurrentRequests;
+    private volatile int throttleMaxRetryDurationSeconds;
 
     public StorageProviderRegistry(Settings settings) {
         this.settings = settings != null ? settings : Settings.EMPTY;
+        this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
+        this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
     }
 
     public void registerFactory(String scheme, StorageProviderFactory factory) {
@@ -87,7 +98,6 @@ public class StorageProviderRegistry implements Closeable {
     public StorageProvider createProvider(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
 
-        // When config is null/empty, fall back to the default registered provider
         if (config == null || config.isEmpty()) {
             StorageProvider provider = providers.get(normalizedScheme);
             if (provider == null) {
@@ -96,16 +106,14 @@ public class StorageProviderRegistry implements Closeable {
             return provider;
         }
 
-        // Create a fresh provider with the per-query config
         StorageProviderFactory factory = factories.get(normalizedScheme);
         if (factory == null) {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
-        return wrapWithRetry(factory.create(settings, config), normalizedScheme);
+        return wrapProvider(factory.create(settings, config), normalizedScheme);
     }
 
     private synchronized StorageProvider createDefaultProvider(String normalizedScheme) {
-        // Double-check after acquiring lock
         StorageProvider provider = providers.get(normalizedScheme);
         if (provider != null) {
             return provider;
@@ -114,17 +122,43 @@ public class StorageProviderRegistry implements Closeable {
         if (factory == null) {
             throw new IllegalArgumentException("No storage provider registered for scheme: " + normalizedScheme);
         }
-        provider = wrapWithRetry(factory.create(settings), normalizedScheme);
+        provider = wrapProvider(factory.create(settings), normalizedScheme);
         providers.put(normalizedScheme, provider);
         createdProviders.add(provider);
         return provider;
     }
 
-    private StorageProvider wrapWithRetry(StorageProvider provider, String scheme) {
+    private StorageProvider wrapProvider(StorageProvider provider, String scheme) {
         if ("file".equals(scheme)) {
             return provider;
         }
-        return new RetryableStorageProvider(provider, RETRY_POLICY);
+        ConcurrencyLimiter limiter = limiterForScheme(scheme);
+        AdaptiveBackoff backoff = backoffForScheme(scheme);
+        RetryPolicy retryPolicy = buildRetryPolicy(backoff);
+        StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
+        return new RetryableStorageProvider(limited, retryPolicy);
+    }
+
+    private ConcurrencyLimiter limiterForScheme(String scheme) {
+        return limiters.computeIfAbsent(scheme, k -> {
+            int permits = maxConcurrentRequests;
+            if (permits <= 0) {
+                return ConcurrencyLimiter.UNLIMITED;
+            }
+            return new ConcurrencyLimiter(permits);
+        });
+    }
+
+    private AdaptiveBackoff backoffForScheme(String scheme) {
+        return backoffs.computeIfAbsent(scheme, k -> new AdaptiveBackoff());
+    }
+
+    private RetryPolicy buildRetryPolicy(AdaptiveBackoff backoff) {
+        RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
+        if (throttleMaxRetryDurationSeconds > 0) {
+            policy = policy.withTotalDurationBudget(throttleMaxRetryDurationSeconds * 1000L);
+        }
+        return policy;
     }
 
     @Override

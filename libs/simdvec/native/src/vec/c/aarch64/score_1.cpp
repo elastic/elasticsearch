@@ -9,7 +9,6 @@
 
 #include <stddef.h>
 #include <arm_neon.h>
-#include <math.h>
 #include <limits>
 #include "vec.h"
 #include "vec_common.h"
@@ -52,7 +51,7 @@ EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;
@@ -93,7 +92,7 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;
@@ -134,7 +133,7 @@ EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
             *(scores + i)
         );
         *(scores + i) = score;
-        maxScore = fmax(maxScore, score);
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;

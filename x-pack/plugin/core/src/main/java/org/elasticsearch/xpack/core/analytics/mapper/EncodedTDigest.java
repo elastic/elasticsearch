@@ -203,17 +203,27 @@ public final class EncodedTDigest implements TDigestReadView {
         return Collections.unmodifiableList(decoded);
     }
 
-    private static void encodeCentroidsFromIterator(CentroidIterator centroids, StreamOutput out) throws IOException {
+    /**
+     * Encodes the given centroids into the given output. Also compute the sum of all counts and returns it.
+     *
+     * @param centroids the centroids to encode
+     * @param out the output to encode into
+     * @return the sum of all counts in the centroids
+     */
+    public static long encodeCentroidsFromIterator(CentroidIterator centroids, StreamOutput out) throws IOException {
+        long totalCount = 0;
         while (centroids.next()) {
             long count = centroids.currentCount();
             if (count < 0) {
                 throw new IllegalArgumentException("Centroid count cannot be negative: " + count);
             }
+            totalCount += count;
             if (count > 0) {
                 out.writeVLong(count);
                 out.writeDouble(centroids.currentMean());
             }
         }
+        return totalCount;
     }
 
     private void resetCachedStats() {

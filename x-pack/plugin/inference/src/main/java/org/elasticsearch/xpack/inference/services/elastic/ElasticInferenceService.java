@@ -208,11 +208,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
-    protected boolean supportsMultimodalCompletions() {
-        return true;
-    }
-
-    @Override
     protected boolean supportsChatCompletionReasoning() {
         return true;
     }

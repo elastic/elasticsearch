@@ -1,0 +1,5 @@
+ExchangeSinkExec[[$$last_name$sum{r}#0, $$last_name$seen{r}#1, $$first_name$sum{r}#2, $$first_name$seen{r}#3],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#4,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS last_name#5, SUM($$LENGTH(first_na>$SUM$1{r$}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS first_name#7]]
+\_Eval[[LENGTH(last_name{f}#8) AS $$LENGTH(last_nam>$SUM$0#4, LENGTH(first_name{f}#9) AS $$LENGTH(first_na>$SUM$1#6]]
+  \_EsRelation[employees][avg_worked_seconds{f}#10, birth_date{f}#11, emp_no{f}#12, first_name{f}#9, gender{f}#13, height{f}#14, height.float{f}#15, height.half_float{f}#16, height.scaled_float{f}#17, hire_date{f}#18, is_rehired{f}#19, job_positions{f}#20, languages{f}#21, languages.byte{f}#22, languages.long{f}#23, languages.short{f}#24, last_name{f}#8, salary{f}#25, salary_change{f}#26, salary_change.int{f}#27, salary_change.keyword{f}#28, salary_change.long{f}#29, still_hired{f}#30]<>]]

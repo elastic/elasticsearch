@@ -85,6 +85,18 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
     FloatVector asVector();
 
     @Override
+    default FloatBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (FloatBlock.Builder builder = blockFactory().newFloatBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
     FloatBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -37,6 +38,7 @@ public class ToGeohash extends AbstractConvertFunction {
         "ToGeohash",
         ToGeohash::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeohash.class).unary(ToGeohash::new).name("to_geohash");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEOHASH, (source, fieldEval) -> fieldEval),

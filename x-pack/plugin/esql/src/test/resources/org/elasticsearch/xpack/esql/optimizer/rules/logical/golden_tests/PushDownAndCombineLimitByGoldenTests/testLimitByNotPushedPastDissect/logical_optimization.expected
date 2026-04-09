@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_LimitBy[2[INTEGER],[path{r}#0, domain{f}#1],false]
+  \_Dissect[uri{f}#2,Parser[pattern=/%{path}/%{file}, appendSeparator=, parser=DissectParser],[path{r}#0, file{r}#3]]
+    \_EsRelation[web_logs][domain{f}#1, public_ip{f}#4, timestamp{f}#5, uri{f}#2, user_agent{f}#6]

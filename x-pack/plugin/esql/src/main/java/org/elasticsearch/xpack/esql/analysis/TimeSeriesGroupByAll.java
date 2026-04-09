@@ -39,6 +39,11 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
+        boolean hasWithout = aggregate.groupings().stream().map(Alias::unwrap).anyMatch(TimeSeriesWithout.class::isInstance);
+        if (hasWithout) {
+            return aggregate;
+        }
+
         Holder<Expression> lastTSAggFunction = new Holder<>();
         Holder<Expression> lastNonTSAggFunction = new Holder<>();
 
@@ -78,7 +83,7 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         }
 
         List<Expression> groupings = new ArrayList<>();
-        groupings.add(new TimeSeriesWithout(aggregate.source(), List.of()).asTimeSeriesAttribute());
+        groupings.add(new TimeSeriesWithout(aggregate.source(), List.of()).toAttribute());
 
         for (Expression grouping : aggregate.groupings()) {
             if (Functions.isGrouping(Alias.unwrap(grouping)) == false) {
@@ -93,7 +98,7 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             groupings.add(grouping);
         }
 
-        TimeSeriesAggregate newStats = new TimeSeriesAggregate(
+        return new TimeSeriesAggregate(
             aggregate.source(),
             aggregate.child(),
             groupings,
@@ -101,6 +106,6 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             null,
             aggregate.timestamp()
         );
-        return newStats;
     }
+
 }

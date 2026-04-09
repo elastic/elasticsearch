@@ -209,7 +209,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         | WHERE id > 10
                         """,
                     EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()
-                        ? Map.of("FROM", 2, "UNIONALL", 1, "WHERE", 2)
+                        ? Map.of("FROM", 2, "UNIONALL", 1, "WHERE", 2, "SUBQUERY", 1)
                         : Collections.emptyMap(),
                     Collections.emptyMap(),
                     EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()

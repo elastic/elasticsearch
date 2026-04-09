@@ -340,6 +340,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestIntercept
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.ViewDlsFlsRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -440,7 +441,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivilegedAction;
 import java.security.Provider;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -464,7 +464,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.security.AccessController.doPrivileged;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -733,9 +732,9 @@ public class Security extends Plugin
      */
     public static Path resolveSecuredConfigFile(Environment env, String file) {
         Path config = env.configDir().resolve(file);
-        if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(config)) == false) {
+        if (Files.exists(config) == false) {
             Path legacyConfig = env.configDir().resolve("x-pack").resolve(file);
-            if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(legacyConfig))) {
+            if (Files.exists(legacyConfig)) {
                 DeprecationLogger.getLogger(XPackPlugin.class)
                     .warn(
                         DeprecationCategory.OTHER,
@@ -1146,7 +1145,11 @@ public class Security extends Plugin
                     new BulkShardRequestInterceptor(threadPool, getLicenseState()),
                     new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
                     new SearchRequestCacheDisablingInterceptor(threadPool, getLicenseState()),
-                    new ValidateRequestInterceptor(threadPool, getLicenseState())
+                    new ValidateRequestInterceptor(threadPool, getLicenseState()),
+                    new ViewDlsFlsRequestInterceptor(
+                        threadPool.getThreadContext(),
+                        () -> projectResolver.getProjectMetadata(clusterService.state())
+                    )
                 )
             );
         }

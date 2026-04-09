@@ -115,8 +115,13 @@ public class OperatorTests extends MapperServiceTestCase {
             );
             List<Driver> drivers = new ArrayList<>();
             try {
+                /*
+                 * If we match no documents the factory wants 0 concurrency. But in
+                 * production we accept no less than 1 driver.
+                 */
+                int driverCount = Math.max(1, factory.taskConcurrency());
                 Set<Integer> actualDocIds = ConcurrentCollections.newConcurrentSet();
-                for (int t = 0; t < factory.taskConcurrency(); t++) {
+                for (int t = 0; t < driverCount; t++) {
                     PageConsumerOperator docCollector = new PageConsumerOperator(page -> {
                         DocVector docVector = page.<DocBlock>getBlock(0).asVector();
                         IntVector doc = docVector.docs();
@@ -441,10 +446,17 @@ public class OperatorTests extends MapperServiceTestCase {
             for (int p = 0; p < result.getPositionCount(); p++) {
                 actual.put(groups.getLong(p), counts.getLong(p));
             }
-            assertMap(
-                actual,
-                matchesMap().entry(0L, (long) firstGroupDocs).entry(100L, (long) secondGroupDocs).entry(10000L, (long) thirdGroupDocs)
-            );
+            var matcher = matchesMap();
+            if (firstGroupDocs > 0) {
+                matcher = matcher.entry(0L, (long) firstGroupDocs);
+            }
+            if (secondGroupDocs > 0) {
+                matcher = matcher.entry(100L, (long) secondGroupDocs);
+            }
+            if (thirdGroupDocs > 0) {
+                matcher = matcher.entry(10000L, (long) thirdGroupDocs);
+            }
+            assertMap(actual, matcher);
         };
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -494,6 +506,7 @@ public class OperatorTests extends MapperServiceTestCase {
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             randomPageSize(),
             limit,

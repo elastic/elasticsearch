@@ -77,9 +77,18 @@ public class BooleanFieldMapper extends FieldMapper {
         return (BooleanFieldMapper) in;
     }
 
+    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
+        true,
+        DocValuesParameter.Values.Cardinality.LOW,
+        DocValuesParameter.Values.MultiValue.SORTED
+    );
+
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
-        private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> toType(m).docValuesParameters()
+        );
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -118,9 +127,12 @@ public class BooleanFieldMapper extends FieldMapper {
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
             this.script.precludesParameters(ignoreMalformed, nullValue);
-            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension(), docValues::get);
+            this.dimension = TimeSeriesParams.dimensionParam(
+                m -> toType(m).fieldType().isDimension(),
+                () -> docValuesParameters.get().enabled()
+            );
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
-            addScriptValidation(script, indexed, docValues);
+            addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
         }
 
         public Builder dimension(boolean dimension) {
@@ -132,7 +144,7 @@ public class BooleanFieldMapper extends FieldMapper {
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 meta,
-                docValues,
+                docValuesParameters,
                 indexed,
                 nullValue,
                 stored,
@@ -144,9 +156,9 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private IndexType indexType() {
             if (indexed.get() && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false) {
-                return IndexType.terms(true, docValues.getValue());
+                return IndexType.terms(true, docValuesParameters.getValue().enabled());
             }
-            if (docValues.get() == false) {
+            if (docValuesParameters.get().enabled() == false) {
                 return IndexType.NONE;
             }
             if (indexSettings.useDocValuesSkipper()
@@ -181,7 +193,7 @@ public class BooleanFieldMapper extends FieldMapper {
             String offsetsFieldName = getOffsetsFieldName(
                 context,
                 indexSettings.sourceKeepMode(),
-                docValues.getValue(),
+                docValuesParameters.getValue().enabled(),
                 stored.getValue(),
                 this,
                 indexSettings.getIndexVersionCreated(),
@@ -503,7 +515,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     private final Boolean nullValue;
     private final boolean indexed;
-    private final boolean hasDocValues;
+    private final DocValuesParameter.Values docValuesParameters;
     private final boolean stored;
     private final Script script;
     private final FieldValues<Boolean> scriptValues;
@@ -526,7 +538,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
-        this.hasDocValues = builder.docValues.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
@@ -541,6 +553,10 @@ public class BooleanFieldMapper extends FieldMapper {
         return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
+    public DocValuesParameter.Values docValuesParameters() {
+        return docValuesParameters;
+    }
+
     @Override
     public BooleanFieldType fieldType() {
         return (BooleanFieldType) super.fieldType();
@@ -553,7 +569,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        if (indexed == false && stored == false && hasDocValues == false) {
+        if (indexed == false && stored == false && docValuesParameters.enabled() == false) {
             return;
         }
 
@@ -603,7 +619,7 @@ public class BooleanFieldMapper extends FieldMapper {
         if (stored) {
             context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
         }
-        if (hasDocValues) {
+        if (docValuesParameters.enabled()) {
             if (fieldType().indexType.hasDocValuesSkipper()) {
                 context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), value ? 1 : 0));
             } else {
@@ -674,7 +690,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        if (hasDocValues) {
+        if (docValuesParameters.enabled()) {
             return new SyntheticSourceSupport.Native(this::docValuesSyntheticFieldLoader);
         }
 

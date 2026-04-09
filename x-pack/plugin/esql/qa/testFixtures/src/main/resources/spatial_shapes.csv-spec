@@ -1188,3 +1188,160 @@ FROM cartesian_multipolygons
 centroid:cartesian_point                      | extent:cartesian_shape
 POINT (1.4999999999999996 1.4999999999999996) | BBOX (0.0, 3.0, 3.0, 0.0)
 ;
+
+###############################################
+# Tests for ST_GEOMETRYTYPE
+#
+
+stGeometryTypeMultipleTypes
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+
+// tag::st_geometrytype[]
+ROW wkt = [
+    "POINT(1.0 2.0)",
+    "LINESTRING (30 10, 10 30, 40 40)",
+    "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"]
+| MV_EXPAND wkt
+| EVAL geometry = TO_GEOSHAPE(wkt),
+       type = ST_GEOMETRYTYPE(geometry),
+       points = ST_NPOINTS(geometry)  
+| KEEP type, points
+// end::st_geometrytype[]
+;
+
+// tag::st_geometrytype-result[]
+type:keyword  | points:integer
+ST_Point      | 1
+ST_LineString | 3
+ST_Polygon    | 5
+// end::st_geometrytype-result[]
+;
+
+stGeometryTypeFromIndex
+required_capability: fn_st_geometrytype
+
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL type = ST_GEOMETRYTYPE(city_boundary)
+| KEEP abbrev, type
+;
+
+abbrev:keyword | type:keyword
+CPH            | ST_Polygon
+;
+
+stGeometryTypeCartesian
+required_capability: fn_st_geometrytype
+
+ROW point = TO_CARTESIANPOINT("POINT(1.0 2.0)"), shape = TO_CARTESIANSHAPE("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))")
+| EVAL pt_type = ST_GEOMETRYTYPE(point), shape_type = ST_GEOMETRYTYPE(shape)
+| KEEP pt_type, shape_type
+;
+
+pt_type:keyword | shape_type:keyword
+ST_Point         | ST_Polygon
+;
+
+###############################################
+# Tests for ST_DIMENSION
+#
+
+stDimensionMultipleTypes
+required_capability: fn_st_geometrytype
+required_capability: fn_st_dimension
+
+// tag::st_dimension[]
+ROW wkt = [
+    "POINT(1.0 2.0)",
+    "LINESTRING (30 10, 10 30, 40 40)",
+    "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"]
+| MV_EXPAND wkt
+| EVAL geometry = TO_GEOSHAPE(wkt),
+       type = ST_GEOMETRYTYPE(geometry),
+       topological_dimension = ST_DIMENSION(geometry)  
+| KEEP type, topological_dimension
+// end::st_dimension[]
+;
+ 
+// tag::st_dimension-result[]
+type:keyword  | topological_dimension:integer
+ST_Point      | 0
+ST_LineString | 1
+ST_Polygon    | 2
+// end::st_dimension-result[]
+;
+
+stDimensionFromIndex
+required_capability: fn_st_dimension
+
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL dim = ST_DIMENSION(city_boundary)
+| KEEP abbrev, dim
+;
+
+abbrev:keyword | dim:integer
+CPH            | 2
+;
+
+stDimensionCartesian
+required_capability: fn_st_dimension
+
+ROW point = TO_CARTESIANPOINT("POINT(1.0 2.0)"), shape = TO_CARTESIANSHAPE("POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))")
+| EVAL pt_dim = ST_DIMENSION(point), shape_dim = ST_DIMENSION(shape)
+| KEEP pt_dim, shape_dim
+;
+
+pt_dim:integer | shape_dim:integer
+0               | 2
+;
+
+###############################################
+# Tests for ST_ISEMPTY
+#
+
+stIsEmptyMixed
+required_capability: fn_st_isempty
+
+// tag::st_isempty[]
+ROW point = TO_GEOPOINT("POINT(1.0 2.0)"),
+    empty_line = TO_GEOSHAPE("LINESTRING EMPTY"),
+    empty_polygon = TO_GEOSHAPE("POLYGON EMPTY")
+| EVAL pt_empty = ST_ISEMPTY(point),
+       line_empty = ST_ISEMPTY(empty_line),
+       polygon_empty = ST_ISEMPTY(empty_polygon)
+| KEEP pt_empty, line_empty, polygon_empty
+// end::st_isempty[]
+;
+
+// tag::st_isempty-result[]
+pt_empty:boolean | line_empty:boolean | polygon_empty:boolean
+false             | true                | true
+// end::st_isempty-result[]
+;
+
+stIsEmptyFromIndex
+required_capability: fn_st_isempty
+
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL empty = ST_ISEMPTY(city_boundary)
+| KEEP abbrev, empty
+;
+
+abbrev:keyword | empty:boolean
+CPH            | false
+;
+
+stIsEmptyCartesian
+required_capability: fn_st_isempty
+
+ROW point = TO_CARTESIANPOINT("POINT(1.0 2.0)"), empty_shape = TO_CARTESIANSHAPE("GEOMETRYCOLLECTION EMPTY")
+| EVAL pt_empty = ST_ISEMPTY(point), shape_empty = ST_ISEMPTY(empty_shape)
+| KEEP pt_empty, shape_empty
+;
+
+pt_empty:boolean | shape_empty:boolean
+false             | true
+;

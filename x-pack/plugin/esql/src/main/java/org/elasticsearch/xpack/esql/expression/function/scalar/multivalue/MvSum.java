@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -35,6 +36,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAd
  */
 public class MvSum extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSum", MvSum::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvSum.class).unary(MvSum::new).name("mv_sum");
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
@@ -46,7 +48,7 @@ public class MvSum extends AbstractMultivalueFunction {
         @Param(
             name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression field
     ) {
         super(source, field);

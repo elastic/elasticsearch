@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
@@ -20,7 +21,6 @@ import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
 
 import java.nio.ShortBuffer;
 import java.util.Arrays;
@@ -85,18 +85,13 @@ public class VectorScorerBFloat16OperationBenchmarkTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] size = VectorScorerBFloat16OperationBenchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
-            String[] functions = VectorScorerBFloat16OperationBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0]
-                .value();
-            VectorSimilarityFunctions.BFloat16QueryType[] queryTypes = VectorSimilarityFunctions.BFloat16QueryType.values();
-            return () -> Arrays.stream(size)
-                .map(Integer::parseInt)
-                .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
-                .flatMap(o -> Arrays.stream(queryTypes).map(qt -> CollectionUtils.appendToCopy(Arrays.asList(o), qt).toArray()))
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+        String[] size = Utils.possibleValues(VectorScorerBFloat16OperationBenchmark.class, "size").toArray(new String[0]);
+        String[] functions = Utils.possibleValues(VectorScorerBFloat16OperationBenchmark.class, "function").toArray(new String[0]);
+        VectorSimilarityFunctions.BFloat16QueryType[] queryTypes = VectorSimilarityFunctions.BFloat16QueryType.values();
+        return () -> Arrays.stream(size)
+            .map(Integer::parseInt)
+            .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
+            .flatMap(o -> Arrays.stream(queryTypes).map(qt -> CollectionUtils.appendToCopy(Arrays.asList(o), qt).toArray()))
+            .iterator();
     }
 }

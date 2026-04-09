@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -52,7 +53,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  * treated as {@link #UNSUPPORTED} by ES|QL. Fields of that type are filled with
  * {@code null} values, and no functions support them.
  * In query plans, these fields amount to
- * {@link org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute}s.
+ * {@link UnsupportedAttribute}s.
  * <p>
  * When such a type gets support in ES|QL, query plans cannot contain it
  * unless all nodes in the cluster (and remote clusters participating in the query)

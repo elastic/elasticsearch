@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex.management;
 
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -22,12 +23,16 @@ import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -38,11 +43,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Integration tests for {@code GET _reindex} (listing) transparently showing relocated tasks
@@ -119,15 +124,10 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
         assertThat("running time accounts for relocation gap", runningTimeNanos, greaterThanOrEqualTo(expectedMinimumRunningTimeNanos));
 
         // Speed up the reindex and let it finish so the test is quick and doesn't hang
-        final TaskId relocatedTaskId = getReindexWithWaitForCompletion(originalTaskId, false).getRelocatedTask()
-            .map(r -> r.getTask().taskId())
-            .orElseThrow(() -> new AssertionError("expected relocated task"));
+        final TaskId relocatedTaskId = getRelocatedTaskIdFromTasksIndex(originalTaskId);
         unthrottleReindex(relocatedTaskId);
 
-        final GetReindexResponse finishedResponse = getReindexWithWaitForCompletion(originalTaskId, true);
-        assertThat("reindex finished without an error", finishedResponse.getRelocatedTask().orElseThrow().getError(), is(nullValue()));
-
-        assertThat("there's no running reindexes", getRunningReindexes(), hasSize(0));
+        assertBusy(() -> assertThat("there's no running reindexes", getRunningReindexes(), hasSize(0)));
     }
 
     private GetReindexResponse getReindexWithWaitForCompletion(final TaskId taskId, final boolean waitForCompletion) {
@@ -201,6 +201,27 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
             .map(DiscoveryNode::getId)
             .findFirst()
             .orElseThrow(() -> new AssertionError("node with name [" + nodeName + "] not found"));
+    }
+
+    private TaskId getRelocatedTaskIdFromTasksIndex(TaskId originalTaskId) {
+        ensureYellowAndNoInitializingShards(TaskResultsService.TASK_INDEX);
+        assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+        final GetResponse getResponse = client().prepareGet(TaskResultsService.TASK_INDEX, originalTaskId.toString()).get();
+        assertThat("task exists in .tasks index", getResponse.isExists(), is(true));
+
+        final TaskResult result;
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, getResponse.getSourceAsString())
+        ) {
+            result = TaskResult.PARSER.apply(parser, null);
+        } catch (IOException e) {
+            throw new AssertionError("failed to parse task result from .tasks index", e);
+        }
+        assertThat("original task should be completed", result.isCompleted(), is(true));
+        final Map<String, Object> errorMap = result.getErrorAsMap();
+        assertThat(errorMap.get("type"), equalTo("task_relocated_exception"));
+        return new TaskId((String) errorMap.get("relocated_task_id"));
     }
 
     private void shutdownNodeNameAndRelocate(final String nodeName) throws Exception {

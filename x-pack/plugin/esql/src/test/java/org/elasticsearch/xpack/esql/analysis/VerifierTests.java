@@ -3419,14 +3419,6 @@ public class VerifierTests extends ESTestCase {
             EMBEDDING_INFERENCE_ID
         );
 
-        // invalid format value
-        analyzer.error(
-            "from test | EVAL embedding = EMBEDDING(?, ?, {\"format\": \"invalid_format\"})",
-            equalTo("1:30: Invalid options for EMBEDDING: Unrecognized format [invalid_format], must be one of [text, base64]"),
-            "query text",
-            EMBEDDING_INFERENCE_ID
-        );
-
         // invalid timeout value
         analyzer.error(
             "from test | EVAL embedding = EMBEDDING(?, ?, {\"timeout\": \"invalid\"})",

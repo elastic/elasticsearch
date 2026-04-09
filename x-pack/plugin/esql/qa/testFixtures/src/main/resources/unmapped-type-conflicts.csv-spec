@@ -465,6 +465,27 @@ emp_no:integer | first_name:keyword | last_name:keyword | pay:integer | _index:k
 10003          | Parto              | Bamford           | 61805       | employees_no_names
 ;
 
+noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithRenameOnSameField
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+
+SET unmapped_fields="load"\;
+FROM employees, employees_no_names METADATA _index
+| RENAME last_name AS surname
+| DROP gender, birth_date, hire_date, languages*, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change*
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | first_name:keyword | surname:keyword | salary:integer | _index:keyword
+10001          | Georgi             | Facello         | 57305          | employees
+10001          | Georgi             | Facello         | 57305          | employees_no_names
+10002          | Bezalel            | Simmel          | 56371          | employees
+10002          | Bezalel            | Simmel          | 56371          | employees_no_names
+10003          | Parto              | Bamford         | 61805          | employees
+10003          | Parto              | Bamford         | 61805          | employees_no_names
+;
+
 // EVAL on a partially mapped field (last_name).
 // first_name is not referenced by any command but must still be loaded.
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithEvalOnSameField
@@ -486,27 +507,6 @@ emp_no:integer | first_name:keyword | _index:keyword     | last_name:keyword
 10002          | Bezalel            | employees_no_names | SIMMEL
 10003          | Parto              | employees          | BAMFORD
 10003          | Parto              | employees_no_names | BAMFORD
-;
-
-noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithRenameOnOtherField
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
-
-SET unmapped_fields="load"\;
-FROM employees, employees_no_names METADATA _index
-| RENAME last_name AS surname
-| DROP gender, birth_date, hire_date, languages*, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change*
-| SORT emp_no, _index
-| LIMIT 6
-;
-
-emp_no:integer | first_name:keyword | surname:keyword | salary:integer | _index:keyword
-10001          | Georgi             | Facello         | 57305          | employees
-10001          | Georgi             | Facello         | 57305          | employees_no_names
-10002          | Bezalel            | Simmel          | 56371          | employees
-10002          | Bezalel            | Simmel          | 56371          | employees_no_names
-10003          | Parto              | Bamford         | 61805          | employees
-10003          | Parto              | Bamford         | 61805          | employees_no_names
 ;
 
 // Wildcard DROP leaving the partially-mapped keyword field (message) implicit — no explicit reference.
@@ -555,6 +555,34 @@ no_mapping_sample_data
 no_mapping_sample_data
 no_mapping_sample_data
 no_mapping_sample_data
+;
+
+// reproducer for https://github.com/elastic/elasticsearch/issues/145206
+typeConflictPartiallyUnmappedKeywordFieldKept
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP event_duration
+;
+ignoreOrder:true
+
+event_duration:long
+1756467
+5033755
+8268153
+725448
+1232382
+2764889
+3450233
+null
+null
+null
+null
+null
+null
+null
 ;
 
 ###########################

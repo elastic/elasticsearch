@@ -1806,6 +1806,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     var doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + value))).rootDoc();
                     iw.addDocument(doc);
                 }
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));
@@ -1837,6 +1838,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 iw.addDocument(doc);
                 doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
                 iw.addDocument(doc);
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));
@@ -1881,6 +1883,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 iw.addDocument(doc);
                 doc = mapper.parse(source(b -> b.field("@timestamp", 1L).field("field", "" + sampleValuesForIndexing[2]))).rootDoc();
                 iw.addDocument(doc);
+                iw.forceMerge(1);
             };
             CheckedConsumer<DirectoryReader, IOException> test = reader -> {
                 assertThat(reader.leaves(), hasSize(1));

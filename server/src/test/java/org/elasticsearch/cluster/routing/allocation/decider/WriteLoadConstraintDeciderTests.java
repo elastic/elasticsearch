@@ -21,12 +21,12 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.Strings;
@@ -36,12 +36,10 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -358,14 +356,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         final var clusterSettings = createBuiltInClusterSettings(settings);
         final var writeLoadConstraintDecider = new WriteLoadConstraintDecider(clusterSettings);
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(writeLoadConstraintDecider)),
-            state.getRoutingNodes().mutableCopy(),
-            state,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            randomLong()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(writeLoadConstraintDecider)
+            .clusterInfo(clusterInfo)
+            .mutable();
 
         // This should move a shard in an attempt to resolve the hot-spot
         balancedShardsAllocator.allocate(routingAllocation);
@@ -386,14 +380,12 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         // This should run through the balancer without moving any shards back
         ClusterInfo simulatedClusterInfo = clusterInfoSimulator.getClusterInfo();
         balancedShardsAllocator.allocate(
-            new RoutingAllocation(
-                routingAllocation.deciders(),
-                routingAllocation.routingNodes(),
-                routingAllocation.getClusterState(),
-                simulatedClusterInfo,
-                routingAllocation.snapshotShardSizeInfo(),
-                randomLong()
-            )
+            TestRoutingAllocationFactory.forClusterState(routingAllocation.getClusterState())
+                .allocationDeciders(routingAllocation.deciders())
+                .routingNodes(routingAllocation.routingNodes())
+                .clusterInfo(simulatedClusterInfo)
+                .shardSizeInfo(routingAllocation.snapshotShardSizeInfo())
+                .mutable()
         );
         assertEquals(1, routingAllocation.routingNodes().node(overloadedNode.getId()).numberOfOwningShards());
         assertEquals(3, routingAllocation.routingNodes().node(otherNode.getId()).numberOfOwningShards());
@@ -455,14 +447,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .build();
 
         final var writeLoadConstraintDecider = createWriteLoadConstraintDecider(settings);
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(writeLoadConstraintDecider)),
-            state.getRoutingNodes().mutableCopy(),
-            state,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            randomLong()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(writeLoadConstraintDecider)
+            .clusterInfo(clusterInfo)
+            .mutable();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         var overloadedRoutingNode = routingAllocation.routingNodes().node(overloadedNode.getId());
@@ -616,14 +604,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             )
             .build();
 
-        var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(decider)),
-            state.getRoutingNodes().mutableCopy(),
-            state,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            randomLong()
-        );
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(decider)
+            .clusterInfo(clusterInfo)
+            .mutable();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         return routingAllocation;
     }
@@ -768,14 +752,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
          * Create the RoutingAllocation from the ClusterState and ClusterInfo above, and set up the other input for the WriteLoadDecider.
          */
 
-        var routingAllocation = new RoutingAllocation(
-            null,
-            RoutingNodes.immutable(clusterState.globalRoutingTable(), clusterState.nodes()),
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
 
         ShardRouting shardRoutingOnNodeExceedingUtilThreshold = TestShardRouting.newShardRouting(
             testShardId1,

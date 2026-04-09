@@ -525,3 +525,209 @@ tasks.register("analyzePromqlQueries", JavaExec) {
   args arguments as List<String>
 }
 
+tasks.withType(Javadoc).configureEach {
+  // Enable syntax highlighting for snippets, include ESQL
+  def opts = (StandardJavadocDocletOptions) options
+  opts.addBooleanOption('-allow-script-in-comments', true)
+  // The inline style below is borrowed from Elastic's doc's primary stylesheet
+  // the rest is standard activation for highlight.js
+  opts.header('''\
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css">
+<style>
+  .snippet-container {
+    --color-blue-elastic:#0b64dd;
+    --color-blue-elastic-30:#b8d4ff;
+    --color-blue-elastic-70:#3788ff;
+    --color-green-50:#59cfaa;
+    --color-grey-10:#f6f9fc;
+    --color-grey-20:#e5e9f0;
+    --color-grey-30:#d0d4da;
+    --color-grey-50:#aab0ba;
+    --color-grey-70:#868e9a;
+    --color-grey-100:#555c67;
+    --color-pink-50:#f58eb7;
+    --color-purple-50:#c5a5fa;
+    --color-purple-60:#b386f9;
+    --color-red-50:#fc9188;
+    --color-teal-50:#51d6d2;
+    --color-white:#fff;
+    --color-yellow-50:#f5bc00;
+    --font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+    --radius-sm:.25rem;
+    --radius-xs:.125rem;
+    --spacing:4px;
+    --text-sm:1rem;
+    --text-sm--line-height:calc(1.25/.875);
+    --text-xs:.857rem;
+    --text-xs--line-height:calc(1/.75);
+    --tw-border-style:solid;
+  }
+  .snippet-container pre code {
+    border-style:var(--tw-border-style);
+    font-size:var(--text-sm);
+    line-height:var(--text-sm--line-height);
+    color:var(--color-grey-30);
+    mix-blend-mode:unset;
+    word-break:normal;
+    background-color:#22272e;
+    border-width:0;
+    border-radius:0;
+    line-height:1.5em;
+    overflow-x:auto;
+    padding:calc(var(--spacing)*6)!important
+  }
+  .snippet-container button.copy {
+    color:var(--color-grey-30);
+    top: calc(var(--spacing)*5);
+    right: calc(var(--spacing)*4);
+  }
+  .snippet-container pre {
+    background-color:var(--body-background-color)
+  }
+  .snippet-container pre code:first-child {
+    border-top-left-radius:var(--radius-sm);
+    border-top-right-radius:var(--radius-sm)
+  }
+  .snippet-container pre code:last-child {
+    border-bottom-right-radius:var(--radius-sm);
+    border-bottom-left-radius:var(--radius-sm)
+  }
+  .snippet-container pre code.language-apiheader+code.language-json {
+    margin-top:calc(var(--spacing)*-6);
+    padding-top:calc(var(--spacing)*0)!important
+  }
+  .snippet-container pre code.language-json+code.language-apiheader,
+  .snippet-container pre code.language-apiheader+code.language-apiheader {
+    border-top-style:var(--tw-border-style);
+    --tw-border-style:dotted;
+    border-style:dotted;
+    border-top-width:1px;
+    border-top-color:var(--color-grey-100)
+  }
+  .snippet-container pre code .code-callout {
+    margin-left:calc(var(--spacing)*1);
+    user-select:none
+  }
+  .snippet-container pre code .code-callout:after {
+    content:attr(data-index)
+  }
+  .snippet-container ol.code-callouts li {
+    padding-left:calc(var(--spacing)*1);
+    counter-increment:code-callout-counter;
+    list-style-type:none;
+    position:relative
+  }
+  .snippet-container ol.code-callouts li:before {
+    content:counter(code-callout-counter);
+    top:1px;
+    left:calc(-1*var(--spacing)*6);
+    position:absolute
+  }
+  .snippet-container pre code .code-callout .hljs-number {
+    color:var(--color-white)!important
+  }
+  .snippet-container pre code .code-callout,
+  .snippet-container ol.code-callouts li:before {
+    width:calc(var(--spacing)*4.5);
+    height:calc(var(--spacing)*4.5);
+    background-color:var(--color-blue-elastic);
+    font-family:var(--font-mono);
+    border-radius:3.40282e38px;
+    justify-content:center;
+    align-items:center;
+    display:inline-flex;
+    font-size:var(--text-xs)!important;
+    line-height:var(--text-xs--line-height)!important;
+    color:var(--color-white)!important
+  }
+  .snippet-container code {
+    border-radius:var(--radius-xs);
+    border-style:var(--tw-border-style);
+    border-width:1px;
+    border-color:var(--color-grey-20);
+    background-color:var(--color-grey-10);
+    font-family:var(--font-mono);
+    -webkit-text-decoration:inherit;
+    -webkit-text-decoration:inherit;
+    text-decoration:inherit;
+    font-size:.875em;
+    line-height:1.4em;
+    font-weight:inherit;
+    mix-blend-mode:multiply;
+    word-break:break-word;
+    padding-left:.2em;
+    padding-right:.2em
+  }
+  .snippet-container .hljs-built_in,
+  .snippet-container .hljs-selector-tag,
+  .snippet-container .hljs-section,
+  .snippet-container .hljs-link,
+  .snippet-container .hljs-keyword {
+    color:var(--color-blue-elastic-70)
+  }
+  .snippet-container .hljs {
+    color:var(--color-blue-elastic-30)!important
+  }
+  .snippet-container .hljs-subst,
+  .snippet-container .hljs-function {
+    color:var(--color-purple-60)
+  }
+  .snippet-container .hljs-title,
+  .snippet-container .hljs-title.function,
+  .snippet-container .hljs-attr,
+  .snippet-container .hljs-meta-keyword {
+    color:var(--color-yellow-50)
+  }
+  .snippet-container .hljs-string {
+    color:var(--color-green-50)
+  }
+  .snippet-container .hljs-operator,
+  .snippet-container .hljs-meta,
+  .snippet-container .hljs-name,
+  .snippet-container .hljs-bullet,
+  .snippet-container .hljs-addition,
+  .snippet-container .hljs-template-tag,
+  .snippet-container .hljs-template-variable {
+    color:var(--color-yellow-50)
+  }
+  .snippet-container .hljs-type,
+  .snippet-container .hljs-symbol {
+    color:var(--color-teal-50)
+  }
+  .snippet-container .hljs-variable {
+    color:var(--color-purple-50)
+  }
+  .snippet-container .hljs-comment,
+  .snippet-container .hljs-quote,
+  .snippet-container .hljs-deletion {
+    color:var(--color-grey-70)
+  }
+  .snippet-container .hljs-punctuation {
+    color:var(--color-grey-50);
+    font-weight:700
+  }
+  .snippet-container .hljs-keyword,
+  .snippet-container .hljs-selector-tag,
+  .snippet-container .hljs-literal,
+  .snippet-container .hljs-title,
+  .snippet-container .hljs-section,
+  .snippet-container .hljs-doctag,
+  .snippet-container .hljs-type,
+  .snippet-container .hljs-name,
+  .snippet-container .hljs-strong {
+    font-weight:700
+  }
+  .snippet-container .hljs-literal {
+    color:var(--color-pink-50)
+  }
+  .snippet-container .hljs-number {
+    color:var(--color-red-50)
+  }
+  .snippet-container .hljs-emphasis {
+    font-style:italic
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/elastic/highlightjs-esql@1.2.2/dist/esql.min.js"></script>
+<script>hljs.highlightAll();</script>''')
+}

@@ -100,13 +100,6 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // the SDK checks this endpoint to determine if it's running within Google Compute Engine
                 exchange.getResponseHeaders().add("Metadata-Flavor", "Google");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
-            } else if ("Google".equals(exchange.getRequestHeaders().getFirst("Metadata-Flavor"))) {
-                // Other GCE metadata requests (e.g. universe domain) that don't have a dedicated handler
-                exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
-            } else if (Regex.simpleMatch("POST /batch/storage/v1", request) == false && isValidAuthentication(exchange) == false) {
-                final byte[] response = "Authorization required".getBytes(UTF_8);
-                exchange.sendResponseHeaders(RestStatus.UNAUTHORIZED.getStatus(), response.length);
-                exchange.getResponseBody().write(response);
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
                 final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
@@ -545,10 +538,5 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             }
         }
         return null;
-    }
-
-    private static boolean isValidAuthentication(final HttpExchange exchange) {
-        final String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-        return authorization != null && authorization.equals("Bearer foo");
     }
 }

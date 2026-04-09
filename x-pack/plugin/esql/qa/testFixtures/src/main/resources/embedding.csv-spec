@@ -136,15 +136,15 @@ embedding with image type and base64 format options
 required_capability: embedding_function
 required_capability: dense_vector_field_type_released
 
-// Base64 encoding of "Who is Victor Hugo?" is "V2hvIGlzIFZpY3RvciBIdWdvPw==". Using image as type multiplies embeddings by -1
+// Base64 encoding of "This is an image" is "VGhpcyBpcyBhbiBpbWFnZQ==". Using image as type multiplies embeddings by -1
 // tag::embedding-base64[]
-ROW b64_input="Who is Victor Hugo?"
-| EVAL embedding = EMBEDDING("V2hvIGlzIFZpY3RvciBIdWdvPw==", "test_embedding_inference", {"type": "image", "format": "base64"})
+ROW b64_input="This is an image"
+| EVAL embedding = EMBEDDING("data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ==", "test_embedding_inference", {"type": "image", "format": "base64"})
 // end::embedding-base64[]
 ;
 
-b64_input:keyword              | embedding:dense_vector
-Who is Victor Hugo?            | [-56.0, -50.0, -48.0]
+b64_input:keyword          | embedding:dense_vector
+This is an image           | [-45.0, -50.0, -56.0]
 ;
 
 

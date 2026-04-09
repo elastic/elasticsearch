@@ -221,9 +221,17 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 // For multiple inputs that generate one embedding, average the embeddings for each input
                 List<InferenceString> inferenceStrings = inputContent.inferenceStrings();
                 List<Float> averagedFloatEmbeddings = inferenceStrings.stream().map(inferenceString -> {
-                    String inputValue = inferenceString.dataFormat() == DataFormat.BASE64
-                        ? new String(Base64.getDecoder().decode(inferenceString.value()), StandardCharsets.UTF_8)
-                        : inferenceString.value();
+                    String inputValue = inferenceString.value();
+                    if (inferenceString.dataFormat() == DataFormat.BASE64) {
+                        // Check for base64 data URI format and extract the base64 content if it exists,
+                        // otherwise treat the entire string as base64 content
+                        String[] split = inputValue.split("base64,");
+                        if (split.length > 1) {
+                            inputValue = split[1];
+                        }
+
+                        inputValue = new String(Base64.getDecoder().decode(inputValue), StandardCharsets.UTF_8);
+                    }
                     List<Float> embedding = generateEmbedding(
                         inputValue,
                         serviceSettings.dimensions(),

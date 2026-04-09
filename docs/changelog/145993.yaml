@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 145993
+summary: Allow missing indices after expanding wildcard
+type: bug

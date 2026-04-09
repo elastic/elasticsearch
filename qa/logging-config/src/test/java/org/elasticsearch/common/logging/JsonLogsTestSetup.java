@@ -13,6 +13,7 @@ public class JsonLogsTestSetup {
 
     public static void init() {
         if (initialized == false) {
+            LogConfigurator.setClusterName("elasticsearch");
             LogConfigurator.setNodeName("sample-name");
             initialized = true;
         }

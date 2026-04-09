@@ -43,7 +43,7 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     }
 
     @Override
-    protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat(checked, equalTo(2));
+    protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
+        assertThat(invalidSignatureSamples.size(), equalTo(2));
     }
 }

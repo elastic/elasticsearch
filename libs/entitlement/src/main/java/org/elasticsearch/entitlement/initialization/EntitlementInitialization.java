@@ -10,18 +10,16 @@
 package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.lang.instrument.Instrumentation;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -29,8 +27,8 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
- * instantiate and configure an {@link EntitlementChecker},
- * make it available to the bootstrap library via {@link #checker()},
+ * instantiate and configure an {@link InstrumentationRegistry},
+ * make it available to the bootstrap library via "registry",
  * and then install the {@link org.elasticsearch.entitlement.instrumentation.Instrumenter}
  * to begin injecting our instrumentation.
  */
@@ -40,12 +38,10 @@ public class EntitlementInitialization {
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     public static InitializeArgs initializeArgs;
-    private static ElasticsearchEntitlementChecker checker;
     private static AtomicReference<RuntimeException> error = new AtomicReference<>();
 
-    // Note: referenced by bridge reflectively
-    public static EntitlementChecker checker() {
-        return checker;
+    public static InternalInstrumentationRegistry instrumentationRegistry() {
+        return initializeArgs.instrumentationRegistry;
     }
 
     /**
@@ -65,7 +61,7 @@ public class EntitlementInitialization {
      * Creates the {@link PolicyManager}
      * </li>
      * <li>
-     * Creates the {@link ElasticsearchEntitlementChecker} instance referenced by the instrumented methods
+     * Creates the {@link InstrumentationRegistry} instance referenced by the instrumented methods
      * </li>
      * </ol>
      * <p>
@@ -76,8 +72,6 @@ public class EntitlementInitialization {
      */
     public static void initialize(Instrumentation inst) {
         try {
-            // the checker _MUST_ be set before _any_ instrumentation is done
-            checker = initChecker(initializeArgs.policyManager());
             initInstrumentation(inst);
         } catch (Exception e) {
             // exceptions thrown within the agent will be swallowed, so capture it here
@@ -92,13 +86,20 @@ public class EntitlementInitialization {
      *
      * @param pathLookup
      * @param suppressFailureLogPackages
-     * @param policyManager
+     * @param policyChecker
+     * @param instrumentationRegistry
      */
-    public record InitializeArgs(PathLookup pathLookup, Set<Package> suppressFailureLogPackages, PolicyManager policyManager) {
+    public record InitializeArgs(
+        PathLookup pathLookup,
+        Set<Package> suppressFailureLogPackages,
+        PolicyChecker policyChecker,
+        InternalInstrumentationRegistry instrumentationRegistry
+    ) {
         public InitializeArgs {
             requireNonNull(pathLookup);
             requireNonNull(suppressFailureLogPackages);
-            requireNonNull(policyManager);
+            requireNonNull(policyChecker);
+            requireNonNull(instrumentationRegistry);
         }
     }
 
@@ -133,41 +134,13 @@ public class EntitlementInitialization {
         }
     }
 
-    static ElasticsearchEntitlementChecker initChecker(PolicyManager policyManager) {
-        final PolicyChecker policyChecker = createPolicyChecker(policyManager);
-        final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
-            ElasticsearchEntitlementChecker.class,
-            Runtime.version().feature()
-        );
-
-        Constructor<?> constructor;
-        try {
-            constructor = clazz.getConstructor(PolicyChecker.class);
-        } catch (NoSuchMethodException e) {
-            throw new AssertionError("entitlement impl is missing required constructor: [" + clazz.getName() + "]", e);
-        }
-
-        ElasticsearchEntitlementChecker checker;
-        try {
-            checker = (ElasticsearchEntitlementChecker) constructor.newInstance(policyChecker);
-        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
-            throw new AssertionError(e);
-        }
-
-        return checker;
-    }
-
     static void initInstrumentation(Instrumentation instrumentation) throws Exception {
         var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
         if (verifyBytecode) {
             ensureClassesSensitiveToVerificationAreInitialized();
         }
 
-        DynamicInstrumentation.initialize(
-            instrumentation,
-            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
-            verifyBytecode
-        );
+        DynamicInstrumentation.initialize(instrumentation, verifyBytecode, initializeArgs.instrumentationRegistry);
 
     }
 }

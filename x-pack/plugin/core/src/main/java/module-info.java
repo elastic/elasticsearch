@@ -54,7 +54,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ccr;
     exports org.elasticsearch.xpack.core.common.notifications;
     exports org.elasticsearch.xpack.core.common.search.aggregations;
-    exports org.elasticsearch.xpack.core.common.socket;
+
     exports org.elasticsearch.xpack.core.common.stats;
     exports org.elasticsearch.xpack.core.common.table;
     exports org.elasticsearch.xpack.core.common.time;
@@ -69,7 +69,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.eql;
     exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.esql.action;
-    exports org.elasticsearch.xpack.core.esql.action.internal; // TODO: qualify to esql when modularized
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
     exports org.elasticsearch.xpack.core.graph;

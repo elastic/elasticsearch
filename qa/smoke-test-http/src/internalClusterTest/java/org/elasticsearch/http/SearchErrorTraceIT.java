@@ -68,8 +68,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
                 }
             }
             """);
+        ErrorTraceHelper.expectStackTraceCleared(internalCluster());
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
     }
 
     public void testSearchFailingQueryErrorTraceTrue() throws IOException {
@@ -87,8 +87,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             }
             """);
         searchRequest.addParameter("error_trace", "true");
+        ErrorTraceHelper.expectStackTraceObserved(internalCluster());
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceObserved(internalCluster());
     }
 
     public void testSearchFailingQueryErrorTraceFalse() throws IOException {
@@ -106,8 +106,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             }
             """);
         searchRequest.addParameter("error_trace", "false");
+        ErrorTraceHelper.expectStackTraceCleared(internalCluster());
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
     }
 
     public void testDataNodeLogsStackTrace() throws IOException {
@@ -155,8 +155,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         searchRequest.setEntity(
             new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
         );
+        ErrorTraceHelper.expectStackTraceCleared(internalCluster());
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
     }
 
     public void testMultiSearchFailingQueryErrorTraceTrue() throws IOException {
@@ -172,8 +172,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
         );
         searchRequest.addParameter("error_trace", "true");
+        ErrorTraceHelper.expectStackTraceObserved(internalCluster());
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceObserved(internalCluster());
     }
 
     public void testMultiSearchFailingQueryErrorTraceFalse() throws IOException {
@@ -189,8 +189,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
         );
         searchRequest.addParameter("error_trace", "false");
+        ErrorTraceHelper.expectStackTraceCleared(internalCluster());
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
     }
 
     public void testDataNodeLogsStackTraceMultiSearch() throws IOException {

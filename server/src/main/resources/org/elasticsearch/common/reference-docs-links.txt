@@ -48,3 +48,4 @@ SECURE_SETTINGS                                                 deploy-manage/se
 CLUSTER_SHARD_LIMIT                                             reference/elasticsearch/configuration-reference/miscellaneous-cluster-settings#cluster-shard-limit
 DEPLOY_CLOUD_DIFF_FROM_STATEFUL                                 deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings
 DELETE_INDEX_BLOCK                                              api/doc/elasticsearch/operation/operation-indices-remove-block
+ARCHIVED_SETTINGS                                               deploy-manage/upgrade/deployment-or-cluster/archived-settings

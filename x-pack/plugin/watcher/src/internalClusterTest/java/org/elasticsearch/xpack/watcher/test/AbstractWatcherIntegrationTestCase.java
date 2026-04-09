@@ -275,6 +275,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.uuid");
         newSettings.remove("index.creation_date");
         newSettings.remove("index.version.created");
+        newSettings.remove("index.transport_version.created");
 
         assertAcked(indicesAdmin().prepareCreate(to).setMapping(mapping.sourceAsMap()).setSettings(newSettings));
         ensureGreen(to);

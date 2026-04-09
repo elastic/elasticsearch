@@ -9,8 +9,11 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.tests.util.RamUsageTester.Accumulator;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -26,6 +29,7 @@ import java.util.stream.IntStream;
 
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -347,6 +351,65 @@ public class BlockAccountingTests extends ComputeTestCase {
         long expectedEmptyUsed = Block.PAGE_MEM_OVERHEAD_PER_BLOCK + RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR)
             + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class);
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
+    }
+
+    /**
+     * Ideally we would test a real Block builder, but that would require a large heap which is not possible in unit tests.
+     * Instead, a simulated builder tracks memory usage without allocating the backing array.
+     */
+    public void testHugeBlockBuilder() {
+        class NoopBlockBuilder extends AbstractBlockBuilder {
+            private int size = 0;
+
+            NoopBlockBuilder(BlockFactory blockFactory) {
+                super(blockFactory);
+            }
+
+            @Override
+            protected int valuesLength() {
+                return size;
+            }
+
+            @Override
+            protected void growValuesArray(int newSize) {
+                size = newSize;
+            }
+
+            @Override
+            protected int elementSize() {
+                return Long.BYTES;
+            }
+
+            @Override
+            public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Block build() {
+                throw new UnsupportedOperationException();
+            }
+
+            void appendUntilBreaking() {
+                int maxArrayLength = ArrayUtil.MAX_ARRAY_LENGTH;
+                for (long i = 0; i < maxArrayLength; i++) {
+                    ensureCapacity();
+                    valueCount++;
+                }
+            }
+        }
+        ByteSizeValue largeHeap = ByteSizeValue.ofMb(between(4 * 1024, 8 * 1024));
+        BlockFactory blockFactory = blockFactory(largeHeap);
+        try (var builder = new NoopBlockBuilder(blockFactory)) {
+            expectThrows(CircuitBreakingException.class, builder::appendUntilBreaking);
+        } finally {
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+        }
     }
 
     static Matcher<Long> between(long minInclusive, long maxInclusive) {

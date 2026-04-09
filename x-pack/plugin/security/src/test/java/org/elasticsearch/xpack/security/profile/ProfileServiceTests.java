@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequestTests;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
@@ -90,7 +93,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -1322,6 +1328,54 @@ public class ProfileServiceTests extends ESTestCase {
         PlainActionFuture<Collection<String>> finalListener = listener;
         ExecutionException e = expectThrows(ExecutionException.class, () -> finalListener.get());
         assertThat(e.getMessage(), containsString("test unavailable"));
+    }
+
+    public void testSerializationSize() {
+        assertThat(ProfileService.serializationSize(Map.of()), is(2));
+        assertThat(ProfileService.serializationSize(Map.of("foo", "bar")), is(13));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> ProfileService.serializationSize(Map.of("bad", new ByteArrayInputStream(new byte[0])))
+        );
+    }
+
+    public void testMapFromBytesReference() {
+        assertThat(ProfileService.mapFromBytesReference(null), is(Map.of()));
+        assertThat(ProfileService.mapFromBytesReference(BytesReference.fromByteBuffer(ByteBuffer.allocate(0))), is(Map.of()));
+        assertThat(ProfileService.mapFromBytesReference(newBytesReference("{}")), is(Map.of()));
+        assertThat(ProfileService.mapFromBytesReference(newBytesReference("{\"foo\":\"bar\"}")), is(Map.of("foo", "bar")));
+    }
+
+    public void testCombineMaps() {
+        assertThat(ProfileService.combineMaps(null, Map.of("a", 1)), is(Map.of("a", 1)));
+        assertThat(
+            ProfileService.combineMaps(new HashMap<>(Map.of("a", 1, "b", 2)), Map.of("b", 3, "c", 4)),
+            is(Map.of("a", 1, "b", 3, "c", 4))
+        );
+        assertThat(
+            ProfileService.combineMaps(new HashMap<>(Map.of("a", new HashMap<>(Map.of("b", "c")))), Map.of("a", Map.of("d", "e"))),
+            is(Map.of("a", Map.of("b", "c", "d", "e")))
+        );
+    }
+
+    public void testValidateProfileSize() {
+        var pd = new ProfileDocument("uid", true, 0L, null, Map.of(), newBytesReference("{}"));
+        var vd = new ProfileService.VersionedDocument(pd, 1L, 1L);
+        var up = new UpdateProfileDataRequest(
+            "uid",
+            Map.of("key", "value"),
+            Map.of("key", "value"),
+            1L,
+            1L,
+            WriteRequest.RefreshPolicy.NONE
+        );
+        assertThrows(ElasticsearchException.class, () -> ProfileService.validateProfileSize(vd, up, ByteSizeValue.ZERO));
+        ProfileService.validateProfileSize(vd, up, ByteSizeValue.ofBytes(100));
+        ProfileService.validateProfileSize(null, up, ByteSizeValue.ZERO);
+    }
+
+    private static BytesReference newBytesReference(String str) {
+        return BytesReference.fromByteBuffer(ByteBuffer.wrap(str.getBytes(StandardCharsets.UTF_8)));
     }
 
     record SampleDocumentParameter(String uid, String username, List<String> roles, long lastSynchronized) {}

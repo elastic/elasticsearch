@@ -134,7 +134,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().must(matchQuery("content", "brown"));
 
-        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -157,7 +157,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().filter(matchQuery("content", "brown"));
 
-        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -180,7 +180,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = QueryBuilders.matchAllQuery();
 
-        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -202,7 +202,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().must(matchQuery("content", "fox"));
 
-        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(
@@ -224,7 +224,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
         QueryBuilder filter = boolQuery().filter(matchQuery("content", "fox"));
 
-        try (var resp = run(syncEsqlQueryRequest().query(query).pragmas(randomPragmas()).filter(filter))) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
             assertColumnNames(resp.columns(), List.of("content", "_score"));
             assertColumnTypes(resp.columns(), List.of("text", "double"));
             assertValues(

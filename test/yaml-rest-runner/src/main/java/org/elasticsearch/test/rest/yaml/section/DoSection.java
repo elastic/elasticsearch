@@ -89,6 +89,7 @@ public class DoSection implements ExecutableSection {
         ApiCallSection apiCallSection = null;
         NodeSelector nodeSelector = NodeSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        String method = null;
         List<String> expectedWarnings = new ArrayList<>();
         List<Pattern> expectedWarningsRegex = new ArrayList<>();
         List<String> allowedWarnings = new ArrayList<>();
@@ -197,6 +198,8 @@ public class DoSection implements ExecutableSection {
                                         apiCallSection.addBody(bodyParser.mapOrdered());
                                     }
                                 }
+                            } else if ("method".equals(paramName)) {
+                                method = parser.text();
                             } else {
                                 apiCallSection.addParam(paramName, parser.text());
                             }
@@ -225,6 +228,7 @@ public class DoSection implements ExecutableSection {
             }
             apiCallSection.addHeaders(headers);
             apiCallSection.setNodeSelector(nodeSelector);
+            apiCallSection.setMethod(method);
             doSection.setApiCallSection(apiCallSection);
             doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
             doSection.setExpectedWarningHeadersRegex(unmodifiableList(expectedWarningsRegex));
@@ -349,6 +353,7 @@ public class DoSection implements ExecutableSection {
         try {
             ClientYamlTestResponse response = executionContext.callApi(
                 apiCallSection.getApi(),
+                apiCallSection.getMethod(),
                 apiCallSection.getParams(),
                 apiCallSection.getBodies(),
                 apiCallSection.getHeaders(),

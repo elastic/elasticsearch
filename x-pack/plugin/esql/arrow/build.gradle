@@ -6,6 +6,7 @@
  */
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
   compileOnly project(':server')

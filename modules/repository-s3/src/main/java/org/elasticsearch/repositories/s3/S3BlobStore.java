@@ -94,6 +94,8 @@ class S3BlobStore implements BlobStore {
 
     private final StorageClass storageClass;
 
+    private final boolean supportsConditionalWrites;
+
     private final RepositoryMetadata repositoryMetadata;
 
     private final ThreadPool threadPool;
@@ -118,6 +120,7 @@ class S3BlobStore implements BlobStore {
         ByteSizeValue maxCopySizeBeforeMultipart,
         String cannedACL,
         String storageClass,
+        boolean supportConditionalWrites,
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
         ThreadPool threadPool,
@@ -133,6 +136,7 @@ class S3BlobStore implements BlobStore {
         this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
+        this.supportsConditionalWrites = supportConditionalWrites;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
@@ -623,4 +627,13 @@ class S3BlobStore implements BlobStore {
         }
     }
 
+    /**
+     * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
+     * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
+     * {@link S3Repository#UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES} setting.
+     */
+    public boolean supportsConditionalWrites(OperationPurpose purpose) {
+        // REPOSITORY_ANALYSIS is a strict check for 100% S3 compatibility, including conditional write support
+        return supportsConditionalWrites || purpose == OperationPurpose.REPOSITORY_ANALYSIS;
+    }
 }

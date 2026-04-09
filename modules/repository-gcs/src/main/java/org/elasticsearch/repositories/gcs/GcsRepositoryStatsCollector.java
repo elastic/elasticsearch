@@ -190,6 +190,18 @@ public class GcsRepositoryStatsCollector {
         }
     }
 
+    /**
+     * Tracks stats, but does not add them to collector. For example DELETE operations are not tracked. It might change in the future.
+     */
+    public void skipCollectRunnable(OperationPurpose purpose, StorageOperation operation, Runnable runnable) {
+        initAndGetThreadLocal(purpose, operation);
+        try {
+            runnable.run();
+        } finally {
+            clearThreadLocal();
+        }
+    }
+
     public <T> T collectIOSupplier(OperationPurpose purpose, StorageOperation operation, IOSupplier<T> blobFn) throws IOException {
         var t = timer.absoluteTimeInMillis();
         var stats = initAndGetThreadLocal(purpose, operation);

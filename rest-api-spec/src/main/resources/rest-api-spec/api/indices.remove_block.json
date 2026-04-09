@@ -24,8 +24,14 @@
               "description": "A comma separated list of indices to remove a block from"
             },
             "block": {
-              "type": "string",
-              "description": "The block to remove (one of read, write, read_only or metadata)"
+              "type": "enum",
+              "description": "The block to remove (one of read, write, read_only or metadata)",
+              "options": [
+                "metadata",
+                "read",
+                "read_only",
+                "write"
+              ]
             }
           }
         }
@@ -53,7 +59,7 @@
         "description": "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
       },
       "expand_wildcards": {
-        "type": "enum",
+        "type": "list",
         "options": [
           "open",
           "closed",

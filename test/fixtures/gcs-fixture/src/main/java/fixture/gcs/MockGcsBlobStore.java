@@ -215,8 +215,8 @@ public class MockGcsBlobStore {
 
     record UpdateResponse(int statusCode, HttpHeaderParser.Range rangeHeader, long storedContentLength) {}
 
-    void deleteBlob(String path) {
-        blobs.remove(path);
+    boolean deleteBlob(String path) {
+        return blobs.remove(path) != null;
     }
 
     private String stripPrefixIfPresent(@Nullable String prefix, String toStrip) {

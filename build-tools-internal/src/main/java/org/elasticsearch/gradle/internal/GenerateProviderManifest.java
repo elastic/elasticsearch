@@ -13,9 +13,10 @@ import org.elasticsearch.gradle.util.FileUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -28,8 +29,11 @@ abstract class GenerateProviderManifest extends DefaultTask {
     @Inject
     public GenerateProviderManifest() {}
 
-    @Classpath
+    /**
+     * TODO: Strictly speaking we're not even interested in the files but in the file names.
+     */
     @InputFiles
+    @PathSensitive(PathSensitivity.NAME_ONLY)
     abstract public ConfigurableFileCollection getProviderImplClasspath();
 
     @OutputFile

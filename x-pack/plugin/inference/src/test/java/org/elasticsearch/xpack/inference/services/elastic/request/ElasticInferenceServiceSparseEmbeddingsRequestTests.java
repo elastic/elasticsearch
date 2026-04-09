@@ -109,7 +109,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
                 new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
                 ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId),
                 new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata"),
+                new ElasticInferenceServiceRequestMetadata("my-product-origin", "my-product-use-case-from-metadata", "1.2.3"),
                 inputType
             );
 

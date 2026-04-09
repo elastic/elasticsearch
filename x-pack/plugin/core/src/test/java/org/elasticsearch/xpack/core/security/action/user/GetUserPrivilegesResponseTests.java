@@ -44,7 +44,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetUserPrivilegesResponseTests extends ESTestCase {
@@ -83,41 +82,6 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         in.setTransportVersion(version);
         final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
         assertThat(copy, equalTo(original));
-    }
-
-    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
-        final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion versionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-            TransportVersions.V_8_8_0
-        );
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            versionBeforeAdvancedRemoteClusterSecurity
-        );
-        out.setTransportVersion(version);
-
-        final GetUserPrivilegesResponse original = randomResponse(true, false);
-        if (original.hasRemoteIndicesPrivileges()) {
-            final var ex = expectThrows(IllegalArgumentException.class, () -> original.writeTo(out));
-            assertThat(
-                ex.getMessage(),
-                containsString(
-                    "versions of Elasticsearch before ["
-                        + TransportVersions.V_8_8_0.toReleaseVersion()
-                        + "] can't handle remote indices privileges and attempted to send to ["
-                        + version.toReleaseVersion()
-                        + "]"
-                )
-            );
-        } else {
-            original.writeTo(out);
-            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-            StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-            in.setTransportVersion(out.getTransportVersion());
-            final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
-            assertThat(copy, equalTo(original));
-        }
     }
 
     public void testEqualsAndHashCode() throws IOException {

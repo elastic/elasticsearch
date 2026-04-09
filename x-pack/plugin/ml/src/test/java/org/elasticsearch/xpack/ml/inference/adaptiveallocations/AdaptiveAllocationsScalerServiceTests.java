@@ -275,7 +275,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            ONE_SECOND,
+            2 * ONE_SECOND,
             ATOMIC_SECOND,
             TWO_THOUSAND_MILLISECONDS
         );
@@ -295,7 +295,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
-        safeSleep(1500);
+        safeSleep(2500);
 
         verify(client, times(1)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
@@ -317,7 +317,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
 
-        safeSleep(1000);
+        safeSleep(2000);
 
         verify(client, times(2)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());

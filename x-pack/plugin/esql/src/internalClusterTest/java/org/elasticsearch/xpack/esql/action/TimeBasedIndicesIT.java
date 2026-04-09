@@ -40,7 +40,7 @@ public class TimeBasedIndicesIT extends AbstractEsqlIntegTestCase {
         {
             String query = "FROM test | limit 1000";
             var filter = new RangeQueryBuilder("@timestamp").from(epoch - TimeValue.timeValueHours(3).millis()).to("now");
-            try (var resp = run(syncEsqlQueryRequest().query(query).filter(filter))) {
+            try (var resp = run(syncEsqlQueryRequest(query).filter(filter))) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(oldDocs));
             }
@@ -48,7 +48,7 @@ public class TimeBasedIndicesIT extends AbstractEsqlIntegTestCase {
         {
             String query = "FROM test | limit 1000";
             var filter = new RangeQueryBuilder("@timestamp").from("now").to(epoch + TimeValue.timeValueHours(3).millis());
-            try (var resp = run(syncEsqlQueryRequest().query(query).filter(filter))) {
+            try (var resp = run(syncEsqlQueryRequest(query).filter(filter))) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(newDocs));
             }

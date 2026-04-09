@@ -64,7 +64,7 @@ public class OverridableSystemMemoryInfoTests extends ESTestCase {
             memoryInfo.availableSystemMemory();
             fail("expected to fail");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("Negative memory size specified in [-Des.total_memory_bytes=-123]"));
+            assertThat(e.getMessage(), is("Negative bytes size specified in [-Des.total_memory_bytes=-123]"));
         }
     }
 

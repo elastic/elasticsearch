@@ -35,11 +35,11 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
     IgnoredSourceFieldLoader(StoredFieldsSpec spec, boolean forceSequentialReader) {
         assert IgnoredSourceFieldLoader.supports(spec);
 
-        fieldNames = new HashSet<>(spec.ignoredFieldsSpec().requiredIgnoredFields());
+        fieldNames = new HashSet<>(spec.sourcePaths());
         this.forceSequentialReader = forceSequentialReader;
 
         HashMap<String, Set<String>> potentialFieldsInIgnoreSource = new HashMap<>();
-        for (String requiredIgnoredField : spec.ignoredFieldsSpec().requiredIgnoredFields()) {
+        for (String requiredIgnoredField : spec.sourcePaths()) {
             for (String potentialIgnoredField : FallbackSyntheticSourceBlockLoader.splitIntoFieldPaths(requiredIgnoredField)) {
                 potentialFieldsInIgnoreSource.computeIfAbsent(potentialIgnoredField, k -> new HashSet<>()).add(requiredIgnoredField);
             }
@@ -142,7 +142,7 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
     }
 
     static boolean supports(StoredFieldsSpec spec) {
-        return spec.onlyRequiresIgnoredFields()
-            && spec.ignoredFieldsSpec().format() == IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE;
+        return spec.onlyRequiresSourcePaths()
+            && spec.ignoredSourceFormat() == IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE;
     }
 }

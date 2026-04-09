@@ -37,6 +37,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         this.query = query;
     }
 
+    public float[] getQuery() {
+        return query;
+    }
+
     @Override
     public String toString(String field) {
         StringBuilder buffer = new StringBuilder();

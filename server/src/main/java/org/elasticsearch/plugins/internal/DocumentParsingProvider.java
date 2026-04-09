@@ -17,8 +17,7 @@ import org.elasticsearch.index.mapper.MapperService;
  * An interface to provide instances of document parsing observer and reporter
  */
 public interface DocumentParsingProvider {
-    DocumentParsingProvider EMPTY_INSTANCE = new DocumentParsingProvider() {
-    };
+    DocumentParsingProvider EMPTY_INSTANCE = new DocumentParsingProvider() {};
 
     /**
      * @return an instance of a reporter to use when parsing has been completed and indexing successful

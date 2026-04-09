@@ -292,13 +292,8 @@ public class MvExpandOperator implements Operator {
             pagesReceived = in.readVInt();
             pagesEmitted = in.readVInt();
             noops = in.readVInt();
-            if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                rowsReceived = in.readVLong();
-                rowsEmitted = in.readVLong();
-            } else {
-                rowsReceived = 0;
-                rowsEmitted = 0;
-            }
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
         }
 
         @Override
@@ -306,10 +301,8 @@ public class MvExpandOperator implements Operator {
             out.writeVInt(pagesReceived);
             out.writeVInt(pagesEmitted);
             out.writeVInt(noops);
-            if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                out.writeVLong(rowsReceived);
-                out.writeVLong(rowsEmitted);
-            }
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
         }
 
         @Override

@@ -24,8 +24,8 @@
               "description": "The ID of the calendar to modify"
             },
             "job_id": {
-              "type": "string",
-              "description": "The ID of the job to add to the calendar"
+              "type": "list",
+              "description": "An identifier for the anomaly detection jobs. It can be a job identifier, a group name, or a comma-separated list of jobs or groups."
             }
           }
         }

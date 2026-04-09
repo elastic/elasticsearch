@@ -164,7 +164,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             List.of(
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
-                    () -> SourceLoader.FROM_STORED_SOURCE,
+                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
@@ -205,8 +205,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private void initMapping() throws IOException {
-        mapperService = new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperService = new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "key", "integer");
             fieldExamples(b, "int", "integer");
             fieldExamples(b, "short", "short");
@@ -500,7 +499,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 List.of(
                     new ValuesSourceReaderOperator.ShardContext(
                         reader,
-                        () -> SourceLoader.FROM_STORED_SOURCE,
+                        (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                         STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     )
                 ),
@@ -620,7 +619,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 List.of(
                     new ValuesSourceReaderOperator.ShardContext(
                         reader,
-                        () -> SourceLoader.FROM_STORED_SOURCE,
+                        (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                         STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     )
                 ),
@@ -639,7 +638,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     List.of(
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
-                            () -> SourceLoader.FROM_STORED_SOURCE,
+                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                             STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                         )
                     ),
@@ -738,7 +737,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     List.of(
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
-                            () -> SourceLoader.FROM_STORED_SOURCE,
+                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                             STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                         )
                     ),
@@ -972,7 +971,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     List.of(
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
-                            () -> SourceLoader.FROM_STORED_SOURCE,
+                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                             STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                         )
                     ),
@@ -1469,8 +1468,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testWithNulls() throws IOException {
-        mapperService = new MapperServiceTestCase() {
-        }.createMapperService(MapperServiceTestCase.mapping(b -> {
+        mapperService = new MapperServiceTestCase() {}.createMapperService(MapperServiceTestCase.mapping(b -> {
             fieldExamples(b, "i", "integer");
             fieldExamples(b, "j", "long");
             fieldExamples(b, "d", "double");
@@ -1639,7 +1637,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         List.of(
                             new ValuesSourceReaderOperator.ShardContext(
                                 reader,
-                                () -> SourceLoader.FROM_STORED_SOURCE,
+                                (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                                 STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                             )
                         ),
@@ -1691,7 +1689,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             List.of(
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
-                    () -> SourceLoader.FROM_STORED_SOURCE,
+                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
@@ -1726,7 +1724,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             List.of(
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
-                    () -> SourceLoader.FROM_STORED_SOURCE,
+                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
@@ -1759,7 +1757,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 readerShardContexts.add(
                     new ValuesSourceReaderOperator.ShardContext(
                         readers[s],
-                        () -> SourceLoader.FROM_STORED_SOURCE,
+                        (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
                         STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     )
                 );

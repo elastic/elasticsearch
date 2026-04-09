@@ -53,6 +53,11 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature MULTI_FIELD_UNICODE_OPTIMISATION_FIX = new NodeFeature("mapper.multi_field.unicode_optimisation_fix");
     static final NodeFeature PATTERN_TEXT_RENAME = new NodeFeature("mapper.pattern_text_rename");
     static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
+    public static final NodeFeature FIX_DENSE_VECTOR_WRONG_FIELDS = new NodeFeature("mapper.fix_dense_vector_wrong_fields");
+    static final NodeFeature STORED_FIELDS_SPEC_MERGE_BUG = new NodeFeature("mapper.stored_fields_spec_merge_bug");
+    static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
+        "mapper.dense_vector.dynamic_template_nested_object_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -91,7 +96,10 @@ public class MapperFeatures implements FeatureSpecification {
             MULTI_FIELD_UNICODE_OPTIMISATION_FIX,
             MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
             PATTERN_TEXT_RENAME,
-            EXCLUDE_VECTORS_DOCVALUE_BUGFIX
+            EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
+            FIX_DENSE_VECTOR_WRONG_FIELDS,
+            STORED_FIELDS_SPEC_MERGE_BUG,
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX
         );
     }
 }

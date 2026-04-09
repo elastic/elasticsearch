@@ -163,19 +163,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.pendingCount = in.readOptionalVInt();
             this.routingState = in.readOptionalWriteable(RoutingStateAndReason::new);
             this.startTime = in.readOptionalInstant();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                this.threadsPerAllocation = in.readOptionalVInt();
-                this.numberOfAllocations = in.readOptionalVInt();
-                this.errorCount = in.readVInt();
-                this.rejectedExecutionCount = in.readVInt();
-                this.timeoutCount = in.readVInt();
-            } else {
-                this.threadsPerAllocation = null;
-                this.numberOfAllocations = null;
-                this.errorCount = 0;
-                this.rejectedExecutionCount = 0;
-                this.timeoutCount = 0;
-            }
+            this.threadsPerAllocation = in.readOptionalVInt();
+            this.numberOfAllocations = in.readOptionalVInt();
+            this.errorCount = in.readVInt();
+            this.rejectedExecutionCount = in.readVInt();
+            this.timeoutCount = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
                 this.peakThroughput = in.readVLong();
                 this.throughputLastPeriod = in.readVLong();
@@ -342,13 +334,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             out.writeOptionalVInt(pendingCount);
             out.writeOptionalWriteable(routingState);
             out.writeOptionalInstant(startTime);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-                out.writeOptionalVInt(threadsPerAllocation);
-                out.writeOptionalVInt(numberOfAllocations);
-                out.writeVInt(errorCount);
-                out.writeVInt(rejectedExecutionCount);
-                out.writeVInt(timeoutCount);
-            }
+            out.writeOptionalVInt(threadsPerAllocation);
+            out.writeOptionalVInt(numberOfAllocations);
+            out.writeVInt(errorCount);
+            out.writeVInt(rejectedExecutionCount);
+            out.writeVInt(timeoutCount);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
                 out.writeVLong(peakThroughput);
                 out.writeVLong(throughputLastPeriod);

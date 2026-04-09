@@ -149,9 +149,18 @@ public abstract class SenderService implements InferenceService {
             if (validationException.validationErrors().isEmpty() == false) {
                 throw validationException;
             }
-
-            // a non-null query is not supported and is dropped by all providers
-            doChunkedInfer(model, input, taskSettings, inputType, timeout, chunkedInferListener);
+            if (supportsChunkedInfer()) {
+                if (input.isEmpty()) {
+                    chunkedInferListener.onResponse(List.of());
+                } else {
+                    // a non-null query is not supported and is dropped by all providers
+                    doChunkedInfer(model, input, taskSettings, inputType, timeout, chunkedInferListener);
+                }
+            } else {
+                chunkedInferListener.onFailure(
+                    new UnsupportedOperationException(Strings.format("%s service does not support chunked inference", name()))
+                );
+            }
         }).addListener(listener);
     }
 
@@ -182,6 +191,10 @@ public abstract class SenderService implements InferenceService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     );
+
+    protected boolean supportsChunkedInfer() {
+        return true;
+    }
 
     public void start(Model model, ActionListener<Boolean> listener) {
         SubscribableListener.newForked(this::init)

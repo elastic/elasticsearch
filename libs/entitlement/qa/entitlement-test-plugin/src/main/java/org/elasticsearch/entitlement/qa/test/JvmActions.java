@@ -28,36 +28,48 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 @SuppressWarnings({ "unused" /* called via reflection */ })
 class JvmActions {
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void setSystemProperty() {
-        System.setProperty("es.entitlements.checkSetSystemProperty", "true");
-        try {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String setSystemProperty() {
+        String previous = System.setProperty("es.entitlements.checkSetSystemProperty", "true");
+        if (System.getProperty("es.entitlements.checkSetSystemProperty") != null) {
             System.clearProperty("es.entitlements.checkSetSystemProperty");
-        } catch (RuntimeException e) {
-            // ignore for this test case
         }
-
+        return previous;
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void clearSystemProperty() {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String clearSystemProperty() {
         EntitledPlugin.selfTest(); // TODO: find a better home
-        System.clearProperty("es.entitlements.checkClearSystemProperty");
+        return System.clearProperty("es.entitlements.checkClearSystemProperty");
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void setSystemProperties() {
-        System.setProperties(System.getProperties()); // no side effect in case if allowed (but shouldn't)
+        System.setProperties(System.getProperties());
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void setDefaultLocale() {
-        Locale.setDefault(Locale.getDefault());
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static boolean setDefaultLocale() {
+        Locale original = Locale.getDefault();
+        Locale target = original.equals(Locale.CANADA_FRENCH) ? Locale.GERMAN : Locale.CANADA_FRENCH;
+        Locale.setDefault(target);
+        boolean changed = original.equals(Locale.getDefault()) == false;
+        if (changed) {
+            Locale.setDefault(original);
+        }
+        return changed;
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void setDefaultLocaleForCategory() {
-        Locale.setDefault(Locale.Category.DISPLAY, Locale.getDefault(Locale.Category.DISPLAY));
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)
+    static boolean setDefaultLocaleForCategory() {
+        Locale original = Locale.getDefault(Locale.Category.DISPLAY);
+        Locale target = original.equals(Locale.CANADA_FRENCH) ? Locale.GERMAN : Locale.CANADA_FRENCH;
+        Locale.setDefault(Locale.Category.DISPLAY, target);
+        boolean changed = original.equals(Locale.getDefault(Locale.Category.DISPLAY)) == false;
+        if (changed) {
+            Locale.setDefault(Locale.Category.DISPLAY, original);
+        }
+        return changed;
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
@@ -88,8 +100,7 @@ class JvmActions {
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void createLogManager() {
-        new java.util.logging.LogManager() {
-        };
+        new java.util.logging.LogManager() {};
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

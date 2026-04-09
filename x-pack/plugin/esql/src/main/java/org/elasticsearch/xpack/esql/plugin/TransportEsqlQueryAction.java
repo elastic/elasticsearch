@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
@@ -20,15 +21,20 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -55,6 +61,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,6 +76,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> {
+
+    private static final Logger logger = LogManager.getLogger(TransportEsqlQueryAction.class);
 
     private final ThreadPool threadPool;
     private final PlanExecutor planExecutor;
@@ -230,6 +239,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
         task.setExecutionInfo(createEsqlExecutionInfo(request));
+        task.rescheduleCancellationOnExpiry();
         ActionListener.run(listener, l -> innerExecute(task, request, l));
     }
 
@@ -237,6 +247,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
+        TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         EsqlFlags flags = computeService.createFlags();
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
@@ -255,6 +266,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         planExecutor.esql(
             request,
             sessionId,
+            localMinimumVersion,
             new AnalyzerSettings(
                 resultTruncationMaxSize,
                 resultTruncationDefaultSize,
@@ -369,8 +381,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
-    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Result result) {
-        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
+    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> result) {
+        var innerResult = result.inner();
+        List<ColumnInfoImpl> columns = innerResult.schema().stream().map(c -> {
             List<String> originalTypes;
             if (c instanceof UnsupportedAttribute ua) {
                 // Sort the original types so they are easier to test against and prettier.
@@ -382,32 +395,36 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
         }).toList();
         EsqlQueryResponse.Profile profile = profileEnabled
-            ? new EsqlQueryResponse.Profile(result.completionInfo().driverProfiles(), result.completionInfo().planProfiles())
+            ? new EsqlQueryResponse.Profile(
+                innerResult.completionInfo().driverProfiles(),
+                innerResult.completionInfo().planProfiles(),
+                result.minimumVersion()
+            )
             : null;
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
             return new EsqlQueryResponse(
                 columns,
-                result.pages(),
-                result.completionInfo().documentsFound(),
-                result.completionInfo().valuesLoaded(),
+                innerResult.pages(),
+                innerResult.completionInfo().documentsFound(),
+                innerResult.completionInfo().valuesLoaded(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
                 false,
                 request.async(),
-                result.executionInfo()
+                innerResult.executionInfo()
             );
         }
         return new EsqlQueryResponse(
             columns,
-            result.pages(),
-            result.completionInfo().documentsFound(),
-            result.completionInfo().valuesLoaded(),
+            innerResult.pages(),
+            innerResult.completionInfo().documentsFound(),
+            innerResult.completionInfo().valuesLoaded(),
             profile,
             request.columnar(),
             request.async(),
-            result.executionInfo()
+            innerResult.executionInfo()
         );
     }
 
@@ -453,6 +470,23 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             @Override
             public Status getStatus() {
                 return new EsqlQueryStatus(asyncExecutionId);
+            }
+
+            @Override
+            protected Scheduler.ScheduledCancellable scheduleCancellationOnExpiry(long expirationTimeMillis) {
+                final long delay = Math.max(expirationTimeMillis - threadPool.absoluteTimeInMillis(), 0);
+                final CancellableTask task = this;
+                return threadPool.schedule(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to cancel async-query on expiry", e);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        taskManager.cancelTaskAndDescendants(task, "keep_alive expired", false, ActionListener.noop());
+                    }
+                }, TimeValue.timeValueMillis(delay), threadPool.generic());
             }
         };
     }

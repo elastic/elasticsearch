@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.InputType.INTERNAL_SEARCH;
+import static org.elasticsearch.inference.InputType.SEARCH;
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
 public record JinaAIEmbeddingsRequestEntity(
@@ -25,7 +27,9 @@ public record JinaAIEmbeddingsRequestEntity(
     InputType inputType,
     JinaAIEmbeddingsTaskSettings taskSettings,
     @Nullable String model,
-    @Nullable JinaAIEmbeddingType embeddingType
+    @Nullable JinaAIEmbeddingType embeddingType,
+    Integer dimensions,
+    boolean dimensionsSetByUser
 ) implements ToXContentObject {
 
     private static final String SEARCH_DOCUMENT = "retrieval.passage";
@@ -36,6 +40,8 @@ public record JinaAIEmbeddingsRequestEntity(
     private static final String MODEL_FIELD = "model";
     public static final String TASK_TYPE_FIELD = "task";
     static final String EMBEDDING_TYPE_FIELD = "embedding_type";
+    static final String DIMENSIONS_FIELD = "dimensions";
+    public static final String JINA_CLIP_V_2_MODEL_NAME = "jina-clip-v2";
 
     public JinaAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -53,11 +59,24 @@ public record JinaAIEmbeddingsRequestEntity(
             builder.field(EMBEDDING_TYPE_FIELD, embeddingType.toRequestString());
         }
 
-        // prefer the root level inputType over task settings input type
+        // Prefer the root level inputType over task settings input type.
+        InputType inputTypeToUse = null;
         if (InputType.isSpecified(inputType)) {
-            builder.field(TASK_TYPE_FIELD, convertToString(inputType));
-        } else if (InputType.isSpecified(taskSettings.getInputType())) {
-            builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));
+            inputTypeToUse = inputType;
+        } else {
+            var taskSettingsInputType = taskSettings.getInputType();
+            if (InputType.isSpecified(taskSettingsInputType)) {
+                inputTypeToUse = taskSettingsInputType;
+            }
+        }
+
+        // Do not specify the "task" field if the provided input type is null or not supported by the model
+        if (shouldWriteInputType(model, inputTypeToUse)) {
+            builder.field(TASK_TYPE_FIELD, convertToString(inputTypeToUse));
+        }
+
+        if (dimensionsSetByUser && dimensions != null) {
+            builder.field(DIMENSIONS_FIELD, dimensions);
         }
 
         builder.endObject();
@@ -76,5 +95,16 @@ public record JinaAIEmbeddingsRequestEntity(
                 yield null;
             }
         };
+    }
+
+    private static boolean shouldWriteInputType(String modelName, @Nullable InputType inputType) {
+        if (inputType == null) {
+            return false;
+        }
+        if (JINA_CLIP_V_2_MODEL_NAME.equalsIgnoreCase(modelName)) {
+            // jina-clip-v2 only accepts "retrieval.query" for the "task" field
+            return SEARCH.equals(inputType) || INTERNAL_SEARCH.equals(inputType);
+        }
+        return true;
     }
 }

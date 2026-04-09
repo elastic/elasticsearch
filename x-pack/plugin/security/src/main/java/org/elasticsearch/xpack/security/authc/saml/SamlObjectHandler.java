@@ -52,9 +52,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.time.Clock;
@@ -173,41 +170,32 @@ public class SamlObjectHandler {
         }
 
         checkIdpSignature(credential -> {
-            try {
-                final String signatureAlg = AlgorithmSupport.getKeyAlgorithm(signature.getSignatureAlgorithm());
-                final String keyAlg = credential.getPublicKey().getAlgorithm();
-                if (signatureAlg != null && signatureAlg.equals(keyAlg) == false) {
-                    if (logger.isDebugEnabled()) {
-                        String keyFingerprint = "SHA265:"
-                            + MessageDigests.toHexString(MessageDigests.sha256().digest(credential.getPublicKey().getEncoded()));
-                        logger.debug(
-                            "Skipping [{}] key [{}] because it is not compatible with signature algorithm [{}]",
-                            keyAlg,
-                            keyFingerprint,
-                            signatureAlg
-                        );
-                    }
-                    return false;
+            final String signatureAlg = AlgorithmSupport.getKeyAlgorithm(signature.getSignatureAlgorithm());
+            final String keyAlg = credential.getPublicKey().getAlgorithm();
+            if (signatureAlg != null && signatureAlg.equals(keyAlg) == false) {
+                if (logger.isDebugEnabled()) {
+                    String keyFingerprint = "SHA265:"
+                        + MessageDigests.toHexString(MessageDigests.sha256().digest(credential.getPublicKey().getEncoded()));
+                    logger.debug(
+                        "Skipping [{}] key [{}] because it is not compatible with signature algorithm [{}]",
+                        keyAlg,
+                        keyFingerprint,
+                        signatureAlg
+                    );
                 }
-                return AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
-                    try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
-                        SignatureValidator.validate(signature, credential);
-                        logger.debug(
-                            () -> format(
-                                "SAML Signature [%s] matches credentials [%s] [%s]",
-                                signatureText,
-                                credential.getEntityId(),
-                                credential.getPublicKey()
-                            )
-                        );
-                        return true;
-                    } catch (PrivilegedActionException e) {
-                        logger.warn("SecurityException while attempting to validate SAML signature." + describeIssuer(issuer), e);
-                        return false;
-                    }
-                });
-            } catch (PrivilegedActionException e) {
-                throw new SecurityException("SecurityException while attempting to validate SAML signature", e);
+                return false;
+            }
+            try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
+                SignatureValidator.validate(signature, credential);
+                logger.debug(
+                    () -> format(
+                        "SAML Signature [%s] matches credentials [%s] [%s]",
+                        signatureText,
+                        credential.getEntityId(),
+                        credential.getPublicKey()
+                    )
+                );
+                return true;
             }
         }, signatureText, issuer);
     }

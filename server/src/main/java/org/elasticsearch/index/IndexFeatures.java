@@ -33,13 +33,18 @@ public class IndexFeatures implements FeatureSpecification {
         "index.throw_exception_on_index_creation_if_unsupported_value_type_in_alias"
     );
 
+    private static final NodeFeature SHADOWING_DIMENSIONS_AND_METRICS_IS_VALID_IN_NON_TSDB = new NodeFeature(
+        "index.shadowing_dimensions_and_metrics_is_valid_in_non_tsdb"
+    );
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
             LOGSDB_NO_HOST_NAME_FIELD,
             SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
             THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION,
-            THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS
+            THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS,
+            SHADOWING_DIMENSIONS_AND_METRICS_IS_VALID_IN_NON_TSDB
         );
     }
 }

@@ -205,6 +205,10 @@ public class EsField implements Writeable {
         return "EsField";
     }
 
+    public String getNodeStringName() {
+        return "";
+    }
+
     /**
      * Returns the simple name, but not the full field path. The latter requires knowing the path of the parent field.
      */

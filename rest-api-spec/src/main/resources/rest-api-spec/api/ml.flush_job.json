@@ -6,6 +6,10 @@
     },
     "stability": "stable",
     "visibility": "public",
+    "deprecated": {
+      "version": "9.1.0",
+      "description": "Forcing any buffered data to be processed is deprecated, in a future major version a datafeed will be required."
+    },
     "headers": {
       "accept": [
         "application/json"
@@ -36,19 +40,19 @@
         "description": "Calculates interim results for the most recent bucket or all buckets within the latency period"
       },
       "start": {
-        "type": "string",
+        "type": "date",
         "description": "When used in conjunction with calc_interim, specifies the range of buckets on which to calculate interim results"
       },
       "end": {
-        "type": "string",
+        "type": "date",
         "description": "When used in conjunction with calc_interim, specifies the range of buckets on which to calculate interim results"
       },
       "advance_time": {
-        "type": "string",
+        "type": "date",
         "description": "Advances time to the given value generating results and updating the model for the advanced interval"
       },
       "skip_time": {
-        "type": "string",
+        "type": "date",
         "description": "Skips time to the given value without generating results or updating the model for the skipped interval"
       }
     },

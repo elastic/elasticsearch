@@ -66,6 +66,11 @@ public class MultiTypeEsField extends EsField {
         return "MultiTypeEsField";
     }
 
+    @Override
+    public String getNodeStringName() {
+        return "MultiTypeEsField";
+    }
+
     public Map<String, Expression> getIndexToConversionExpressions() {
         return indexToConversionExpressions;
     }

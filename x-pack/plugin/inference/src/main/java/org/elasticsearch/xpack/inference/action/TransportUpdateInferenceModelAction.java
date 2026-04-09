@@ -206,7 +206,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
      * @param serviceName
      * @return a new object representing the updated model
      */
-    private Model combineExistingModelWithNewSettings(
+    protected Model combineExistingModelWithNewSettings(
         Model existingParsedModel,
         UpdateInferenceModelAction.Settings settingsToUpdate,
         String serviceName,
@@ -224,10 +224,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             newSecretSettings = existingSecretSettings.newSecretSettings(settingsToUpdate.serviceSettings());
         }
         if (settingsToUpdate.serviceSettings() != null) {
-            // In cluster services can have their deployment settings updated, so this is a special case
-            if (newServiceSettings instanceof ElasticsearchInternalServiceSettings elasticServiceSettings) {
-                newServiceSettings = elasticServiceSettings.updateServiceSettings(settingsToUpdate.serviceSettings());
-            }
+            newServiceSettings = newServiceSettings.updateServiceSettings(settingsToUpdate.serviceSettings());
         }
         if (settingsToUpdate.taskSettings() != null && existingTaskSettings != null) {
             newTaskSettings = existingTaskSettings.updatedTaskSettings(settingsToUpdate.taskSettings());
@@ -242,7 +239,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             existingParsedModel.getTaskType(),
             serviceName,
             newServiceSettings,
-            newTaskSettings
+            newTaskSettings,
+            existingConfigs.getChunkingSettings()
         );
 
         return new Model(newModelConfigs, new ModelSecrets(newSecretSettings));

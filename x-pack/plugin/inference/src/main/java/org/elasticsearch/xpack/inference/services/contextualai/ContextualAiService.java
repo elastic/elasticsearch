@@ -185,7 +185,13 @@ public class ContextualAiService extends SenderService implements RerankingInfer
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
+        // Should never be called
         listener.onFailure(new ElasticsearchStatusException("Chunked inference is not supported for rerank task", RestStatus.BAD_REQUEST));
+    }
+
+    @Override
+    protected boolean supportsChunkedInfer() {
+        return false;
     }
 
     @Override

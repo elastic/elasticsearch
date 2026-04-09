@@ -300,7 +300,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var replicated = in.readBoolean();
         var system = in.readBoolean();
         var allowCustomRouting = in.readBoolean();
-        var indexMode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
+        var indexMode = in.readOptionalEnum(IndexMode.class);
         var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
             ? in.readOptionalWriteable(DataStreamLifecycle::new)
             : null;
@@ -511,13 +511,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                  * mapping, we make sure to correct the index mode and index routing path here.
                  */
                 IndexMetadata oldIndexMetadata = indexService.getMetadata();
-                Settings.Builder settingsBuilder = Settings.builder().put(oldIndexMetadata.getSettings());
-                settingsBuilder.put(indexModeSettingName, templateSettings.get(indexModeSettingName));
 
+                Settings oldIndexSettings = oldIndexMetadata.getSettings();
                 String indexRoutingPathSettingName = IndexMetadata.INDEX_ROUTING_PATH.getKey();
-                settingsBuilder.put(indexRoutingPathSettingName, templateSettings.get(indexRoutingPathSettingName));
-                IndexMetadata newIndexMetadata = new IndexMetadata.Builder(oldIndexMetadata).settings(settingsBuilder.build()).build();
-                mapperService.getIndexSettings().updateIndexMetadata(newIndexMetadata);
+                if (Objects.equals(
+                    templateSettings.get(indexRoutingPathSettingName),
+                    oldIndexSettings.get(indexRoutingPathSettingName)
+                ) == false) {
+                    /*
+                     * If the routing_path has changed, we need to make sure to update it so that validation does not fail when we merge
+                     * mappings.
+                     */
+                    Settings.Builder settingsBuilder = Settings.builder().put(oldIndexSettings);
+                    settingsBuilder.put(indexModeSettingName, templateSettings.get(indexModeSettingName));
+                    settingsBuilder.put(indexRoutingPathSettingName, templateSettings.get(indexRoutingPathSettingName));
+                    IndexMetadata newIndexMetadata = new IndexMetadata.Builder(oldIndexMetadata).settings(settingsBuilder.build()).build();
+                    mapperService.getIndexSettings().updateIndexMetadata(newIndexMetadata);
+                }
             }
             CompressedXContent mergedMapping = mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
@@ -1472,9 +1482,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(replicated);
         out.writeBoolean(system);
         out.writeBoolean(allowCustomRouting);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            out.writeOptionalEnum(indexMode);
-        }
+        out.writeOptionalEnum(indexMode);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(lifecycle);
         }

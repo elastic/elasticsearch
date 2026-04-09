@@ -28,7 +28,7 @@ public class LookupIndexResolutionIT extends AbstractEsqlIntegTestCase {
         createMainIndex("index-1");
         createLookupIndex("lookup");
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-1 | LOOKUP JOIN lookup ON language_code"))) {
+        try (var response = run(syncEsqlQueryRequest("FROM index-1 | LOOKUP JOIN lookup ON language_code"))) {
             assertOk(response);
         }
     }
@@ -40,7 +40,7 @@ public class LookupIndexResolutionIT extends AbstractEsqlIntegTestCase {
             client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("lookup", "lookup-alias")
         );
 
-        try (var response = run(syncEsqlQueryRequest().query("FROM index-1 | LOOKUP JOIN lookup-alias ON language_code"))) {
+        try (var response = run(syncEsqlQueryRequest("FROM index-1 | LOOKUP JOIN lookup-alias ON language_code"))) {
             assertOk(response);
         }
     }
@@ -51,7 +51,7 @@ public class LookupIndexResolutionIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [fake-lookup]"),
-            () -> run(syncEsqlQueryRequest().query("FROM index-1 | LOOKUP JOIN fake-lookup ON language_code"))
+            () -> run(syncEsqlQueryRequest("FROM index-1 | LOOKUP JOIN fake-lookup ON language_code"))
         );
     }
 

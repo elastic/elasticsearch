@@ -65,7 +65,6 @@ import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
-import java.security.PrivilegedActionException;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -85,7 +84,9 @@ import java.util.stream.Stream;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.CONTEXT_TOKEN_DATA;
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.PRIVATE_ATTRIBUTES_METADATA;
+import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.TOKEN_METADATA_IN_RESPONSE_TO;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -101,6 +102,7 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.typeCompatibleWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -121,7 +123,7 @@ public class SamlRealmTests extends SamlTestCase {
     private ThreadContext threadContext;
 
     @Before
-    public void setupEnv() throws PrivilegedActionException {
+    public void setupEnv() throws Exception {
         SamlUtils.initialize(logger);
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         env = TestEnvironment.newEnvironment(globalSettings);
@@ -580,6 +582,7 @@ public class SamlRealmTests extends SamlTestCase {
         final String nameIdValue = principalIsEmailAddress ? "clint.barton@shield.gov" : "clint.barton";
         final String uidValue = principalIsEmailAddress ? "cbarton@shield.gov" : "cbarton";
         final String realmType = SingleSpSamlRealmSettings.TYPE;
+        final String inResponseTo = "_request_id_12345";
 
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("mock", "mock_lookup");
         final MockLookupRealm lookupRealm = new MockLookupRealm(
@@ -669,6 +672,7 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.PERSISTENT, nameIdValue, idp.getEntityID(), sp.getEntityId(), null),
             randomAlphaOfLength(16),
+            inResponseTo,
             List.of(
                 new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.1", "uid", Collections.singletonList(uidValue)),
                 new SamlAttributes.SamlAttribute("urn:oid:1.3.6.1.4.1.5923.1.5.1.1", "groups", groups),
@@ -698,6 +702,11 @@ public class SamlRealmTests extends SamlTestCase {
                     @SuppressWarnings("unchecked")
                     var metadata = (Map<String, List<SecureString>>) result.getMetadata().get(PRIVATE_ATTRIBUTES_METADATA);
                     secureAttributes.forEach((name, value) -> assertThat(metadata.get(name), equalTo(value)));
+                    Object tokenContext = result.getMetadata().get(CONTEXT_TOKEN_DATA);
+                    assertThat(tokenContext, notNullValue());
+                    assertThat(tokenContext.getClass(), typeCompatibleWith(Map.class));
+                    Object returnedInResponseTo = ((Map<?, ?>) tokenContext).get(TOKEN_METADATA_IN_RESPONSE_TO);
+                    assertThat(returnedInResponseTo, equalTo(inResponseTo));
                 }
                 super.onResponse(result);
             }
@@ -778,6 +787,7 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
             randomAlphaOfLength(16),
+            randomAlphaOfLength(16),
             List.of(
                 new SamlAttributes.SamlAttribute(
                     "departments",
@@ -850,6 +860,7 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
             randomAlphaOfLength(16),
+            randomAlphaOfLength(16),
             List.of(
                 new SamlAttributes.SamlAttribute(
                     "departments",
@@ -882,6 +893,7 @@ public class SamlRealmTests extends SamlTestCase {
 
         final SamlAttributes attributes = new SamlAttributes(
             new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
+            randomAlphaOfLength(16),
             randomAlphaOfLength(16),
             List.of(
                 new SamlAttributes.SamlAttribute(
@@ -1052,6 +1064,7 @@ public class SamlRealmTests extends SamlTestCase {
         for (String mail : Arrays.asList("john@your-corp.example.com", "john@mycorp.example.com.example.net", "john")) {
             final SamlAttributes attributes = new SamlAttributes(
                 new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(12), null, null, null),
+                randomAlphaOfLength(16),
                 randomAlphaOfLength(16),
                 List.of(new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Collections.singletonList(mail))),
                 List.of()

@@ -58,6 +58,8 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
 
     private DebugMode debugDecision = DebugMode.OFF;
 
+    private boolean hasPendingAsyncFetch = false;
+
     protected final long currentNanoTime;
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
@@ -312,13 +314,17 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
      * Returns <code>true</code> iff the current allocation run has not processed all of the in-flight or available
      * shard or store fetches. Otherwise <code>true</code>
      */
-    public abstract boolean hasPendingAsyncFetch();
+    public boolean hasPendingAsyncFetch() {
+        return hasPendingAsyncFetch;
+    }
 
     /**
      * Sets a flag that signals that current allocation run has not processed all of the in-flight or available shard or store fetches.
      * This state is anti-viral and can be reset in on allocation run.
      */
-    public abstract void setHasPendingAsyncFetch();
+    public void setHasPendingAsyncFetch() {
+        this.hasPendingAsyncFetch = true;
+    }
 
     /**
      * Returns an approximation of the size (in bytes) of the unaccounted searchable snapshots before the allocation

@@ -279,11 +279,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                     acquired
                                 );
                                 delegate.run();
-                            } catch (AssertionError e) {
-                                errorHandler.accept(new RuntimeException(e));
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                errorHandler.accept(e);
+                            } catch (AssertionError | InterruptedException e) {
+                                throw new RuntimeException(e);
                             } finally {
                                 if (acquired) {
                                     replacePrimaryLock.readLock().unlock();
@@ -828,7 +825,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             final Consumer<Exception> errorHandler
         ) {
             Runnable task = bulkShardOperationsTask(followerHistoryUUID, operations, maxSeqNoOfUpdates, handler, errorHandler);
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
+            try {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
+            } catch (Exception e) {
+                errorHandler.accept(e);
+            }
         }
 
         /**

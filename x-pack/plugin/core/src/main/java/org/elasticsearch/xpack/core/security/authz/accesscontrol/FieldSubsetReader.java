@@ -87,7 +87,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         Function<String, Boolean> isMapped,
         Function<String, String> getParentField
     ) throws IOException {
-        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped);
+        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat, isMapped, getParentField);
     }
 
     // wraps subreaders with fieldsubsetreaders.

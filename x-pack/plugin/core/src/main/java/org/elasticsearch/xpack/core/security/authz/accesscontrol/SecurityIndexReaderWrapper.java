@@ -98,6 +98,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
             var searchContext = searchExecutionContextProvider.apply(shardId);
             Function<String, Boolean> isMapped = searchContext::isFieldMapped;
+            var mappingLookup = searchContext.getMappingLookup();
             Function<String, String> getParentField = mappingLookup::parentField;
 
             return permissions.getFieldPermissions().filter(wrappedReader, searchContext.getIndexSettings(), isMapped, getParentField);

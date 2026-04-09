@@ -40,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -724,14 +725,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .nodeIdsWriteLoadHotspotting(hotspotIds)
             .build();
 
-        var routingAllocation = new RoutingAllocation(
-            null,
-            RoutingNodes.immutable(clusterState.globalRoutingTable(), clusterState.nodes()),
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         ShardRouting highShardRouting = TestShardRouting.newShardRouting(highShard, node.getId(), null, true, ShardRoutingState.STARTED);
@@ -796,14 +790,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .nodeIdsWriteLoadHotspotting(hotspotIds)
             .build();
 
-        routingAllocation = new RoutingAllocation(
-            null,
-            RoutingNodes.immutable(clusterState.globalRoutingTable(), clusterState.nodes()),
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
 
         // both high and low shards decide NOT_PREFERRED to canRemain, as the proportion
         // of load is under 90% on any one shard

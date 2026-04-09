@@ -264,7 +264,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
 
         @Override
-        protected void warmCacheRecovery(
+        protected void warmCache(
             Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,

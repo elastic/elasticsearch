@@ -434,3 +434,19 @@ date_range:date_range  | max_bound:date
 // end::range_max-result[]
 ;
 
+rangeMinMaxReparse
+required_capability: date_range_field_type_v2
+
+FROM decades
+| WHERE decade == 1900 OR decade == 2000
+| EVAL min_bound = RANGE_MIN(date_range)
+| EVAL max_bound = RANGE_MAX(date_range)
+| EVAL new_range = TO_DATE_RANGE(CONCAT(min_bound::keyword, "..", max_bound::keyword))
+| KEEP date_range, min_bound, max_bound, new_range
+;
+
+date_range:date_range  | min_bound:date           | max_bound:date           | new_range:date_range
+1900-01-01..1910-01-01 | 1900-01-01T00:00:00.000Z | 1910-01-01T00:00:00.000Z | 1900-01-01..1910-01-01
+2000-01-01..2010-01-01 | 2000-01-01T00:00:00.000Z | 2010-01-01T00:00:00.000Z | 2000-01-01..2010-01-01
+;
+

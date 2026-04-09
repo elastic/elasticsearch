@@ -230,12 +230,7 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         LuceneDocument doc = new LuceneDocument();
 
         // when
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-            doc,
-            "field",
-            new BytesRef("val"),
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-        );
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, "field", new BytesRef("val"));
 
         // then
         assertNotNull(doc.getByKey("field"));
@@ -268,18 +263,8 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
         LuceneDocument doc = new LuceneDocument();
 
         // when
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-            doc,
-            "field",
-            new BytesRef("aaa"),
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-        );
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-            doc,
-            "field",
-            new BytesRef("bbb"),
-            MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-        );
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, "field", new BytesRef("aaa"));
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, "field", new BytesRef("bbb"));
 
         // then
         var field = (SeparateCount) doc.getByKey("field");

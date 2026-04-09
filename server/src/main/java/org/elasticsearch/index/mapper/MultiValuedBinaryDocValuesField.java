@@ -89,6 +89,10 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         addToBinaryFieldInDoc(doc, fieldName, value, ordering, IndexVersion.current());
     }
 
+    public static void addToBinaryFieldInDoc(LuceneDocument doc, String fieldName, BytesRef value) {
+        addToBinaryFieldInDoc(doc, fieldName, value, ValueOrdering.SORTED_UNIQUE, IndexVersion.current());
+    }
+
     /**
      * This function exists for backwards compatibility with old indices that used {@link IntegratedCount}.
      * <p>

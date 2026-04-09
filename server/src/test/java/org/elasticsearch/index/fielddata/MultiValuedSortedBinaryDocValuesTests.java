@@ -39,12 +39,7 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 LuceneDocument doc = new LuceneDocument();
                 for (BytesRef value : expected) {
-                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                        doc,
-                        "field",
-                        value,
-                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                    );
+                    MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, "field", value);
                 }
                 iw.addDocument(doc);
             }
@@ -120,12 +115,7 @@ public class MultiValuedSortedBinaryDocValuesTests extends ESTestCase {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 LuceneDocument doc = new LuceneDocument();
-                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-                    doc,
-                    "field",
-                    expected,
-                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
-                );
+                MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(doc, "field", expected);
                 iw.addDocument(doc);
             }
 

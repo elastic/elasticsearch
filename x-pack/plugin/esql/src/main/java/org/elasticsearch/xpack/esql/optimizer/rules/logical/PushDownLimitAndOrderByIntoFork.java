@@ -25,12 +25,12 @@ import java.util.Map;
 /**
  * Pushes down any SORT + LIMIT (TopN) that appear immediately after a FORK, into the FORK branches that have no pipeline breaker.
  * In the following example, assuming no FORK implicit limit is added, both FORK branches are missing a pipeline breaker:
- * <pre>{@code
+ * {@snippet lang="esql" :
  * FROM my-index
  * | FORK (WHERE x) (WHERE y)
  * | SORT z
  * | LIMIT 10
- * }</pre>
+ * }
  * By pushing down (TopN) in both branches, we reduce the number of rows that are returned to the coordinator.
  */
 public class PushDownLimitAndOrderByIntoFork extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {

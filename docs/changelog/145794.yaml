@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145794
+summary: Fix handling of values on the time bucket boundaries for ES|QL increase
+type: bug

@@ -36,6 +36,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
+  testImplementation project(':x-pack:plugin:diskbbq')
   testImplementation project(':modules:reindex')
   testImplementation project(':modules:mapper-extras')
   testImplementation project(':x-pack:plugin:ml')

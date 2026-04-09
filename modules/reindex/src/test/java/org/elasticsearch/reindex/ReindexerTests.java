@@ -1265,7 +1265,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final var termQuery = QueryBuilders.termQuery("field", "value");
@@ -1753,7 +1754,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     transportService,
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
                 reindexerRef.set(reindexer);
 
@@ -1872,7 +1874,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final int scrollMinutes = randomIntBetween(3, 20);
@@ -1946,7 +1949,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -2018,7 +2022,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
@@ -2090,7 +2095,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -2206,7 +2212,8 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    featureService
+                    featureService,
+                    mock(TaskResultsService.class)
                 );
 
                 ReindexRequest request = new ReindexRequest();
@@ -2309,7 +2316,8 @@ public class ReindexerTests extends ESTestCase {
             null,
             mock(TransportService.class),
             mock(ReindexRelocationNodePicker.class),
-            mock(FeatureService.class)
+            mock(FeatureService.class),
+            mock(TaskResultsService.class)
         );
         RestClient restClient = mock(RestClient.class);
         IOException ioException = new IOException("simulated close failure");

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoField;
 
 /**
  * PromQL built-in function definitions that do not correspond to a dedicated ES|QL function class.
@@ -41,7 +40,7 @@ class PromqlBuiltinFunctionDefinitions {
         .dateTime(
             (source, date, configuration) -> new ToDouble(
                 source,
-                new DateExtract(source, Literal.keyword(source, ChronoField.YEAR.name()), date, configuration.withZoneId(ZoneOffset.UTC))
+                new DateExtract(source, Literal.keyword(source, "year"), date, configuration.withZoneId(ZoneOffset.UTC))
             )
         )
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)

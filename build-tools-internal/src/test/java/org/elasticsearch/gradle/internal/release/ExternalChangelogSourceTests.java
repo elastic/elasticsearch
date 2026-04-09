@@ -52,26 +52,26 @@ public class ExternalChangelogSourceTests {
     }
 
     @Test
-    public void testNormalizeBranchStripsPrefixes() throws Exception {
-        var method = BundleChangelogsTask.class.getDeclaredMethod("normalizeBranchForExternalFetch", String.class);
-        method.setAccessible(true);
-
-        assertThat(method.invoke(null, "main"), equalTo("main"));
-        assertThat(method.invoke(null, "9.3"), equalTo("9.3"));
-        assertThat(method.invoke(null, "upstream/main"), equalTo("main"));
-        assertThat(method.invoke(null, "origin/9.3"), equalTo("9.3"));
+    public void testNormalizeBranchStripsPrefixes() {
+        assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("main"), equalTo("main"));
+        assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("9.3"), equalTo("9.3"));
+        assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("upstream/main"), equalTo("main"));
+        assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("origin/9.3"), equalTo("9.3"));
     }
 
     @Test
-    public void testNormalizeBranchRejectsSha() throws Exception {
-        var method = BundleChangelogsTask.class.getDeclaredMethod("normalizeBranchForExternalFetch", String.class);
-        method.setAccessible(true);
+    public void testNormalizeBranchPreservesSlashesInBranchNames() {
+        assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("feature/foo"), equalTo("feature/foo"));
+        assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("refs/heads/main"), equalTo("refs/heads/main"));
+        assertThat(BundleChangelogsTask.normalizeBranchForExternalFetch("release/9.4.0"), equalTo("release/9.4.0"));
+    }
 
-        var exception = assertThrows(
-            java.lang.reflect.InvocationTargetException.class,
-            () -> method.invoke(null, "abc1234def5678")
+    @Test
+    public void testNormalizeBranchRejectsSha() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> BundleChangelogsTask.normalizeBranchForExternalFetch("abc1234def5678")
         );
-        assertThat(exception.getCause().getClass(), equalTo(IllegalArgumentException.class));
     }
 
     @Test

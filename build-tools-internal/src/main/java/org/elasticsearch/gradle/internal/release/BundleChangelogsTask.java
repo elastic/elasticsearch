@@ -287,20 +287,25 @@ public class BundleChangelogsTask extends DefaultTask {
         return entries;
     }
 
+    private static final Set<String> KNOWN_REMOTE_PREFIXES = Set.of("upstream/", "origin/");
+
     /**
-     * Normalizes a branch reference for use with external repos. Strips any
-     * {@code upstream/} or remote prefix (which is ES-repo-specific) and rejects
-     * raw commit SHAs since they are meaningless for external repositories.
+     * Normalizes a branch reference for use with external repos. Strips known
+     * remote prefixes ({@code upstream/}, {@code origin/}) which are ES-repo-specific,
+     * and rejects raw commit SHAs since they are meaningless for external repositories.
+     * All other refs (including branch names with slashes like {@code feature/foo})
+     * are passed through unchanged.
      */
-    private static String normalizeBranchForExternalFetch(String branchRef) {
+    static String normalizeBranchForExternalFetch(String branchRef) {
         if (branchRef.matches("^[0-9a-f]{7,40}$")) {
             throw new IllegalArgumentException(
                 "Cannot use a commit SHA (" + branchRef + ") for external changelog sources. Use a branch name instead."
             );
         }
-        int slashIndex = branchRef.indexOf('/');
-        if (slashIndex >= 0) {
-            return branchRef.substring(slashIndex + 1);
+        for (String prefix : KNOWN_REMOTE_PREFIXES) {
+            if (branchRef.startsWith(prefix)) {
+                return branchRef.substring(prefix.length());
+            }
         }
         return branchRef;
     }
